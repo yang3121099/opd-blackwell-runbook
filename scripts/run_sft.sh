@@ -37,7 +37,7 @@ torchrun --standalone --nnodes=1 --nproc_per_node=1 -m verl.trainer.fsdp_sft_tra
   trainer.total_epochs=$EPOCHS trainer.total_training_steps=$STEPS trainer.save_freq=$SPE trainer.test_freq=-1 \
   trainer.logger='["console"]' trainer.n_gpus_per_node=1 trainer.resume_mode=disable \
   trainer.checkpoint.save_contents='["model","hf_model"]' 2>&1 | tee $OUT/train.log
-[ -f $OUT/ckpt/global_step_$STEPS/huggingface/model.safetensors ] || { echo "no final checkpoint"; exit 1; }
+has_weights $OUT/ckpt/global_step_$STEPS/huggingface || { echo "no final checkpoint"; exit 1; }
 echo "finished: $(date -u +%FT%TZ)" >> $OUT/config.yaml
 cd $RUNBOOK; rm -rf $OUT/final_bf16; python scripts/to_bf16.py $OUT/ckpt/global_step_$STEPS/huggingface $OUT/final_bf16
 python scripts/remote.py put $OUT/final_bf16 runs/$T/global_step_$STEPS/huggingface

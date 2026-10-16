@@ -86,6 +86,7 @@ python3 -m verl.trainer.main_ppo \
   trainer.default_local_dir=$OUT/ckpt \
   2>&1 | tee -a $OUT/train.log
 LAST=$(grep -oE "(^|[ )])step:[0-9]+ - " $OUT/train.log | tail -1 | grep -oE "[0-9]+")
-echo "completed_steps: ${LAST:-unknown}" >> $OUT/config.yaml; echo "finished: $(date -u +%FT%TZ)" >> $OUT/config.yaml
-[ "${LAST:-0}" -ge "$STEPS" ] && touch $OUT/.done
+echo "completed_steps: ${LAST:-unknown}" >> $OUT/config.yaml
+if [ "${LAST:-0}" -ge $STEPS ]; then echo "finished: $(date -u +%FT%TZ)" >> $OUT/config.yaml; touch $OUT/.done
+else echo "stopped: $(date -u +%FT%TZ) before the last step (v2.3: no finished: line, so upload_sync keeps running for the retry)" >> $OUT/config.yaml; fi
 echo "TASK_FINISHED $TASK steps=${LAST:-unknown}"

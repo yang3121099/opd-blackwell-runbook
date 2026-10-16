@@ -16,7 +16,7 @@ case $A in
   *)  START=$OPD_ROOT/runs/E10b-$A/ckpt/global_step_150/actor/huggingface;;
 esac
 case $A in P0|P1|P2|P3|P5) STEPS=100;; *) STEPS=60;; esac
-[ $A = P0 ] || [ -f $START/model.safetensors ] || { echo "missing start checkpoint $START"; exit 1; }
+[ $A = P0 ] || has_weights $START || { echo "missing start checkpoint $START"; exit 1; }
 source $OPD_ROOT/venv/bin/activate
 export CUDA_VISIBLE_DEVICES=$G RAY_TMPDIR=/tmp/ray_gpu$G PYTHONPATH=$RUNBOOK/code/patches:${PYTHONPATH:-}
 unset OPD_VARIANT
@@ -61,6 +61,7 @@ python3 -m verl.trainer.main_ppo \
   trainer.rollout_data_dir=$OUT/rollouts trainer.total_training_steps=$STEPS trainer.total_epochs=1 \
   trainer.default_local_dir=$OUT/ckpt 2>&1 | tee -a $OUT/train.log
 LAST=$(grep -oE "(^|[ )])step:[0-9]+ - " $OUT/train.log | tail -1 | grep -oE "[0-9]+")
-echo "completed_steps: ${LAST:-unknown}" >> $OUT/config.yaml; echo "finished: $(date -u +%FT%TZ)" >> $OUT/config.yaml
-[ "${LAST:-0}" -ge $STEPS ] && touch $OUT/.done
+echo "completed_steps: ${LAST:-unknown}" >> $OUT/config.yaml
+if [ "${LAST:-0}" -ge $STEPS ]; then echo "finished: $(date -u +%FT%TZ)" >> $OUT/config.yaml; touch $OUT/.done
+else echo "stopped: $(date -u +%FT%TZ) before the last step (v2.3: no finished: line, so upload_sync keeps running for the retry)" >> $OUT/config.yaml; fi
 cd $RUNBOOK && python code/analysis/e12_rollout_stats.py $OUT --tokenizer $STUDENT_17B > /dev/null 2>&1 || true

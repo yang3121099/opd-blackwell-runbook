@@ -3,7 +3,8 @@
 # queue order, one task per free GPU (no compute process and <= 2 GB used), 90 s apart. `git pull` every 30 minutes.
 #  - an "auto" stage opens once every task of every earlier stage is finished (.done locally or in the result
 #    repository, or failed 3 times); a "locked" stage never opens and holds back everything after it
-#  - a task starts only when its deps are .done; a task whose dep failed for good is skipped and reported
+#  - a task starts only when its deps are .done; a task whose dep failed for good gets runs/<task>/.skipped and counts
+#    as finished, so later stages still open (v2.3: before, it held its stage open forever and stalled the ladder)
 #  - fail-fast: a task that exits without .done gets runs/<task>/.failed (attempt count + the log tail, reported by the
 #    heartbeat) and is retried at most twice (3 attempts in all)
 # DRY=1 prints what would start, without starting anything.
@@ -11,7 +12,10 @@ set -uo pipefail
 source "$(dirname "$0")/env.sh"; source $OPD_ROOT/venv/bin/activate
 NGPU=$(nvidia-smi --query-gpu=index --format=csv,noheader 2>/dev/null | wc -l)
 Q=$RUNBOOK/tasks/queue.txt; last_pull=0
-done_() { [ -f $OPD_ROOT/runs/$1/.done ] || python $RUNBOOK/scripts/remote.py done $1 2>/dev/null; }
+# done locally, or in the result repository; a remote hit is cached as a local .done so it is asked only once (v2.3)
+done_() { [ -f $OPD_ROOT/runs/$1/.done ] && return 0
+  python $RUNBOOK/scripts/remote.py done $1 2>/dev/null && { mkdir -p $OPD_ROOT/runs/$1; touch $OPD_ROOT/runs/$1/.done; }; }
+skipped() { [ -f $OPD_ROOT/runs/$1/.skipped ]; }
 attempts() { sed -n 's/^attempts: //p' $OPD_ROOT/runs/$1/.failed 2>/dev/null || echo 0; }
 dead() { [ "$(attempts $1)" -ge 3 ]; }
 running() { pgrep -f "task.sh [0-9]+ $1\$" >/dev/null; }
@@ -33,11 +37,16 @@ while true; do
     stage_finished=1
     for spec in $rest; do
       t=${spec%%:*}; deps=""; [ "$spec" != "$t" ] && deps=$(echo ${spec#*:} | tr '+' ' ')
-      if done_ $t || dead $t; then continue; fi
+      if done_ $t || dead $t || skipped $t; then continue; fi
+      bad=""; for d in $deps; do dead $d || skipped $d && bad="$bad $d"; done
+      if [ -n "$bad" ]; then   # a dependency failed for good: this task can never run; it no longer blocks its stage
+        mkdir -p $OPD_ROOT/runs/$t; echo "skipped: dependency failed for good:$bad ($(date -u +%FT%TZ))" > $OPD_ROOT/runs/$t/.skipped
+        echo "SKIP $t: dependency$bad failed for good"; continue
+      fi
       stage_finished=0
       [ $opened = 1 ] || continue
       running $t && continue
-      ok=1; for d in $deps; do done_ $d || { dead $d && echo "SKIP $t: dep $d failed for good"; ok=0; }; done
+      ok=1; for d in $deps; do done_ $d || ok=0; done
       [ $ok = 1 ] || continue
       [ ${#FREE[@]} -gt 0 ] || continue
       g=${FREE[0]}; FREE=("${FREE[@]:1}")

@@ -9,7 +9,7 @@ source "$(dirname "$0")/env.sh"; G=$1; T=$2; A=${T#E11b-}; OUT=$OPD_ROOT/runs/$T
 [ -f $OUT/.done ] && exit 0
 source $OPD_ROOT/venv/bin/activate; export CUDA_VISIBLE_DEVICES=$G
 M=$STUDENT_17B; [ $A = P0 ] || M=$OPD_ROOT/runs/E10b-$A/ckpt/global_step_150/actor/huggingface
-[ $A = P0 ] || [ -f $M/model.safetensors ] || { echo "missing checkpoint $M"; exit 1; }
+[ $A = P0 ] || has_weights $M || { echo "missing checkpoint $M"; exit 1; }
 cd $RUNBOOK
 for t in "T0.6 --temperature 0.6 --top_p 0.95 --top_k 0" "T1.0 --temperature 1.0 --top_p 1.0 --top_k 0"; do
   set -- $t; tag=e11b_${A}_math500_$1; shift
@@ -22,5 +22,5 @@ if [ $A != P0 ]; then
   [ -f $OUT/twr.json ] || python code/leakage/twr_alpha.py --judge $STUDENT_17B --bench math500 --ref $REF --score $SC \
                                 --model_k $M --per_problem 4 --out $OUT/twr.json
 fi
-touch $OUT/.done
-python scripts/remote.py put $OUT runs/$T && echo "UP_OK $T"
+# .done only after the upload (v2.3): a failed upload makes run_tasks retry, and the retry only re-uploads
+python scripts/remote.py put $OUT runs/$T && touch $OUT/.done && echo "UP_OK $T"

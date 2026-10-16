@@ -8,5 +8,8 @@ pip install "torch==2.8.0" "vllm==0.10.2" "transformers>=4.55.2,<4.57" accelerat
   "numpy<2.0.0" "pyarrow>=15.0.0" pandas "ray[default]" codetiming hydra-core pylatexenc dill pybind11 \
   "tensordict>=0.8,<0.10" torchdata liger-kernel mathruler pytest math-verify safetensors "flashinfer-python==0.3.0" \
   "huggingface_hub>=0.34" modelscope
+# B300 (compute capability 10.3, v2.3): put the CUDA 12.9 ptxas in place for the second fix (README section 2b);
+# it is used only after $OPD_ROOT/triton.env points TRITON_PTXAS_PATH at it
+if [ "$(gpu_cap)" = 10.3 ]; then pip install "$B300_PTXAS"; fi
 mkdir -p $OPD_ROOT && ln -sfn "$CONDA_PREFIX" $OPD_ROOT/venv     # scripts activate $OPD_ROOT/venv/bin/activate
 bash $RUNBOOK/scripts/install_gopd.sh
