@@ -11,7 +11,10 @@ BACKEND = os.environ.get("UPLOAD_BACKEND", "hf")
 
 def hf():
     from huggingface_hub import HfApi
-    return HfApi(token=os.environ["HF_TOKEN"]), os.environ["HF_REPO"]
+    # the result repository is always reached at huggingface.co (v2.2): HF_ENDPOINT (e.g. the read-only hf-mirror.com)
+    # only speeds up downloads of public models and data and must not redirect uploads; HF_UPLOAD_ENDPOINT overrides
+    return (HfApi(endpoint=os.environ.get("HF_UPLOAD_ENDPOINT", "https://huggingface.co"), token=os.environ["HF_TOKEN"]),
+            os.environ["HF_REPO"])
 
 
 def ms():

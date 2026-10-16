@@ -13,13 +13,13 @@ source "$(dirname "$0")/env.sh"; G=$1; T=$2; OUT=$OPD_ROOT/runs/$T; mkdir -p $OU
 [ -f $OUT/.done ] && exit 0
 source $OPD_ROOT/venv/bin/activate; export CUDA_VISIBLE_DEVICES=$G; cd $RUNBOOK
 ls $OPD_ROOT/data/p1_traces/shard*.jsonl* >/dev/null 2>&1 || \
-  python code/train/gen_teacher_traces.py --shard 0 --nshards 1 --out $OPD_ROOT/data/p1_traces > $OUT/traces.log 2>&1
+  python code/train/gen_teacher_traces.py --teacher $TEACHER --shard 0 --nshards 1 --out $OPD_ROOT/data/p1_traces > $OUT/traces.log 2>&1
 python code/train/build_sft_data.py --mode p1 --out $OPD_ROOT/data/sft_p1_17b.parquet $OPD_ROOT/data/p1_traces/shard*.jsonl* | tee $OUT/sft_data.json
 read STEPS SPE EPOCHS <<< "$(python -c "import json;d=json.load(open('$OUT/sft_data.json'));print(d['steps_for_budget'],d['steps_per_epoch'],d['total_epochs_arg'])")"
 if python -c "import flash_attn" 2>/dev/null; then RMPAD=True; export OPD_ATTN=flash_attention_2; else RMPAD=False; export OPD_ATTN=sdpa; fi
 cat > $OUT/config.yaml <<CFG
 task: $T
-student: Qwen/Qwen3-1.7B (non-thinking rendering)
+student: $STUDENT_17B (non-thinking rendering)
 lr: 1e-5
 steps: $STEPS (steps_per_epoch $SPE, token budget 49.2M)
 attention: $OPD_ATTN (use_remove_padding=$RMPAD)
@@ -32,7 +32,7 @@ torchrun --standalone --nnodes=1 --nproc_per_node=1 -m verl.trainer.fsdp_sft_tra
   data.prompt_key=prompt data.response_key=response data.max_length=6144 data.truncation=right \
   data.train_batch_size=128 data.micro_batch_size_per_gpu=${MICRO:-2} \
   +data.apply_chat_template_kwargs.enable_thinking=False \
-  model.partial_pretrain=Qwen/Qwen3-1.7B model.enable_gradient_checkpointing=True use_remove_padding=$RMPAD \
+  model.partial_pretrain=$STUDENT_17B model.enable_gradient_checkpointing=True use_remove_padding=$RMPAD \
   optim.lr=1e-5 trainer.default_local_dir=$OUT/ckpt trainer.project_name=opd-e10b trainer.experiment_name=$T \
   trainer.total_epochs=$EPOCHS trainer.total_training_steps=$STEPS trainer.save_freq=$SPE trainer.test_freq=-1 \
   trainer.logger='["console"]' trainer.n_gpus_per_node=1 trainer.resume_mode=disable \

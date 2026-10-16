@@ -16,6 +16,5 @@ try:
 except Exception:
     print("flash_attn not installed: SDPA, use_remove_padding off")
 PY
-bash $RUNBOOK/scripts/download_models.sh
-python $RUNBOOK/code/train/prep_data.py
+echo "INSTALL DONE. Next (README section 2a): bash scripts/scan_cache.sh, then bash scripts/download_models.sh (v2.2: the download is a separate step)"
 echo INSTALL_DONE

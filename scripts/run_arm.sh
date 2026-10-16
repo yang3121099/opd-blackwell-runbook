@@ -3,7 +3,7 @@
 # Same recipe as the lab's 0.6B E10 arms (run_e10_arm.sh) except: the student, checkpoints every 25 steps with the
 # resume state (resume_mode=auto: re-running the same command continues), and SDPA when flash-attn is absent.
 # Idempotent: a finished task (runs/<task>/.done) is skipped. SMOKE=1 runs 3 steps without validation or checkpoints
-# (the verification smoke sets STUDENT=Qwen/Qwen3-0.6B).
+# (the verification smoke sets STUDENT=$STUDENT_06B). Models: STUDENT_17B / TEACHER from env.sh (models.env).
 # Usage: bash run_arm.sh <gpu> <task id>      task ids: E10b-{P2,P3,P4lowlr,P5,P6,P6r,P2noEOS,Pstop,P6rand,P6top5,P4EOSpen}
 #        and the seed replicates E10b-P2-s43/-s44, E10b-P6r-s43/-s44
 set -euo pipefail
@@ -20,7 +20,7 @@ esac
 [ "${SMOKE:-0}" = 1 ] && TASK=smoke-$TASK
 OUT=$OPD_ROOT/runs/$TASK; mkdir -p $OUT
 [ -f $OUT/.done ] && { echo "TASK_ALREADY_DONE $TASK"; exit 0; }
-STUDENT=${STUDENT:-Qwen/Qwen3-1.7B}   # the verification smoke uses Qwen/Qwen3-0.6B
+STUDENT=${STUDENT:-$STUDENT_17B}   # the verification smoke uses $STUDENT_06B
 source $OPD_ROOT/venv/bin/activate
 export CUDA_VISIBLE_DEVICES=$GPU RAY_TMPDIR=/tmp/ray_gpu$GPU
 export PYTHONPATH=$RUNBOOK/code/patches:${PYTHONPATH:-}
@@ -39,7 +39,7 @@ lr: $LR
 data_seed: $SEED
 steps: $STEPS
 student: $STUDENT (no_think)
-teacher: Qwen/Qwen3-8B (ref; think-template=$OPD_REF_THINK)
+teacher: $TEACHER (ref; think-template=$OPD_REF_THINK)
 attention: $ATTN (use_remove_padding=$RMPAD)
 gopd_commit: $GOPD_COMMIT
 gpu: $(nvidia-smi --query-gpu=name --format=csv,noheader -i $GPU)
@@ -58,7 +58,7 @@ python3 -m verl.trainer.main_ppo \
   data.train_batch_size=128 data.max_prompt_length=1024 data.max_response_length=4096 \
   data.filter_overlong_prompts=True data.truncation=error data.shuffle=True data.seed=$SEED data.return_raw_chat=True \
   +data.apply_chat_template_kwargs.enable_thinking=False \
-  actor_rollout_ref.model.path=$STUDENT +actor_rollout_ref.ref.model.path=Qwen/Qwen3-8B \
+  actor_rollout_ref.model.path=$STUDENT +actor_rollout_ref.ref.model.path=$TEACHER \
   +actor_rollout_ref.model.override_config.attn_implementation=$ATTN \
   actor_rollout_ref.actor.optim.lr=$LR actor_rollout_ref.actor.optim.lr_warmup_steps_ratio=0.0 \
   actor_rollout_ref.model.use_remove_padding=$RMPAD \

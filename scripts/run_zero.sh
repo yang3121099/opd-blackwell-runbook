@@ -19,7 +19,7 @@ case $T in
     python code/eval/gen_eval.py --model $M --bench math500 --mode think --n 4 --temperature 0.6 --top_p 0.95 --top_k 20 \
       --max_tokens 32768 --tag e03_mi_${L}_math500 --out $OUT;;
   E02-opsa*)
-    S=${T#E02-opsa}; S=${S%%-c*}; C=${T##*-c}; B=Qwen/Qwen3-4B; [ $S = 17 ] && B=Qwen/Qwen3-1.7B
+    S=${T#E02-opsa}; S=${S%%-c*}; C=${T##*-c}; B=Qwen/Qwen3-4B; [ $S = 17 ] && B=$STUDENT_17B
     M=$TMP/opsa${S}_c$C
     [ -d $M ] || python code/weights/wops.py scale --base $B --ft Tuwhy/${B#Qwen/}-OPSA --c $C --out $M
     python code/eval/gen_eval.py --model $M --bench aime24 --mode no_think --n 16 --temperature 0.7 --top_p 0.8 --top_k 20 \

@@ -11,7 +11,7 @@ set -euo pipefail
 source "$(dirname "$0")/env.sh"; G=$1; T=$2; A=${T#E12b-}; OUT=$OPD_ROOT/runs/$T; mkdir -p $OUT/rollouts
 [ -f $OUT/.done ] && exit 0
 case $A in
-  P0) START=Qwen/Qwen3-1.7B;;
+  P0) START=$STUDENT_17B;;
   P1) START=$OPD_ROOT/runs/SFT-P1/ckpt/global_step_$(cat $OPD_ROOT/runs/SFT-P1/final_step)/huggingface;;
   *)  START=$OPD_ROOT/runs/E10b-$A/ckpt/global_step_150/actor/huggingface;;
 esac
@@ -63,4 +63,4 @@ python3 -m verl.trainer.main_ppo \
 LAST=$(grep -oE "(^|[ )])step:[0-9]+ - " $OUT/train.log | tail -1 | grep -oE "[0-9]+")
 echo "completed_steps: ${LAST:-unknown}" >> $OUT/config.yaml; echo "finished: $(date -u +%FT%TZ)" >> $OUT/config.yaml
 [ "${LAST:-0}" -ge $STEPS ] && touch $OUT/.done
-cd $RUNBOOK && python code/analysis/e12_rollout_stats.py $OUT --tokenizer Qwen/Qwen3-1.7B > /dev/null 2>&1 || true
+cd $RUNBOOK && python code/analysis/e12_rollout_stats.py $OUT --tokenizer $STUDENT_17B > /dev/null 2>&1 || true

@@ -24,7 +24,7 @@ CUDA_VISIBLE_DEVICES=0 python $RUNBOOK/scripts/vllm_check.py 2>&1 | grep -E "VLL
 [ ${PIPESTATUS[0]} = 0 ] && echo "VLLM PASS" || echo "VLLM FAIL"
 echo "== 3. 3-step P2 smoke: 0.6B student + 8B teacher (no validation, no checkpoints)"
 t=$(date +%s)
-SMOKE=1 STUDENT=Qwen/Qwen3-0.6B bash $RUNBOOK/scripts/run_arm.sh 0 E10b-P2 > $OPD_ROOT/logs/smoke.log 2>&1; rc=$?
+SMOKE=1 STUDENT=$STUDENT_06B bash $RUNBOOK/scripts/run_arm.sh 0 E10b-P2 > $OPD_ROOT/logs/smoke.log 2>&1; rc=$?
 grep -E "(^|[ )])step:[0-9]+ - " $OPD_ROOT/logs/smoke.log | tr ' ' '\n' | \
   grep -E '^(step:|timing_s/step:|perf/max_memory_allocated_gb:|actor/pg_loss:|actor/entropy:|response_length/mean:|opd/adv_abs_mean:)' | paste -s -d ' '
 nan=$(grep -E "(^|[ )])step:[0-9]+ - " $OPD_ROOT/logs/smoke.log | grep -ciE ":(nan|inf)( |$)")
@@ -37,9 +37,9 @@ t=$(date +%s); U=$OPD_ROOT/runs/smoke-upload; rm -rf $U; mkdir -p $U/ckpt/global
 python - $U/ckpt/global_step_1/actor/huggingface > $OPD_ROOT/logs/smoke_upload.log 2>&1 <<'PY'
 import sys, torch   # the same save as verl's actor/huggingface: fp32 weights, 5 GB shards, tokenizer files, and
 from transformers import AutoModelForCausalLM, AutoTokenizer   # lm_head.weight written although tied (FSDP full state dict)
-m = AutoModelForCausalLM.from_pretrained("Qwen/Qwen3-1.7B", torch_dtype=torch.float32)
+import os; m = AutoModelForCausalLM.from_pretrained(os.environ["STUDENT_17B"], torch_dtype=torch.float32)
 m.save_pretrained(sys.argv[1], state_dict={k: v.detach().clone() for k, v in m.state_dict().items()}, max_shard_size="5GB")
-AutoTokenizer.from_pretrained("Qwen/Qwen3-1.7B").save_pretrained(sys.argv[1])
+AutoTokenizer.from_pretrained(os.environ["STUDENT_17B"]).save_pretrained(sys.argv[1])
 PY
 echo 1 > $U/ckpt/latest_checkpointed_iteration.txt; touch -d '-5 min' $U/ckpt/global_step_1/actor/huggingface/*.safetensors
 echo "finished: upload smoke" > $U/config.yaml
