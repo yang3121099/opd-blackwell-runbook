@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Three checks before any task: (1) G2 unit tests of the patches, (2) accept: GPU/driver/CUDA, bf16 matmul, disk,
+# vLLM start + 4 generations, (3) a 3-step P2 smoke with the 0.6B student + 8B teacher (no validation, no checkpoints).
+# Pass = every step has a finite loss, no NaN anywhere, peak memory within the card. Send the log back. About 1 hour.
+set -uo pipefail
+source "$(dirname "$0")/env.sh"; source $OPD_ROOT/venv/bin/activate; cd $OPD_ROOT
+echo "== 1. G2 unit tests"
+(cd $RUNBOOK/code/patches && python -m pytest -q -p no:cacheprovider test_opd_variants.py 2>&1 | tail -2) | tee /tmp/g2.txt
+grep -q "16 passed" /tmp/g2.txt && echo "G2 PASS" || echo "G2 FAIL"
+echo "== 2. accept"
+nvidia-smi --query-gpu=index,name,memory.total,driver_version --format=csv,noheader
+echo "driver CUDA: $(nvidia-smi | grep -o 'CUDA Version: [0-9.]*')"
+python - <<'PY'
+import time, torch
+print("torch", torch.__version__, "cuda", torch.version.cuda, "arch list", torch.cuda.get_arch_list())
+x = torch.randn(8192, 8192, device="cuda", dtype=torch.bfloat16); torch.cuda.synchronize(); t = time.time()
+for _ in range(50): x @ x
+torch.cuda.synchronize(); print("bf16 matmul TFLOPS ~", round(50 * 2 * 8192**3 / (time.time() - t) / 1e12, 1))
+PY
+df -h $OPD_ROOT | tail -1; dd if=/dev/zero of=$OPD_ROOT/ddtest bs=1M count=2048 oflag=direct 2>&1 | tail -1; rm -f $OPD_ROOT/ddtest
+CUDA_VISIBLE_DEVICES=0 python $RUNBOOK/scripts/vllm_check.py 2>&1 | grep -E "VLLM_OUT|Error" | tail -3
+[ ${PIPESTATUS[0]} = 0 ] && echo "VLLM PASS" || echo "VLLM FAIL"
+echo "== 3. 3-step P2 smoke: 0.6B student + 8B teacher (no validation, no checkpoints)"
+t=$(date +%s)
+SMOKE=1 STUDENT=Qwen/Qwen3-0.6B bash $RUNBOOK/scripts/run_arm.sh 0 E10b-P2 > $OPD_ROOT/logs/smoke.log 2>&1; rc=$?
+grep -E "(^|[ )])step:[0-9]+ - " $OPD_ROOT/logs/smoke.log | tr ' ' '\n' | \
+  grep -E '^(step:|timing_s/step:|perf/max_memory_allocated_gb:|actor/pg_loss:|actor/entropy:|response_length/mean:|opd/adv_abs_mean:)' | paste -s -d ' '
+nan=$(grep -E "(^|[ )])step:[0-9]+ - " $OPD_ROOT/logs/smoke.log | grep -ciE ":(nan|inf)( |$)")
+loss=$(grep -cE "(^|[ )])step:[0-9]+ - .*actor/pg_loss:-?[0-9]" $OPD_ROOT/logs/smoke.log)
+if [ $rc = 0 ] && [ "$loss" -ge 3 ] && [ "$nan" = 0 ]; then echo "SMOKE PASS ($(( $(date +%s) - t ))s; 3 steps with a finite loss, no NaN)"
+else echo "SMOKE FAIL (exit $rc, steps with loss $loss, lines with NaN/inf $nan)"; grep -E "Error|Traceback" $OPD_ROOT/logs/smoke.log | tail -5; fi
+rm -rf $OPD_ROOT/runs/smoke-E10b-P2

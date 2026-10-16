@@ -1,0 +1,11 @@
+# Remote-node task queue. The project edits this file (git push); the node pulls it (run_tasks.sh, every 30 min).
+# Only ONE stage is open at a time. The node runs only the task IDs of the open stage that are in run_tasks.sh's
+# whitelist; anything else in this file is ignored. A stage is opened only after the project has reviewed the
+# previous one. No expansion: no extra seeds, no 4B, no new method arms unless this file says so.
+version: 1
+open: E10b
+# stage   status   tasks
+E10b      open     E10b-P2 E10b-P3 E10b-P4lowlr E10b-P5 E10b-P6 E10b-P6r E10b-P2noEOS
+E11b      locked   (16K re-evaluation + TWR/alpha of the E10b checkpoints; scripts arrive with the version that opens it)
+E12b      locked   (GRPO from the E10b tier-A checkpoints, 100 steps; scripts arrive with the version that opens it)
+zero      locked   (zero-training leftovers; scripts arrive with the version that opens it)
