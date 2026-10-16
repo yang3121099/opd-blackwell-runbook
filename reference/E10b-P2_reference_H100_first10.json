@@ -1,0 +1,111 @@
+{
+ "run": "G4-P2-1.7B-lr3e-6 (reference for E10b-P2)",
+ "recipe": {
+  "student": "Qwen/Qwen3-1.7B (non-thinking)",
+  "teacher": "Qwen/Qwen3-8B",
+  "arm": "P2 (OPD K1)",
+  "lr": 3e-06,
+  "batch_prompts": 128,
+  "responses_per_prompt": 1,
+  "max_response_tokens": 4096,
+  "data_seed": 42,
+  "val": "MATH500 first 100, avg@2, T=0.7 top-p 0.8, 4K, every 10 steps"
+ },
+ "hardware": "1x H100 80GB SXM, driver CUDA 12.6, torch 2.6.0 + vLLM 0.8.5.post1, flash-attn 2.7.4 (remove-padding on), teacher param offload",
+ "steps": {
+  "0": {
+   "val-core/math500/reward/mean@2": 0.74
+  },
+  "1": {
+   "actor/entropy": 0.282055,
+   "opd/adv_abs_mean": 0.155731,
+   "actor/pg_loss": 0.006027,
+   "critic/score/mean": 0.328125,
+   "response_length/mean": 1671.304688,
+   "response_length/clip_ratio": 0.0625,
+   "timing_s/step": 351.610459
+  },
+  "2": {
+   "actor/entropy": 0.293448,
+   "opd/adv_abs_mean": 0.158265,
+   "actor/pg_loss": 0.0056,
+   "critic/score/mean": 0.296875,
+   "response_length/mean": 1802.351562,
+   "response_length/clip_ratio": 0.070312,
+   "timing_s/step": 256.229618
+  },
+  "3": {
+   "actor/entropy": 0.354921,
+   "opd/adv_abs_mean": 0.171503,
+   "actor/pg_loss": 0.005475,
+   "critic/score/mean": 0.28125,
+   "response_length/mean": 2010.96875,
+   "response_length/clip_ratio": 0.09375,
+   "timing_s/step": 320.646735
+  },
+  "4": {
+   "actor/entropy": 0.386676,
+   "opd/adv_abs_mean": 0.171426,
+   "actor/pg_loss": 0.004792,
+   "critic/score/mean": 0.25,
+   "response_length/mean": 2274.257812,
+   "response_length/clip_ratio": 0.15625,
+   "timing_s/step": 390.963491
+  },
+  "5": {
+   "actor/entropy": 0.400803,
+   "opd/adv_abs_mean": 0.180988,
+   "actor/pg_loss": 0.005295,
+   "critic/score/mean": 0.3125,
+   "response_length/mean": 2126.40625,
+   "response_length/clip_ratio": 0.132812,
+   "timing_s/step": 373.862713
+  },
+  "6": {
+   "actor/entropy": 0.422191,
+   "opd/adv_abs_mean": 0.183291,
+   "actor/pg_loss": 0.005274,
+   "critic/score/mean": 0.328125,
+   "response_length/mean": 2148.664062,
+   "response_length/clip_ratio": 0.117188,
+   "timing_s/step": 358.296871
+  },
+  "7": {
+   "actor/entropy": 0.430865,
+   "opd/adv_abs_mean": 0.177246,
+   "actor/pg_loss": 0.004756,
+   "critic/score/mean": 0.367188,
+   "response_length/mean": 2307.265625,
+   "response_length/clip_ratio": 0.226562,
+   "timing_s/step": 386.769212
+  },
+  "8": {
+   "actor/entropy": 0.493448,
+   "opd/adv_abs_mean": 0.197106,
+   "actor/pg_loss": 0.004979,
+   "critic/score/mean": 0.421875,
+   "response_length/mean": 2388.695312,
+   "response_length/clip_ratio": 0.226562,
+   "timing_s/step": 410.461571
+  },
+  "9": {
+   "actor/entropy": 0.486321,
+   "opd/adv_abs_mean": 0.187951,
+   "actor/pg_loss": 0.004016,
+   "critic/score/mean": 0.328125,
+   "response_length/mean": 2765.820312,
+   "response_length/clip_ratio": 0.304688,
+   "timing_s/step": 485.377237
+  },
+  "10": {
+   "actor/entropy": 0.470558,
+   "opd/adv_abs_mean": 0.1849,
+   "actor/pg_loss": 0.003898,
+   "val-core/math500/reward/mean@2": 0.78,
+   "critic/score/mean": 0.28125,
+   "response_length/mean": 2836.289062,
+   "response_length/clip_ratio": 0.296875,
+   "timing_s/step": 512.614081
+  }
+ }
+}

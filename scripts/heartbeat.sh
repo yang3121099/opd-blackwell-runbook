@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Every 10 minutes: write status/<hostname>.json (open stage, each task's state and current step, latest validation,
 # truncation rate, GPU utilisation and memory, free disk, UTC timestamp) and upload it to the result repository.
-# The project side only reads status/; it never logs in to this machine.
+# The project side only reads status/; it never logs in to this machine. Also uploads the first-arm comparison
+# (status/compare_<hostname>.json) once, when E10b-P2 has reached step 10.
 set -uo pipefail
 source "$(dirname "$0")/env.sh"; source $OPD_ROOT/venv/bin/activate
 H=$(hostname -s); F=$OPD_ROOT/logs/status_$H.json
@@ -31,5 +32,9 @@ json.dump({"host": os.uname().nodename, "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ
            "tasks": tasks, "gpus": gpu, "disk_free_gb": round(st.f_bavail * st.f_frsize / 1e9, 1)}, open(sys.argv[1], "w"), indent=1)
 PY
   python $RUNBOOK/scripts/remote.py put $F status/$H.json 2>> $OPD_ROOT/logs/heartbeat.err && echo "HEARTBEAT $(date -u +%T)"
+  # first-arm comparison with the reference H100 run, uploaded once when E10b-P2 has reached step 10
+  if [ ! -f $OPD_ROOT/logs/.compare_uploaded ] && python $RUNBOOK/scripts/compare_first_arm.py >/dev/null 2>&1; then
+    python $RUNBOOK/scripts/remote.py put $OPD_ROOT/logs/compare_$H.json status/compare_$H.json && touch $OPD_ROOT/logs/.compare_uploaded && echo "COMPARE_UPLOADED $(date -u +%T)"
+  fi
   sleep 600
 done
