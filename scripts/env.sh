@@ -21,7 +21,8 @@ has_weights() { ls "$1"/*.safetensors > /dev/null 2>&1; }
 # ("PTXASError: Internal Triton PTX codegen error"). Order of fixes (README section 2b): 12.8 as is, then the CUDA 12.9
 # ptxas ($B300_PTXAS, installed by install_uv.sh / install_conda.sh on a 10.3 card), then the CUDA 13 route.
 # overnight.sh (tier B) or the manual step writes $OPD_ROOT/triton.env; every script picks it up here, so a restarted
-# run_tasks.sh keeps the same ptxas. Delete the file to go back to Triton's own ptxas.
+# run_tasks.sh keeps the same ptxas. Delete the file to go back to Triton's own ptxas. v2.3.1: it may also set
+# VLLM_ATTENTION_BACKEND and VLLM_USE_FLASHINFER_SAMPLER=0 (FlashInfer's JIT sampler needs an nvcc that knows sm_103).
 export B300_PTXAS="nvidia-cuda-nvcc-cu12==12.9.86"
 gpu_cap() { nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -1; }
 ptxas_rel() { [ -x "${1:-}" ] && "$1" --version 2>/dev/null | sed -n 's/.*release \([0-9.]*\),.*/\1/p'; }

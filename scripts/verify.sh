@@ -12,7 +12,7 @@ grep -q "16 passed" /tmp/g2.txt && echo "G2 PASS" || echo "G2 FAIL"
 echo "== 2. accept"
 nvidia-smi --query-gpu=index,name,memory.total,driver_version --format=csv,noheader
 echo "driver CUDA: $(nvidia-smi | grep -o 'CUDA Version: [0-9.]*')"
-echo "compute capability $(gpu_cap); ptxas for Triton: ${TRITON_PTXAS_PATH:-the one bundled with Triton}${TRITON_PTXAS_PATH:+ (release $(ptxas_rel $TRITON_PTXAS_PATH))}"
+echo "compute capability $(gpu_cap); ptxas for Triton: ${TRITON_PTXAS_PATH:-the one bundled with Triton}${TRITON_PTXAS_PATH:+ (release $(ptxas_rel $TRITON_PTXAS_PATH))}; vLLM attention: ${VLLM_ATTENTION_BACKEND:-default}, FlashInfer sampler: ${VLLM_USE_FLASHINFER_SAMPLER:-default (on)}"
 python - <<'PY'
 import time, torch
 print("torch", torch.__version__, "cuda", torch.version.cuda, "arch list", torch.cuda.get_arch_list())

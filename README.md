@@ -1,6 +1,14 @@
 # OPD 机理实验：Blackwell 远程节点手册
 
-> **已经克隆过本仓库的节点（v2 或更早）请先更新到最新版（v2.3，含 v2.1、v2.2 的修复）**：旧版的上传脚本会悄悄跳过所有分片保存的 1.7B ckpt，最后一个 ckpt 也可能漏传。步骤：`git pull` → 重跑 `verify.sh` 的第 4 项（UPLOAD_CHECK 应为 PASS）→ 按第 9 节"变更记录"的补传说明重启 `upload_sync.sh`，把本机已存的分片 ckpt 传上去。
+> **已经克隆过本仓库的节点（v2 或更早）请先更新到最新版（v2.3.1，含 v2.1–v2.3 的修复）**：旧版的上传脚本会悄悄跳过所有分片保存的 1.7B ckpt，最后一个 ckpt 也可能漏传。步骤：`git pull` → 重跑 `verify.sh` 的第 4 项（UPLOAD_CHECK 应为 PASS）→ 按第 9 节"变更记录"的补传说明重启 `upload_sync.sh`，把本机已存的分片 ckpt 传上去。
+
+> **B300 起夜重跑（v2.3.1）**：第一晚停在第 6 步的 vLLM 探测，原因已经查清，修复在 v2.3.1 里。只需要下面三行；如果原来那个 shell 还开着，第二行可以省掉：
+> ```bash
+> cd opd-blackwell-runbook && git pull
+> export OPD_ROOT=...  HF_TOKEN=...  HF_REPO=...       # 和第一晚相同的值，只在当前 shell 里设
+> setsid nohup bash scripts/overnight.sh > /dev/null 2>&1 &
+> ```
+> 脚本可以重跑：模型、数据和 venv 都会直接复用，几分钟内就会走到第 6 步。进度用 `grep STEP $OPD_ROOT/logs/overnight.log` 查看；同一时间只能运行一份。
 
 这份手册给有 8 卡 B200/B300 机器的合作者用。从零搭好环境后，这台机器就是一个长期的**远程节点**：按项目维护的任务队列逐项跑实验，产出自动上传到 Hugging Face 或 ModelScope（魔搭），状态每 10 分钟发一次心跳。
 
@@ -12,7 +20,7 @@
 
 流程：**安装 → 验证 → 启动心跳 → 领任务**。
 
-**问题反馈**：遇到问题时，把 `status/` 与 `$OPD_ROOT/logs/` 上传到同一个结果仓库（`python scripts/remote.py put $OPD_ROOT/logs logs/<hostname>`），项目方从那里读，然后通过任务队列或本页的更新回应。
+**问题反馈（GitHub Issue，v2.3.1）**：在 https://github.com/yang3121099/opd-blackwell-runbook/issues 开一个 Issue。标题写主机名（`hostname` 的输出）和一句话描述现象；正文贴 `grep STEP $OPD_ROOT/logs/overnight.log` 的输出，以及日志在结果仓库里的位置：先用 `python scripts/remote.py put $OPD_ROOT/logs logs/$(hostname)` 上传，再贴 `logs/<hostname>/` 这个路径。**不要贴 token 或任何密钥**，本仓库是公开的。项目方大约每 10 分钟看一次 Issue，并在 Issue 里回复；需要在你机器上执行的改动，仍然通过本仓库的 `tasks/queue.txt` 和脚本更新下发，你 `git pull` 即可。
 
 ---
 
@@ -106,7 +114,14 @@ USE_MODELSCOPE=1 bash scripts/download_models.sh 2>&1 | tee download.log   # 三
    echo "export TRITON_PTXAS_PATH=$P" > $OPD_ROOT/triton.env; rm -rf ~/.triton/cache
    bash scripts/verify.sh 2>&1 | tee verify.log
    ```
-   `env.sh` 会读 `$OPD_ROOT/triton.env`，所以之后的所有脚本（包括重启后的 `run_tasks.sh`）都用这个 ptxas；`verify.log` 第 2 项会打印当前用的是哪一个。删掉这个文件，就回到 Triton 自带的 ptxas。我们在 H200 上核过：这个包里的 ptxas 是 V12.9.86，能把 `sm_103a` 的 PTX 编成机器码。整条链在 B300 上能否跑通，以重跑 verify 的结果为准。`scripts/overnight.sh` 会自动按这三档依次尝试（见本节末尾）。
+   换了 ptxas 之后，如果日志里出现 `nvcc fatal : Unsupported gpu architecture 'compute_103'`（前后有 `Ninja build failed`、`flashinfer/103/cached_ops/sampling`），说明 Triton 这一关已经过了，卡在 FlashInfer：vLLM 默认用 FlashInfer 做 top-p/top-k 采样，FlashInfer 首次运行时用系统的 nvcc 即时编译，而 CUDA 12.9 之前的 nvcc 不认 sm_103。这时改用 vLLM 自带的 PyTorch 采样，注意力固定为 FlashAttention（vLLM 0.10.2 在 10.3 的卡上本来就默认用它，是预编译的，不需要 nvcc）：
+   ```bash
+   printf '%s\n' "export TRITON_PTXAS_PATH=$P" "export VLLM_ATTENTION_BACKEND=FLASH_ATTN" "export VLLM_USE_FLASHINFER_SAMPLER=0" > $OPD_ROOT/triton.env
+   bash scripts/verify.sh 2>&1 | tee verify.log
+   ```
+   如果这时报 `no kernel image is available`，把第二行换成 `export VLLM_ATTENTION_BACKEND=TRITON_ATTN_VLLM_V1`（vLLM 的 Triton 注意力，同样走上面的 ptxas），再跑一次。
+
+   `env.sh` 会读 `$OPD_ROOT/triton.env`，所以之后的所有脚本（verify、心跳、重启后的 `run_tasks.sh`，以及训练里 verl 起的 vLLM，它继承环境变量）都带上这些设置；`verify.log` 第 2 项会打印当前用的 ptxas、注意力后端和采样器。删掉这个文件，就回到默认设置。我们在 H200 上核过：这个包里的 ptxas 是 V12.9.86，能把 `sm_103a` 的 PTX 编成机器码。整条链在 B300 上能否跑通，以重跑 verify 的结果为准。`scripts/overnight.sh` 会自动按这几档依次尝试（见本节末尾）。
 4. 只有在 `verify.sh` 报 `no kernel image is available for execution on the device`、accept 里的 bf16 矩阵乘跑不起来，或换了 12.9 的 ptxas 仍报 `PTXASError` 时，才换 CUDA 13 路线（**未测试**）。版本已与各项目公开的发布核对过：torch 2.9.0 + torchvision 0.24.0 的 cu130 构建（vLLM v0.11.2 的构建依赖固定 `torch==2.9.0`），vLLM v0.11.2 从源码编译，flashinfer-python 0.5.2。原来的环境保留为 `$OPD_ROOT/venv-cu128`。
 
    **A. 机器上有 nvcc ≥ 13.0**（`nvcc --version`）：
@@ -134,7 +149,7 @@ USE_MODELSCOPE=1 bash scripts/download_models.sh 2>&1 | tee download.log   # 三
      3. `fsdp_sft_trainer.py` 里的 `attn_implementation="flash_attention_2"`。
 5. 换栈之后重跑 `verify.sh`，并把 `uv pip freeze` 的结果和 `verify.log` 一起发回，我们据此在本仓库补一份 B300 的版本锁。
 
-**无人值守一次跑完（v2.3，`scripts/overnight.sh`）。** 从 `git pull` 一直跑到领任务：后台下载三个模型（hf-mirror 与魔搭双源）→ cu128 环境（没有 venv 才装）→ 数据 → `models.env` → vLLM 探测，按上面三档依次尝试（A：cu128 原样；B：加 CUDA 12.9 的 ptxas，并写 `$OPD_ROOT/triton.env`；C：机器上有 nvcc ≥ 13 时跑 `install_cu130.sh`）→ `verify.sh` → 上传 `verify.log` → 心跳 → 等 1.7B 下载完 → `run_tasks.sh`。每一步在 `$OPD_ROOT/logs/overnight.log` 写一行 `STEP n ...`；失败时写 `FAIL` 并上传日志后停下，不会盲目重试。
+**无人值守一次跑完（v2.3，`scripts/overnight.sh`）。** 从 `git pull` 一直跑到领任务：后台下载三个模型（hf-mirror 与魔搭双源）→ cu128 环境（没有 venv 才装）→ 数据 → `models.env` → vLLM 探测，按顺序尝试（A：cu128 原样；B：加 CUDA 12.9 的 ptxas；B2：再改用 PyTorch 采样、固定 FlashAttention；B3：再把注意力换成 Triton；C：机器上有 nvcc ≥ 13 时跑 `install_cu130.sh`。每次探测用各自的空编译缓存，通过的那一档写进 `$OPD_ROOT/triton.env`）→ `verify.sh` → 上传 `verify.log` → 心跳 → 等 1.7B 下载完 → `run_tasks.sh`。每一步在 `$OPD_ROOT/logs/overnight.log` 写一行 `STEP n ...`；失败时写 `FAIL` 并上传日志后停下，不会盲目重试。同一时间只能跑一份（`$OPD_ROOT/overnight.lock`），第二次启动会直接退出并说明原因。可以重跑：已下载的模型、数据和 venv 会直接复用，重跑会很快走到第 6 步的探测。
 ```bash
 cd opd-blackwell-runbook && git pull
 export OPD_ROOT=...  HF_TOKEN=...  HF_REPO=...       # 只在当前 shell 里设，不写进任何文件；OPD_ROOT 默认是 ~/opd-run
@@ -253,6 +268,7 @@ status/<hostname>.json                           心跳
 | Ray 报 `pids` 或线程数超限 | 已默认 `RAY_prestart_worker_first_driver=0`、`RAY_num_workers_soft_limit=8`；同机多臂时让启动错开（`run_tasks.sh` 默认间隔 90 s）。 |
 | 下载模型或数据失败 | 先跑 `scripts/scan_cache.sh` 看本机有没有现成的缓存；`download_models.sh` 默认走 hf-mirror，失败时用 `USE_MODELSCOPE=1` 从魔搭下载模型（第 2a 节）。 |
 | `PTXASError` 或 `Internal Triton PTX codegen error`（B300） | Triton 自带的 CUDA 12.8 ptxas 编不了 sm_103。按第 2b 节第 3 步换 CUDA 12.9 的 ptxas（写 `$OPD_ROOT/triton.env`）；仍失败再走 CUDA 13 路线。 |
+| `nvcc fatal : Unsupported gpu architecture 'compute_103'`（`flashinfer/103/cached_ops`、`Ninja build failed`） | FlashInfer 的采样核要用系统 nvcc 即时编译，CUDA 12.9 之前的 nvcc 不认 sm_103。在 `triton.env` 里加 `VLLM_USE_FLASHINFER_SAMPLER=0` 和 `VLLM_ATTENTION_BACKEND=FLASH_ATTN`（第 2b 节第 3 步）。 |
 | `hf auth whoami` 显示 "Not logged in" 但退出码是 0 | 这一版 CLI 的已知行为。脚本用 `HfApi().whoami()` 判断登录；只要设置了 `HF_TOKEN`，就不需要 `hf auth login`。 |
 
 ## 8. Blackwell 验证记录
@@ -277,3 +293,4 @@ status/<hostname>.json                           心跳
 - **v2.1（2026-10-16）**：修复上传脚本 `scripts/upload_sync.sh` 的两个问题。一是只认单文件 `model.safetensors`：1.7B 的 ckpt 是分片保存的，修复前会被一律跳过，而且没有任何报错。二是一看到 `finished:` 就退出：最后一个 ckpt 往往还不满 120 秒，修复前会漏传。现在分片逐个转 bf16，index 的 total_size 改成 bf16 大小（`to_bf16.py`）；所有 ckpt 都传完才退出；`verify.sh` 新增第 4 项上传路径检查（`check_upload.py` + `reference/upload_manifest_qwen3-1.7b_bf16.json`）。**v2 或更早的节点**：请更新到 v2.1，重启 `upload_sync.sh`（已传的 ckpt 有 `.uploaded` 标记，不会重传；被跳过的分片 ckpt 会补传），然后重跑 `verify.sh` 的第 4 项。
 - **v2.2（2026-10-16）**：下载改成单独一步（第 2a 节）：新增只读的 `scripts/scan_cache.sh`（查本机缓存，核对每个模型的权重是否齐全）；`download_models.sh` 默认走 hf-mirror，10 秒连不上自动回退，结束时打印每项的本地路径和权重文件数，五行 OK 才以 0 退出；模型的本地路径写进 `$OPD_ROOT/models.env`，由 `env.sh` 读取，`run_arm/run_sft/run_e12/run_eval` 的教师和学生都从 `TEACHER`、`STUDENT_17B`、`STUDENT_06B` 取，魔搭下载的模型因此也能直接用（修复前教师在 `run_arm.sh` 里写死成 `Qwen/Qwen3-8B`）；`install_gopd.sh` 不再顺带下载。另外，`scripts/remote.py` 对结果仓库固定使用 `https://huggingface.co`（可用 `HF_UPLOAD_ENDPOINT` 覆盖）。修复前，为了加速下载全局设置 `HF_ENDPOINT=https://hf-mirror.com` 后，令牌检查和所有上传都会打到只读镜像而失败。下载仍按 `HF_ENDPOINT` 走镜像；`hf-transfer` 在各安装路线和 `requirements.lock` 里都已安装（0.1.9）。
 - **v2.3（2026-10-17）**：代码审阅后的修复。① `run_e12.sh`、`run_eval.sh`、`run_sft.sh` 判断检查点是否存在时只认单文件 `model.safetensors`，而 1.7B 的检查点都是分片的：修复前，E10b 之后的 E11b、E12b、SFT-P1 会全部失败（SFT-P1 要在训练完以后才失败，并重训三次）。现在统一用 `env.sh` 里的 `has_weights`，认分片。② `run_tasks.sh`：依赖已失败三次的任务记为 `runs/<task>/.skipped`，算作完成，不再让所在阶段永远结束不了、卡住后面所有阶段；在结果仓库里查到的 `.done` 缓存到本地，不再每 5 分钟对每个任务问一次。③ `run_eval.sh`、`run_zero.sh` 先上传，上传成功才写 `.done`；修复前，上传失败的结果会被当作已完成而只留在本机。`run_zero.sh` 重试时跳过已完成的生成。④ `run_arm.sh`、`run_e12.sh` 只有跑满步数才写 `finished:`，提前退出写 `stopped:`，`upload_sync.sh` 因此会继续为重试上传检查点。⑤ 心跳：验证分数改为读任意 `mean@n`（E12b 是 mean@4，修复前一直为空），并报告各阶段的状态和新增的 `skipped` 任务状态。注意：`run_tasks.sh` 是常驻进程，`git pull` 之后要重启它，②才生效；正在跑的任务不受影响，新起的任务自动用新脚本。⑥ B300 的 Triton ptxas：判据和三档顺序见第 2b 节第 3 步；`env.sh` 读 `$OPD_ROOT/triton.env`；`install_uv.sh`、`install_conda.sh` 在 compute capability 10.3 的卡上预装 `nvidia-cuda-nvcc-cu12==12.9.86`，但不自动启用；`verify.sh` 打印当前用的 ptxas。⑦ 新增 `scripts/overnight.sh`（由项目审阅方编写），无人值守地从 `git pull` 跑到领任务，vLLM 按三档依次探测。
+- **v2.3.1（2026-10-17）**：B300 第一晚的结果。cu128 原样跑会报 `ptxas fatal : Value 'sm_103a' is not defined`；换成 12.9 的 ptxas 之后，Triton 编译通过，又卡在 FlashInfer 的即时编译采样核：系统 nvcc 早于 12.9，报 `Unsupported gpu architecture 'compute_103'`。`overnight.sh` 因此新增 B2（PyTorch 采样 + FlashAttention）和 B3（Triton 注意力）两档；通过那一档的全部变量写进 `$OPD_ROOT/triton.env`，`env.sh` 会读它。每次探测用各自的空编译缓存，避免前一档或前一晚编好的核让后一档在没有修复的情况下误判通过。同一时间只允许一份 `overnight.sh`（`$OPD_ROOT/overnight.lock`）。STEP 6 的报错改为完整的行（之前的正则把 `Command` 截成了 `Comma`）。重跑时不会再起第二份心跳或 `run_tasks.sh`。`verify.sh` 打印注意力后端和采样器设置。第 2b 节第 3 步和第 7 节补充了相应的判据。
