@@ -1,0 +1,16 @@
+{
+  "what": "bf16 copy (scripts/to_bf16.py) of a verl actor/huggingface checkpoint of Qwen/Qwen3-1.7B, as uploaded by scripts/upload_sync.sh; checked by scripts/check_upload.py (verify.sh step 4)",
+  "source": "OPD lab G4-P2-1.7B step-50 checkpoint (verl 0.6.1 G-OPD fork, transformers 4.5x): fp32 shards 4969539560 + 3157455608 B, index total_size 8126959616, 311 tensors incl. lm_head.weight (written although tie_word_embeddings is true); bf16 shard sizes measured with scripts/to_bf16.py on that checkpoint (check_upload.py passed)",
+  "required": {
+    "model-00001-of-00002.safetensors": 2484781672,
+    "model-00002-of-00002.safetensors": 1578733840,
+    "model.safetensors.index.json": null,
+    "config.json": null,
+    "generation_config.json": null,
+    "tokenizer.json": 11422654,
+    "tokenizer_config.json": null
+  },
+  "size_tolerance": 0.01,
+  "n_tensors": 311,
+  "tensor_bytes": 4063479808
+}

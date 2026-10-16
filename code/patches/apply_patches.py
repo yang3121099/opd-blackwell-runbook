@@ -17,7 +17,7 @@ from pathlib import Path
 
 root = Path(sys.argv[1]).resolve()
 repo = root.parent
-FILES = ["verl/verl/workers/actor/dp_actor.py", "verl/verl/trainer/ppo/ref_input_utils.py"]
+FILES = ["verl/verl/workers/actor/dp_actor.py", "verl/verl/trainer/ppo/ref_input_utils.py", "verl/verl/trainer/fsdp_sft_trainer.py"]
 subprocess.run(["git", "-C", str(repo), "checkout", "--", *FILES], check=True)
 MARK = "# [opd-variants patch v2]"
 
@@ -92,3 +92,13 @@ new = (
 s = s.replace(old, new, 1)  # first occurrence = prepare_ref_model_inputs
 ref.write_text(s)
 print("patched", ref)
+
+# 3. SFT trainer attention (Blackwell runbook): verl 0.6.1 hard-codes flash_attention_2 in fsdp_sft_trainer.py; read it
+#    from OPD_ATTN instead (default unchanged), so the SFT step can run with SDPA where flash-attn is not installed.
+sft = root / "verl/trainer/fsdp_sft_trainer.py"
+s = sft.read_text()
+s = sub_once(s, 'attn_implementation="flash_attention_2",',
+             f'attn_implementation=__import__("os").environ.get("OPD_ATTN", "flash_attention_2"),  {MARK} SFT attention',
+             "sft attn_implementation")
+sft.write_text(s)
+print("patched", sft)

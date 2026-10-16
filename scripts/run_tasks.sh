@@ -1,28 +1,53 @@
 #!/usr/bin/env bash
-# Remote-node loop: every 30 minutes `git pull` this repository, read tasks/queue.txt, and start the open stage's tasks
-# on free GPUs (no compute process, <= 2 GB used), one task per GPU, 90 s apart. Only whitelisted task IDs run.
-# Idempotent: a task with runs/<task>/.done is skipped; a task already running is left alone; an interrupted task
-# resumes from its latest checkpoint when started again.
+# Remote-node loop (queue version 2): every 5 minutes, start the next runnable tasks of the open stages, strictly in
+# queue order, one task per free GPU (no compute process and <= 2 GB used), 90 s apart. `git pull` every 30 minutes.
+#  - an "auto" stage opens once every task of every earlier stage is finished (.done locally or in the result
+#    repository, or failed 3 times); a "locked" stage never opens and holds back everything after it
+#  - a task starts only when its deps are .done; a task whose dep failed for good is skipped and reported
+#  - fail-fast: a task that exits without .done gets runs/<task>/.failed (attempt count + the log tail, reported by the
+#    heartbeat) and is retried at most twice (3 attempts in all)
+# DRY=1 prints what would start, without starting anything.
 set -uo pipefail
-source "$(dirname "$0")/env.sh"
-WHITELIST="E10b-P2 E10b-P3 E10b-P4lowlr E10b-P5 E10b-P6 E10b-P6r E10b-P2noEOS"
-NGPU=$(nvidia-smi --query-gpu=index --format=csv,noheader | wc -l)
+source "$(dirname "$0")/env.sh"; source $OPD_ROOT/venv/bin/activate
+NGPU=$(nvidia-smi --query-gpu=index --format=csv,noheader 2>/dev/null | wc -l)
+Q=$RUNBOOK/tasks/queue.txt; last_pull=0
+done_() { [ -f $OPD_ROOT/runs/$1/.done ] || python $RUNBOOK/scripts/remote.py done $1 2>/dev/null; }
+attempts() { sed -n 's/^attempts: //p' $OPD_ROOT/runs/$1/.failed 2>/dev/null || echo 0; }
+dead() { [ "$(attempts $1)" -ge 3 ]; }
+running() { pgrep -f "task.sh [0-9]+ $1\$" >/dev/null; }
+free_gpus() { for i in $(seq 0 $((NGPU-1))); do
+    [ -z "$(nvidia-smi --query-compute-apps=pid --format=csv,noheader -i $i)" ] || continue
+    [ "$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $i | tr -d ' ')" -le 2048 ] && echo $i; done; }
+launch() { # gpu task
+  mkdir -p $OPD_ROOT/runs/$2
+  setsid nohup bash -c "bash $RUNBOOK/scripts/task.sh $1 $2 > $OPD_ROOT/logs/$2.log 2>&1
+    if [ ! -f $OPD_ROOT/runs/$2/.done ]; then a=\$(( \$(sed -n 's/^attempts: //p' $OPD_ROOT/runs/$2/.failed 2>/dev/null || echo 0) + 1 ))
+      { echo \"attempts: \$a\"; echo \"last: \$(date -u +%FT%TZ)\"; tail -20 $OPD_ROOT/logs/$2.log; } > $OPD_ROOT/runs/$2/.failed; fi" < /dev/null > /dev/null 2>&1 &
+}
 while true; do
-  [ "${PULL:-1}" = 1 ] && git -C $RUNBOOK pull -q --ff-only 2>/dev/null
-  Q=$RUNBOOK/tasks/queue.txt; open=$(sed -n 's/^open:[[:space:]]*\([^[:space:]]*\).*/\1/p' $Q)
-  tasks=$(awk -v o="$open" '$1==o && $2=="open" {for (i=3;i<=NF;i++) print $i}' $Q)
-  for t in $tasks; do
-    case " $WHITELIST " in *" $t "*) ;; *) echo "IGNORED $t (not whitelisted)"; continue;; esac
-    [ -f $OPD_ROOT/runs/$t/.done ] && continue
-    pgrep -f "run_arm.sh [0-9]+ $t\$" >/dev/null && continue
-    g=""; for i in $(seq 0 $((NGPU-1))); do
-      [ -z "$(nvidia-smi --query-compute-apps=pid --format=csv,noheader -i $i)" ] || continue
-      [ "$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $i | tr -d ' ')" -le 2048 ] && { g=$i; break; }
+  if [ "${PULL:-1}" = 1 ] && [ $(( $(date +%s) - last_pull )) -ge 1800 ]; then git -C "$RUNBOOK" pull -q --ff-only 2>/dev/null; last_pull=$(date +%s); fi
+  FREE=($(free_gpus)); earlier_finished=1
+  while read -r stage status rest; do
+    case $stage in ''|\#*|version:) continue;; esac
+    opened=0; [ "$status" = open ] && opened=1; [ "$status" = auto ] && [ $earlier_finished = 1 ] && opened=1
+    stage_finished=1
+    for spec in $rest; do
+      t=${spec%%:*}; deps=""; [ "$spec" != "$t" ] && deps=$(echo ${spec#*:} | tr '+' ' ')
+      if done_ $t || dead $t; then continue; fi
+      stage_finished=0
+      [ $opened = 1 ] || continue
+      running $t && continue
+      ok=1; for d in $deps; do done_ $d || { dead $d && echo "SKIP $t: dep $d failed for good"; ok=0; }; done
+      [ $ok = 1 ] || continue
+      [ ${#FREE[@]} -gt 0 ] || continue
+      g=${FREE[0]}; FREE=("${FREE[@]:1}")
+      if [ "${DRY:-0}" = 1 ]; then echo "WOULD_START gpu=$g $t (stage $stage, attempt $(( $(attempts $t) + 1 )))"; continue; fi
+      echo "START $(date -u +%T) gpu=$g $t (stage $stage, queue v$(sed -n 's/^version:[[:space:]]*//p' "$Q"), attempt $(( $(attempts $t) + 1 )))"
+      launch $g $t; sleep 90
     done
-    [ -z "$g" ] && break
-    echo "START $(date -u +%T) gpu=$g $t (queue version $(sed -n 's/^version:[[:space:]]*//p' $Q))"
-    setsid nohup bash $RUNBOOK/scripts/run_arm.sh $g $t > $OPD_ROOT/logs/$t.log 2>&1 < /dev/null &
-    sleep 90
-  done
-  sleep 1800
+    [ "$status" = locked ] && stage_finished=0
+    [ $stage_finished = 1 ] || earlier_finished=0
+  done < "$Q"
+  [ "${DRY:-0}" = 1 ] && break
+  sleep 300
 done

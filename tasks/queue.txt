@@ -1,11 +1,16 @@
-# Remote-node task queue. The project edits this file (git push); the node pulls it (run_tasks.sh, every 30 min).
-# Only ONE stage is open at a time. The node runs only the task IDs of the open stage that are in run_tasks.sh's
-# whitelist; anything else in this file is ignored. A stage is opened only after the project has reviewed the
-# previous one. No expansion: no extra seeds, no 4B, no new method arms unless this file says so.
-version: 1
-open: E10b
-# stage   status   tasks
-E10b      open     E10b-P2 E10b-P3 E10b-P4lowlr E10b-P5 E10b-P6 E10b-P6r E10b-P2noEOS
-E11b      locked   (16K re-evaluation + TWR/alpha of the E10b checkpoints; scripts arrive with the version that opens it)
-E12b      locked   (GRPO from the E10b tier-A checkpoints, 100 steps; scripts arrive with the version that opens it)
-zero      locked   (zero-training leftovers; scripts arrive with the version that opens it)
+# Remote-node task queue, version 2 (auto-advancing ladder). The project edits this file (git push); the node pulls
+# it every 30 minutes (run_tasks.sh). Format: <stage> <status> <task>[:<dep>+<dep>] ...
+#   status open   = runnable now
+#          auto   = opens by itself once every task of every earlier stage is finished (.done, or failed 3 times)
+#          locked = never opens (and so holds back every later stage) until the project changes it
+# Inside the open stages, tasks start strictly in this order, one per free GPU, as soon as their deps are .done.
+# Only task IDs accepted by scripts/task.sh run; anything else is reported and ignored.
+# No expansion beyond this file: no extra seeds, no 4B training, no new method arms unless a new version adds them.
+version: 2
+E10b     open   E10b-P2 E10b-P3 E10b-P4lowlr E10b-P5 E10b-P6 E10b-P6r E10b-P2noEOS E11b-P0
+E11b     auto   E11b-P2:E10b-P2+E11b-P0 E11b-P3:E10b-P3+E11b-P0 E11b-P4lowlr:E10b-P4lowlr+E11b-P0 E11b-P5:E10b-P5+E11b-P0 E11b-P6:E10b-P6+E11b-P0 E11b-P6r:E10b-P6r+E11b-P0 E11b-P2noEOS:E10b-P2noEOS+E11b-P0
+E12bA    auto   SFT-P1 E12b-P0 E12b-P2:E10b-P2 E12b-P5:E10b-P5 E12b-P3:E10b-P3 E12b-P1:SFT-P1
+zero     auto   E03-MI-l0.0 E03-MI-l0.3 E03-MI-l0.5 E03-MI-l0.7 E03-MI-l1.0 E02-opsa17-c0.5 E02-opsa17-c1.5 E02-opsa4-c-1 E02-opsa4-c0.5 E02-opsa4-c1.5
+E12bRest auto   E12b-P4lowlr:E10b-P4lowlr E12b-P6:E10b-P6 E12b-P6r:E10b-P6r E12b-P2noEOS:E10b-P2noEOS
+E10b2    auto   E10b-Pstop E10b-P6rand E10b-P6top5 E10b-P4EOSpen
+seeds    auto   E10b-P2-s43 E10b-P2-s44 E10b-P6r-s43 E10b-P6r-s44

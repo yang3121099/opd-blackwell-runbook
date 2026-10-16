@@ -1,12 +1,14 @@
 # OPD 机理实验：Blackwell 远程节点手册
 
+> **已经克隆过本仓库的节点（v2 或更早）请先更新到 v2.1**：旧版的上传脚本会悄悄跳过所有分片保存的 1.7B ckpt，最后一个 ckpt 也可能漏传。步骤：`git pull` → 重跑 `verify.sh` 的第 4 项（UPLOAD_CHECK 应为 PASS）→ 按第 9 节"变更记录"的补传说明重启 `upload_sync.sh`，把本机已存的分片 ckpt 传上去。
+
 这份手册给有 8 卡 B200/B300 机器的合作者用。从零搭好环境后，这台机器就是一个长期的**远程节点**：按项目维护的任务队列逐项跑实验，产出自动上传到 Hugging Face 或 ModelScope（魔搭），状态每 10 分钟发一次心跳。
 
-**队列（固定优先级，一次只开放一项，上一项审过才开放下一项）：** E10b 七臂（1.7B 学生）→ E11b（E10b 的 16K 重测与 TWR/α）→ E12b（tier A 起点的 GRPO）→ 零训练补项。当前开放：**E10b**。
+**队列（版本 2，固定阶梯，前一阶段结束就自动开放下一阶段）：** E10b 七臂（1.7B 学生）→ E11b（16K 重测与 TWR/α）→ E12b tier A（含 1.7B 的 SFT 起点 P1）→ 零训练补项（E03、E02）→ E12b 其余起点 → 1.7B 第二组臂 → P2/P6r 的种子复制。项目方可以随时改顺序或暂停某一阶段。
 
 **不扩张：** 不加 seed，不扩到 4B，不加新的方法臂。除非 `tasks/queue.txt` 更新，否则节点只跑开放阶段里列出的任务。
 
-> **状态：uv 路线已在 1× B200 上实测通过安装、单元测试、accept 和 3 步冒烟（见第 8 节），完整版本锁在 `requirements.lock`。** 1.7B 学生的完整 150 步、8 卡同时跑、Docker 与 conda 路线都还没有实测。我们在 H100（CUDA 12.6，torch 2.6 + vLLM 0.8.5）上用的是旧栈。请仍然先跑"验证"一节的三项检查，并把日志发回。
+> **状态：uv 路线已在 1× B200 上实测通过安装、单元测试、accept 和 3 步冒烟（见第 8 节），完整版本锁在 `requirements.lock`。** 1.7B 学生的完整 150 步、8 卡同时跑、Docker 与 conda 路线都还没有实测。我们在 H100（CUDA 12.6，torch 2.6 + vLLM 0.8.5）上用的是旧栈。请仍然先跑"验证"一节的四项检查，并把日志发回。
 
 流程：**安装 → 验证 → 启动心跳 → 领任务**。
 
@@ -23,7 +25,7 @@
 | 系统 | Linux x86_64，Python 3.10 或 3.11 |
 | 盘 | 每臂约 60 GB（见第 5 节），7 臂建议 ≥ 600 GB 可用；只保留上传后的 bf16 权重时约 300 GB |
 | 网络 | 能访问 PyPI 与 GitHub；Hugging Face 或其镜像（下载模型与数据）；HF 或 ModelScope（上传结果） |
-| 凭证 | 由项目负责人直接交给你：`HF_TOKEN` + `HF_REPO`，或 `MS_TOKEN` + `MS_REPO`。**只放在你自己的 shell 环境变量里，不要写进任何文件或提交到仓库。** |
+| 凭证 | 由项目负责人直接交给你：`HF_TOKEN`（只对结果仓库有写权限）+ `HF_REPO`，或 `MS_TOKEN` + `MS_REPO`。**只放在你自己的 shell 环境变量里，不要写进任何文件或提交到仓库。** 结果仓库默认可以是公开的；需要私有时设 `REQUIRE_PRIVATE=1`，脚本会拒绝往公开仓库上传。 |
 
 网络受限时：
 - 模型与数据下载：`export HF_ENDPOINT=https://hf-mirror.com`（公开模型和数据集可用，只读）。模型也可以从 ModelScope 下载（`USE_MODELSCOPE=1`，Qwen3 在魔搭上的 ID 与 HF 相同）。
@@ -63,58 +65,117 @@ docker run --gpus all --ipc=host --shm-size=64g -v $HOME/opd-run:/root/opd-run -
 
 **兼容性风险（如实说明）**：G-OPD 原装脚本用的是 vLLM 0.8.5 + torch 2.6。verl 0.6.1 与 vLLM 0.10.2 的组合我们还没有跑过。如果第 3 节的冒烟失败，先看第 7 节"常见错误"。
 
+## 2b. B300（Blackwell Ultra，sm_103）
+
+上面的栈（torch 2.8.0 cu128）是在 B200 上实测的。它的 `torch.cuda.get_arch_list()` 含 `sm_100`、`sm_120`，不含 `sm_103`。按 CUDA 的兼容规则，为 sm_100 编译的代码可以在同一大版本、更高小版本的卡上运行（10.0 → 10.3），所以这套栈**预计**能在 B300 上跑，但**我们没有在 B300 上验证过**。请按下面的顺序来：
+
+1. 先回报机器信息（写进 `verify.log` 一并发回）：
+   ```bash
+   nvidia-smi --query-gpu=name,driver_version --format=csv; nvidia-smi | grep "CUDA Version"
+   python -c "import torch;print(torch.__version__, torch.cuda.get_device_capability(), torch.cuda.get_arch_list())"
+   ```
+2. 用默认的 cu128 栈跑 `bash scripts/verify.sh`。三项都 PASS，就什么都不用改。
+3. 只有在 `verify.sh` 报 `no kernel image is available for execution on the device`、或 accept 里的 bf16 矩阵乘跑不起来时，才换 CUDA 13 路线（**未测试**）。版本已与各项目公开的发布核对过：torch 2.9.0 + torchvision 0.24.0 的 cu130 构建（vLLM v0.11.2 的构建依赖固定 `torch==2.9.0`），vLLM v0.11.2 从源码编译，flashinfer-python 0.5.2。原来的环境保留为 `$OPD_ROOT/venv-cu128`。
+
+   **A. 机器上有 nvcc ≥ 13.0**（`nvcc --version`）：
+   ```bash
+   bash scripts/install_cu130.sh 2>&1 | tee install_cu130.log   # 新 venv → torch 2.9.0/torchvision 0.24.0 (cu130) → 检查架构 → 源码编 vLLM v0.11.2 → 其余依赖 → install_gopd.sh
+   bash scripts/verify.sh 2>&1 | tee verify_cu130.log
+   ```
+   编译 vLLM 需要较长时间。可以用 `MAX_JOBS` 控制并行度，内存不够时调小。脚本在新 venv 里依次执行：
+   `uv pip install torch==2.9.0 torchvision==0.24.0 --index-url https://download.pytorch.org/whl/cu130` →
+   检查 `torch.cuda.get_arch_list()` 含本卡架构（没有 `sm_103` 时，至少要有 `sm_100`，否则停下）→
+   `git clone --branch v0.11.2 https://github.com/vllm-project/vllm.git` 后 `python use_existing_torch.py`、`uv pip install -r requirements/build.txt`、`uv pip install --no-build-isolation -e .` →
+   其余依赖（含 `flashinfer-python==0.5.2`、`transformers>=4.56,<5`）→ `install_gopd.sh`。`install_gopd.sh` 只装 G-OPD、补丁、模型和数据，不会动 torch 和 vLLM。
+
+   **B. 没有 nvcc ≥ 13.0**：用 NVIDIA 的 NGC 容器（已带 CUDA 13 的 torch 和 nvcc；进去后先用 `python -c "import torch;print(torch.__version__, torch.version.cuda)"` 确认）：
+   ```bash
+   docker run --gpus all --ipc=host --shm-size=64g -v $HOME/opd-run:/root/opd-run -e HF_TOKEN -e HF_REPO -it nvcr.io/nvidia/pytorch:25.10-py3
+   # 容器内：
+   git clone https://github.com/yang3121099/opd-blackwell-runbook.git && cd opd-blackwell-runbook
+   SKIP_TORCH=1 bash scripts/install_cu130.sh 2>&1 | tee install_cu130.log   # 用容器自带的 torch，只编 vLLM 并装其余依赖
+   bash scripts/verify.sh 2>&1 | tee verify_cu130.log
+   ```
+   - 训练框架仍是 G-OPD 分支（基于 verl 0.6.1），它与 vLLM 0.11 的接口我们**没有验证**。冒烟失败时，请把 `verify_cu130.log` 发回，由项目方修改 `code/patches` 的锚点。`apply_patches.py` 按代码锚点打补丁，并检查每个锚点恰好出现一次，对不上就报错退出，不会悄悄打错：
+     1. `dp_actor.py` 里策略损失调用前的 `entropy_coeff` / `_forward_micro_batch` 片段；
+     2. `ref_input_utils.py` 里 `prepare_ref_model_inputs` 的 `apply_chat_template` 调用；
+     3. `fsdp_sft_trainer.py` 里的 `attn_implementation="flash_attention_2"`。
+4. 换栈之后重跑 `verify.sh`，并把 `uv pip freeze` 的结果和 `verify.log` 一起发回，我们据此在本仓库补一份 B300 的版本锁。
+
 ## 3. 验证（必须先做，日志发回）
 
 ```bash
 bash scripts/verify.sh 2>&1 | tee verify.log
 ```
 
-依次做三件事，每项都打印 `PASS` / `FAIL`：
+依次做四件事，每项都打印 `PASS` / `FAIL`：
 1. **G2 单元测试**：`code/patches/test_opd_variants.py` 的 16 个测试（只用 CPU）。
 2. **accept**：GPU 型号、驱动与 CUDA、bf16 矩阵乘吞吐、磁盘写速度、下载速度、vLLM 能否启动并生成 4 道 MATH500。
 3. **3 步冒烟**：0.6B 学生 + 8B 教师的 P2 臂跑 3 步（关闭开训前验证，不存盘），记录每步耗时、显存峰值、`actor/pg_loss`、熵和回答长度。三步都有有限的 loss、没有 NaN/inf、显存在卡的容量以内，就算通过。
 
-全程约 1 小时。把 `verify.log` 发给项目负责人，三项都 PASS 之后再启动心跳和领任务。
+4. **上传路径（UPLOAD_CHECK）**：把 Qwen3-1.7B 按 verl 的方式存成 fp32 分片 ckpt（两个 `model-0000k-of-00002.safetensors` 加 index），用 `UPLOAD_DRY=1` 走一遍 `upload_sync.sh`（不需要凭据，不上传），再用 `scripts/check_upload.py` 对照 `reference/upload_manifest_qwen3-1.7b_bf16.json` 检查 bf16 产物：文件齐全、分片大小、311 个张量全是 bf16、index 的 total_size。
+
+全程约 1 小时。把 `verify.log` 发给项目负责人，四项都 PASS 之后再启动心跳和领任务。
 
 **首臂比对（自动，不占额外机时）**：E10b-P2 跑到第 10 步后，心跳脚本会把它第 0–10 步的指标（第 0 步验证值、`actor/pg_loss`、熵、回答长度、截断率、奖励、单步时间），与我们在 H100 上同配置跑的参照（`reference/E10b-P2_reference_H100_first10.json`：同样的 1.7B 学生、8B 教师、lr 3e-6、4K、seed 42；第 0 步验证 74.0，单步 256–513 s）并列写进 `status/compare_<hostname>.json` 并上传一次（`scripts/compare_first_arm.py`）。预期：数据顺序相同（seed 42），所以每一步的题目相同；但 rollout 和验证都是采样（T=1.0 / 0.7），两边的注意力实现也不同（这里 SDPA，那边 flash-attn），所以数值接近、不会逐位相同。第 0 步验证值应在采样噪声内（100 题 × 2 条，约 ±7 分），第 1 步各项应在同一量级，之后允许分叉。
 
-## 4. 启动心跳，然后领任务
+## 4. 启动心跳，然后领任务（之后自动运行）
 
-**心跳**：每 10 分钟把本机状态写成 `status/<hostname>.json`，上传到你的结果仓库（HF 或 ModelScope）的 `status/` 目录。内容有当前任务、当前步、最近一次验证值、截断率、各 GPU 利用率、磁盘余量和时间戳。我们这边只读这个目录，不会碰你的机器。
+**心跳**：每 10 分钟把本机状态写成 `status/<hostname>.json`，上传到结果仓库（HF 或 ModelScope）的 `status/` 目录。内容有队列版本、每个任务的状态（queued / running / done / retrying / failed）和当前步、最近一次验证值、截断率、失败次数和失败日志的最后几行、各 GPU 利用率、磁盘余量、时间戳。项目方只读这个目录，不会登录你的机器。
 ```bash
 setsid nohup bash scripts/heartbeat.sh > $OPD_ROOT/logs/heartbeat.log 2>&1 &
 ```
 
-**领任务**：队列在本仓库的 `tasks/queue.txt`，带版本号，列出各阶段和它的状态（open / locked）。`run_tasks.sh` 每 30 分钟 `git pull` 一次，只启动 open 阶段里、且在脚本白名单内的任务 ID；其他内容一律忽略，所以改队列文件不会让你的机器执行任意命令。项目方审完一个阶段的结果后，才会推送下一个版本、开放下一阶段（新阶段需要的脚本随那个版本一起发布）：
+**领任务**：
 ```bash
 setsid nohup bash scripts/run_tasks.sh > $OPD_ROOT/logs/run_tasks.log 2>&1 &
+DRY=1 bash scripts/run_tasks.sh      # 只打印"现在会在哪张卡上启动什么"，不启动
 ```
-每个任务一张卡；完成后写 `$OPD_ROOT/runs/<任务>/.done` 并上传 metrics。脚本幂等：重跑同一条命令，已完成的跳过，没完成的从最近的 ckpt 续跑。
+`run_tasks.sh` 每 5 分钟看一次空闲的卡（没有计算进程、显存 ≤ 2 GB），一卡一任务，严格按 `tasks/queue.txt` 的顺序领任务；每 30 分钟 `git pull` 一次本仓库。规则：
 
-## 5. 当前开放阶段：E10b
+- **阶梯自动推进**：队列分阶段，状态是 `open`（现在可跑）、`auto`（前面所有阶段的任务都结束后自动开放）或 `locked`（不开放，也挡住后面所有阶段）。"结束"指 `.done`（本地或结果仓库里出现均可），或失败满 3 次。项目方可以随时 `git push` 修改顺序或把某阶段改成 `locked`；你这边不用做任何事。
+- **依赖**：任务可以带依赖（`E12b-P1:SFT-P1` 表示等 `SFT-P1` 完成）。依赖永久失败时，这个任务会被跳过并在日志里注明。
+- **白名单**：只有 `scripts/task.sh` 认得的任务 ID 会运行，其他内容一律忽略。改队列文件不会让你的机器执行任意命令。
+- **快速失败**：每个任务脚本遇错即停（`set -e`）。任务退出时若没有 `.done`，就写 `runs/<任务>/.failed`（失败次数 + 日志末尾），由心跳上报，并自动重试；最多重试 2 次，第 3 次失败后不再重试。
+- **不扩张**：队列文件以外的任务一律不跑（不加 seed、不扩到 4B 训练、不加新的方法臂），除非新版本的队列加入。
+- **需要人工干预的只有一种情况**：调整策略时手动结束任务（`pkill -f "task.sh [0-9]* <任务>"`）。其余时间让它一直跑，把卡用满。
 
-E10b = E10 的 7 个准备臂换成 1.7B 学生：学生 Qwen/Qwen3-1.7B（非思考模式），教师 Qwen/Qwen3-8B，DAPO-Math 训练题。除学生外，配置与 0.6B 的 E10 完全一致：每步 128 题、每题 1 条、回答上限 4K、150 步、data.seed 42、不加 KL、每 10 步在 MATH500 前 100 题上验证（avg@2，4K）。
+## 5. 任务阶梯（队列版本 2）
+
+除注明外，配置与 0.6B 的 E10/E11/E12 完全一致，只把学生换成 Qwen3-1.7B。"状态"一列说明这一阶段的脚本验证到什么程度。
+
+| 阶段 | 任务 | 做什么 | 单任务预计（B200，外推） | 状态 |
+|---|---|---|---|---|
+| E10b（open） | `E10b-{P2,P3,P4lowlr,P5,P6,P6r,P2noEOS}` + `E11b-P0` | 7 个准备臂，各 150 步（见下）；第 8 张卡评测基座 1.7B（TWR 的参照） | 8–14 h；E11b-P0 约 1 h | 训练路径在 B200 上冒烟通过（0.6B 学生 3 步） |
+| E11b（auto） | `E11b-<臂>` ×7 | 每个臂第 150 步的 16K 重测：MATH500 avg@4，T=0.6 与 T=1.0（非思考）；再算 TWR/α（判别器 Qwen3-1.7B，参照为基座在 T=0.6 下的生成） | 约 1–2 h | 只做过语法检查；评测代码与 H100 上相同 |
+| E12bA（auto） | `SFT-P1`、`E12b-{P0,P2,P5,P3,P1}` | tier A 的 GRPO，各 100 步。P1 = 1.7B 在教师正确轨迹上的 SFT（lr 1e-5，与 P2 的学生 token 数对齐为 49.2M，每 epoch 存一次）；若 `$OPD_ROOT/data/p1_traces/` 里没有教师轨迹，就先用 Qwen3-8B 生成（约 16.7K 题） | SFT 约 4–8 h（含生成轨迹）；GRPO 约 4–8 h | 只做过语法检查；GRPO 配置与 0.6B 在 H100/H200 上相同；SFT 在没有 flash-attn 时靠补丁 3 改用 SDPA，未实测 |
+| zero（auto） | `E03-MI-l{0.0,0.3,0.5,0.7,1.0}`、`E02-opsa17-c{0.5,1.5}`、`E02-opsa4-c{-1,0.5,1.5}` | 零训练：Qwen3-4B Thinking-2507 与 Instruct-2507 的权重插值在 MATH500 上的 avg@4（思考模板，32K）；OPSA 的权重增量缩放 Base + c·ΔW 在 AIME24 上的 avg@16（非思考，32K） | 约 1–3 h | 只做过语法检查；权重运算与评测代码与 A100/H100 上相同 |
+| E12bRest（auto） | `E12b-{P4lowlr,P6,P6r,P2noEOS}` | 其余起点的 GRPO，压缩版 60 步 | 约 3–5 h | 同 E12bA |
+| E10b2（auto） | `E10b-{Pstop,P6rand,P6top5,P4EOSpen}` | 1.7B 的第二组臂：只保留终止附近的 advantage、随机 20%、只留 \|A\| 最大的 5%、把第一个终止标记强制加入 P4 的惩罚集合 | 8–12 h | 同 E10b |
+| seeds（auto） | `E10b-P2-s43`、`E10b-P2-s44`、`E10b-P6r-s43`、`E10b-P6r-s44` | P2 与 P6r 的数据顺序种子复制（data.seed 43、44） | 8–12 h | 同 E10b |
+
+**E10b 七臂**（1.7B 学生，Qwen3-8B 教师，DAPO-Math 训练题；每步 128 题、每题 1 条、回答上限 4K、150 步、data.seed 42、不加 KL、每 10 步在 MATH500 前 100 题上验证 avg@2）：
+
+| 任务 ID | 臂 | 做什么（advantage A_t = log q_T − log p_θ 的变体） |
+|---|---|---|
+| `E10b-P2` | P2 | 标准 OPD（K1） |
+| `E10b-P3` | P3 | 按学生 logp 分 10 档，只在同档内打乱教师 logp |
+| `E10b-P4lowlr` | P4-lowlr | 学生 logp 最低的 20% token 固定 A=−0.5，lr 6e-7 |
+| `E10b-P5` | P5 | 教师用思考模板打分 |
+| `E10b-P6` | P6 | 只保留 \|A\| 最大的 20% token |
+| `E10b-P6r` | P6r | P6 的补集（其余 80%） |
+| `E10b-P2noEOS` | P2noEOS | P2，但最后一个 EOS 处的 advantage 置 0 |
 
 **学习率 3e-6**（P4-lowlr 为 6e-7，与 0.6B 相同）。依据：0.6B 上按预注册规则从 {1e-6, 3e-6, 1e-5} 中选出 3e-6；1.7B 在 3e-6 下的 50 步试跑没有崩溃，验证值从第 0 步的 74.0 升到第 50 步的 79.5（+5.5，单次运行，4K）。
 
-| 任务 ID | 臂 | 做什么（advantage A_t = log q_T − log p_θ 的变体） | 单臂预计（B200，外推） |
-|---|---|---|---|
-| `E10b-P2` | P2 | 标准 OPD（K1） | 8–12 h |
-| `E10b-P3` | P3 | 按学生 logp 分 10 档，只在同档内打乱教师 logp | 8–12 h |
-| `E10b-P4lowlr` | P4-lowlr | 学生 logp 最低的 20% token 固定 A=−0.5，lr 6e-7 | 6–10 h |
-| `E10b-P5` | P5 | 教师用思考模板打分 | 10–14 h（回答几乎全部顶到 4K） |
-| `E10b-P6` | P6 | 只保留 \|A\| 最大的 20% token | 8–12 h |
-| `E10b-P6r` | P6r | P6 的补集（其余 80%） | 8–12 h |
-| `E10b-P2noEOS` | P2noEOS | P2，但最后一个 EOS 处的 advantage 置 0 | 8–12 h |
+时长按 H100 实测外推：1.7B 学生 + 8B 教师在 H100 上每步 300–490 s，0.6B 为 110–120 s；B200 的 0.6B 冒烟为 102–105 s/步。**未实测**，以第一臂的实际步时为准。8 卡并行时，每个阶段的总时长约等于该阶段最慢的任务。
 
-时长按 H100 实测外推：1.7B 学生 + 8B 教师在 H100 上每步 300–490 s，0.6B 为 110–120 s。B200 按 1.5–2 倍算，**未实测**，以第一臂的实际步时为准。8 卡并行时 7 臂的总时长约等于最慢的一臂。
-
-单独跑一臂（不用任务清单）：
+单独跑一个任务（不用队列）：
 ```bash
-bash scripts/run_arm.sh <gpu> <任务 ID>      # 例：bash scripts/run_arm.sh 0 E10b-P2
+bash scripts/task.sh <gpu> <任务 ID>      # 例：bash scripts/task.sh 0 E10b-P2
 ```
 
-**盘**：每 25 步存一次 ckpt（第 25、50……150 步，含 E10 的判定点 50/100/150）。1.7B 每份含 fp32 HF 权重约 6.8 GB，续跑状态（模型分片 + 优化器）约 20 GB，只在最新一份保留。上传的是 bf16 副本（约 3.4 GB）。设 `KEEP_LOCAL_HF=0` 时，本地 fp32 权重在 bf16 副本上传成功后删除。
+**盘**：训练任务每 25 步（E10b）或 20 步（E12b）存一次 ckpt。1.7B 每份含 fp32 HF 权重约 6.8 GB，续跑状态约 20 GB，只在最新一份保留。上传的是 bf16 副本（约 3.4 GB）。设 `KEEP_LOCAL_HF=0` 时，本地 fp32 权重在 bf16 副本上传成功后删除。整个阶梯建议 ≥ 1 TB 可用，或打开 `KEEP_LOCAL_HF=0`。
 
 ## 6. 上传、状态板与续跑
 
@@ -161,3 +222,7 @@ status/<hostname>.json                           心跳
 | 验证中修掉的问题 | ① uv 建的 venv 里没有 pip，裸 `pip` 会装到系统 Python → 改用 `uv pip`；② uv 把 datasets 解析成 2.14.4，与 pyarrow 25 不兼容 → 固定 `datasets>=3.0,<4.1`；③ vLLM 检查从 stdin 运行时，spawn 子进程无法重新导入 → 改成脚本文件；④ 没有 flash-attn 时 16K 的 token 预算在 actor 更新时 OOM（要分配 30 GiB 的 logits）→ 改为 6144 |
 
 作为参照，同配置（0.6B 学生 + 8B 教师，P2）在我们的 H100 上第 1 步 179 s，之后 110–120 s/步（那边用 flash-attn 去 padding）。数值对照（第 0 步验证值、第 1 步各项指标）会在你的 E10b 第一个臂跑到第 20 步后由项目方事后做。
+
+## 9. 变更记录
+
+- **v2.1（2026-10-16）**：修复上传脚本 `scripts/upload_sync.sh` 的两个问题。一是只认单文件 `model.safetensors`：1.7B 的 ckpt 是分片保存的，修复前会被一律跳过，而且没有任何报错。二是一看到 `finished:` 就退出：最后一个 ckpt 往往还不满 120 秒，修复前会漏传。现在分片逐个转 bf16，index 的 total_size 改成 bf16 大小（`to_bf16.py`）；所有 ckpt 都传完才退出；`verify.sh` 新增第 4 项上传路径检查（`check_upload.py` + `reference/upload_manifest_qwen3-1.7b_bf16.json`）。**v2 或更早的节点**：请更新到 v2.1，重启 `upload_sync.sh`（已传的 ckpt 有 `.uploaded` 标记，不会重传；被跳过的分片 ckpt 会补传），然后重跑 `verify.sh` 的第 4 项。

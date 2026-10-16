@@ -6,6 +6,8 @@
 set -uo pipefail
 source "$(dirname "$0")/env.sh"; source $OPD_ROOT/venv/bin/activate
 H=$(hostname -s); F=$OPD_ROOT/logs/status_$H.json
+# software stack, read once: tells the project which install route this node is on
+python -c "import json, torch, vllm; json.dump({'torch': torch.__version__, 'torch_cuda': torch.version.cuda, 'vllm': vllm.__version__, 'arch_list': torch.cuda.get_arch_list(), 'device_capability': list(torch.cuda.get_device_capability())}, open('$OPD_ROOT/logs/stack.json', 'w'))" 2>/dev/null || echo '{}' > $OPD_ROOT/logs/stack.json
 while true; do
   python - "$F" <<'PY'
 import glob, json, os, re, subprocess, sys, time
@@ -13,11 +15,14 @@ root = os.environ["OPD_ROOT"]; runbook = os.environ["RUNBOOK"]
 def last(pat, text):
     m = re.findall(pat, text); return float(m[-1]) if m else None
 tasks = {}
-for d in sorted(glob.glob(os.path.join(root, "runs", "E*"))):
+for d in sorted(x for x in glob.glob(os.path.join(root, "runs", "*")) if os.path.isdir(x) and not os.path.basename(x).startswith("smoke")):
     log = os.path.join(d, "train.log"); text = open(log, errors="ignore").read()[-400000:] if os.path.exists(log) else ""
     steps = re.findall(r"(?:^|[ )])step:(\d+) - ", text)
+    failed = open(os.path.join(d, ".failed")).read() if os.path.exists(os.path.join(d, ".failed")) else ""
+    att = re.search(r"attempts: (\d+)", failed)
     tasks[os.path.basename(d)] = {
-        "state": "done" if os.path.exists(os.path.join(d, ".done")) else ("running" if text else "queued"),
+        "state": "done" if os.path.exists(os.path.join(d, ".done")) else ("failed" if failed and int(att.group(1)) >= 3 else ("retrying" if failed else ("running" if text else "queued"))),
+        "attempts_failed": int(att.group(1)) if att else 0, "last_failure_tail": failed.splitlines()[-3:] if failed else [],
         "step": int(steps[-1]) if steps else 0,
         "val_math500_mean@2": last(r"val-core/math500/reward/mean@2:([0-9.]+)", text),
         "truncation": last(r"response_length/clip_ratio:([0-9.]+)", text),
@@ -29,6 +34,7 @@ queue = open(os.path.join(runbook, "tasks", "queue.txt")).read() if os.path.exis
 ver = re.search(r"^version:\s*(\S+)", queue, re.M); opened = re.search(r"^open:\s*(\S+)", queue, re.M)
 json.dump({"host": os.uname().nodename, "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
            "queue_version": ver.group(1) if ver else None, "open_stage": opened.group(1) if opened else None,
+           "stack": json.load(open(os.path.join(root, "logs", "stack.json"))) if os.path.exists(os.path.join(root, "logs", "stack.json")) else {},
            "tasks": tasks, "gpus": gpu, "disk_free_gb": round(st.f_bavail * st.f_frsize / 1e9, 1)}, open(sys.argv[1], "w"), indent=1)
 PY
   python $RUNBOOK/scripts/remote.py put $F status/$H.json 2>> $OPD_ROOT/logs/heartbeat.err && echo "HEARTBEAT $(date -u +%T)"

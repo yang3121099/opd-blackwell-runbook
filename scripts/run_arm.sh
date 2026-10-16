@@ -4,12 +4,17 @@
 # resume state (resume_mode=auto: re-running the same command continues), and SDPA when flash-attn is absent.
 # Idempotent: a finished task (runs/<task>/.done) is skipped. SMOKE=1 runs 3 steps without validation or checkpoints
 # (the verification smoke sets STUDENT=Qwen/Qwen3-0.6B).
-# Usage: bash run_arm.sh <gpu> <task id>      task ids: E10b-P2 E10b-P3 E10b-P4lowlr E10b-P5 E10b-P6 E10b-P6r E10b-P2noEOS
+# Usage: bash run_arm.sh <gpu> <task id>      task ids: E10b-{P2,P3,P4lowlr,P5,P6,P6r,P2noEOS,Pstop,P6rand,P6top5,P4EOSpen}
+#        and the seed replicates E10b-P2-s43/-s44, E10b-P6r-s43/-s44
 set -euo pipefail
 source "$(dirname "$0")/env.sh"; GPU=$1; TASK=$2
-case $TASK in
+# task id E10b-<arm>[-s<seed>]: the seed changes only the data order (data.seed); the default seed is 42
+SEED=42; BASE=$TASK; [[ $TASK =~ -s(43|44)$ ]] && { SEED=${BASH_REMATCH[1]}; BASE=${TASK%-s*}; }
+case $BASE in
   E10b-P2) ARM=P2; LR=3e-6;; E10b-P3) ARM=P3; LR=3e-6;; E10b-P4lowlr) ARM=P4; LR=6e-7;; E10b-P5) ARM=P5; LR=3e-6;;
   E10b-P6) ARM=P6; LR=3e-6;; E10b-P6r) ARM=P6r; LR=3e-6;; E10b-P2noEOS) ARM=P2noEOS; LR=3e-6;;
+  E10b-Pstop) ARM=Pstop; LR=3e-6;; E10b-P6rand) ARM=P6rand; LR=3e-6;; E10b-P6top5) ARM=P6top5; LR=3e-6;;
+  E10b-P4EOSpen) ARM=P4EOSpen; LR=3e-6;;
   *) echo "unknown task $TASK"; exit 2;;
 esac
 [ "${SMOKE:-0}" = 1 ] && TASK=smoke-$TASK
@@ -31,6 +36,7 @@ STEPS=150; SAVE=25; TEST=10; VALB=True
 task: $TASK
 arm: $ARM
 lr: $LR
+data_seed: $SEED
 steps: $STEPS
 student: $STUDENT (no_think)
 teacher: Qwen/Qwen3-8B (ref; think-template=$OPD_REF_THINK)
@@ -50,7 +56,7 @@ python3 -m verl.trainer.main_ppo \
   actor_rollout_ref.rollout.calculate_log_probs=true \
   data.train_files=$OPD_ROOT/data/dapo_train.parquet data.val_files=$OPD_ROOT/data/math500_100.parquet \
   data.train_batch_size=128 data.max_prompt_length=1024 data.max_response_length=4096 \
-  data.filter_overlong_prompts=True data.truncation=error data.shuffle=True data.seed=42 data.return_raw_chat=True \
+  data.filter_overlong_prompts=True data.truncation=error data.shuffle=True data.seed=$SEED data.return_raw_chat=True \
   +data.apply_chat_template_kwargs.enable_thinking=False \
   actor_rollout_ref.model.path=$STUDENT +actor_rollout_ref.ref.model.path=Qwen/Qwen3-8B \
   +actor_rollout_ref.model.override_config.attn_implementation=$ATTN \
