@@ -11,6 +11,10 @@ E10b     open   E10b-P2 E10b-P3 E10b-P4lowlr E10b-P5 E10b-P6 E10b-P6r E10b-P2noE
 E11b     open   E11b-P2:E10b-P2+E11b-P0 E11b-P3:E10b-P3+E11b-P0 E11b-P4lowlr:E10b-P4lowlr+E11b-P0 E11b-P5:E10b-P5+E11b-P0 E11b-P6:E10b-P6+E11b-P0 E11b-P6r:E10b-P6r+E11b-P0 E11b-P2noEOS:E10b-P2noEOS+E11b-P0
 E12bA    open   SFT-P1 E12b-P0 E12b-P2:E10b-P2 E12b-P5:E10b-P5 E12b-P3:E10b-P3 E12b-P1:SFT-P1
 probe    open   FA-PROBE
+evals    open   EVAL-bridge EVAL-p5s43-s20 EVAL-p5s43-s40
+#eval EVAL-bridge e12_P5c05_s40_math500_T0.6 yang31210999/opd-lab-ckpts/runs/E12-P5c05/global_step_40/actor/huggingface math500 4 0.6
+#eval EVAL-p5s43-s20 e12_P5s43_s20_math500_T0.6 yang31210999/opd-lab-ckpts/runs/E12-P5s43/global_step_20/actor/huggingface math500 4 0.6
+#eval EVAL-p5s43-s40 e12_P5s43_s40_math500_T0.6 yang31210999/opd-lab-ckpts/runs/E12-P5s43/global_step_40/actor/huggingface math500 4 0.6
 E12bRest auto   E12b-P4lowlr:E10b-P4lowlr E12b-P6:E10b-P6 E12b-P6r:E10b-P6r E12b-P2noEOS:E10b-P2noEOS
 E10b2    open   E10b-P2-s43 E10b-P2-s44 E10b-P6r-s43 E10b-P6r-s44 E10b-Pstop E10b-P6rand E10b-P6top5 E10b-P4EOSpen
 zero     open   E03-MI-l0.0 E03-MI-l0.3 E03-MI-l0.5 E03-MI-l0.7 E03-MI-l1.0 E02-opsa17-c0.5 E02-opsa17-c1.5 E02-opsa4-c-1 E02-opsa4-c0.5 E02-opsa4-c1.5
