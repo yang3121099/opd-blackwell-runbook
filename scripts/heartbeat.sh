@@ -62,7 +62,7 @@ live = live_tasks()
 tasks = {}
 for d in sorted(x for x in glob.glob(os.path.join(root, "runs", "*")) if os.path.isdir(x) and not os.path.basename(x).startswith("smoke")):
     log = os.path.join(d, "train.log"); text = open(log, errors="ignore").read()[-400000:] if os.path.exists(log) else ""
-    steps = re.findall(r"(?:^|[ )])step:(\d+) - ", text)
+    steps = re.findall(r"(?:^|[ )\]])step:(\d+) - ", text)   # v2.5.6d: verl's SFT trainer prints "...s/it]step:N - "
     failed = open(os.path.join(d, ".failed")).read() if os.path.exists(os.path.join(d, ".failed")) else ""
     att = re.search(r"attempts: (\d+)", failed)
     tasks[os.path.basename(d)] = {
@@ -72,8 +72,8 @@ for d in sorted(x for x in glob.glob(os.path.join(root, "runs", "*")) if os.path
         "step": int(steps[-1]) if steps else 0,
         "val_math500": last(r"val-core/math500/reward/mean@\d+:([0-9.]+)", text),   # mean@2 (E10b) or mean@4 (E12b); v2.3
         "truncation": last(r"response_length/clip_ratio:([0-9.]+)", text),
-        "step_time_s": last(r"timing_s/step:([0-9.]+)", text)}
-    t = tasks[os.path.basename(d)]; times = [float(x) for x in re.findall(r"timing_s/step:([0-9.]+)", text)[-5:]]
+        "step_time_s": last(r"timing_s/step:([0-9.]+)", text) or last(r"train/time\(s\):([0-9.]+)", text)}   # RL / SFT
+    t = tasks[os.path.basename(d)]; times = [float(x) for x in (re.findall(r"timing_s/step:([0-9.]+)", text) or re.findall(r"train/time\(s\):([0-9.]+)", text))[-5:]]
     t["total_steps"] = total_steps(d, text); t["step_time_mean5_s"] = round(sum(times) / len(times), 1) if times else None
     t["eta_min"] = round((t["total_steps"] - t["step"]) * t["step_time_mean5_s"] / 60) if t["total_steps"] and times and t["state"] == "running" else None
     t["log_tail"] = tail(os.path.join(root, "logs", os.path.basename(d) + ".log"))
@@ -106,7 +106,7 @@ json.dump({"host": os.uname().nodename, "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ
            "ckpt_disk_free_gb": (lambda c: round(c.f_bavail * c.f_frsize / 1e9, 1))(os.statvfs(os.environ["CKPT_ROOT"])) if os.path.isdir(os.environ.get("CKPT_ROOT", "")) else None,
            "ckpt_disk_alert": (lambda c: c.f_bavail * c.f_frsize / 1e9 < float(os.environ.get("CKPT_ALERT_GB", "100")))(os.statvfs(os.environ["CKPT_ROOT"])) if os.path.isdir(os.environ.get("CKPT_ROOT", "")) else None,
            "disk_used_pct": round(100 * (1 - st.f_bavail / st.f_blocks), 1) if st.f_blocks else None,
-           "runbook_head": git("rev-parse", "--short", "HEAD"), "runbook_version": "v2.5.6c",
+           "runbook_head": git("rev-parse", "--short", "HEAD"), "runbook_version": "v2.5.6d",
            "run_tasks_sha": open(os.path.join(root, "control", "run_tasks.sha")).read().strip() if os.path.exists(os.path.join(root, "control", "run_tasks.sha")) else None,
            "ckpt_roots": roots_report(),   # v2.5: every candidate root: mount, free GB, writable, alert, task dirs and sizes
            "control": control_status(),
@@ -119,7 +119,7 @@ PY
   UP=$F
   if ! python -c "import json, sys; json.load(open(sys.argv[1]))" $F 2> /dev/null; then
     UP=/dev/shm/status_$H.json; [ -d /dev/shm ] || UP=/tmp/status_$H.json
-    printf '{"host": "%s", "utc": "%s", "error": "status JSON not written (disk full?)", "disk_free_gb": %s, "ckpt_disk_free_gb": %s, "runbook_version": "v2.5.6c"}\n' \
+    printf '{"host": "%s", "utc": "%s", "error": "status JSON not written (disk full?)", "disk_free_gb": %s, "ckpt_disk_free_gb": %s, "runbook_version": "v2.5.6d"}\n' \
       "$H" "$(date -u +%FT%TZ)" "$(df -Pk $OPD_ROOT | awk 'NR==2{printf "%.1f", $4/1e6}')" "$(df -Pk ${CKPT_ROOT:-$OPD_ROOT} | awk 'NR==2{printf "%.1f", $4/1e6}')" > $UP
   fi
   N=$(python $RUNBOOK/scripts/control.py node)
