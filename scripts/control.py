@@ -1426,7 +1426,7 @@ if __name__ == "__main__":
     elif cmd == "alerts":
         print(json.dumps(alerts(sys.argv[2])))
     elif cmd == "reap":   # v2.5.4b: reap <gpu> [task]: our orphaned vLLM / Ray processes on that GPU
-        print("REAPED", " ".join(map(str, reap(int(sys.argv[2]), sys.argv[3] if len(sys.argv) > 3 else None))) or "none")
+        print("REAPED", " ".join(map(str, reap(int(sys.argv[2]), sys.argv[3] if len(sys.argv) > 3 else None, wait_s=300))) or "none")   # v2.5.6e: up to 5 min for the GPU to empty
     elif cmd == "pulse":   # heartbeat.sh every 60 s (v2.5.1)
         r = pulse(sys.argv[2]); print("PULSE ok" if r else "PULSE refused")
     elif cmd == "rcpt":   # run_tasks / run_adhoc_eval: update a receipt (started, done, failed)

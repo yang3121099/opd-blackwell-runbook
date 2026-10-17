@@ -289,10 +289,39 @@ def main():
     print(json.dumps({k: metrics[k] for k in ["model", "bench", "mode", "avg_acc", "mean_tokens", "trunc_rate", "gen_seconds"]}), flush=True)
 
 
+def _reap_children(grace=5):
+    """End every descendant of this process (vLLM's engine core and its workers). os._exit alone leaves the engine core
+    running as an orphan that keeps the GPU (B300 2026-10-17: ~248 GB each; the next engine on that GPU failed)."""
+    import signal
+    if not os.path.isdir("/proc"):
+        return []
+    kids = defaultdict(list)
+    for p in os.listdir("/proc"):
+        if p.isdigit():
+            try:
+                kids[int(open(f"/proc/{p}/stat").read().rsplit(")", 1)[1].split()[1])].append(int(p))
+            except (OSError, ValueError, IndexError):
+                pass
+    out, todo = [], [os.getpid()]
+    while todo:
+        for c in kids.get(todo.pop(), []):
+            out.append(c); todo.append(c)
+    for sig, wait in ((signal.SIGTERM, grace), (signal.SIGKILL, 0)):
+        for c in out:
+            try:
+                os.kill(c, sig)
+            except OSError:
+                pass
+        if out:
+            time.sleep(wait)
+    return out
+
+
 if __name__ == "__main__":
     main()
     # vLLM v1 can hang on interpreter shutdown while holding the GPU (seen on the 2x H100, 11 min idle).
-    # All outputs are written and closed above, so exit hard.
+    # All outputs are written and closed above, so exit hard, after ending vLLM's engine-core child (2026-10-18).
     import sys as _sys
     _sys.stdout.flush(); _sys.stderr.flush()
+    _reap_children()
     os._exit(0)
