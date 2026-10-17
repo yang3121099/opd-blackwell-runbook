@@ -23,3 +23,4 @@ commands:
   - {"seq": 21, "cmd": "setenv FIXED_MICRO_BSZ=4", "reason": "reviewer 15:5x ruling (b): the whole E10b2 stage (seeds + new OPD arms) runs without flash-attn with 4 sequences per micro-batch, uniform within the stage, no padding OOM; only run_arm.sh reads it", "utc": "2026-10-17T15:36:28Z"}
   - {"seq": 22, "cmd": "cancel 19", "reason": "reviewer 15:5x: FA-PROBE now runs as a queue task (probe stage after E12bA); the ad-hoc request seq 19 would duplicate it", "utc": "2026-10-17T15:38:49Z"}
   - {"seq": 23, "cmd": "cancel 20", "reason": "the bridge reading now runs as the queue task EVAL-bridge (queue bd979dd); the ad-hoc request seq 20 would duplicate it", "utc": "2026-10-17T15:49:33Z"}
+  - {"seq": 24, "cmd": "reap 0", "reason": "Runming's approval in my window: orphaned VLLM::EngineCore left by finished evaluations holds ~248 GB on gpu 0 at 0% since ~16:3x-16:5x UTC", "utc": "2026-10-17T17:12:49Z"}
