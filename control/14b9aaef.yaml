@@ -13,3 +13,4 @@ commands:
   - {"seq": 11, "cmd": "heartbeat", "reason": "Runming 13:4x: v2.5.1 switch step 4, fresh heartbeat into the new repositories", "utc": "2026-10-17T13:46:53Z"}
   - {"seq": 12, "cmd": "upload runs/E11b-P0", "reason": "Runming 13:4x: v2.5.1 switch step 5, re-upload the finished E11b-P0 results into the new public repository", "utc": "2026-10-17T13:48:59Z"}
   - {"seq": 13, "cmd": "set HEARTBEAT_SEC=120", "reason": "Runming 13:4x: v2.5.1 switch step 5, heartbeat every 2 minutes for the monitor page", "utc": "2026-10-17T13:50:13Z"}
+  - {"seq": 14, "cmd": "setenv FIXED_MICRO_BSZ=4", "reason": "Runming 14:5x: restart E10b-P4lowlr with 4 sequences per micro-batch (OOM at step 97 with the token budget, no flash-attn)", "utc": "2026-10-17T14:55:33Z"}
