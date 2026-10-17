@@ -10,3 +10,4 @@ commands:
   - {"seq": 8, "cmd": "run E10b-NOTATASK", "reason": "control-channel test 7/7: deliberately invalid task name, must come back refused", "utc": "2026-10-17T12:06:52Z"}
   - {"seq": 9, "cmd": "set HF_REPO_PRIVATE=yang31210999/opd-lab-b300-ops", "reason": "Runming 13:4x: v2.5.1 switch step 2, private repository for status, logs, receipts, events, procs", "utc": "2026-10-17T13:44:41Z"}
   - {"seq": 10, "cmd": "set HF_REPO_PUBLIC=yang31210999/opd-lab-b300", "reason": "Runming 13:4x: v2.5.1 switch step 3, public repository for weights, results and the pulse", "utc": "2026-10-17T13:45:29Z"}
+  - {"seq": 11, "cmd": "heartbeat", "reason": "Runming 13:4x: v2.5.1 switch step 4, fresh heartbeat into the new repositories", "utc": "2026-10-17T13:46:53Z"}
