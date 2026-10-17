@@ -238,3 +238,61 @@ def test_run_e12_fixed_micro_branch():
 def test_run_accepts_eval_tasks(env):
     assert env.c.v_run(["EVAL-bridge"], 31)[0] == "accepted"
     assert env.c.v_run(["EVAL-"], 32)[0] == "rejected"
+
+
+def _fake_proc(root, pid, cmd, ppid, env):
+    d = root / str(pid); d.mkdir(parents=True)
+    (d / "cmdline").write_bytes(cmd.replace(" ", "\0").encode())
+    (d / "status").write_text(f"Name:\tx\nPPid:\t{ppid}\n")
+    (d / "environ").write_bytes("\0".join(f"{k}={v}" for k, v in env.items()).encode())
+
+
+def test_reap_only_our_orphans(env, monkeypatch, tmp_path):
+    c = env.c; pr = tmp_path / "proc"; R0 = c.ROOT
+    _fake_proc(pr, 101, "VLLM::EngineCore", 1, {"OPD_ROOT": R0, "CUDA_VISIBLE_DEVICES": "4"})                    # reap
+    _fake_proc(pr, 102, "ray::WorkerDict.actor_rollout_update_actor", 1, {"OPD_ROOT": R0, "CUDA_VISIBLE_DEVICES": "0", "RAY_TMPDIR": "/tmp/ray_gpu4"})  # reap
+    _fake_proc(pr, 103, "VLLM::EngineCore", 555, {"OPD_ROOT": R0, "CUDA_VISIBLE_DEVICES": "4"})                  # parent alive: keep
+    _fake_proc(pr, 104, "VLLM::EngineCore", 1, {"OPD_ROOT": R0, "CUDA_VISIBLE_DEVICES": "5"})                    # other GPU: keep
+    _fake_proc(pr, 105, "VLLM::EngineCore", 1, {"OPD_ROOT": "/elsewhere", "CUDA_VISIBLE_DEVICES": "4"})          # not ours: keep
+    _fake_proc(pr, 106, "bash scripts/upload_sync.sh runs/E10b-P2", 1, {"OPD_ROOT": R0, "CUDA_VISIBLE_DEVICES": "4"})  # not an engine: keep
+    killed, events, mem = [], [], iter([251000.0, 120.0, 120.0])
+    monkeypatch.setattr(c.os, "kill", lambda pid, sig: killed.append((pid, sig)))
+    monkeypatch.setattr(c, "_alive", lambda pid: False)
+    monkeypatch.setattr(c, "_gpu_used_mib", lambda g: next(mem, 120.0))
+    monkeypatch.setattr(c, "event", lambda task, kind, detail="": events.append((task, kind, detail)))
+    got = c.reap(4, "E11b-P6", wait_s=1, proc_root=str(pr), grace_s=0)
+    assert sorted(got) == [101, 102], got
+    assert sorted(p for p, _ in killed) == [101, 102] and all(s == c.signal.SIGTERM for _, s in killed)
+    assert [e[1] for e in events] == ["orphan_reaped", "orphan_reaped"] and "gpu_mem_before_mib=251000.0" in events[0][2]
+
+
+def test_pulse_eval_gpu_and_orphan_alerts(env):
+    import json as _j
+    rows = [{"gpu": 0, "task": "E11b-P2", "ours": True, "gpu_mem_mb": 249784},
+            {"gpu": 4, "task": None, "ours": False, "gpu_mem_mb": 249784},
+            {"gpu": 1, "task": "E10b-P3", "ours": True, "gpu_mem_mb": 250000}]
+    open(env.c._p("procs.json"), "w").write(_j.dumps({"rows": rows}))
+    p = env.c.build_pulse(STATUS, "0, 89, 250000, 275040\n1, 90, 250000, 275040\n4, 0, 249784, 275040\n")
+    assert "gpu_mem_high:0" not in p["alerts"]            # an evaluation GPU is not flagged
+    assert "gpu_mem_high:1" in p["alerts"]                # a training GPU close to full is
+    assert "gpu_orphan:4" in p["alerts"] and "gpu_mem_high:4" in p["alerts"]
+
+
+@pytest.mark.parametrize("cmd,ok", [("reap 4", True), ("reap 0", True), ("reap 7", True), ("reap 8", False), ("reap 16", False), ("reap x", False), ("reap", False)])
+def test_rules_reap(cmd, ok):
+    if ok:
+        R.parse({"cmd": cmd, "reason": "t"})
+    else:
+        with pytest.raises(R.Reject):
+            R.parse({"cmd": cmd, "reason": "t"})
+
+
+def test_v_reap_calls_reap(env, monkeypatch):
+    monkeypatch.setattr(env.c, "reap", lambda gpu, task=None, wait_s=0: [101, 102] if gpu == 4 else [])
+    monkeypatch.setattr(env.c, "proc_table", lambda: [{"gpu": 3, "ours": True, "task": "E10b-P5"}, {"gpu": 4, "ours": False, "task": None}])
+    monkeypatch.setattr(env.c.subprocess, "run", lambda *a, **k: types.SimpleNamespace(stdout="".join(f"GPU {i}: B300\n" for i in range(8)), returncode=0))
+    st, msg, _ = env.c.v_reap(["3"], 40)
+    assert st == "rejected" and "E10b-P5" in msg                     # never next to a live training
+    assert env.c.v_reap(["9"], 43)[0] == "rejected"                    # no such GPU
+    assert env.c.v_reap(["4"], 41)[0] == "ok" and "[101, 102]" in env.c.v_reap(["4"], 41)[1]
+    assert "no orphaned" in env.c.v_reap(["5"], 42)[1]

@@ -16,6 +16,7 @@ for t in "T0.6 --temperature 0.6 --top_p 0.95 --top_k 0" "T1.0 --temperature 1.0
   set -- $t; tag=e11b_${A}_math500_$1; shift
   ls $OUT/${tag}_*.metrics.json >/dev/null 2>&1 || \
     python code/eval/gen_eval.py --model $M --bench math500 --mode no_think --n 4 "$@" --max_tokens 16384 --tag $tag --out $OUT
+  python scripts/control.py reap $G $T > /dev/null 2>&1 || true   # v2.5.4b: the finished engine must not hold the GPU for the next one
 done
 if [ $A != P0 ]; then
   REF=$(ls $OPD_ROOT/runs/E11b-P0/e11b_P0_math500_T0.6_*.jsonl | head -1)

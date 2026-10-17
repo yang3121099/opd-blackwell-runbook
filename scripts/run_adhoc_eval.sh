@@ -30,6 +30,7 @@ case $TEMP in 1.0) SAMP="--temperature 1.0 --top_p 1.0 --top_k 0";; *) SAMP="--t
 case $BENCH in aime24|aime25|amc23) K=10;; *) K=50;; esac
 export CUDA_VISIBLE_DEVICES=$G; cd $RUNBOOK
 python code/eval/gen_eval.py --model $M --bench $BENCH --mode no_think --n $N $SAMP --max_tokens 16384 --chunk $K \
-  --tag adhoc_${S}_${BENCH} --out $OUT > $OUT/gen_eval.log 2>&1 || fin failed "gen_eval failed: $(tail -1 $OUT/gen_eval.log | cut -c1-200)"
+  --tag adhoc_${S}_${BENCH} --out $OUT > $OUT/gen_eval.log 2>&1 || { python scripts/control.py reap $G adhoc_eval_$S > /dev/null 2>&1; fin failed "gen_eval failed: $(tail -1 $OUT/gen_eval.log | cut -c1-200)"; }
+python scripts/control.py reap $G adhoc_eval_$S > /dev/null 2>&1 || true   # v2.5.4b: release the GPU (the engine can outlive gen_eval)
 python scripts/remote.py put $OUT runs/adhoc_eval_$S || fin failed "results kept in $OUT; upload failed"
 fin ok "$(python -c "import json,glob; m=json.load(open(glob.glob('$OUT/*.metrics.json')[0])); print(f\"{m['bench']} n={m['n']} avg_acc={m['avg_acc']} mean_tokens={m['mean_tokens']} trunc={m['trunc_rate']}\")") -> runs/adhoc_eval_$S"

@@ -32,8 +32,9 @@ while read -r TAG MODEL BENCH N TEMP; do
   case $BENCH in aime24|aime25|amc23) K=10;; *) K=50;; esac
   echo "EVAL_START $(date -u +%T) $TAG"
   CUDA_VISIBLE_DEVICES=$G python $RUNBOOK/code/eval/gen_eval.py --model $M --bench $BENCH --mode no_think --n $N $SAMP \
-    --max_tokens 16384 --chunk $K --tag $TAG --out $OUT >> $OUT/gen_eval.log 2>&1 || { echo "EVAL_FAIL $TAG"; ok=0; continue; }
+    --max_tokens 16384 --chunk $K --tag $TAG --out $OUT >> $OUT/gen_eval.log 2>&1 || { echo "EVAL_FAIL $TAG"; ok=0; python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1; continue; }
   echo "EVAL_DONE $(date -u +%T) $TAG"
+  python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true   # v2.5.4b: release the GPU before the next engine
 done <<< "$SPECS"
 python $RUNBOOK/scripts/remote.py put $OUT runs/$T || { echo "upload failed (results kept in $OUT)"; ok=0; }
 [ $ok = 1 ] && touch $OUT/.done

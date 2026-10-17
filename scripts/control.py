@@ -624,6 +624,86 @@ def _remote():
     return remote
 
 
+ORPHAN_CMD = re.compile(r"VLLM::EngineCore|VLLM::|multiprocessing\.spawn|^ray::")
+
+
+def _gpu_used_mib(gpu):
+    try:
+        out = subprocess.run(["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits", "-i", str(gpu)],
+                             capture_output=True, text=True, timeout=30).stdout.strip()
+        return float(out.splitlines()[0]) if out else None
+    except Exception:
+        return None
+
+
+def reap(gpu, task=None, wait_s=120, proc_root="/proc", grace_s=10):
+    """v2.5.4b: our orphaned GPU processes on <gpu>, after an evaluation or a task has ended. A process qualifies only if
+    all three hold: its parent has died (PPid 1); it is a vLLM engine or worker (VLLM::EngineCore, multiprocessing.spawn)
+    or a Ray worker (ray::...); its environment shows it was started by this node's tasks for this GPU (OPD_ROOT equal to
+    ours, and CUDA_VISIBLE_DEVICES=<gpu> or RAY_TMPDIR=/tmp/ray_gpu<gpu>). Such a process holds the GPU after gen_eval or
+    a training exits (B300, 2026-10-17: ~250 GB each, the next vLLM engine could not start). TERM, KILL after grace_s; an
+    event per process (pid, gpu, memory before); then wait until the GPU has <= 2 GB in use (at most wait_s). Returns the
+    list of reaped pids."""
+    found = []
+    for d in os.listdir(proc_root):
+        if not d.isdigit():
+            continue
+        pid = int(d)
+        cmd = _read(os.path.join(proc_root, d, "cmdline")).replace("\0", " ").strip()
+        if not cmd or not ORPHAN_CMD.search(cmd):
+            continue
+        m = re.search(r"^PPid:\s+(\d+)", _read(os.path.join(proc_root, d, "status")), re.M)
+        if not m or int(m.group(1)) != 1:
+            continue
+        env = {}
+        for kv in _read(os.path.join(proc_root, d, "environ")).split("\0"):
+            k, _, v = kv.partition("=")
+            if k:
+                env[k] = v
+        if env.get("OPD_ROOT") != ROOT:
+            continue
+        if env.get("CUDA_VISIBLE_DEVICES") != str(gpu) and env.get("RAY_TMPDIR") != f"/tmp/ray_gpu{gpu}":
+            continue
+        found.append((pid, cmd[:60]))
+    before = _gpu_used_mib(gpu) if found else None
+    for pid, _ in found:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except (ProcessLookupError, PermissionError):
+            pass
+    t0 = time.time()
+    while found and time.time() - t0 < grace_s and any(_alive(p) for p, _ in found):
+        time.sleep(1)
+    for pid, cmd in found:
+        if _alive(pid):
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+        event(task or f"gpu{gpu}", "orphan_reaped", f"pid={pid} gpu={gpu} gpu_mem_before_mib={before} cmd={cmd}")
+    t0 = time.time()
+    while time.time() - t0 < wait_s:
+        u = _gpu_used_mib(gpu)
+        if u is None or u <= 2048:
+            break
+        time.sleep(5)
+    return [p for p, _ in found]
+
+
+def v_reap(a, seq, flags=None, entry=None):
+    """reap <gpu> (v2.5.4b): our orphaned vLLM / Ray processes on that GPU, by the three conditions of reap(); nothing else."""
+    g = int(a[0])
+    n = len([l for l in subprocess.run(["nvidia-smi", "-L"], capture_output=True, text=True).stdout.splitlines() if l.startswith("GPU ")])
+    if n and g >= n:
+        return "rejected", f"gpu {g} does not exist (this node has {n})", {}
+    live = sorted({r.get("task") for r in proc_table() if r.get("gpu") == g and r.get("ours")
+                   and re.match(r"(E10b-|E12b-|SFT-|E03-|E02-)", str(r.get("task") or ""))})
+    if live:   # Ray workers are reaped only after their task ended (the design of reap); never next to a live training
+        return "rejected", f"a training task is running on gpu {g} ({', '.join(live)}); reap runs after it ends", {}
+    pids = reap(g, f"gpu{g}", wait_s=60)
+    return "ok", (f"reaped {len(pids)} orphaned process(es) on gpu {a[0]}: {pids}" if pids else f"no orphaned process of ours on gpu {a[0]}"), {}
+
+
 def _public_repo():
     try:
         return _remote().repos()[0]
@@ -757,7 +837,19 @@ def build_pulse(st, gpu_csv):
     # v2.5.2: a GPU close to full (default > 240 GB used, GPU_MEM_ALERT_MIB) is flagged: on 2026-10-17 E10b-P4lowlr's GPU
     # sat at ~250 GB for steps before its out-of-memory crash at step 97
     lim = float(os.environ.get("GPU_MEM_ALERT_MIB", 245760))
-    alerts += [f"gpu_mem_high:{g['idx']}" for g in gpus if g["mem_used"] is not None and g["mem_used"] > lim]
+    evals, orphans = set(), set()   # v2.5.4b: evaluation GPUs are not flagged (their vLLM preallocates ~0.9 of the GPU)
+    try:
+        for r in json.loads(_read(_p("procs.json"), "{}") or "{}").get("rows", []):
+            if r.get("gpu") is None:
+                continue
+            if re.match(r"(E11b-|EVAL-|adhoc_eval_|FA-PROBE)", str(r.get("task") or "")):
+                evals.add(r["gpu"])
+            if not r.get("ours") and (r.get("gpu_mem_mb") or 0) > 2048:   # a process outside our trees holding memory
+                orphans.add(r["gpu"])
+    except Exception:
+        pass
+    alerts += [f"gpu_orphan:{g}" for g in sorted(orphans)]
+    alerts += [f"gpu_mem_high:{g['idx']}" for g in gpus if g["mem_used"] is not None and g["mem_used"] > lim and g["idx"] not in evals]
     t = lambda x: x if isinstance(x, str) and re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", x) else None
     head = st.get("runbook_head") if isinstance(st.get("runbook_head"), str) and re.fullmatch(r"[0-9a-f]{7,40}", st.get("runbook_head")) else None
     ver = st.get("runbook_version") if isinstance(st.get("runbook_version"), str) and re.fullmatch(r"v[0-9.]+", st.get("runbook_version")) else None
@@ -1091,7 +1183,7 @@ VERBS = {"pause": _v24(v_pause), "resume": _v24(v_resume), "kill": _v24(v_kill),
          "restore": _v24(v_restore), "rerun_verify": _v24(v_rerun_verify), "setenv": v_set, "set": v_set,
          "snapshot": lambda a, seq, flags=None, entry=None: v_snapshot0(seq) if not a else v_snapshot(a, seq),
          "ps": v_ps, "logs": v_logs, "run": v_run, "eval": v_eval, "update": v_update, "upload": v_upload,
-         "signal": v_signal, "kill-pgid": v_killpgid, "cancel": v_cancel, "heartbeat": v_heartbeat, "move-ckpt": v_move_ckpt}
+         "signal": v_signal, "kill-pgid": v_killpgid, "cancel": v_cancel, "heartbeat": v_heartbeat, "move-ckpt": v_move_ckpt, "reap": v_reap}
 assert set(VERBS) == set(R.VERBS), set(VERBS) ^ set(R.VERBS)
 TASK_VERBS = R.TASK_VERBS
 
@@ -1237,6 +1329,8 @@ if __name__ == "__main__":
         print(json.dumps(roots_report(), indent=1))
     elif cmd == "alerts":
         print(json.dumps(alerts(sys.argv[2])))
+    elif cmd == "reap":   # v2.5.4b: reap <gpu> [task]: our orphaned vLLM / Ray processes on that GPU
+        print("REAPED", " ".join(map(str, reap(int(sys.argv[2]), sys.argv[3] if len(sys.argv) > 3 else None))) or "none")
     elif cmd == "pulse":   # heartbeat.sh every 60 s (v2.5.1)
         r = pulse(sys.argv[2]); print("PULSE ok" if r else "PULSE refused")
     elif cmd == "rcpt":   # run_tasks / run_adhoc_eval: update a receipt (started, done, failed)
