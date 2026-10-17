@@ -175,3 +175,32 @@ def test_receipt_keeps_cmd(env):
     c.receipt(5, {"cmd": "run E10b-P5-s43", "reason": "fill GPU7"}, "accepted", "queued")
     r = c.receipt(5, None, "accepted", "started on gpu 7")
     assert r["cmd"] == "run E10b-P5-s43" and r["reason"] == "fill GPU7" and r["detail"] == "started on gpu 7"
+
+
+@pytest.mark.parametrize("cmd", ["set FIXED_MICRO_BSZ=4", "setenv FIXED_MICRO_BSZ=16", "set FIXED_MICRO_BSZ="])
+def test_rules_accept_fixed_micro(cmd):
+    R.parse({"cmd": cmd, "reason": "t"})
+
+
+@pytest.mark.parametrize("cmd", ["set FIXED_MICRO_BSZ=0", "set FIXED_MICRO_BSZ=17", "setenv FIXED_MICRO_BSZ=four"])
+def test_rules_refuse_fixed_micro(cmd):
+    with pytest.raises(R.Reject):
+        R.parse({"cmd": cmd, "reason": "t"})
+
+
+def test_pulse_gpu_mem_alert(env):
+    p = env.c.build_pulse(STATUS, "0, 17, 162465, 275040\n2, 0, 255686, 275040\n")
+    assert "gpu_mem_high:2" in p["alerts"] and "gpu_mem_high:0" not in p["alerts"] and env.c.leak_check(p) == []
+
+
+def test_run_arm_fixed_micro_branch(tmp_path):
+    """The batching lines of run_arm.sh: FIXED_MICRO_BSZ set -> fixed micro-batches everywhere; unset -> token budget; no flash-attn -> chunked entropy."""
+    src = open(os.path.join(HERE, "run_arm.sh")).read()
+    i = src.index('if [ -n "${FIXED_MICRO_BSZ:-}" ]'); j = src.index("\n", src.index('ENT=""', i))
+    block = src[i:j]
+    import subprocess
+    run = lambda env: subprocess.run(["bash", "-c", block + '\necho "$BATCH|$LOGP_MB|$ENT"'], env=dict(os.environ, **env), capture_output=True, text=True).stdout.strip()
+    a = run({"FIXED_MICRO_BSZ": "4", "RMPAD": "False", "TOK_DEFAULT": "6144"})
+    assert a == "actor_rollout_ref.actor.use_dynamic_bsz=False actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=4|4|actor_rollout_ref.actor.entropy_from_logits_with_chunking=True", a
+    b = run({"FIXED_MICRO_BSZ": "", "RMPAD": "True", "TOK_DEFAULT": "16384"})
+    assert b == "actor_rollout_ref.actor.use_dynamic_bsz=True actor_rollout_ref.actor.ppo_max_token_len_per_gpu=16384|8|", b

@@ -754,6 +754,10 @@ def build_pulse(st, gpu_csv):
             code, _, arg = a.partition(":")
             if re.fullmatch(r"[a-z_]+", code):
                 alerts.append(f"{code}:{arg}" if arg and R.TASK_RE.match(arg) and "/" not in arg else code)
+    # v2.5.2: a GPU close to full (default > 240 GB used, GPU_MEM_ALERT_MIB) is flagged: on 2026-10-17 E10b-P4lowlr's GPU
+    # sat at ~250 GB for steps before its out-of-memory crash at step 97
+    lim = float(os.environ.get("GPU_MEM_ALERT_MIB", 245760))
+    alerts += [f"gpu_mem_high:{g['idx']}" for g in gpus if g["mem_used"] is not None and g["mem_used"] > lim]
     t = lambda x: x if isinstance(x, str) and re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", x) else None
     head = st.get("runbook_head") if isinstance(st.get("runbook_head"), str) and re.fullmatch(r"[0-9a-f]{7,40}", st.get("runbook_head")) else None
     ver = st.get("runbook_version") if isinstance(st.get("runbook_version"), str) and re.fullmatch(r"v[0-9.]+", st.get("runbook_version")) else None
