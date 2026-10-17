@@ -51,3 +51,4 @@ commands:
   - {"seq": 49, "cmd": "logs SFT-P1 300", "reason": "SFT-P1 failed for the 3rd time at 18:52 UTC in the SFT training step; root cause needed (reviewer 18:54)", "utc": "2026-10-17T18:54:57Z"}
   - {"seq": 50, "cmd": "rerun SFT-P1", "reason": "reviewer A1 19:0x: SFT-P1 failed 3 times on the missing SFT attention patch (fixed in v2.5.6b); E12b-P1 was skipped because of it", "utc": "2026-10-17T19:05:24Z"}
   - {"seq": 51, "cmd": "rerun E12b-P1", "reason": "reviewer A1 19:0x: SFT-P1 failed 3 times on the missing SFT attention patch (fixed in v2.5.6b); E12b-P1 was skipped because of it", "utc": "2026-10-17T19:05:31Z"}
+  - {"seq": 52, "cmd": "logs SFT-P1 80", "reason": "confirm the SFT attention patch line and the start of training after the v2.5.6b rerun (reviewer 19:0x)", "utc": "2026-10-17T19:44:14Z"}
