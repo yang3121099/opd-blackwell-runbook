@@ -1,0 +1,3 @@
+node: 14b9aaef
+commands:
+  - {"seq": 1, "cmd": "run E10b-P5-s43", "reason": "Runming 11:5x via reviewer: GPU7 idle while the seven E10b arms run; start the P5 seed-43 replicate (data.seed 43, otherwise E10b-P5) now", "utc": "2026-10-17T11:56:09Z"}
