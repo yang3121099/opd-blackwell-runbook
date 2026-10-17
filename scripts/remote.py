@@ -16,6 +16,7 @@ node id, so no file is named after the host. Private-class files are refused whe
 """
 import hashlib
 import os
+import re
 import time
 import json
 import socket
@@ -139,6 +140,75 @@ def put(src, dst):
                          "bytes": sum(os.path.getsize(f) for f in files if os.path.isfile(f)), "seconds": round(time.time() - t0, 1), "ok": ok})
 
 
+TEXT_EXT = (".log", ".json", ".jsonl", ".txt", ".yaml", ".yml", ".csv", ".md", ".out", ".err", ".sh", ".py", ".cfg", ".toml", ".meta", ".part")
+IGNORE = (".git/", ".cache/huggingface/")
+
+
+def scrub_roots():
+    """(absolute path, placeholder) pairs, longest first: OPD_ROOT, CKPT_ROOT, RUNBOOK, ARCHIVE_ROOT, HOME and their real
+    paths, and the directory the venv really lives in (LINK_VENV / FROM_OPD_ROOT: another disk)."""
+    m = {}
+
+    def add(p, name):
+        if p and os.path.isabs(p):
+            for q in (p.rstrip("/"), os.path.realpath(p).rstrip("/")):
+                if q and q != "/" and q not in m:
+                    m[q] = name
+    for k, name in (("OPD_ROOT", "$OPD_ROOT"), ("CKPT_ROOT", "$CKPT_ROOT"), ("RUNBOOK", "$RUNBOOK"), ("ARCHIVE_ROOT", "$ARCHIVE_ROOT"),
+                    ("FROM_OPD_ROOT", "$OPD_ROOT")):
+        add(os.environ.get(k), name)
+    v = os.path.join(os.environ.get("OPD_ROOT", ""), "venv")
+    if os.path.exists(v):
+        add(os.path.dirname(os.path.realpath(v)), "$OPD_ROOT")
+    add(os.environ.get("HOME"), "~")
+    return sorted(m.items(), key=lambda kv: -len(kv[0]))
+
+
+def scrub_text(t, roots, toks):
+    """v2.5.5c: text for the public repository without this machine's paths, user or host names (B300 2026-10-18 02:1x
+    Beijing: train.log, metrics.json, twr.json and gen_eval.log in the public repository carried them)."""
+    for p, name in roots:
+        t = t.replace(p, name)
+
+    def fix(m):
+        words = {w.lower() for w in re.split(r"[^A-Za-z0-9_]+", m.group(0)) if w}
+        return "<path>" if words & toks else m.group(0)
+    t = re.sub(r"(?:/[A-Za-z0-9_.+=~-]+){2,}/?", fix, t)
+    if toks:
+        t = re.sub(r"(?i)(?<![A-Za-z0-9_])(" + "|".join(map(re.escape, sorted(toks, key=len, reverse=True))) + r")(?![A-Za-z0-9_])", "<redacted>", t)
+    return t
+
+
+def _public_files(src, dst):
+    if not os.path.isdir(src):
+        return [(src, dst)]
+    out = []
+    for r, ds, fs in os.walk(src):
+        for f in fs:
+            rel = os.path.relpath(os.path.join(r, f), src).replace(os.sep, "/")
+            if not rel.startswith(IGNORE):
+                out.append((os.path.join(r, f), f"{dst.rstrip('/')}/{rel}"))
+    return out
+
+
+def _put_public(api, repo, src, dst):
+    """One commit; text files go up scrubbed (scrub_text), everything else (weights) as it is."""
+    from huggingface_hub import CommitOperationAdd
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from control import _forbidden_tokens
+    roots, toks = scrub_roots(), _forbidden_tokens()
+    ops = []
+    for local, pin in _public_files(src, dst):
+        name = os.path.basename(local)
+        if name.lower().endswith(TEXT_EXT) or ("." not in name and os.path.getsize(local) < (1 << 20)):
+            data = open(local, "rb").read().decode("utf-8", "replace")
+            ops.append(CommitOperationAdd(path_in_repo=pin, path_or_fileobj=scrub_text(data, roots, toks).encode()))
+        else:
+            ops.append(CommitOperationAdd(path_in_repo=pin, path_or_fileobj=local))
+    if ops:
+        api.create_commit(repo_id=repo, repo_type="model", operations=ops, commit_message=dst)
+
+
 def _put(src, dst):
     dst = rename(dst)
     if BACKEND == "hf":
@@ -146,6 +216,8 @@ def _put(src, dst):
         api, repo = hf(kind)
         if kind == "private" and split_mode() and not private_ok(api, repo):
             raise PermissionError("private-class file refused: the private repository is public")
+        if kind == "public":
+            return _put_public(api, repo, src, dst)
         if os.path.isdir(src):
             api.upload_folder(repo_id=repo, folder_path=src, path_in_repo=dst, repo_type="model", commit_message=dst)
         else:

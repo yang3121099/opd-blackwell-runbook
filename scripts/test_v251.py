@@ -18,7 +18,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 class FakeApi:
     """Records uploads per repository; model_info(repo).private from PRIVATE."""
-    calls, PRIVATE = [], {}
+    calls, PRIVATE, commits = [], {}, []
 
     def __init__(self, *a, **k):
         pass
@@ -28,6 +28,9 @@ class FakeApi:
 
     def upload_folder(self, repo_id, folder_path, path_in_repo, **k):
         FakeApi.calls.append((repo_id, path_in_repo + "/"))
+
+    def create_commit(self, repo_id, operations, commit_message, **k):   # v2.5.5c: public uploads
+        FakeApi.calls.append((repo_id, commit_message)); FakeApi.commits.append(list(operations))
 
     def model_info(self, repo):
         if repo not in FakeApi.PRIVATE:
@@ -47,8 +50,9 @@ def rem(tmp_path, monkeypatch):
     monkeypatch.setenv("OPD_NODE", "abcd1234"); monkeypatch.setenv("UPLOAD_BACKEND", "hf")
     monkeypatch.setattr(socket, "gethostname", lambda: "gpu-host-77.dc9.example-corp.com")
     monkeypatch.setattr(socket, "getfqdn", lambda: "gpu-host-77.dc9.example-corp.com")
-    monkeypatch.setitem(sys.modules, "huggingface_hub", types.SimpleNamespace(HfApi=FakeApi))
-    FakeApi.calls, FakeApi.PRIVATE = [], {"me/pub": False, "me/ops": True, "me/old": False}
+    monkeypatch.setitem(sys.modules, "huggingface_hub", types.SimpleNamespace(
+        HfApi=FakeApi, CommitOperationAdd=lambda path_in_repo, path_or_fileobj: types.SimpleNamespace(path_in_repo=path_in_repo, path_or_fileobj=path_or_fileobj)))
+    FakeApi.calls, FakeApi.PRIVATE, FakeApi.commits = [], {"me/pub": False, "me/ops": True, "me/old": False}, []
     sys.path.insert(0, HERE)
     import remote
     importlib.reload(remote)
@@ -379,3 +383,27 @@ def test_put_records_transfer(rem, monkeypatch):
 def test_record_transfer_rate(rem):
     rem.r.record_transfer({"dir": "down", "bytes": 1_519_183_690, "seconds": 192.1})
     assert json.loads(open(rem.root / "control" / "transfers.jsonl").read().splitlines()[-1])["mb_s"] == 7.9
+
+
+def test_public_upload_is_scrubbed(rem, monkeypatch, tmp_path):
+    """v2.5.5c: text files bound for the public repository lose this machine's paths, user and host names."""
+    import control
+    (rem.root / "hf_repos.txt").write_text("public=me/pub\nprivate=me/ops\n")
+    other = tmp_path / "disk2" / "someuser" / "code" / "opd-run"; (other / "venv").mkdir(parents=True)
+    os.symlink(other / "venv", rem.root / "venv")                                   # LINK_VENV: the venv on another disk
+    ck = tmp_path / "ckpt"; ck.mkdir(); monkeypatch.setenv("CKPT_ROOT", str(ck))
+    monkeypatch.setattr(control, "_forbidden_tokens", lambda: {"someuser", "gpuhost77"})
+    d = tmp_path / "up"; d.mkdir()
+    (d / "train.log").write_text(f"model {rem.root}/runs/E10b-P2/ckpt\nvenv {other}/venv/lib/python3.10/x.py\n"
+                                 f"mount /mnt/someuser/data/y and someuser@gpuhost77 done\n")
+    (d / "m.metrics.json").write_text(json.dumps({"model": f"{ck}/adhoc_models/runs/E12-P5c05/global_step_40", "avg_acc": 74.1}))
+    (d / "model.safetensors").write_bytes(b"\x00weights")
+    rem.r.put(str(d), "runs/EVAL-bridge")
+    ops = {o.path_in_repo: o.path_or_fileobj for o in FakeApi.commits[-1]}
+    log, met = ops["runs/EVAL-bridge/train.log"].decode(), ops["runs/EVAL-bridge/m.metrics.json"].decode()
+    assert "$OPD_ROOT/runs/E10b-P2/ckpt" in log and "$OPD_ROOT/venv/lib/python3.10/x.py" in log
+    assert "<path>" in log and "<redacted>@<redacted>" in log and "someuser" not in log and "gpuhost77" not in log
+    assert json.loads(met) == {"model": "$CKPT_ROOT/adhoc_models/runs/E12-P5c05/global_step_40", "avg_acc": 74.1}
+    assert ops["runs/EVAL-bridge/model.safetensors"] == str(d / "model.safetensors")    # weights as they are
+    rem.r.put(str(d / "train.log"), "logs/abcd1234/x.log")                              # private: unchanged route
+    assert FakeApi.calls[-1] == ("me/ops", "logs/abcd1234/x.log")
