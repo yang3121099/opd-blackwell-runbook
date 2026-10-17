@@ -116,7 +116,7 @@ step "varlen PASS $VL"
 ( while true; do echo "$(date -u +%s),$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $G | tr -d ' ')" >> $D/mem.csv; sleep 5; done ) &
 MP=$!
 rm -rf $OPD_ROOT/runs/FA-PROBE-smoke
-VENV=$VF SMOKE=1 PROBE_TASK=FA-PROBE-smoke bash $RUNBOOK/scripts/run_arm.sh $G E10b-P2 > $D/smoke.out 2>&1; rc=$?
+FIXED_MICRO_BSZ= VENV=$VF SMOKE=1 PROBE_TASK=FA-PROBE-smoke bash $RUNBOOK/scripts/run_arm.sh $G E10b-P2   # the default path with flash-attn: token budget, no fixed count > $D/smoke.out 2>&1; rc=$?
 kill $MP 2> /dev/null
 mkdir -p $D/smoke; cp $OPD_ROOT/runs/FA-PROBE-smoke/train.log $OPD_ROOT/runs/FA-PROBE-smoke/config.yaml $D/smoke/ 2> /dev/null
 grep -q "use_remove_padding=True" $D/smoke/config.yaml 2> /dev/null && put rmpad true || put rmpad false

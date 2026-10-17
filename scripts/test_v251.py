@@ -221,3 +221,20 @@ def test_run_accepts_fa_probe(env):
     st, msg, _ = env.c.v_run(["FA-PROBE"], 21)
     assert st == "accepted", msg
     assert env.c.v_run(["FA-PROBE2"], 22)[0] == "rejected"
+
+
+def test_run_e12_fixed_micro_branch():
+    """v2.5.4a: run_e12.sh's batching lines read the same FIXED_MICRO_BSZ as run_arm.sh."""
+    src = open(os.path.join(HERE, "run_e12.sh")).read()
+    i = src.index('if [ -n "${FIXED_MICRO_BSZ:-}" ]'); j = src.index("\n", src.index('ENT=""', i))
+    import subprocess
+    run = lambda env: subprocess.run(["bash", "-c", src[i:j] + '\necho "$BATCH|$LOGP_MB|$ENT"'], env=dict(os.environ, **env), capture_output=True, text=True).stdout.strip()
+    assert run({"FIXED_MICRO_BSZ": "4", "RMPAD": "False", "TOK": "6144"}) == \
+        "actor_rollout_ref.actor.use_dynamic_bsz=False actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=4|4|actor_rollout_ref.actor.entropy_from_logits_with_chunking=True"
+    assert run({"FIXED_MICRO_BSZ": "", "RMPAD": "False", "TOK": "6144"}).startswith("actor_rollout_ref.actor.use_dynamic_bsz=True actor_rollout_ref.actor.ppo_max_token_len_per_gpu=6144|8|")
+    assert "$BATCH $ENT" in src and "log_prob_micro_batch_size_per_gpu=$LOGP_MB" in src and "use_dynamic_bsz=True \\" not in src
+
+
+def test_run_accepts_eval_tasks(env):
+    assert env.c.v_run(["EVAL-bridge"], 31)[0] == "accepted"
+    assert env.c.v_run(["EVAL-"], 32)[0] == "rejected"

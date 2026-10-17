@@ -63,7 +63,9 @@ launch() { # gpu task   (v2.5: start / done / killed / failed also go to status/
     elif [ -f $OPD_ROOT/runs/$2/.killed ]; then python $RUNBOOK/scripts/control.py event $2 killed gpu=$1
     else a=\$(( \$(sed -n 's/^attempts: //p' $OPD_ROOT/runs/$2/.failed 2>/dev/null || echo 0) + 1 ))
       { echo \"attempts: \$a\"; echo \"last: \$(date -u +%FT%TZ)\"; tail -20 $OPD_ROOT/logs/$2.log; } > $OPD_ROOT/runs/$2/.failed
-      python $RUNBOOK/scripts/control.py event $2 failed \"attempt=\$a\"; fi" < /dev/null > /dev/null 2>&1 &
+      python $RUNBOOK/scripts/control.py event $2 failed \"attempt=\$a\"
+      if tail -c 200000 $OPD_ROOT/logs/$2.log $OPD_ROOT/runs/$2/train.log 2>/dev/null | grep -qE 'CUDA out of memory|OutOfMemoryError'; then touch $OPD_ROOT/runs/$2/.oom   # v2.5.4a: task.sh retries it with FIXED_MICRO_BSZ=4
+        python $RUNBOOK/scripts/control.py event $2 oom_retry_fixed_micro \"next attempt with FIXED_MICRO_BSZ=4\"; fi; fi" < /dev/null > /dev/null 2>&1 &
 }
 # deps of a task id as written in the queue (task:dep+dep), for `run` requests (v2.5)
 deps_of() { local s=$(grep -v '^#' "$Q" | tr ' ' '\n' | grep -E "^$1(:|\$)" | head -1); [ "$s" != "${s#*:}" ] && echo ${s#*:} | tr '+' ' '; }
