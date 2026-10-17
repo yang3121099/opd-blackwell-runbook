@@ -47,3 +47,4 @@ commands:
   - {"seq": 45, "cmd": "republish E11b-P2", "reason": "reviewer A1 18:3x: runs/E11b-P2/.failed still carried paths (dotfile treated as binary); v2.5.6a scrubs it", "utc": "2026-10-17T18:36:41Z"}
   - {"seq": 46, "cmd": "republish E11b-P2noEOS", "reason": "reviewer A1 18:3x: runs/E11b-P2noEOS/.failed still carried paths (dotfile treated as binary); v2.5.6a scrubs it", "utc": "2026-10-17T18:36:49Z"}
   - {"seq": 47, "cmd": "republish E11b-P6", "reason": "reviewer A1 18:3x: runs/E11b-P6/.failed still carried paths (dotfile treated as binary); v2.5.6a scrubs it", "utc": "2026-10-17T18:36:57Z"}
+  - {"seq": 48, "cmd": "republish E11b-P6r", "reason": "reviewer A1 18:3x: runs/E11b-P6r/.failed still carried paths (dotfile treated as binary); v2.5.6a scrubs it", "utc": "2026-10-17T18:37:04Z"}
