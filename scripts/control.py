@@ -1047,6 +1047,44 @@ def do_upload(seq, real, rel):
             bytes=size, seconds=round(time.time() - t0, 1))
 
 
+def v_republish(a, seq, flags=None, entry=None):
+    """republish <task> (v2.5.6): the text files this task already has in the public repository are uploaded again from
+    this node's copies, through the scrubbing upload of v2.5.5c, over the versions that carried paths (2026-10-18). Only
+    files already published and only text files (remote.TEXT_EXT); checkpoints and weights are never touched."""
+    t = a[0]
+    if not os.path.isdir(os.path.join(ROOT, "runs", t)):
+        return "rejected", f"no runs/{t} on this node", {}
+    subprocess.Popen(["setsid", sys.executable, os.path.abspath(__file__), "do_republish", str(seq), t],
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return "accepted", f"runs/{t}: published text files are uploaded again, scrubbed", {}
+
+
+def do_republish(seq, t):
+    sys.path.insert(0, os.path.join(RUNBOOK, "scripts"))
+    import remote
+    from huggingface_hub import HfApi
+    pub = remote.repos()[0]
+    try:
+        names = [f for f in HfApi(token=os.environ.get("HF_TOKEN")).list_repo_files(pub) if f.startswith(f"runs/{t}/")]
+    except Exception as e:
+        receipt(seq, None, "failed", f"listing failed: {type(e).__name__}"); return
+    stage = _p(f"req_{seq}"); shutil.rmtree(stage, ignore_errors=True); os.makedirs(stage)
+    done, missing = [], []
+    for f in names:
+        rel = f[len(f"runs/{t}/"):]
+        if not rel.lower().endswith(remote.TEXT_EXT) or "/ckpt/" in f"/{rel}" or rel.startswith(".cache/"):
+            continue
+        src = os.path.join(ROOT, "runs", t, rel)
+        if not os.path.isfile(src):
+            missing.append(rel); continue
+        os.makedirs(os.path.dirname(os.path.join(stage, rel)), exist_ok=True); shutil.copy2(src, os.path.join(stage, rel)); done.append(rel)
+    ok = remote_put(stage, f"runs/{t}") if done else True
+    shutil.rmtree(stage, ignore_errors=True)
+    receipt(seq, None, "ok" if ok else "failed", f"runs/{t}: {len(done)} text files {'republished scrubbed' if ok else 'not uploaded'}"
+            + (f"; {len(missing)} not on this node" if missing else ""), files=done[:50], missing=missing[:50])
+    event(t, "republished" if ok else "republish_failed", f"{len(done)} files")
+
+
 def v_cancel(a, seq, flags=None, entry=None):
     target = int(a[0]); os.makedirs(_p("cancelled"), exist_ok=True)
     open(_p("cancelled", str(target)), "w").write(f"by seq {seq} {utc()}\n")
@@ -1233,7 +1271,7 @@ def _v24(fn):
 VERBS = {"pause": _v24(v_pause), "resume": _v24(v_resume), "kill": _v24(v_kill), "prio": _v24(v_prio),
          "restore": _v24(v_restore), "rerun_verify": _v24(v_rerun_verify), "setenv": v_set, "set": v_set,
          "snapshot": lambda a, seq, flags=None, entry=None: v_snapshot0(seq) if not a else v_snapshot(a, seq),
-         "ps": v_ps, "logs": v_logs, "run": v_run, "rerun": v_rerun, "eval": v_eval, "update": v_update, "upload": v_upload,
+         "ps": v_ps, "logs": v_logs, "run": v_run, "rerun": v_rerun, "republish": v_republish, "eval": v_eval, "update": v_update, "upload": v_upload,
          "signal": v_signal, "kill-pgid": v_killpgid, "cancel": v_cancel, "heartbeat": v_heartbeat, "move-ckpt": v_move_ckpt, "reap": v_reap}
 assert set(VERBS) == set(R.VERBS), set(VERBS) ^ set(R.VERBS)
 TASK_VERBS = R.TASK_VERBS
@@ -1374,6 +1412,8 @@ if __name__ == "__main__":
         sys.exit(0 if check_pull(sys.argv[2], sys.argv[3]) else 1)
     elif cmd == "do_upload":
         do_upload(int(sys.argv[2]), sys.argv[3], sys.argv[4])
+    elif cmd == "do_republish":
+        do_republish(int(sys.argv[2]), sys.argv[3])
     elif cmd == "do_move":
         do_move(int(sys.argv[2]), sys.argv[3], sys.argv[4], sys.argv[5])
     elif cmd == "roots":

@@ -407,3 +407,34 @@ def test_public_upload_is_scrubbed(rem, monkeypatch, tmp_path):
     assert ops["runs/EVAL-bridge/model.safetensors"] == str(d / "model.safetensors")    # weights as they are
     rem.r.put(str(d / "train.log"), "logs/abcd1234/x.log")                              # private: unchanged route
     assert FakeApi.calls[-1] == ("me/ops", "logs/abcd1234/x.log")
+
+
+@pytest.mark.parametrize("cmd,ok", [("republish E10b-P2", True), ("republish EVAL-bridge", True), ("republish a/b", False), ("republish", False)])
+def test_rules_republish(cmd, ok):
+    if ok:
+        R.parse({"cmd": cmd, "reason": "t"})
+    else:
+        with pytest.raises(R.Reject):
+            R.parse({"cmd": cmd, "reason": "t"})
+
+
+def test_do_republish_only_published_text_files(env, monkeypatch):
+    c = env.c; d = os.path.join(c.ROOT, "runs", "E10b-P2"); hf = os.path.join(d, "global_step_150", "actor", "huggingface")
+    os.makedirs(hf); os.makedirs(os.path.join(d, "ckpt"))
+    for f, body in (("train.log", "log"), ("global_step_150/actor/huggingface/config.json", "{}"),
+                    ("global_step_150/actor/huggingface/model.safetensors", "w"), ("ckpt/state.json", "{}"), ("upload.log", "u")):
+        open(os.path.join(d, f), "w").write(body)
+    published = ["runs/E10b-P2/train.log", "runs/E10b-P2/global_step_150/actor/huggingface/config.json",
+                 "runs/E10b-P2/global_step_150/actor/huggingface/model.safetensors", "runs/E10b-P2/ckpt/state.json",
+                 "runs/E10b-P2/gone.log", "runs/E10b-P3/train.log"]
+    monkeypatch.setitem(sys.modules, "huggingface_hub", types.SimpleNamespace(HfApi=lambda token=None: types.SimpleNamespace(list_repo_files=lambda repo: published)))
+    monkeypatch.setenv("HF_REPO", "me/pub")
+    staged, got = [], {}
+    def put(src, dst):
+        staged.extend(sorted(os.path.relpath(os.path.join(r, f), src) for r, _, fs in os.walk(src) for f in fs)); got["dst"] = dst; return True
+    monkeypatch.setattr(c, "remote_put", put)
+    monkeypatch.setattr(c, "receipt", lambda seq, e, st, detail, **k: got.update(st=st, detail=detail, **k))
+    monkeypatch.setattr(c, "event", lambda *a, **k: None)
+    c.do_republish(60, "E10b-P2")
+    assert staged == ["global_step_150/actor/huggingface/config.json", "train.log"] and got["dst"] == "runs/E10b-P2"   # no weights, no ckpt/, no unpublished upload.log
+    assert got["st"] == "ok" and got["missing"] == ["gone.log"]
