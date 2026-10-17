@@ -941,17 +941,22 @@ def v_run(a, seq, flags=None, entry=None):
 
 
 def v_rerun(a, seq, flags=None, entry=None):
-    """rerun <FA-PROBE | EVAL-name> (v2.5.5): a finished probe or queue evaluation runs once more (reviewer A1 2026-10-17:
-    FA-PROBE's 3-step smoke can fail only because another task shared its GPU). Its .done, report.json and .failed are
-    kept as *.prev_<seq>; the queue starts it again on the next free GPU (its stage must be open). Nothing else is touched."""
+    """rerun <task> (v2.5.5, v2.5.6b): a finished probe or queue evaluation (FA-PROBE, EVAL-*) runs once more, or any
+    task that failed for good (3 attempts) or was skipped because a dependency failed gets a new start (B300 18:52:
+    SFT-P1 failed 3 times on a missing patch, E12b-P1 was skipped). A finished training is never rerun. .done,
+    report.json, .failed and .skipped are kept as *.prev_<seq>; the queue starts it on the next free GPU."""
     t = a[0]
     if running_pids(t):
         return "rejected", f"{t} is running", {}
     d = os.path.join(ROOT, "runs", t)
-    if not os.path.exists(os.path.join(d, ".done")):
-        return "rejected", f"{t} is not done", {}
+    done, failed = os.path.exists(os.path.join(d, ".done")), os.path.exists(os.path.join(d, ".failed"))
+    skipped = os.path.exists(os.path.join(d, ".skipped"))
+    if done and not re.fullmatch(r"FA-PROBE|EVAL-[A-Za-z0-9._-]+", t):
+        return "rejected", f"{t} is done (only FA-PROBE and EVAL tasks are rerun after finishing)", {}
+    if not (done or failed or skipped):
+        return "rejected", f"{t} is neither done, failed nor skipped", {}
     kept = []
-    for f in (".done", "report.json", ".failed"):
+    for f in (".done", "report.json", ".failed", ".skipped"):
         if os.path.exists(os.path.join(d, f)):
             os.replace(os.path.join(d, f), os.path.join(d, f"{f}.prev_{seq}")); kept.append(f)
     return "ok", f"{t} will run again ({', '.join(kept)} kept as *.prev_{seq})", {}

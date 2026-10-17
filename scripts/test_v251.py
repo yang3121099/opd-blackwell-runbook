@@ -333,7 +333,7 @@ def test_v_reap_calls_reap(env, monkeypatch):
     assert "no orphaned" in env.c.v_reap(["5"], 42)[1]
 
 
-@pytest.mark.parametrize("cmd,ok", [("rerun FA-PROBE", True), ("rerun EVAL-bridge", True), ("rerun E10b-P2", False),
+@pytest.mark.parametrize("cmd,ok", [("rerun FA-PROBE", True), ("rerun EVAL-bridge", True), ("rerun E10b-P2", True), ("rerun SFT-P1", True), ("rerun /etc", False),
                                     ("rerun EVAL-a;b", False), ("rerun", False), ("rerun FA-PROBE x", False)])
 def test_rules_rerun(cmd, ok):
     if ok:
@@ -346,7 +346,7 @@ def test_rules_rerun(cmd, ok):
 def test_v_rerun(env, monkeypatch):
     c = env.c; d = os.path.join(c.ROOT, "runs", "FA-PROBE"); os.makedirs(d, exist_ok=True)
     monkeypatch.setattr(c, "running_pids", lambda t=None: [])
-    assert c.v_rerun(["FA-PROBE"], 50)[0] == "rejected"                    # not done yet
+    assert c.v_rerun(["FA-PROBE"], 50)[0] == "rejected"                    # neither done, failed nor skipped
     for f in (".done", "report.json", ".failed"):
         open(os.path.join(d, f), "w").write("x")
     st, msg, _ = c.v_rerun(["FA-PROBE"], 51)
@@ -442,3 +442,15 @@ def test_do_republish_only_published_text_files(env, monkeypatch):
     c.do_republish(60, "E10b-P2")
     assert staged == [".failed", "global_step_150/actor/huggingface/config.json", "train.log"] and got["dst"] == "runs/E10b-P2"   # no weights, no ckpt/, no unpublished upload.log
     assert got["st"] == "ok" and got["missing"] == ["gone.log"]
+
+
+
+def test_v_rerun_failed_and_skipped(env, monkeypatch):
+    c = env.c; monkeypatch.setattr(c, "running_pids", lambda t=None: [])
+    sft, e12 = os.path.join(c.ROOT, "runs", "SFT-P1"), os.path.join(c.ROOT, "runs", "E12b-P1")
+    os.makedirs(sft); os.makedirs(e12)
+    open(os.path.join(sft, ".failed"), "w").write("attempts: 3\n"); open(os.path.join(e12, ".skipped"), "w").write("dep\n")
+    assert c.v_rerun(["SFT-P1"], 70)[0] == "ok" and os.path.exists(os.path.join(sft, ".failed.prev_70")) and not os.path.exists(os.path.join(sft, ".failed"))
+    assert c.v_rerun(["E12b-P1"], 71)[0] == "ok" and not os.path.exists(os.path.join(e12, ".skipped"))
+    open(os.path.join(sft, ".done"), "w").write("x")
+    assert c.v_rerun(["SFT-P1"], 72)[0] == "rejected"                      # a finished training is never rerun

@@ -28,6 +28,20 @@ started: $(date -u +%FT%TZ)
 CFG
 echo $STEPS > $OUT/final_step
 cd $OPD_ROOT/G-OPD/verl
+# v2.5.6b: the SFT attention patch (code/patches/apply_patches.py part 3) came after this node's install (B300 18:52:
+# "FlashAttention2 has been toggled on" with OPD_ATTN=sdpa). Only that substitution, only in the file verl imports,
+# only if missing, written atomically; the RL files are not touched (trainings import them while they run).
+python - <<'PY' || { echo "SFT_ATTN_PATCH_FAILED"; exit 1; }
+import importlib.util, os
+p = importlib.util.find_spec("verl.trainer.fsdp_sft_trainer").origin; s = open(p).read()
+if 'environ.get("OPD_ATTN"' in s:
+    print("SFT_ATTN_OK")
+else:
+    old = 'attn_implementation="flash_attention_2",'
+    assert s.count(old) == 1, f"anchor found {s.count(old)} times"
+    s = s.replace(old, 'attn_implementation=__import__("os").environ.get("OPD_ATTN", "flash_attention_2"),  # [opd-variants patch v2] SFT attention')
+    open(p + ".opd_tmp", "w").write(s); os.replace(p + ".opd_tmp", p); print("SFT_ATTN_PATCHED")
+PY
 torchrun --standalone --nnodes=1 --nproc_per_node=1 -m verl.trainer.fsdp_sft_trainer \
   data.train_files=$OPD_ROOT/data/sft_p1_17b.parquet data.val_files=$OPD_ROOT/data/sft_p1_17b_val64.parquet \
   data.prompt_key=prompt data.response_key=response data.max_length=6144 data.truncation=right \
