@@ -5,3 +5,4 @@ commands:
   - {"seq": 3, "cmd": "ps", "reason": "control-channel test 2/7: process table", "utc": "2026-10-17T12:00:46Z"}
   - {"seq": 4, "cmd": "snapshot nvidia-smi", "reason": "control-channel test 3/7: snapshot of nvidia-smi", "utc": "2026-10-17T12:02:10Z"}
   - {"seq": 5, "cmd": "logs E10b-P2 50", "reason": "control-channel test 4/7: last 50 log lines of E10b-P2", "utc": "2026-10-17T12:03:35Z"}
+  - {"seq": 6, "cmd": "pause E10b-P5-s43", "reason": "control-channel test 6a/7: pause = scheduling marker only, the running task is not touched", "utc": "2026-10-17T12:04:29Z"}
