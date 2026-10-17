@@ -212,10 +212,11 @@ def v_restore(a, seq):
         return "rejected", "path must be runs/<task>/global_step_<N>", {}
     if running_pids(t):
         return "rejected", f"{t} is running (kill it first)", {}
-    if os.environ.get("UPLOAD_BACKEND", "hf") != "hf" or not os.environ.get("HF_REPO"):
-        return "rejected", "restore needs the hf backend and HF_REPO", {}
+    repo = _public_repo()
+    if os.environ.get("UPLOAD_BACKEND", "hf") != "hf" or not repo:
+        return "rejected", "restore needs the hf backend and HF_REPO (or hf_repos.txt)", {}
     from huggingface_hub import HfApi, hf_hub_download
-    repo = os.environ["HF_REPO"]; step = m.group(1)
+    step = m.group(1)
     files = [f for f in HfApi().list_repo_tree(repo, path_in_repo=path, recursive=True, expand=True) if hasattr(f, "size")]
     if not files:
         return "failed", f"nothing under {path} in {repo}", {}
@@ -352,7 +353,7 @@ def receipt(seq, entry, status, detail, **extra):
     os.makedirs(_p("replies"), exist_ok=True)
     path = _p("replies", f"{seq}.json")
     old = json.loads(_read(path, "{}") or "{}")
-    r = {"seq": seq, "cmd": (entry or {}).get("cmd"), "reason": (entry or {}).get("reason"), "node": node_id(),
+    r = {"seq": seq, "cmd": (entry or {}).get("cmd") or old.get("cmd"), "reason": (entry or {}).get("reason") or old.get("reason"), "node": node_id(),
          "runbook_head": _git_head(), "received_utc": old.get("received_utc") or utc(),
          "started_utc": old.get("started_utc") or (utc() if status in ("ok", "accepted", "failed") else None),
          "finished_utc": None if status == "accepted" else utc(), "status": STATUS_NAME.get(status, status),
@@ -609,7 +610,183 @@ def v_set(a, seq, flags=None, entry=None):
     k, v = a[0].split("=", 1)
     if k in ("CKPT_ROOT", "CKPT_CANDIDATES+", "ARCHIVE_ROOT"):   # paths.env, checked against the candidate list
         st, msg = set_paths(k, v); return st, msg, {}
+    if k in ("HF_REPO_PUBLIC", "HF_REPO_PRIVATE"):   # v2.5.1: $OPD_ROOT/hf_repos.txt, read by remote.py on every upload
+        st, msg = set_repo(k, v); return st, msg, {}
+    if k == "HEARTBEAT_SEC":   # v2.5.1: read by heartbeat.sh every round
+        open(_p("heartbeat_sec.tmp"), "w").write(v + "\n"); os.replace(_p("heartbeat_sec.tmp"), _p("heartbeat_sec"))
+        return "ok", f"heartbeat every {v} s from the next round (pulse every 60 s regardless)", {}
     return v_setenv(a, seq)
+
+
+def _remote():
+    sys.path.insert(0, os.path.join(RUNBOOK, "scripts"))
+    import remote
+    return remote
+
+
+def _public_repo():
+    try:
+        return _remote().repos()[0]
+    except Exception:   # a remote.py without repos() (v2.5 layout, tests): the single result repository
+        return os.environ.get("HF_REPO")
+
+
+def _split_mode():
+    try:
+        return bool(_remote().split_mode())
+    except Exception:
+        return False
+
+
+def set_repo(k, v):
+    """set HF_REPO_PUBLIC / HF_REPO_PRIVATE (v2.5.1, Runming 2026-10-17): written to $OPD_ROOT/hf_repos.txt. The repository
+    must be reachable with this node's token, and the private one must be private. An empty value removes the key; with
+    no key left the file goes and every upload uses HF_REPO again."""
+    path = os.path.join(ROOT, "hf_repos.txt"); kind = "public" if k == "HF_REPO_PUBLIC" else "private"
+    cur = {}
+    for line in _read(path).splitlines():
+        a, _, b = line.strip().partition("=")
+        if a in ("public", "private") and b:
+            cur[a] = b
+    if v:
+        try:
+            from huggingface_hub import HfApi
+            info = HfApi(endpoint=os.environ.get("HF_UPLOAD_ENDPOINT", "https://huggingface.co")).model_info(v)
+        except Exception as e:
+            return "rejected", f"{v} is not reachable with this node's token ({type(e).__name__})"
+        if kind == "private" and not info.private:
+            return "rejected", f"{v} is public; the private repository must be private"
+        cur[kind] = v
+    else:
+        cur.pop(kind, None)
+    if not cur:
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
+        return "ok", "hf_repos.txt removed: every upload goes to HF_REPO again"
+    open(path + ".tmp", "w").write("".join(f"{a}={b}\n" for a, b in sorted(cur.items()))); os.replace(path + ".tmp", path)
+    try:
+        pub, priv = _remote().repos()
+    except Exception:
+        pub, priv = cur.get("public", os.environ.get("HF_REPO")), cur.get("private", os.environ.get("HF_REPO"))
+    return "ok", f"public uploads (runs/ ckpts/ pulse/) -> {pub}; private (status/ logs/ replies events procs) -> {priv}; from the next upload"
+
+
+# ---------- v2.5.1: the pulse (public, no paths / host names / user names) ----------
+HOST_RE = re.compile(r"[A-Za-z0-9-]+\.[A-Za-z][A-Za-z0-9-]*\.[A-Za-z]{2,}|[A-Za-z][A-Za-z0-9-]*\.(?:com|net|org|cn|io|local|internal|lan)\b")
+
+
+def _forbidden_tokens():
+    """Words that must never reach a public file, read at run time from this machine (so no name is written into the
+    public runbook): the user name, every part of the host name, every directory name of $HOME, $OPD_ROOT, $RUNBOOK,
+    CKPT_ROOT, ARCHIVE_ROOT and the checkpoint candidates. Parts shorter than 5 characters are generic and skipped."""
+    toks = set()
+
+    def add(x):
+        for t in re.split(r"[^A-Za-z0-9_]+", x or ""):
+            if len(t) >= 5 and not t.isdigit():
+                toks.add(t.lower())
+    try:
+        import getpass
+        add(getpass.getuser())
+    except Exception:
+        pass
+    for h in (socket.gethostname(), socket.getfqdn()):
+        add(h)
+    paths = [os.environ.get(x, "") for x in ("HOME", "OPD_ROOT", "RUNBOOK", "CKPT_ROOT", "ARCHIVE_ROOT")]
+    try:
+        paths += list(candidates())
+    except Exception:
+        pass
+    for p in paths:
+        for part in (p or "").split("/"):
+            add(part)
+    return toks
+
+
+def leak_check(obj, toks=None):
+    """The strings (keys and values) of obj that could carry a path, a host name or a user name."""
+    toks = _forbidden_tokens() if toks is None else toks
+    bad = []
+
+    def walk(x):
+        if isinstance(x, dict):
+            for k, v in x.items():
+                walk(k); walk(v)
+        elif isinstance(x, (list, tuple)):
+            for v in x:
+                walk(v)
+        elif isinstance(x, str):
+            words = {w.lower() for w in re.split(r"[^A-Za-z0-9_]+", x) if w}
+            if any(c in x for c in "/\\@") or HOST_RE.search(x) or words & toks:
+                bad.append(x)
+    walk(obj)
+    return bad
+
+
+def _num(x):
+    return x if isinstance(x, (int, float)) and not isinstance(x, bool) else None
+
+
+def build_pulse(st, gpu_csv):
+    """The public pulse from the (private) status JSON and `nvidia-smi --query-gpu=index,utilization.gpu,memory.used,
+    memory.total --format=csv,noheader,nounits`: numbers, task names, states and times only."""
+    gpus = []
+    for line in (gpu_csv or "").strip().splitlines():
+        r = [x.strip() for x in line.split(",")]
+        if len(r) == 4 and r[0].isdigit():
+            f = lambda v: float(v) if re.fullmatch(r"[0-9]+(\.[0-9]+)?", v) else None
+            gpus.append({"idx": int(r[0]), "util": f(r[1]), "mem_used": f(r[2]), "mem_total": f(r[3])})
+    tasks = {}
+    for name, v in (st.get("tasks") or {}).items():
+        if not isinstance(v, dict) or not R.TASK_RE.match(name):
+            continue
+        state = v.get("state") if isinstance(v.get("state"), str) and re.fullmatch(r"[a-z_]+", v.get("state")) else None
+        tasks[name] = {"state": state, "step": _num(v.get("step")), "total_steps": _num(v.get("total_steps")),
+                       "val": _num(v.get("val_math500")), "trunc": _num(v.get("truncation")),
+                       "s_per_step": _num(v.get("step_time_mean5_s")), "eta_min": _num(v.get("eta_min")),
+                       "attempts_failed": _num(v.get("attempts_failed"))}
+    ctl = st.get("control") if isinstance(st.get("control"), dict) else {}
+    alerts = []
+    for a in ctl.get("alerts") or []:
+        if isinstance(a, str):
+            code, _, arg = a.partition(":")
+            if re.fullmatch(r"[a-z_]+", code):
+                alerts.append(f"{code}:{arg}" if arg and R.TASK_RE.match(arg) and "/" not in arg else code)
+    t = lambda x: x if isinstance(x, str) and re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", x) else None
+    head = st.get("runbook_head") if isinstance(st.get("runbook_head"), str) and re.fullmatch(r"[0-9a-f]{7,40}", st.get("runbook_head")) else None
+    ver = st.get("runbook_version") if isinstance(st.get("runbook_version"), str) and re.fullmatch(r"v[0-9.]+", st.get("runbook_version")) else None
+    return {"schema": 1, "utc": utc(), "node_id": node_id(), "status_utc": t(st.get("utc")), "runbook_head": head,
+            "runbook_version": ver, "queue_version": _num(st.get("queue_version")) if not isinstance(st.get("queue_version"), str)
+            else (st.get("queue_version") if re.fullmatch(r"[0-9]+", st.get("queue_version")) else None),
+            "gpus": gpus, "tasks": tasks,
+            "disks": [{"idx": 0, "free_gb": _num(st.get("disk_free_gb")), "alert": bool(st.get("disk_alert"))},
+                      {"idx": 1, "free_gb": _num(st.get("ckpt_disk_free_gb")), "alert": bool(st.get("ckpt_disk_alert"))}],
+            "alerts": sorted(set(alerts)),
+            "control": {"applied_seq": _num(ctl.get("applied_seq")), "pending": _num(ctl.get("pending")),
+                        "last_pull_utc": t(ctl.get("last_pull_utc"))}}
+
+
+def pulse(status_path, upload=True):
+    """Write control/pulse.json and, when the uploads are split (hf_repos.txt), upload it as pulse/<node>.json to the
+    public repository. A pulse with any string that fails leak_check is not written; an event records the refusal
+    (with the number of strings, never the strings)."""
+    st = json.loads(_read(status_path, "{}") or "{}")
+    try:
+        q = subprocess.run(["nvidia-smi", "--query-gpu=index,utilization.gpu,memory.used,memory.total", "--format=csv,noheader,nounits"],
+                           capture_output=True, text=True, timeout=30).stdout
+    except Exception:
+        q = ""
+    p = build_pulse(st, q)
+    bad = leak_check(p)
+    if bad:
+        event("control", "pulse_refused", f"{len(bad)} string(s) failed the leak check")
+        return None
+    json.dump(p, open(_p("pulse.json.tmp"), "w")); os.replace(_p("pulse.json.tmp"), _p("pulse.json"))
+    if upload and _split_mode():
+        remote_put(_p("pulse.json"), f"pulse/{node_id()}.json")
+    return p
 
 
 def _request(kind, seq, body):
@@ -1056,6 +1233,8 @@ if __name__ == "__main__":
         print(json.dumps(roots_report(), indent=1))
     elif cmd == "alerts":
         print(json.dumps(alerts(sys.argv[2])))
+    elif cmd == "pulse":   # heartbeat.sh every 60 s (v2.5.1)
+        r = pulse(sys.argv[2]); print("PULSE ok" if r else "PULSE refused")
     elif cmd == "rcpt":   # run_tasks / run_adhoc_eval: update a receipt (started, done, failed)
         receipt(int(sys.argv[2]), None, sys.argv[3], " ".join(sys.argv[4:]))
     else:

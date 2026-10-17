@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# v2.5.1: status/<node id>.json in the private repository (remote.py splits by destination once hf_repos.txt exists),
+# every HEARTBEAT_SEC seconds (set HEARTBEAT_SEC=<60-3600>, default 600), and every 60 s a path-free pulse/<node id>.json
+# in the public repository (control.py pulse: numbers, task names and states only, refused if any string fails the leak check).
 # Every 10 minutes: write status/<hostname>.json (open stage, each task's state and current step, latest validation,
 # truncation rate, GPU utilisation and memory, free disk, UTC timestamp) and upload it to the result repository.
 # The project side only reads status/; it never logs in to this machine. Also uploads the first-arm comparison
@@ -72,7 +75,7 @@ json.dump({"host": os.uname().nodename, "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ
            "ckpt_disk_free_gb": (lambda c: round(c.f_bavail * c.f_frsize / 1e9, 1))(os.statvfs(os.environ["CKPT_ROOT"])) if os.path.isdir(os.environ.get("CKPT_ROOT", "")) else None,
            "ckpt_disk_alert": (lambda c: c.f_bavail * c.f_frsize / 1e9 < float(os.environ.get("CKPT_ALERT_GB", "100")))(os.statvfs(os.environ["CKPT_ROOT"])) if os.path.isdir(os.environ.get("CKPT_ROOT", "")) else None,
            "disk_used_pct": round(100 * (1 - st.f_bavail / st.f_blocks), 1) if st.f_blocks else None,
-           "runbook_head": git("rev-parse", "--short", "HEAD"), "runbook_version": "v2.5",
+           "runbook_head": git("rev-parse", "--short", "HEAD"), "runbook_version": "v2.5.1",
            "run_tasks_sha": open(os.path.join(root, "control", "run_tasks.sha")).read().strip() if os.path.exists(os.path.join(root, "control", "run_tasks.sha")) else None,
            "ckpt_roots": roots_report(),   # v2.5: every candidate root: mount, free GB, writable, alert, task dirs and sizes
            "control": control_status()}, open(sys.argv[1], "w"), indent=1)
@@ -82,19 +85,26 @@ PY
   UP=$F
   if ! python -c "import json, sys; json.load(open(sys.argv[1]))" $F 2> /dev/null; then
     UP=/dev/shm/status_$H.json; [ -d /dev/shm ] || UP=/tmp/status_$H.json
-    printf '{"host": "%s", "utc": "%s", "error": "status JSON not written (disk full?)", "disk_free_gb": %s, "ckpt_disk_free_gb": %s, "runbook_version": "v2.5"}\n' \
+    printf '{"host": "%s", "utc": "%s", "error": "status JSON not written (disk full?)", "disk_free_gb": %s, "ckpt_disk_free_gb": %s, "runbook_version": "v2.5.1"}\n' \
       "$H" "$(date -u +%FT%TZ)" "$(df -Pk $OPD_ROOT | awk 'NR==2{printf "%.1f", $4/1e6}')" "$(df -Pk ${CKPT_ROOT:-$OPD_ROOT} | awk 'NR==2{printf "%.1f", $4/1e6}')" > $UP
   fi
-  python $RUNBOOK/scripts/remote.py put $UP status/$H.json 2>> $OPD_ROOT/logs/heartbeat.err && echo "HEARTBEAT $(date -u +%T)"
+  N=$(python $RUNBOOK/scripts/control.py node)
+  python $RUNBOOK/scripts/remote.py put $UP status/$N.json 2>> $OPD_ROOT/logs/heartbeat.err && echo "HEARTBEAT $(date -u +%T)"
+  python $RUNBOOK/scripts/control.py pulse $UP > /dev/null 2>> $OPD_ROOT/logs/heartbeat.err   # v2.5.1: public pulse
   # v2.5 (D-004): the process table every round, and receipts/events again (a failed first upload is retried here)
   python $RUNBOOK/scripts/control.py procs --upload > /dev/null 2>> $OPD_ROOT/logs/heartbeat.err
   python $RUNBOOK/scripts/control.py alerts $UP > /dev/null 2>> $OPD_ROOT/logs/heartbeat.err   # disk / stalled / uploader events
-  N=$(python $RUNBOOK/scripts/control.py node)
   for d in replies events; do [ -d $OPD_ROOT/control/$d ] && python $RUNBOOK/scripts/remote.py put $OPD_ROOT/control/$d status/$N/$d > /dev/null 2>> $OPD_ROOT/logs/heartbeat.err; done
   # first-arm comparison with the reference H100 run, uploaded once when E10b-P2 has reached step 10
   if [ ! -f $OPD_ROOT/logs/.compare_uploaded ] && python $RUNBOOK/scripts/compare_first_arm.py >/dev/null 2>&1; then
-    python $RUNBOOK/scripts/remote.py put $OPD_ROOT/logs/compare_$H.json status/compare_$H.json && touch $OPD_ROOT/logs/.compare_uploaded && echo "COMPARE_UPLOADED $(date -u +%T)"
+    python $RUNBOOK/scripts/remote.py put $OPD_ROOT/logs/compare_$H.json status/compare_$N.json && touch $OPD_ROOT/logs/.compare_uploaded && echo "COMPARE_UPLOADED $(date -u +%T)"
   fi
   # v2.5: `heartbeat` (control.py) asks for the next round now: the flag is checked every 10 s
-  for _i in $(seq 60); do [ -f $OPD_ROOT/control/heartbeat_now ] && { rm -f $OPD_ROOT/control/heartbeat_now; break; }; sleep 10; done
+  # v2.5.1: the round lasts HEARTBEAT_SEC (control/heartbeat_sec, 60-3600, default 600); the pulse goes every 60 s
+  HB=$(cat $OPD_ROOT/control/heartbeat_sec 2>/dev/null | tr -cd 0-9); HB=${HB:-600}; [ $HB -lt 60 ] && HB=60; [ $HB -gt 3600 ] && HB=3600
+  for _i in $(seq $((HB / 10))); do
+    [ -f $OPD_ROOT/control/heartbeat_now ] && { rm -f $OPD_ROOT/control/heartbeat_now; break; }
+    sleep 10
+    [ $((_i % 6)) = 0 ] && [ $_i -lt $((HB / 10)) ] && python $RUNBOOK/scripts/control.py pulse $UP > /dev/null 2>> $OPD_ROOT/logs/heartbeat.err
+  done
 done

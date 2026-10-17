@@ -19,9 +19,10 @@ case $MODEL in
       HF_ENDPOINT=$ep python -c "from huggingface_hub import snapshot_download as s; s('yang31210999/opd-lab-ckpts', allow_patterns=['$P/*'], local_dir='$CKPT_ROOT/adhoc_models')" && has_weights $M && break; done;;
   result:*)
     P=${MODEL#result:}; M=$CKPT_ROOT/adhoc_models/result/$P
+    PUB_REPO=$(python scripts/remote.py repo public 2>/dev/null); export PUB_REPO   # v2.5.1: weights live in the public repository
     has_weights $M || python -c "
 import os; from huggingface_hub import snapshot_download as s
-s(os.environ['HF_REPO'], allow_patterns=['$P/*'], local_dir='$CKPT_ROOT/adhoc_models/result', token=os.environ['HF_TOKEN'], endpoint=os.environ.get('HF_UPLOAD_ENDPOINT', 'https://huggingface.co'))";;
+s(os.environ.get('PUB_REPO') or os.environ['HF_REPO'], allow_patterns=['$P/*'], local_dir='$CKPT_ROOT/adhoc_models/result', token=os.environ['HF_TOKEN'], endpoint=os.environ.get('HF_UPLOAD_ENDPOINT', 'https://huggingface.co'))";;
   *) M=$OPD_ROOT/${MODEL#local:}; has_weights $M || M=$CKPT_ROOT/${MODEL#local:};;
 esac
 has_weights $M || [ "${M#Qwen/}" != "$M" ] || [ -f $M/config.json ] || fin failed "model not found: $MODEL"

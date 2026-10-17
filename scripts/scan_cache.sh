@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Read-only: find model and dataset copies already on this machine before downloading anything. Prints the cache
 # variables; the Qwen3 / MATH-500 / DAPO entries of the usual caches; any other Hugging Face (models--Qwen--Qwen3-*) or
-# ModelScope (.../Qwen/Qwen3-*) copies under /m2v_intern2 /data /mnt /home /root /workspace (and any directories you pass); for each
+# ModelScope (.../Qwen/Qwen3-*) copies under /data /mnt /home /root /workspace, every other top-level mount point (from df) and any directories you pass; for each
 # model copy whether its weights are complete (every shard named in model.safetensors.index.json present: 0.6B has 1
 # weight file, 1.7B 2, 8B 5); and at the end the export lines that make download_models.sh reuse what was found.
 # Writes nothing. Usage: bash scripts/scan_cache.sh [extra dirs ...]
@@ -42,7 +42,8 @@ for d in $(printf '%s\n' ${C[@]+"${C[@]}"} | sort -u); do
     [ -d "$e" ] || continue; report "$e"; case "$e" in *datasets--*) ;; *) E+=("$e");; esac; done
 done
 echo "== other copies (find, max depth 6, at most 2 min per root)"
-FOUND=$(for r in /m2v_intern2 /data /mnt /home /root /workspace "$@"; do
+MOUNTS=$(df -P 2>/dev/null | awk 'NR>1 && $6 ~ "^/[^/]+$" {print $6}' | grep -vE '^/(proc|sys|dev|run|boot|tmp|snap|var|usr|etc|opt|lib|bin|sbin)$' | sort -u | tr '\n' ' ')
+FOUND=$(for r in /data /mnt /home /root /workspace $MOUNTS "$@"; do
   [ -d "$r" ] && timeout 120 find "$r" -maxdepth 6 \( -name 'models--Qwen--Qwen3-*' -o -path '*modelscope*/Qwen/Qwen3-*' \) -prune -print 2>/dev/null
 done | sort -u)
 if [ -n "$FOUND" ]; then while read -r e; do report "$e"; E+=("$e"); done <<< "$FOUND"; else echo "  (none)"; fi

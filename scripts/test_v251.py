@@ -1,0 +1,177 @@
+"""Unit tests of runbook v2.5.1: two repositories (remote.py routing, host names out of file names, the private
+repository must be private), the new set keys, the path-free pulse and its leak check, receipts that keep cmd/reason.
+CPU only, no network or credentials (huggingface_hub is replaced). Run: python -m pytest -q scripts/test_v251.py"""
+import importlib
+import json
+import os
+import socket
+import sys
+import types
+
+import pytest
+
+from test_control import env, write_cmds  # noqa: F401  (shared fixture)
+import control_rules as R
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+class FakeApi:
+    """Records uploads per repository; model_info(repo).private from PRIVATE."""
+    calls, PRIVATE = [], {}
+
+    def __init__(self, *a, **k):
+        pass
+
+    def upload_file(self, repo_id, path_or_fileobj, path_in_repo, **k):
+        FakeApi.calls.append((repo_id, path_in_repo))
+
+    def upload_folder(self, repo_id, folder_path, path_in_repo, **k):
+        FakeApi.calls.append((repo_id, path_in_repo + "/"))
+
+    def model_info(self, repo):
+        if repo not in FakeApi.PRIVATE:
+            raise FileNotFoundError(repo)
+        return types.SimpleNamespace(private=FakeApi.PRIVATE[repo])
+
+    def whoami(self):
+        return {"name": "x"}
+
+    def create_repo(self, *a, **k):
+        pass
+
+
+@pytest.fixture
+def rem(tmp_path, monkeypatch):
+    monkeypatch.setenv("OPD_ROOT", str(tmp_path)); monkeypatch.setenv("HF_REPO", "me/old"); monkeypatch.setenv("HF_TOKEN", "t")
+    monkeypatch.setenv("OPD_NODE", "abcd1234"); monkeypatch.setenv("UPLOAD_BACKEND", "hf")
+    monkeypatch.setattr(socket, "gethostname", lambda: "gpu-host-77.dc9.example-corp.com")
+    monkeypatch.setattr(socket, "getfqdn", lambda: "gpu-host-77.dc9.example-corp.com")
+    monkeypatch.setitem(sys.modules, "huggingface_hub", types.SimpleNamespace(HfApi=FakeApi))
+    FakeApi.calls, FakeApi.PRIVATE = [], {"me/pub": False, "me/ops": True, "me/old": False}
+    sys.path.insert(0, HERE)
+    import remote
+    importlib.reload(remote)
+    f = tmp_path / "x.json"; f.write_text("{}")
+    return types.SimpleNamespace(r=remote, root=tmp_path, f=str(f))
+
+
+def test_no_file_is_v25(rem):
+    assert rem.r.repos() == ("me/old", "me/old") and not rem.r.split_mode()
+    rem.r.put(rem.f, "status/gpu-host-77.json"); rem.r.put(rem.f, "runs/E10b-P2/metrics.jsonl")
+    assert [c[0] for c in FakeApi.calls] == ["me/old", "me/old"]
+
+
+def test_split_routing_and_rename(rem):
+    (rem.root / "hf_repos.txt").write_text("public=me/pub\nprivate=me/ops\n")
+    for dst in ("status/gpu-host-77.json", "status/compare_gpu-host-77.json", "logs/gpu-host-77.dc9.example-corp.com/verify.log",
+                "status/abcd1234/replies/3.json", "runs/E10b-P2/global_step_150/actor/huggingface", "ckpts/x/y", "pulse/abcd1234.json"):
+        rem.r.put(rem.f, dst)
+    got = dict((p, r) for r, p in FakeApi.calls)
+    assert got == {"status/abcd1234.json": "me/ops", "status/compare_abcd1234.json": "me/ops", "logs/abcd1234/verify.log": "me/ops",
+                   "status/abcd1234/replies/3.json": "me/ops", "runs/E10b-P2/global_step_150/actor/huggingface": "me/pub",
+                   "ckpts/x/y": "me/pub", "pulse/abcd1234.json": "me/pub"}
+    assert not any("gpu-host" in p or "example-corp" in p for p in got)
+
+
+def test_private_refused_when_public(rem):
+    (rem.root / "hf_repos.txt").write_text("public=me/pub\nprivate=me/pub\n")
+    with pytest.raises(PermissionError):
+        rem.r.put(rem.f, "status/abcd1234.json")
+    rem.r.put(rem.f, "runs/E10b-P2/metrics.jsonl")   # public-class files still go
+    assert FakeApi.calls == [("me/pub", "runs/E10b-P2/metrics.jsonl")]
+
+
+def test_only_private_set_keeps_weights_on_old(rem):
+    (rem.root / "hf_repos.txt").write_text("private=me/ops\n")
+    rem.r.put(rem.f, "runs/E10b-P2/metrics.jsonl"); rem.r.put(rem.f, "status/abcd1234.json")
+    assert FakeApi.calls == [("me/old", "runs/E10b-P2/metrics.jsonl"), ("me/ops", "status/abcd1234.json")]
+
+
+@pytest.mark.parametrize("cmd", ["set HF_REPO_PUBLIC=me/opd-lab-b300", "set HF_REPO_PRIVATE=me/opd-lab-b300-ops", "set HF_REPO_PUBLIC=",
+                                 "set HEARTBEAT_SEC=120", "set HEARTBEAT_SEC=60"])
+def test_rules_accept_new_keys(cmd):
+    R.parse({"cmd": cmd, "reason": "t"})
+
+
+@pytest.mark.parametrize("cmd", ["set HF_REPO_PUBLIC=noslash", "set HF_REPO_PUBLIC=a/b/c", "set HEARTBEAT_SEC=30", "set HEARTBEAT_SEC=9999",
+                                 "set HEARTBEAT_SEC=2m", "set HF_REPO=me/x"])
+def test_rules_refuse_new_keys(cmd):
+    with pytest.raises(R.Reject):
+        R.parse({"cmd": cmd, "reason": "t"})
+
+
+def test_set_repo_and_heartbeat_sec(env, monkeypatch):
+    FakeApi.PRIVATE = {"me/pub": False, "me/ops": True}
+    monkeypatch.setitem(sys.modules, "huggingface_hub", types.SimpleNamespace(HfApi=FakeApi))
+    c = env.c
+    st, msg, _ = c.v_set(["HF_REPO_PRIVATE=me/pub"], 1)
+    assert st == "rejected" and "public" in msg                      # a public repository cannot be the private one
+    st, msg, _ = c.v_set(["HF_REPO_PUBLIC=me/missing"], 2)
+    assert st == "rejected" and "not reachable" in msg
+    assert c.v_set(["HF_REPO_PRIVATE=me/ops"], 3)[0] == "ok" and c.v_set(["HF_REPO_PUBLIC=me/pub"], 4)[0] == "ok"
+    assert (env.root / "hf_repos.txt").read_text() == "private=me/ops\npublic=me/pub\n"
+    assert c.v_set(["HF_REPO_PUBLIC="], 5)[0] == "ok" and (env.root / "hf_repos.txt").read_text() == "private=me/ops\n"
+    assert c.v_set(["HF_REPO_PRIVATE="], 6)[0] == "ok" and not (env.root / "hf_repos.txt").exists()
+    assert c.v_set(["HEARTBEAT_SEC=120"], 7)[0] == "ok" and open(c._p("heartbeat_sec")).read().strip() == "120"
+
+
+STATUS = {"host": "gpu-host-77", "utc": "2026-10-17T13:01:26Z", "queue_version": 2, "runbook_head": "938604f", "runbook_version": "v2.5.1",
+          "disk_free_gb": 4826.1, "disk_alert": False, "ckpt_root": "/mnt/shared9/someuser/code/opd-ckpt", "ckpt_disk_free_gb": 6209.1,
+          "ckpt_roots": [{"base": "/mnt/shared9/someuser/code", "free_gb": 6209}],
+          "tasks": {"E10b-P2": {"state": "running", "step": 59, "total_steps": 150, "val_math500": 0.79, "truncation": 0.2,
+                                "step_time_mean5_s": 135.7, "eta_min": 196, "attempts_failed": 0,
+                                "log_tail": ["/mnt/shared9/someuser/code/opd-run/runs/E10b-P2 something"]},
+                    "E11b-P0": {"state": "done", "step": 0}},
+          "control": {"applied_seq": 8, "pending": 0, "last_pull_utc": "2026-10-17T13:00:00Z",
+                      "alerts": ["stalled:E10b-P3", "ckpt_root_alert:/mnt/shared9/someuser/code", "disk_alert"]}}
+GPU = "0, 17, 162465, 275040\n1, 100, 121681, 275040\n"
+
+
+def test_pulse_has_no_paths_or_names(env, monkeypatch):
+    monkeypatch.setenv("HOME", "/mnt/shared9/someuser"); monkeypatch.setenv("OPD_ROOT", str(env.root))
+    monkeypatch.setattr(socket, "gethostname", lambda: "gpu-host-77.dc9.example-corp.com")
+    p = env.c.build_pulse(STATUS, GPU)
+    text = json.dumps(p)
+    assert "/" not in text and "someuser" not in text and "gpu-host" not in text and "example-corp" not in text
+    assert p["tasks"]["E10b-P2"] == {"state": "running", "step": 59, "total_steps": 150, "val": 0.79, "trunc": 0.2, "s_per_step": 135.7,
+                                     "eta_min": 196, "attempts_failed": 0}
+    assert p["gpus"][1] == {"idx": 1, "util": 100.0, "mem_used": 121681.0, "mem_total": 275040.0}
+    assert p["alerts"] == ["ckpt_root_alert", "disk_alert", "stalled:E10b-P3"] and p["node_id"] == "testnode"
+    assert env.c.leak_check(p) == [] and len(text) < 2048
+
+
+def test_leak_check_catches(env, monkeypatch):
+    monkeypatch.setenv("HOME", "/mnt/shared9/someuser")
+    monkeypatch.setattr(socket, "gethostname", lambda: "gpu-host-77.dc9.example-corp.com")
+    toks = env.c._forbidden_tokens()
+    assert {"someuser", "shared9", "example"} <= toks
+    for bad in ("someuser", "x@y", "a/b", "node.dc9.example-corp.com", "host.internal", "run by SomeUser"):
+        assert env.c.leak_check({"k": bad}, toks), bad
+    for ok in ("E10b-P5-s43", "running", "2026-10-17T13:01:26Z", "v2.5.1", "stalled:E10b-P3", "938604f"):
+        assert env.c.leak_check({"k": ok}, toks) == [], ok
+
+
+def test_pulse_refused_and_not_uploaded(env, monkeypatch):
+    monkeypatch.setenv("HOME", "/home/running")   # a forbidden word that the pulse contains (the state "running")
+    st = env.root / "status.json"; st.write_text(json.dumps(STATUS))
+    monkeypatch.setattr(env.c.subprocess, "run", lambda *a, **k: types.SimpleNamespace(stdout=GPU, returncode=0))
+    assert env.c.pulse(str(st)) is None and not os.path.exists(env.c._p("pulse.json"))
+
+
+def test_pulse_uploaded_only_when_split(env, monkeypatch):
+    st = env.root / "status.json"; st.write_text(json.dumps(STATUS))
+    sent = []
+    monkeypatch.setattr(env.c, "remote_put", lambda src, dst: sent.append(dst) or True)
+    monkeypatch.setattr(env.c.subprocess, "run", lambda *a, **k: types.SimpleNamespace(stdout=GPU, returncode=0))
+    monkeypatch.setattr(env.c, "_split_mode", lambda: False)
+    assert env.c.pulse(str(st)) and sent == []
+    monkeypatch.setattr(env.c, "_split_mode", lambda: True)
+    assert env.c.pulse(str(st)) and sent == ["pulse/testnode.json"]
+
+
+def test_receipt_keeps_cmd(env):
+    c = env.c
+    c.receipt(5, {"cmd": "run E10b-P5-s43", "reason": "fill GPU7"}, "accepted", "queued")
+    r = c.receipt(5, None, "accepted", "started on gpu 7")
+    assert r["cmd"] == "run E10b-P5-s43" and r["reason"] == "fill GPU7" and r["detail"] == "started on gpu 7"

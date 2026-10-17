@@ -5,3 +5,4 @@ RULES_VERSION as `rules <version>`; otherwise it resets its clone to the previou
 in its heartbeat (R-012). One line per change: date, `rules <version>`, what changed, who approved it.
 
 2026-10-17 rules 2.5.0: first versioned rules (D-004 verbs, process control, default expiry, foreign-process gate); A1 R-012; push approved by Runming
+2026-10-17 rules 2.5.1: set keys HF_REPO_PUBLIC and HF_REPO_PRIVATE (owner/name; write $OPD_ROOT/hf_repos.txt, uploads split by destination) and HEARTBEAT_SEC (60-3600 s).
