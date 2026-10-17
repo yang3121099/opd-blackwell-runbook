@@ -12,3 +12,4 @@ commands:
   - {"seq": 10, "cmd": "set HF_REPO_PUBLIC=yang31210999/opd-lab-b300", "reason": "Runming 13:4x: v2.5.1 switch step 3, public repository for weights, results and the pulse", "utc": "2026-10-17T13:45:29Z"}
   - {"seq": 11, "cmd": "heartbeat", "reason": "Runming 13:4x: v2.5.1 switch step 4, fresh heartbeat into the new repositories", "utc": "2026-10-17T13:46:53Z"}
   - {"seq": 12, "cmd": "upload runs/E11b-P0", "reason": "Runming 13:4x: v2.5.1 switch step 5, re-upload the finished E11b-P0 results into the new public repository", "utc": "2026-10-17T13:48:59Z"}
+  - {"seq": 13, "cmd": "set HEARTBEAT_SEC=120", "reason": "Runming 13:4x: v2.5.1 switch step 5, heartbeat every 2 minutes for the monitor page", "utc": "2026-10-17T13:50:13Z"}
