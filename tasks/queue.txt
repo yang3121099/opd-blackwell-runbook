@@ -9,7 +9,7 @@
 version: 2
 E10b     open   E10b-P2 E10b-P3 E10b-P4lowlr E10b-P5 E10b-P6 E10b-P6r E10b-P2noEOS E11b-P0
 E11b     open   E11b-P2:E10b-P2+E11b-P0 E11b-P3:E10b-P3+E11b-P0 E11b-P4lowlr:E10b-P4lowlr+E11b-P0 E11b-P5:E10b-P5+E11b-P0 E11b-P6:E10b-P6+E11b-P0 E11b-P6r:E10b-P6r+E11b-P0 E11b-P2noEOS:E10b-P2noEOS+E11b-P0
-E12bA    auto   SFT-P1 E12b-P0 E12b-P2:E10b-P2 E12b-P5:E10b-P5 E12b-P3:E10b-P3 E12b-P1:SFT-P1
-zero     auto   E03-MI-l0.0 E03-MI-l0.3 E03-MI-l0.5 E03-MI-l0.7 E03-MI-l1.0 E02-opsa17-c0.5 E02-opsa17-c1.5 E02-opsa4-c-1 E02-opsa4-c0.5 E02-opsa4-c1.5
+E12bA    open   SFT-P1 E12b-P0 E12b-P2:E10b-P2 E12b-P5:E10b-P5 E12b-P3:E10b-P3 E12b-P1:SFT-P1
 E12bRest auto   E12b-P4lowlr:E10b-P4lowlr E12b-P6:E10b-P6 E12b-P6r:E10b-P6r E12b-P2noEOS:E10b-P2noEOS
-E10b2    auto   E10b-Pstop E10b-P6rand E10b-P6top5 E10b-P4EOSpen E10b-P2-s43 E10b-P2-s44 E10b-P6r-s43 E10b-P6r-s44
+E10b2    open   E10b-Pstop E10b-P6rand E10b-P6top5 E10b-P4EOSpen E10b-P2-s43 E10b-P2-s44 E10b-P6r-s43 E10b-P6r-s44
+zero     open   E03-MI-l0.0 E03-MI-l0.3 E03-MI-l0.5 E03-MI-l0.7 E03-MI-l1.0 E02-opsa17-c0.5 E02-opsa17-c1.5 E02-opsa4-c-1 E02-opsa4-c0.5 E02-opsa4-c1.5
