@@ -17,3 +17,4 @@ commands:
   - {"seq": 15, "cmd": "kill E10b-P4lowlr", "reason": "Runming 14:5x: stop attempt 2 (old token budget, would run out of memory again near step 97); restarted with FIXED_MICRO_BSZ=4 by the next resume", "utc": "2026-10-17T14:56:06Z"}
   - {"seq": 16, "cmd": "resume E10b-P4lowlr", "reason": "Runming 14:5x: restart E10b-P4lowlr from step 0 with FIXED_MICRO_BSZ=4", "utc": "2026-10-17T14:57:44Z"}
   - {"seq": 17, "cmd": "logs E10b-P4lowlr 2000", "reason": "Runming 14:5x: confirm the restarted E10b-P4lowlr runs with 4 sequences per micro-batch (resolved config in its log)", "utc": "2026-10-17T14:59:17Z"}
+  - {"seq": 18, "cmd": "setenv FIXED_MICRO_BSZ=", "reason": "Runming 14:5x: E10b-P4lowlr started with 4 per micro-batch; clear the key so later tasks keep the token budget", "utc": "2026-10-17T15:01:50Z"}
