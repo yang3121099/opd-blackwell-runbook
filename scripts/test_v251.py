@@ -327,3 +327,27 @@ def test_v_reap_calls_reap(env, monkeypatch):
     assert env.c.v_reap(["9"], 43)[0] == "rejected"                    # no such GPU
     assert env.c.v_reap(["4"], 41)[0] == "ok" and "[101, 102]" in env.c.v_reap(["4"], 41)[1]
     assert "no orphaned" in env.c.v_reap(["5"], 42)[1]
+
+
+@pytest.mark.parametrize("cmd,ok", [("rerun FA-PROBE", True), ("rerun EVAL-bridge", True), ("rerun E10b-P2", False),
+                                    ("rerun EVAL-a;b", False), ("rerun", False), ("rerun FA-PROBE x", False)])
+def test_rules_rerun(cmd, ok):
+    if ok:
+        R.parse({"cmd": cmd, "reason": "t"})
+    else:
+        with pytest.raises(R.Reject):
+            R.parse({"cmd": cmd, "reason": "t"})
+
+
+def test_v_rerun(env, monkeypatch):
+    c = env.c; d = os.path.join(c.ROOT, "runs", "FA-PROBE"); os.makedirs(d, exist_ok=True)
+    monkeypatch.setattr(c, "running_pids", lambda t=None: [])
+    assert c.v_rerun(["FA-PROBE"], 50)[0] == "rejected"                    # not done yet
+    for f in (".done", "report.json", ".failed"):
+        open(os.path.join(d, f), "w").write("x")
+    st, msg, _ = c.v_rerun(["FA-PROBE"], 51)
+    assert st == "ok" and not os.path.exists(os.path.join(d, ".done")) and os.path.exists(os.path.join(d, ".done.prev_51"))
+    assert os.path.exists(os.path.join(d, "report.json.prev_51")) and not os.path.exists(os.path.join(d, ".failed"))
+    open(os.path.join(d, ".done"), "w").write("x")
+    monkeypatch.setattr(c, "running_pids", lambda t=None: [123])
+    assert c.v_rerun(["FA-PROBE"], 52)[0] == "rejected"                    # running

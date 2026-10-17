@@ -88,3 +88,18 @@ def test_nothing_under_prefix(hub, monkeypatch, tmp_path):
     monkeypatch.setattr(F, "listing", lambda api, repo, prefix: [])
     r = F.fetch("o/r", "runs/none", str(tmp_path))
     assert not r["ok"] and {e["error"] for e in r["errors"]} == {"NoFiles"}
+
+
+def test_hf_transfer_off_after_a_failure(hub, monkeypatch, tmp_path):
+    from huggingface_hub import constants as K
+    import huggingface_hub
+    monkeypatch.setattr(K, "HF_HUB_ENABLE_HF_TRANSFER", True)
+    real, n = huggingface_hub.hf_hub_download, {"i": 0}
+    def flaky(*a, **k):
+        n["i"] += 1
+        if n["i"] == 1:
+            raise RuntimeError("hf_transfer: connection reset")
+        return real(*a, **k)
+    monkeypatch.setattr(huggingface_hub, "hf_hub_download", flaky)
+    r = F.fetch("o/r", "runs/X/s/actor/huggingface", str(tmp_path))
+    assert r["ok"] and r["hf_transfer"] is False and r["errors"][0].get("hf_transfer_off")

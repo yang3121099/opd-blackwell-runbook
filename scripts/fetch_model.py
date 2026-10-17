@@ -23,6 +23,12 @@ import time
 os.environ.setdefault("HF_HUB_ETAG_TIMEOUT", "60")       # read by huggingface_hub at import
 os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "120")
 os.environ.pop("HF_HUB_OFFLINE", None)
+if os.environ.get("HF_HUB_ENABLE_HF_TRANSFER") is None:   # v2.5.5: multi-connection downloads (install_uv.sh installs hf-transfer;
+    try:                                                    # B300 17:56: 7.9 MB/s single-connection from huggingface.co)
+        import hf_transfer  # noqa: F401
+        os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
+    except ImportError:
+        pass
 
 ENDPOINTS = [e.strip() for e in os.environ.get("HF_DOWNLOAD_ENDPOINTS", "https://huggingface.co,https://hf-mirror.com").split(",") if e.strip()]
 TRIES = int(os.environ.get("FETCH_TRIES", "3"))
@@ -61,6 +67,7 @@ def missing(files, local):
 
 def fetch(repo, prefix, local):
     from huggingface_hub import HfApi, hf_hub_download
+    from huggingface_hub import constants as K
     prefix = prefix.strip("/")
     ok_file = os.path.join(local, prefix, ".fetch_ok")
     if os.path.isfile(ok_file):
@@ -92,11 +99,14 @@ def fetch(repo, prefix, local):
                     os.makedirs(os.path.dirname(ok_file), exist_ok=True)
                     json.dump({"repo": repo, "prefix": prefix, "files": files, "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}, open(ok_file, "w"))
                     s = time.time() - t0
-                    return {"ok": True, "endpoint": ep, "files": len(files), "bytes": got, "seconds": round(s, 1),
+                    return {"ok": True, "endpoint": ep, "hf_transfer": bool(getattr(K, "HF_HUB_ENABLE_HF_TRANSFER", False)),
+                            "files": len(files), "bytes": got, "seconds": round(s, 1),
                             "mb_s": round(got / 1e6 / s, 1) if s > 0 and got else None, "errors": errors}
                 errors.append({"endpoint": ep, "attempt": attempt, "error": "Incomplete", "detail": ", ".join(p for p, _, _ in todo)[:200]})
             except Exception as e:   # every failure is recorded; the next attempt / endpoint follows
                 errors.append({"endpoint": ep, "attempt": attempt, "error": type(e).__name__, "detail": str(e)[:200]})
+                if getattr(K, "HF_HUB_ENABLE_HF_TRANSFER", False):   # the next attempts go without hf_transfer
+                    K.HF_HUB_ENABLE_HF_TRANSFER = False; errors[-1]["hf_transfer_off"] = True
             time.sleep(min(30, 5 * attempt))
     return {"ok": False, "files": None, "bytes": got, "seconds": round(time.time() - t0, 1), "errors": errors}
 
@@ -113,7 +123,7 @@ def main():
     r.update({"repo": repo, "prefix": prefix})
     print(json.dumps(r), flush=True)
     if task and not r.get("cached"):
-        brief = {k: r.get(k) for k in ("endpoint", "files", "bytes", "seconds", "mb_s")}
+        brief = {k: r.get(k) for k in ("endpoint", "hf_transfer", "files", "bytes", "seconds", "mb_s")}
         errs = "; ".join(f"{e['endpoint'].split('//')[-1]}#{e['attempt']} {e['error']}" for e in r.get("errors", []))[:400]
         subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "control.py"), "event", task,
                         "fetch_done" if r["ok"] else "fetch_failed", f"{prefix} {json.dumps(brief)} errors: {errs or 'none'}"],

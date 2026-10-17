@@ -935,6 +935,23 @@ def v_run(a, seq, flags=None, entry=None):
     return "accepted", f"{t} starts on the next GPU that is free after the queue's own tasks (deps must be done)", {}
 
 
+def v_rerun(a, seq, flags=None, entry=None):
+    """rerun <FA-PROBE | EVAL-name> (v2.5.5): a finished probe or queue evaluation runs once more (reviewer A1 2026-10-17:
+    FA-PROBE's 3-step smoke can fail only because another task shared its GPU). Its .done, report.json and .failed are
+    kept as *.prev_<seq>; the queue starts it again on the next free GPU (its stage must be open). Nothing else is touched."""
+    t = a[0]
+    if running_pids(t):
+        return "rejected", f"{t} is running", {}
+    d = os.path.join(ROOT, "runs", t)
+    if not os.path.exists(os.path.join(d, ".done")):
+        return "rejected", f"{t} is not done", {}
+    kept = []
+    for f in (".done", "report.json", ".failed"):
+        if os.path.exists(os.path.join(d, f)):
+            os.replace(os.path.join(d, f), os.path.join(d, f"{f}.prev_{seq}")); kept.append(f)
+    return "ok", f"{t} will run again ({', '.join(kept)} kept as *.prev_{seq})", {}
+
+
 def v_eval(a, seq, flags=None, entry=None):
     _request("eval", seq, {"model": a[0], "bench": a[1], "n": int(a[2]) if len(a) > 2 else 4, "temp": a[3] if len(a) > 3 else "0.6"})
     return "accepted", "evaluation starts on the next GPU that is free after the queue's own tasks", {}
@@ -1211,7 +1228,7 @@ def _v24(fn):
 VERBS = {"pause": _v24(v_pause), "resume": _v24(v_resume), "kill": _v24(v_kill), "prio": _v24(v_prio),
          "restore": _v24(v_restore), "rerun_verify": _v24(v_rerun_verify), "setenv": v_set, "set": v_set,
          "snapshot": lambda a, seq, flags=None, entry=None: v_snapshot0(seq) if not a else v_snapshot(a, seq),
-         "ps": v_ps, "logs": v_logs, "run": v_run, "eval": v_eval, "update": v_update, "upload": v_upload,
+         "ps": v_ps, "logs": v_logs, "run": v_run, "rerun": v_rerun, "eval": v_eval, "update": v_update, "upload": v_upload,
          "signal": v_signal, "kill-pgid": v_killpgid, "cancel": v_cancel, "heartbeat": v_heartbeat, "move-ckpt": v_move_ckpt, "reap": v_reap}
 assert set(VERBS) == set(R.VERBS), set(VERBS) ^ set(R.VERBS)
 TASK_VERBS = R.TASK_VERBS

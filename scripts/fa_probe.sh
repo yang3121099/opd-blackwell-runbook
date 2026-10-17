@@ -95,7 +95,12 @@ if ! $VF/bin/python -c "$FAIMP" 2>/dev/null; then
   GOT=$(sha256sum "$W" | cut -c1-64)
   [ "$GOT" = "$SHA" ] || { rm -f "$W"; finish FAIL "sha256 mismatch for $NAME (release page $SHA, got $GOT)"; }
   put sha256_ok true
-  $VF/bin/python -m pip install --no-deps --no-index "$W" >> $LOG 2>&1 || finish FAIL "pip install --no-deps failed"
+  # v2.5.5: a uv-built venv has no pip (B300 17:57: "No module named pip"): pip if present, else uv, else ensurepip + pip
+  if $VF/bin/python -m pip --version > /dev/null 2>&1; then INST=pip; $VF/bin/python -m pip install --no-deps --no-index "$W" >> $LOG 2>&1
+  elif command -v uv > /dev/null 2>&1; then INST=uv; uv pip install --python $VF/bin/python --no-deps --offline "$W" >> $LOG 2>&1
+  else INST=ensurepip; $VF/bin/python -m ensurepip >> $LOG 2>&1 && $VF/bin/python -m pip install --no-deps --no-index "$W" >> $LOG 2>&1; fi \
+    || { puts installer "$INST"; finish FAIL "wheel install (--no-deps, no index) failed with $INST"; }
+  puts installer "$INST"
 fi
 AFTER=$($VF/bin/python $RUNBOOK/scripts/fa_probe.py versions 2>/dev/null); put after "$AFTER"
 t0=$(echo "$BEFORE" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('torch'), d.get('vllm'))")

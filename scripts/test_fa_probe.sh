@@ -34,7 +34,9 @@ case "\$*" in
   *"fa_probe.py versions"*) echo '{"python": "3.10.12", "torch": "$3", "torch_cuda": "12.8", "cxx11abi": "TRUE", "vllm": "0.10.2"}';;
   *"fa_probe.py varlen"*) echo '{"varlen_max_abs_diff": 0.004, "grad_finite": true, "capability": [10, 3]}';;
   *"fa_probe.py report"*) shift; exec python3 "\$@";;
-  *"-m pip install --no-deps --no-index"*) touch \$(dirname \$0)/../.fa_installed; echo "pip \$*" >> \$CALLS;;
+  *"-m pip"*) [ "${5:-}" = nopip ] && [ ! -f \$(dirname \$0)/../.ensured ] && exit 1
+    case "\$*" in *"install --no-deps --no-index"*) touch \$(dirname \$0)/../.fa_installed; echo "pip \$*" >> \$CALLS;; esac;;
+  *"-m ensurepip"*) touch \$(dirname \$0)/../.ensured; echo "ensurepip" >> \$CALLS;;
   *) exec python3 "\$@";;
 esac
 SH
@@ -54,6 +56,10 @@ SH
 #!/usr/bin/env bash
 [ "$2" = good ] && echo "$W  \$1" || echo "0000000000000000000000000000000000000000000000000000000000000000  \$1"
 SH
+  [ "${5:-}" = nopip ] && [ "${6:-}" = uv ] && cat > $T/bin/uv <<SH
+#!/usr/bin/env bash
+echo "uv \$*" >> \$CALLS; touch $T/root/venv-fa/.fa_installed
+SH
   chmod +x $T/bin/*
   export CALLS=$T/calls; : > $CALLS
   FA_WAIT_STEP=0 PATH=$T/bin:$PATH bash $T/rb/scripts/fa_probe.sh 3 > $T/out 2>&1
@@ -65,6 +71,8 @@ SH
     badsha) check badsha '[[ "$R" == FAIL\ sha256* ]] && ! grep -q "pip " $CALLS && ! grep -q run_arm $CALLS && [ -f $T/root/runs/FA-PROBE/.done ]' "result=$R";;
     stack) check stack '[[ "$R" == FAIL\ stack* ]] && ! grep -q "curl" $CALLS' "result=$R";;
     busythenfree) check busythenfree '[[ "$R" == PASS*" 3 True" ]]' "result=$R";;
+    nopip_uv) check nopip_uv '[[ "$R" == PASS*" 3 True" ]] && grep -q "^uv pip install --python $T/root/venv-fa/bin/python --no-deps --offline" $CALLS && ! grep -q "^pip " $CALLS' "result=$R";;
+    nopip_ensure) check nopip_ensure '[[ "$R" == PASS*" 3 True" ]] && grep -q "^ensurepip" $CALLS && grep -q "^pip " $CALLS' "result=$R";;
     busy) check busy '[[ "$R" == FAIL\ gpu* ]] && [ ! -d $T/root/venv-fa ]' "result=$R";;
   esac
   [ -d $T/root/venv-fa ] && [ "$(readlink -f $T/root/venv-fa)" = "$(readlink -f $T/root/venv)" ] && { echo "  FAIL [$1] venv-fa is the venv in use"; fails=$((fails + 1)); }
@@ -75,4 +83,6 @@ one badsha bad 2.8.0+cu128 0
 one stack good 2.9.0+cu130 0
 one busythenfree good 2.8.0+cu128 busy3   # busy for 3 checks, then free: the probe waits and passes
 one busy good 2.8.0+cu128 40000
-[ $fails = 0 ] && echo "FA_PROBE_TEST PASS (5 cases)" || echo "FA_PROBE_TEST FAIL ($fails)"
+one nopip_uv good 2.8.0+cu128 0 nopip uv        # v2.5.5: a uv-built venv without pip, uv on PATH
+one nopip_ensure good 2.8.0+cu128 0 nopip       # without pip and without uv: ensurepip first
+[ $fails = 0 ] && echo "FA_PROBE_TEST PASS (7 cases)" || echo "FA_PROBE_TEST FAIL ($fails)"
