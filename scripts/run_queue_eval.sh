@@ -6,13 +6,27 @@
 # rules of the `eval` command (control_rules.check_eval_args). They run one after the other on this GPU with the settings
 # of run_adhoc_eval.sh (no_think, T=0.6: top_p 0.95 / T=1.0: top_p 1.0, top_k 0, 16K, resumable blocks); results in
 # runs/EVAL-<name>/ locally and in the public result repository; .done once every listed evaluation has its metrics.
-# Usage: bash run_queue_eval.sh <gpu> <EVAL-name>
+# v2.5.4e: models from yang31210999/opd-lab-ckpts come through fetch_model.py (complete by size and sha256, or not used);
+# `prefetch` mode fetches every model of the task without a GPU and writes runs/EVAL-<name>/.inputs_ok (the hash of the
+# task's #eval lines); run_tasks.sh starts prefetches for all EVAL tasks of the queue and gives a GPU only after .inputs_ok.
+# Usage: bash run_queue_eval.sh <gpu> <EVAL-name>  |  bash run_queue_eval.sh prefetch <EVAL-name>
 set -uo pipefail
 source "$(dirname "$0")/env.sh"; source ${VENV_EVAL:-$OPD_ROOT/venv}/bin/activate
 G=$1; T=$2; OUT=$OPD_ROOT/runs/$T; Q=${QUEUE_FILE:-$RUNBOOK/tasks/queue.txt}; mkdir -p $OUT
 [ -f $OUT/.done ] && { echo "TASK_ALREADY_DONE $T"; exit 0; }
 SPECS=$(awk -v t="$T" '$1 == "#eval" && $2 == t {print $3, $4, $5, $6, $7}' "$Q")
 [ -n "$SPECS" ] || { echo "no #eval lines for $T in the queue"; exit 1; }
+HASH=$(awk -v t="$T" '$1 == "#eval" && $2 == t' "$Q" | cksum | cut -d' ' -f1)
+fetch_ckpt() {   # $1 = path inside yang31210999/opd-lab-ckpts; 0 when complete
+  python $RUNBOOK/scripts/fetch_model.py yang31210999/opd-lab-ckpts "$1" "$CKPT_ROOT/adhoc_models" --task $T >> $OUT/fetch.log 2>&1; }
+if [ "$G" = prefetch ]; then
+  pok=1
+  while read -r TAG MODEL BENCH N TEMP; do
+    case $MODEL in yang31210999/opd-lab-ckpts/*) fetch_ckpt "${MODEL#yang31210999/opd-lab-ckpts/}" || { echo "PREFETCH_FAILED $TAG $MODEL"; pok=0; };; esac
+  done <<< "$SPECS"
+  [ $pok = 1 ] && { echo $HASH > $OUT/.inputs_ok; rm -f $OUT/.prefetch_fail; echo "PREFETCH_DONE $T"; exit 0; }
+  rm -f $OUT/.inputs_ok; exit 1
+fi
 ok=1
 while read -r TAG MODEL BENCH N TEMP; do
   [[ $TAG =~ ^[A-Za-z0-9._-]+$ ]] || { echo "REFUSED bad tag $TAG"; ok=0; continue; }
@@ -23,8 +37,7 @@ while read -r TAG MODEL BENCH N TEMP; do
     Qwen/Qwen3-0.6B) M=$STUDENT_06B;; Qwen/Qwen3-1.7B) M=$STUDENT_17B;; Qwen/Qwen3-8B) M=$TEACHER;; Qwen/*) M=$MODEL;;
     yang31210999/opd-lab-ckpts/*)
       P=${MODEL#yang31210999/opd-lab-ckpts/}; M=$CKPT_ROOT/adhoc_models/$P
-      has_weights $M || for ep in ${HF_DOWNLOAD_ENDPOINT:-https://hf-mirror.com} https://huggingface.co; do
-        HF_ENDPOINT=$ep python -c "from huggingface_hub import snapshot_download as s; import sys; s('yang31210999/opd-lab-ckpts', allow_patterns=[sys.argv[1] + '/*'], local_dir=sys.argv[2])" "$P" "$CKPT_ROOT/adhoc_models" && has_weights $M && break; done;;
+      fetch_ckpt "$P" || { echo "MODEL_FETCH_FAILED $TAG: $MODEL (see $OUT/fetch.log)"; ok=0; continue; };;
     *) M=$OPD_ROOT/${MODEL#local:}; has_weights $M || M=$CKPT_ROOT/${MODEL#local:};;
   esac
   has_weights $M || [ "${M#Qwen/}" != "$M" ] || [ -f $M/config.json ] || { echo "MODEL_MISSING $TAG: $MODEL"; ok=0; continue; }

@@ -58,6 +58,20 @@ free_gpus() { for i in $(seq 0 $((NGPU-1))); do
     pgrep -f "scripts/(task|run_adhoc_eval)\.sh $i( |\$)" > /dev/null && continue
     [ -z "$(nvidia-smi --query-compute-apps=pid --format=csv,noheader -i $i)" ] || continue
     [ "$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $i | tr -d ' ')" -le 2048 ] && echo $i; done; }
+# v2.5.4e: EVAL tasks get a GPU only once their models are local and checked (.inputs_ok = the hash of their #eval
+# lines, written by `run_queue_eval.sh prefetch`); one CPU-side prefetch at a time, for every EVAL task of the queue
+# (also in locked stages), a failed one again after 30 min
+eval_hash() { awk -v t="$1" '$1 == "#eval" && $2 == t' "$Q" | cksum | cut -d' ' -f1; }
+inputs_ok() { [ "$(cat $OPD_ROOT/runs/$1/.inputs_ok 2>/dev/null)" = "$(eval_hash $1)" ]; }
+prefetch_pass() {
+  pgrep -f "run_queue_eval\.sh prefetch " > /dev/null && return
+  for t in $(awk '$1 == "#eval" {print $2}' "$Q" | sort -u); do
+    [ -f $OPD_ROOT/runs/$t/.done ] && continue; inputs_ok $t && continue
+    [ -n "$(find $OPD_ROOT/runs/$t/.prefetch_fail -mmin -30 2>/dev/null)" ] && continue
+    mkdir -p $OPD_ROOT/runs/$t
+    setsid nohup bash -c "bash $RUNBOOK/scripts/run_queue_eval.sh prefetch $t >> $OPD_ROOT/logs/prefetch_$t.log 2>&1 || touch $OPD_ROOT/runs/$t/.prefetch_fail" < /dev/null > /dev/null 2>&1 &
+    return
+  done; }
 launch() { # gpu task   (v2.5: start / done / killed / failed also go to status/<node>/events/ as receipts)
   mkdir -p $OPD_ROOT/runs/$2
   python $RUNBOOK/scripts/control.py event $2 start "gpu=$1 attempt=$(( $(attempts $2) + 1 ))" > /dev/null 2>&1 &
@@ -98,6 +112,7 @@ while true; do
       python $RUNBOOK/scripts/control.py event $t upload_sync_restarted > /dev/null 2>&1 &
     done
   fi
+  [ "${DRY:-0}" != 1 ] && prefetch_pass
   FREE=($(free_gpus)); earlier_finished=1
   verify_busy && FREE=()   # a remote rerun_verify owns the GPUs
   while read -r stage status rest; do
@@ -118,6 +133,7 @@ while true; do
       paused $t && continue
       ok=1; for d in $deps; do done_ $d || ok=0; done
       [ $ok = 1 ] || continue
+      case $t in EVAL-*) inputs_ok $t || continue;; esac   # v2.5.4e: no GPU while its models are being fetched
       [ ${#FREE[@]} -gt 0 ] || continue
       g=${FREE[0]}; FREE=("${FREE[@]:1}")
       if [ "${DRY:-0}" = 1 ]; then echo "WOULD_START gpu=$g $t (stage $stage, attempt $(( $(attempts $t) + 1 )))"; continue; fi

@@ -15,8 +15,8 @@ case $MODEL in
   Qwen/Qwen3-0.6B) M=$STUDENT_06B;; Qwen/Qwen3-1.7B) M=$STUDENT_17B;; Qwen/Qwen3-8B) M=$TEACHER;; Qwen/*) M=$MODEL;;
   yang31210999/opd-lab-ckpts/*)
     P=${MODEL#yang31210999/opd-lab-ckpts/}; M=$CKPT_ROOT/adhoc_models/$P
-    has_weights $M || for ep in ${HF_DOWNLOAD_ENDPOINT:-https://hf-mirror.com} https://huggingface.co; do
-      HF_ENDPOINT=$ep python -c "from huggingface_hub import snapshot_download as s; s('yang31210999/opd-lab-ckpts', allow_patterns=['$P/*'], local_dir='$CKPT_ROOT/adhoc_models')" && has_weights $M && break; done;;
+    python $RUNBOOK/scripts/fetch_model.py yang31210999/opd-lab-ckpts "$P" "$CKPT_ROOT/adhoc_models" --task adhoc_eval_$S >> $OUT/fetch.log 2>&1 \
+      || fin failed "model download incomplete: $MODEL (v2.5.4e fetch_model.py; see runs/adhoc_eval_$S/fetch.log)";;
   result:*)
     P=${MODEL#result:}; M=$CKPT_ROOT/adhoc_models/result/$P
     PUB_REPO=$(python scripts/remote.py repo public 2>/dev/null); export PUB_REPO   # v2.5.1: weights live in the public repository
