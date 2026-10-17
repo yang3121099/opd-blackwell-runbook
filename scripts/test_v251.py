@@ -204,3 +204,20 @@ def test_run_arm_fixed_micro_branch(tmp_path):
     assert a == "actor_rollout_ref.actor.use_dynamic_bsz=False actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=4|4|actor_rollout_ref.actor.entropy_from_logits_with_chunking=True", a
     b = run({"FIXED_MICRO_BSZ": "", "RMPAD": "True", "TOK_DEFAULT": "16384"})
     assert b == "actor_rollout_ref.actor.use_dynamic_bsz=True actor_rollout_ref.actor.ppo_max_token_len_per_gpu=16384|8|", b
+
+
+@pytest.mark.parametrize("cmd", ["setenv VENV=fa", "set VENV=fa", "setenv VENV=", "run FA-PROBE"])
+def test_rules_accept_v253(cmd):
+    R.parse({"cmd": cmd, "reason": "t"})
+
+
+@pytest.mark.parametrize("cmd", ["setenv VENV=/tmp/x", "setenv VENV=venv-fa", "setenv VENV=FA"])
+def test_rules_refuse_v253(cmd):
+    with pytest.raises(R.Reject):
+        R.parse({"cmd": cmd, "reason": "t"})
+
+
+def test_run_accepts_fa_probe(env):
+    st, msg, _ = env.c.v_run(["FA-PROBE"], 21)
+    assert st == "accepted", msg
+    assert env.c.v_run(["FA-PROBE2"], 22)[0] == "rejected"

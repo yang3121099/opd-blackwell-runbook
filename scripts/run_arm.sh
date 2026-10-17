@@ -17,11 +17,12 @@ case $BASE in
   E10b-P4EOSpen) ARM=P4EOSpen; LR=3e-6;;
   *) echo "unknown task $TASK"; exit 2;;
 esac
-[ "${SMOKE:-0}" = 1 ] && TASK=smoke-$TASK
+[ "${SMOKE:-0}" = 1 ] && TASK=${PROBE_TASK:-smoke-$TASK}   # v2.5.3: FA-PROBE names its own smoke directory
 OUT=$OPD_ROOT/runs/$TASK; mkdir -p $OUT
 [ -f $OUT/.done ] && { echo "TASK_ALREADY_DONE $TASK"; exit 0; }
 STUDENT=${STUDENT:-$STUDENT_17B}   # the verification smoke uses $STUDENT_06B
-source $OPD_ROOT/venv/bin/activate
+case ${VENV:-} in fa) VENV=$OPD_ROOT/venv-fa;; esac   # v2.5.3: setenv VENV=fa (after FA-PROBE passed) = venv-fa with flash-attn
+source ${VENV:-$OPD_ROOT/venv}/bin/activate   # FA-PROBE passes its own VENV; default: the venv in use
 export CUDA_VISIBLE_DEVICES=$GPU RAY_TMPDIR=/tmp/ray_gpu$GPU
 export PYTHONPATH=$RUNBOOK/code/patches:${PYTHONPATH:-}
 export OPD_VARIANT=$ARM OPD_SEED=${OPD_SEED:-1234}

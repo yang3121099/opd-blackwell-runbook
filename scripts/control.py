@@ -802,7 +802,7 @@ def v_run(a, seq, flags=None, entry=None):
     t = a[0]
     r = subprocess.run(["bash", "-c", f'T={t}; ARMS="P2|P3|P4lowlr|P5|P6|P6r|P2noEOS|Pstop|P6rand|P6top5|P4EOSpen"; '
                         'case $T in E10b-*) [[ $T =~ ^E10b-($ARMS)(-s(43|44))?$ ]];; E11b-*) [[ $T =~ ^E11b-(P0|$ARMS)$ ]];; '
-                        'E12b-*) [[ $T =~ ^E12b-(P0|P1|$ARMS)$ ]];; SFT-P1|E03-MI-l0.[0357]|E03-MI-l1.0|E02-opsa17-c0.5|E02-opsa17-c1.5|E02-opsa4-c-1|'
+                        'E12b-*) [[ $T =~ ^E12b-(P0|P1|$ARMS)$ ]];; SFT-P1|FA-PROBE|E03-MI-l0.[0357]|E03-MI-l1.0|E02-opsa17-c0.5|E02-opsa17-c1.5|E02-opsa4-c-1|'
                         'E02-opsa4-c0.5|E02-opsa4-c1.5) true;; *) false;; esac'])
     if r.returncode != 0:
         return "rejected", f"{t} is not accepted by task.sh", {}

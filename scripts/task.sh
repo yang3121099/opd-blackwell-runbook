@@ -13,5 +13,6 @@ case $T in
   E12b-*)  [[ $T =~ ^E12b-(P0|P1|$ARMS)$ ]] || exit 2; bash $RUNBOOK/scripts/run_e12.sh $G $T;;
   E03-MI-l0.0|E03-MI-l0.3|E03-MI-l0.5|E03-MI-l0.7|E03-MI-l1.0) bash $RUNBOOK/scripts/run_zero.sh $G $T;;
   E02-opsa17-c0.5|E02-opsa17-c1.5|E02-opsa4-c-1|E02-opsa4-c0.5|E02-opsa4-c1.5) bash $RUNBOOK/scripts/run_zero.sh $G $T;;
+  FA-PROBE) bash $RUNBOOK/scripts/fa_probe.sh $G;;   # v2.5.3: can flash-attn 2 varlen run here (no E10b directory touched)
   *) echo "NOT_WHITELISTED $T"; exit 2;;
 esac

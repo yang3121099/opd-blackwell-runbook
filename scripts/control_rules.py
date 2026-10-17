@@ -6,13 +6,13 @@ import calendar
 import re
 import time
 
-RULES_VERSION = "2.5.2"   # 2.5.1: set HF_REPO_PUBLIC / HF_REPO_PRIVATE / HEARTBEAT_SEC; 2.5.2: FIXED_MICRO_BSZ
+RULES_VERSION = "2.5.3"   # 2.5.1: HF_REPO_PUBLIC / HF_REPO_PRIVATE / HEARTBEAT_SEC; 2.5.2: FIXED_MICRO_BSZ; 2.5.3: VENV=fa
 
 META = set(";&|`$<>\\\"'(){}*?!#~\n\r")
 TASK_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 KEY_RE = re.compile(r"^(VLLM_[A-Z0-9_]+|TRITON_[A-Z0-9_]+|TORCHINDUCTOR_[A-Z0-9_]+|NCCL_[A-Z0-9_]+|VLLM_UTIL|TEACHER_OFFLOAD"
                     r"|MAX_TOK_GPU|KEEP_LOCAL_HF|MAX_JOBS|SAVE|CKPT_ROOT|CKPT_CANDIDATES\+|UPLOAD_WEIGHTS|KEEP_BF16|ARCHIVE_ROOT"
-                    r"|HF_REPO_PUBLIC|HF_REPO_PRIVATE|HEARTBEAT_SEC|FIXED_MICRO_BSZ)$")
+                    r"|HF_REPO_PUBLIC|HF_REPO_PRIVATE|HEARTBEAT_SEC|FIXED_MICRO_BSZ|VENV)$")
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")   # owner/name of an HF repository
 VAL_RE = re.compile(r"^[A-Za-z0-9_.,:/=+-]*$")
 BENCHES = {"math500", "amc23", "aime24", "aime25", "olympiadbench", "minervamath"}
@@ -101,6 +101,8 @@ def parse(entry):
         k, v = args[0].split("=", 1)
         if k == "FIXED_MICRO_BSZ" and v and not (v.isdigit() and 1 <= int(v) <= 16):
             raise Reject("FIXED_MICRO_BSZ must be an integer 1-16 (empty: back to the token budget)")
+        if k == "VENV" and v not in ("", "fa"):
+            raise Reject("VENV must be fa (the venv-fa that FA-PROBE built) or empty (the venv in use)")
     if verb == "eval":
         check_eval_args(args)
     if verb == "signal":
