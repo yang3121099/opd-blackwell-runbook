@@ -144,6 +144,13 @@ TEXT_EXT = (".log", ".json", ".jsonl", ".txt", ".yaml", ".yml", ".csv", ".md", "
 IGNORE = (".git/", ".cache/huggingface/")
 
 
+def is_text(name, size):
+    """Scrubbed as text: a known text extension, or a small file whose name has no other extension (train_log-like
+    names and markers such as .failed / .inputs_ok, whose only dot is the leading one; v2.5.6a)."""
+    n = name.lower()
+    return n.endswith(TEXT_EXT) or (size < (1 << 20) and "." not in n.lstrip("."))
+
+
 def scrub_roots():
     """(absolute path, placeholder) pairs, longest first: OPD_ROOT, CKPT_ROOT, RUNBOOK, ARCHIVE_ROOT, HOME and their real
     paths, and the directory the venv really lives in (LINK_VENV / FROM_OPD_ROOT: another disk)."""
@@ -200,7 +207,7 @@ def _put_public(api, repo, src, dst):
     ops = []
     for local, pin in _public_files(src, dst):
         name = os.path.basename(local)
-        if name.lower().endswith(TEXT_EXT) or ("." not in name and os.path.getsize(local) < (1 << 20)):
+        if is_text(name, os.path.getsize(local)):
             data = open(local, "rb").read().decode("utf-8", "replace")
             ops.append(CommitOperationAdd(path_in_repo=pin, path_or_fileobj=scrub_text(data, roots, toks).encode()))
         else:

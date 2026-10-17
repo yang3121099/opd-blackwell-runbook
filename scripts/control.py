@@ -1072,9 +1072,9 @@ def do_republish(seq, t):
     done, missing = [], []
     for f in names:
         rel = f[len(f"runs/{t}/"):]
-        if not rel.lower().endswith(remote.TEXT_EXT) or "/ckpt/" in f"/{rel}" or rel.startswith(".cache/"):
-            continue
         src = os.path.join(ROOT, "runs", t, rel)
+        if "/ckpt/" in f"/{rel}" or rel.startswith(".cache/") or not remote.is_text(os.path.basename(rel), os.path.getsize(src) if os.path.isfile(src) else 0):
+            continue
         if not os.path.isfile(src):
             missing.append(rel); continue
         os.makedirs(os.path.dirname(os.path.join(stage, rel)), exist_ok=True); shutil.copy2(src, os.path.join(stage, rel)); done.append(rel)

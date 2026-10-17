@@ -398,6 +398,7 @@ def test_public_upload_is_scrubbed(rem, monkeypatch, tmp_path):
                                  f"mount /mnt/someuser/data/y and someuser@gpuhost77 done\n")
     (d / "m.metrics.json").write_text(json.dumps({"model": f"{ck}/adhoc_models/runs/E12-P5c05/global_step_40", "avg_acc": 74.1}))
     (d / "model.safetensors").write_bytes(b"\x00weights")
+    (d / ".failed").write_text(f"attempts: 1\n  File \"/mnt/someuser/venv/lib/x.py\", line 3\n")      # v2.5.6a: a dotfile is text
     rem.r.put(str(d), "runs/EVAL-bridge")
     ops = {o.path_in_repo: o.path_or_fileobj for o in FakeApi.commits[-1]}
     log, met = ops["runs/EVAL-bridge/train.log"].decode(), ops["runs/EVAL-bridge/m.metrics.json"].decode()
@@ -405,6 +406,9 @@ def test_public_upload_is_scrubbed(rem, monkeypatch, tmp_path):
     assert "<path>" in log and "<redacted>@<redacted>" in log and "someuser" not in log and "gpuhost77" not in log
     assert json.loads(met) == {"model": "$CKPT_ROOT/adhoc_models/runs/E12-P5c05/global_step_40", "avg_acc": 74.1}
     assert ops["runs/EVAL-bridge/model.safetensors"] == str(d / "model.safetensors")    # weights as they are
+    assert b"someuser" not in ops["runs/EVAL-bridge/.failed"] and b"<path>" in ops["runs/EVAL-bridge/.failed"]
+    assert rem.r.is_text(".inputs_ok", 10) and rem.r.is_text("train.log", 10**9) and not rem.r.is_text("model.safetensors", 10)
+    assert not rem.r.is_text(".big", 2 << 20)
     rem.r.put(str(d / "train.log"), "logs/abcd1234/x.log")                              # private: unchanged route
     assert FakeApi.calls[-1] == ("me/ops", "logs/abcd1234/x.log")
 
@@ -421,10 +425,10 @@ def test_rules_republish(cmd, ok):
 def test_do_republish_only_published_text_files(env, monkeypatch):
     c = env.c; d = os.path.join(c.ROOT, "runs", "E10b-P2"); hf = os.path.join(d, "global_step_150", "actor", "huggingface")
     os.makedirs(hf); os.makedirs(os.path.join(d, "ckpt"))
-    for f, body in (("train.log", "log"), ("global_step_150/actor/huggingface/config.json", "{}"),
+    for f, body in ((".failed", "attempts: 1"), ("train.log", "log"), ("global_step_150/actor/huggingface/config.json", "{}"),
                     ("global_step_150/actor/huggingface/model.safetensors", "w"), ("ckpt/state.json", "{}"), ("upload.log", "u")):
         open(os.path.join(d, f), "w").write(body)
-    published = ["runs/E10b-P2/train.log", "runs/E10b-P2/global_step_150/actor/huggingface/config.json",
+    published = ["runs/E10b-P2/.failed", "runs/E10b-P2/train.log", "runs/E10b-P2/global_step_150/actor/huggingface/config.json",
                  "runs/E10b-P2/global_step_150/actor/huggingface/model.safetensors", "runs/E10b-P2/ckpt/state.json",
                  "runs/E10b-P2/gone.log", "runs/E10b-P3/train.log"]
     monkeypatch.setitem(sys.modules, "huggingface_hub", types.SimpleNamespace(HfApi=lambda token=None: types.SimpleNamespace(list_repo_files=lambda repo: published)))
@@ -436,5 +440,5 @@ def test_do_republish_only_published_text_files(env, monkeypatch):
     monkeypatch.setattr(c, "receipt", lambda seq, e, st, detail, **k: got.update(st=st, detail=detail, **k))
     monkeypatch.setattr(c, "event", lambda *a, **k: None)
     c.do_republish(60, "E10b-P2")
-    assert staged == ["global_step_150/actor/huggingface/config.json", "train.log"] and got["dst"] == "runs/E10b-P2"   # no weights, no ckpt/, no unpublished upload.log
+    assert staged == [".failed", "global_step_150/actor/huggingface/config.json", "train.log"] and got["dst"] == "runs/E10b-P2"   # no weights, no ckpt/, no unpublished upload.log
     assert got["st"] == "ok" and got["missing"] == ["gone.log"]
