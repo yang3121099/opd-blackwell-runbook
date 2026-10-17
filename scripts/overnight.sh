@@ -35,9 +35,10 @@ ok=all(os.path.exists(os.path.join(d,f)) and os.path.getsize(os.path.join(d,f))>
 sys.exit(0 if ok else 1)
 PY
 }
-find_model(){ m=$1
+find_model(){ m=$1   # v2.5: also the old OPD_ROOT's models when moving (FROM_OPD_ROOT; used in place, not copied)
   complete_dir $OPD_ROOT/models/$m && { echo $OPD_ROOT/models/$m; return 0; }
-  for root in ${HF_HUB_CACHE:-} ${HF_HOME:+$HF_HOME/hub} $HOME/.cache/huggingface/hub $OPD_ROOT/hf_home/hub; do
+  [ -n "${FROM_OPD_ROOT:-}" ] && complete_dir $FROM_OPD_ROOT/models/$m && { echo $FROM_OPD_ROOT/models/$m; return 0; }
+  for root in ${HF_HUB_CACHE:-} ${HF_HOME:+$HF_HOME/hub} $HOME/.cache/huggingface/hub $OPD_ROOT/hf_home/hub ${FROM_OPD_ROOT:+$FROM_OPD_ROOT/hf_home/hub}; do
     [ -d "$root" ] || continue
     for s in $root/models--Qwen--$m/snapshots/*/; do complete_dir "$s" && { echo "${s%/}"; return 0; }; done
   done
@@ -91,6 +92,22 @@ try_tier(){ local tag=$1 kv; shift
   step 6 "tier $tag vLLM probe FAILED: $(probe_err $tag)"; for kv in "$@"; do unset "${kv%%=*}"; done; return 1
 }
 
+# ---------- 0. v2.5: moving OPD_ROOT to another disk (FROM_OPD_ROOT=<old OPD_ROOT>) ----------
+# Copied: data/*.parquet and paths.env (the checkpoint root choice); models are used where they are (find_model); the
+# vLLM tier probe starts at the tier that passed in the old OPD_ROOT (its earlier tiers are skipped) and is re-run there
+# against this venv. The venv is installed fresh unless LINK_VENV=1 (then the old venv and G-OPD are used through links).
+OLD_TIER=""
+if [ -n "${FROM_OPD_ROOT:-}" ] && [ "$FROM_OPD_ROOT" != "$OPD_ROOT" ] && [ -d "$FROM_OPD_ROOT" ]; then
+  mkdir -p $OPD_ROOT/data
+  for f in $FROM_OPD_ROOT/data/*.parquet; do [ -f "$f" ] && [ ! -f $OPD_ROOT/data/$(basename $f) ] && cp "$f" $OPD_ROOT/data/; done
+  [ -f $FROM_OPD_ROOT/paths.env ] && [ ! -s $OPD_ROOT/paths.env ] && cp $FROM_OPD_ROOT/paths.env $OPD_ROOT/paths.env
+  if [ "${LINK_VENV:-0}" = 1 ] && [ -f $FROM_OPD_ROOT/venv/bin/activate ] && [ ! -e $OPD_ROOT/venv ]; then
+    ln -s $FROM_OPD_ROOT/venv $OPD_ROOT/venv; [ -d $FROM_OPD_ROOT/G-OPD ] && [ ! -e $OPD_ROOT/G-OPD ] && ln -s $FROM_OPD_ROOT/G-OPD $OPD_ROOT/G-OPD; fi
+  OLD_TIER=$(sed -n 's/^# written by overnight.sh, tier \([A-Z0-9]*\),.*/\1/p' $FROM_OPD_ROOT/triton.env 2>/dev/null | head -1)
+  step 0 "moving from $FROM_OPD_ROOT: $(ls $OPD_ROOT/data/*.parquet 2>/dev/null | wc -l) parquet copied, venv $([ -L $OPD_ROOT/venv ] && echo linked || echo 'installed fresh'), probe starts at tier ${OLD_TIER:-A}"
+fi
+tier_rank(){ case $1 in A) echo 0;; B) echo 1;; B2) echo 2;; B3) echo 3;; C) echo 4;; *) echo 0;; esac; }
+before_old(){ [ -n "$OLD_TIER" ] && [ "$(tier_rank $1)" -lt "$(tier_rank $OLD_TIER)" ]; }   # a tier that failed before
 # ---------- 1. code ----------
 cd $RB || fail 0 "runbook dir missing: $RB"
 if git pull --ff-only >>$LOG 2>&1; then step 1 "git pull OK ($(git rev-parse --short HEAD))"; else step 1 "git pull FAILED, continuing with local copy ($(git rev-parse --short HEAD))"; fi
@@ -123,15 +140,15 @@ step 5 "checkpoints in CKPT_ROOT=$CKPT_ROOT ($(df -h $CKPT_ROOT | awk 'NR==2{pri
 #   C  CUDA 13 environment (install_cu130.sh), only when an nvcc >= 13 is there
 rm -f $OPD_ROOT/triton.env; for v in $TIER_VARS; do unset $v; done   # every run starts clean (a rerun re-probes)
 TIER=""
-if try_tier A; then TIER="A: cu128 as is"; else
+if ! before_old A && try_tier A; then TIER="A: cu128 as is"; else
   uv pip install -q "nvidia-cuda-nvcc-cu12==12.9.86" >>$LOG 2>&1 || pip install -q "nvidia-cuda-nvcc-cu12==12.9.86" >>$LOG 2>&1
   PTX=$(find $OPD_ROOT/venv/ -path '*cuda_nvcc/bin/ptxas' 2>/dev/null | head -1)
   if [ -n "$PTX" ]; then
     REL=$($PTX --version 2>/dev/null | sed -n 's/.*release \([0-9.]*\).*/\1/p')
-    if try_tier B TRITON_PTXAS_PATH=$PTX; then TIER="B: cu128 + ptxas $REL"
-    elif try_tier B2 TRITON_PTXAS_PATH=$PTX VLLM_ATTENTION_BACKEND=FLASH_ATTN VLLM_USE_FLASHINFER_SAMPLER=0; then
+    if ! before_old B && try_tier B TRITON_PTXAS_PATH=$PTX; then TIER="B: cu128 + ptxas $REL"
+    elif ! before_old B2 && try_tier B2 TRITON_PTXAS_PATH=$PTX VLLM_ATTENTION_BACKEND=FLASH_ATTN VLLM_USE_FLASHINFER_SAMPLER=0; then
       TIER="B2: cu128 + ptxas $REL + FlashAttention, PyTorch sampler"
-    elif try_tier B3 TRITON_PTXAS_PATH=$PTX VLLM_ATTENTION_BACKEND=TRITON_ATTN_VLLM_V1 VLLM_USE_FLASHINFER_SAMPLER=0; then
+    elif ! before_old B3 && try_tier B3 TRITON_PTXAS_PATH=$PTX VLLM_ATTENTION_BACKEND=TRITON_ATTN_VLLM_V1 VLLM_USE_FLASHINFER_SAMPLER=0; then
       TIER="B3: cu128 + ptxas $REL + Triton attention, PyTorch sampler"; fi
   else step 6 "tiers B-B3 skipped: the ptxas wheel did not install"; fi
 fi

@@ -35,7 +35,8 @@ def env(tmp_path, monkeypatch):
 
 
 def write_cmds(e, cmds, node="testnode"):
-    lines = [f"node: {node}", "commands:"] + [f"  - {{seq: {s}, cmd: {json.dumps(c)}}}" for s, c in cmds]
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())   # v2.5: reason and utc on every entry (ctl.py writes both)
+    lines = [f"node: {node}", "commands:"] + [f"  - {{seq: {s}, cmd: {json.dumps(c)}, reason: test, utc: '{now}'}}" for s, c in cmds]
     (e.rb / "control" / "testnode.yaml").write_text("\n".join(lines) + "\n")
 
 

@@ -28,6 +28,8 @@ verify_busy() { [ -f $CDIR/verify.running ] && kill -0 "$(cat $CDIR/verify.runni
 pull_and_control() {   # git pull, record it, apply new control commands, restart this loop if it changed
   local before=$(git -C "$RUNBOOK" rev-parse --short HEAD 2>/dev/null) ok=false
   git -C "$RUNBOOK" pull -q --ff-only 2>/dev/null && ok=true
+  local after=$(git -C "$RUNBOOK" rev-parse --short HEAD 2>/dev/null)   # v2.5: changed control rules need a sign-off line
+  [ -n "$before" ] && [ "$before" != "$after" ] && { python $RUNBOOK/scripts/control.py check_pull $before $after >> $OPD_ROOT/logs/control.log 2>&1 || ok=false; }
   printf '{"utc": "%s", "ok": %s, "head_before": "%s", "head": "%s"}\n' "$(date -u +%FT%TZ)" $ok "$before" \
     "$(git -C "$RUNBOOK" rev-parse --short HEAD 2>/dev/null)" > $CDIR/last_pull.json
   python $RUNBOOK/scripts/control.py apply >> $OPD_ROOT/logs/control.log 2>&1
@@ -53,14 +55,43 @@ running() { pgrep -f "task.sh [0-9]+ $1\$" >/dev/null; }
 free_gpus() { for i in $(seq 0 $((NGPU-1))); do
     [ -z "$(nvidia-smi --query-compute-apps=pid --format=csv,noheader -i $i)" ] || continue
     [ "$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $i | tr -d ' ')" -le 2048 ] && echo $i; done; }
-launch() { # gpu task
+launch() { # gpu task   (v2.5: start / done / killed / failed also go to status/<node>/events/ as receipts)
   mkdir -p $OPD_ROOT/runs/$2
+  python $RUNBOOK/scripts/control.py event $2 start "gpu=$1 attempt=$(( $(attempts $2) + 1 ))" > /dev/null 2>&1 &
   setsid nohup bash -c "bash $RUNBOOK/scripts/task.sh $1 $2 > $OPD_ROOT/logs/$2.log 2>&1
-    if [ ! -f $OPD_ROOT/runs/$2/.done ]; then a=\$(( \$(sed -n 's/^attempts: //p' $OPD_ROOT/runs/$2/.failed 2>/dev/null || echo 0) + 1 ))
-      [ -f $OPD_ROOT/runs/$2/.killed ] || { echo \"attempts: \$a\"; echo \"last: \$(date -u +%FT%TZ)\"; tail -20 $OPD_ROOT/logs/$2.log; } > $OPD_ROOT/runs/$2/.failed; fi" < /dev/null > /dev/null 2>&1 &
+    if [ -f $OPD_ROOT/runs/$2/.done ]; then python $RUNBOOK/scripts/control.py event $2 done gpu=$1
+    elif [ -f $OPD_ROOT/runs/$2/.killed ]; then python $RUNBOOK/scripts/control.py event $2 killed gpu=$1
+    else a=\$(( \$(sed -n 's/^attempts: //p' $OPD_ROOT/runs/$2/.failed 2>/dev/null || echo 0) + 1 ))
+      { echo \"attempts: \$a\"; echo \"last: \$(date -u +%FT%TZ)\"; tail -20 $OPD_ROOT/logs/$2.log; } > $OPD_ROOT/runs/$2/.failed
+      python $RUNBOOK/scripts/control.py event $2 failed \"attempt=\$a\"; fi" < /dev/null > /dev/null 2>&1 &
 }
+# deps of a task id as written in the queue (task:dep+dep), for `run` requests (v2.5)
+deps_of() { local s=$(grep -v '^#' "$Q" | tr ' ' '\n' | grep -E "^$1(:|\$)" | head -1); [ "$s" != "${s#*:}" ] && echo ${s#*:} | tr '+' ' '; }
 while true; do
   if [ "${PULL:-1}" = 1 ] && [ $(( $(date +%s) - last_pull )) -ge ${PULL_EVERY:-60} ]; then last_pull=$(date +%s); pull_and_control; fi
+  # v2.5 self-heal: the heartbeat loop runs the current heartbeat.sh (restarted when it died or the file changed), and every
+  # running E10b/E12b task has its upload_sync (restarted with the settings run_arm.sh / run_e12.sh use); one event each
+  if [ "${DRY:-0}" != 1 ]; then
+    hb_sha=$(sha1sum $RUNBOOK/scripts/heartbeat.sh | cut -c1-12); hb_pid=$(pgrep -f "scripts/heartbeat.s[h]" | head -1)
+    if [ -n "$hb_pid" ] && [ "$(cat $CDIR/heartbeat.sha 2>/dev/null)" != "$hb_sha" ]; then
+      for p in $(pgrep -f "scripts/heartbeat.s[h]"); do kill $p 2> /dev/null; done; sleep 2; hb_pid=""   # only our heartbeat loop
+      python $RUNBOOK/scripts/control.py event node heartbeat_upgraded "$hb_sha" > /dev/null 2>&1 &
+    fi
+    if [ -z "$hb_pid" ]; then
+      setsid nohup bash $RUNBOOK/scripts/heartbeat.sh >> $OPD_ROOT/logs/heartbeat.log 2>&1 < /dev/null &
+      python $RUNBOOK/scripts/control.py event node heartbeat_restarted > /dev/null 2>&1 &
+    fi
+    for p in $(pgrep -f "task.sh [0-9]+ E1[02]b-[A-Za-z0-9._-]+\$"); do
+      t=$(tr '\0' ' ' < /proc/$p/cmdline | grep -oE "E1[02]b-[A-Za-z0-9._-]+" | tail -1); [ -n "$t" ] || continue
+      pgrep -f "upload_syn[c].sh $OPD_ROOT/runs/$t\$" > /dev/null && continue
+      case $t in
+        E10b-*) env UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-150} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;
+        E12b-*) case ${t#E12b-} in P0|P1|P2|P3|P5) s=100;; *) s=60;; esac
+                env KEEP_BF16=0 UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-$s} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;
+      esac
+      python $RUNBOOK/scripts/control.py event $t upload_sync_restarted > /dev/null 2>&1 &
+    done
+  fi
   FREE=($(free_gpus)); earlier_finished=1
   verify_busy && FREE=()   # a remote rerun_verify owns the GPUs
   while read -r stage status rest; do
@@ -90,6 +121,23 @@ while true; do
     [ "$status" = locked ] && stage_finished=0
     [ $stage_finished = 1 ] || earlier_finished=0
   done < "$Q"
+  # v2.5: ad-hoc `run` / `eval` requests (control.py) take only the GPUs this pass left free: the queue goes first
+  if [ "${DRY:-0}" != 1 ] && ! verify_busy; then
+    while [ ${#FREE[@]} -gt 0 ]; do
+      r=$(python $RUNBOOK/scripts/control.py next_request 2>/dev/null); [ -n "$r" ] || break
+      set -- $r; g=${FREE[0]}; FREE=("${FREE[@]:1}")
+      if [ "$1" = run ]; then
+        ok=1; for d in $(deps_of $2); do done_ $d || ok=0; done
+        if [ $ok = 1 ] && ! running $2 && ! done_ $2; then
+          echo "START $(date -u +%T) gpu=$g $2 (control seq $3)"; launch $g $2; python $RUNBOOK/scripts/control.py rcpt $3 accepted "started on gpu $g"; sleep 90
+        else python $RUNBOOK/scripts/control.py rcpt $3 rejected "deps not done, already running or done"; FREE=($g "${FREE[@]}"); fi
+      else
+        echo "START $(date -u +%T) gpu=$g adhoc_eval_$2 (control seq $2)"
+        setsid nohup bash $RUNBOOK/scripts/run_adhoc_eval.sh $g $2 > $OPD_ROOT/logs/adhoc_eval_$2.log 2>&1 < /dev/null &
+        python $RUNBOOK/scripts/control.py rcpt $2 accepted "started on gpu $g"; sleep 30
+      fi
+    done
+  fi
   [ "${DRY:-0}" = 1 ] && break
   sleep ${POLL:-60}
 done

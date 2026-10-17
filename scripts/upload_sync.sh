@@ -34,6 +34,9 @@ while true; do
       touch $d/.uploaded; new=1; echo "UP_DRY $TASK step $s: bf16 copy in $d/.bf16 ($(ls $d/.bf16/*.safetensors | wc -l) weight file(s))"
     elif up $d/.bf16 runs/$TASK/global_step_$s/actor/huggingface; then
       touch $d/.uploaded; new=1; echo "UP_OK $TASK step $s $(date -u +%T)"
+      # v2.5: optional bf16 archive under a candidate root (ARCHIVE_ROOT in paths.env; none by default)
+      [ -n "${ARCHIVE_ROOT:-}" ] && mkdir -p $ARCHIVE_ROOT/opd-archive/$TASK && rm -rf $ARCHIVE_ROOT/opd-archive/$TASK/global_step_$s \
+        && cp -r $d/.bf16 $ARCHIVE_ROOT/opd-archive/$TASK/global_step_$s && echo "ARCHIVED $TASK step $s in $ARCHIVE_ROOT/opd-archive"
       if [ "${KEEP_BF16:-1}" = 1 ]; then rm -rf $d/actor/huggingface_bf16; mv $d/.bf16 $d/actor/huggingface_bf16; else rm -rf $d/.bf16; fi
       [ "${KEEP_LOCAL_HF:-0}" = 0 ] && rm -f $h/*.safetensors
     else echo "UP_FAIL $TASK step $s (retried next cycle)"; fi

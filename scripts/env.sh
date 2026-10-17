@@ -10,15 +10,38 @@ fi
 # CKPT_ROOT is fixed once in $OPD_ROOT/paths.env: <writable directory under /home or $HOME whose filesystem has the most
 # free space>/opd-ckpt (a value set in the shell wins). runs/<task>/ckpt is a symlink to $CKPT_ROOT/<task>/ckpt
 # (ckpt_link below), so every script still reads and writes runs/<task>/ckpt.
-if [ -z "${CKPT_ROOT:-}" ] && [ -f $OPD_ROOT/paths.env ]; then source $OPD_ROOT/paths.env; fi
-if [ -z "${CKPT_ROOT:-}" ]; then
+# v2.5: every candidate base B holds the same tree, B/opd-ckpt/<task>/ckpt/global_step_<N>/..., and CKPT_ROOT is always
+# <one candidate>/opd-ckpt. Candidates (found at run time, nothing machine-specific in this repository): $HOME, the
+# directory above $OPD_ROOT, the same relative path on every other mounted data disk, and CKPT_CANDIDATES_EXTRA from
+# paths.env (control: set CKPT_CANDIDATES+=<dir>). control: set CKPT_ROOT=<candidate> switches for tasks started later.
+ckpt_candidates() {
+  local base mnt rel m out
+  base=$(dirname "$OPD_ROOT"); out="$HOME:$base"
+  mnt=$(df -P "$base" 2>/dev/null | awk 'NR==2{print $6}'); rel=${base#$mnt}
+  if [ -n "$mnt" ] && [ "$mnt" != / ] && [ -r /proc/mounts ]; then
+    for m in $(awk '$3 !~ /^(proc|sysfs|tmpfs|devtmpfs|cgroup2?|overlay|devpts|mqueue|securityfs|debugfs|tracefs|fusectl|configfs|pstore|bpf|autofs|hugetlbfs|nsfs|squashfs|ramfs|rpc_pipefs|binfmt_misc)$/ {print $2}' /proc/mounts); do
+      [ "$m" = "$mnt" ] || [ "$m" = / ] && continue
+      [ -d "$m$rel" ] && [ -w "$m$rel" ] && out="$out:$m$rel"; done
+  fi
+  echo "$out:${CKPT_CANDIDATES_EXTRA:-}" | tr ':' '\n' | awk 'NF && !seen[$0]++' | paste -sd: -; }
+# paths.env holds CKPT_ROOT, CKPT_CANDIDATES_EXTRA and ARCHIVE_ROOT. A CKPT_ROOT read from it is marked
+# (CKPT_ROOT_FROM=paths.env) and re-read at every source, so `set CKPT_ROOT=` reaches tasks started later even though
+# run_tasks.sh exported the old value; a CKPT_ROOT set by hand in the shell still wins.
+if [ -f $OPD_ROOT/paths.env ]; then
+  if [ -z "${CKPT_ROOT:-}" ] || [ "${CKPT_ROOT_FROM:-}" = paths.env ]; then
+    unset CKPT_ROOT; source $OPD_ROOT/paths.env; [ -n "${CKPT_ROOT:-}" ] && CKPT_ROOT_FROM=paths.env
+  else _ck=$CKPT_ROOT; source $OPD_ROOT/paths.env; CKPT_ROOT=$_ck; fi
+fi
+if [ -z "${CKPT_ROOT:-}" ]; then   # first use: the writable directory under $HOME or /home with the most free space
   _best=""; _free=0
   for _d in "$HOME" /home/*/ /home; do _d=${_d%/}; [ -d "$_d" ] && [ -w "$_d" ] || continue
     _f=$(df -Pk "$_d" 2>/dev/null | awk 'NR==2{print $4}'); [ -n "$_f" ] && [ "$_f" -gt "$_free" ] && { _best=$_d; _free=$_f; }; done
-  CKPT_ROOT=${_best:+$_best/opd-ckpt}; CKPT_ROOT=${CKPT_ROOT:-$OPD_ROOT/ckpt}
-  mkdir -p "$CKPT_ROOT" && echo "CKPT_ROOT=$CKPT_ROOT" > $OPD_ROOT/paths.env
+  CKPT_ROOT=${_best:-$(dirname "$OPD_ROOT")}/opd-ckpt
+  mkdir -p "$CKPT_ROOT" && { grep -v '^CKPT_ROOT=' $OPD_ROOT/paths.env 2>/dev/null; echo "CKPT_ROOT=$CKPT_ROOT"; } > $OPD_ROOT/paths.env.new \
+    && mv $OPD_ROOT/paths.env.new $OPD_ROOT/paths.env; CKPT_ROOT_FROM=paths.env
 fi
-export CKPT_ROOT
+export CKPT_ROOT CKPT_ROOT_FROM=${CKPT_ROOT_FROM:-} CKPT_CANDIDATES_EXTRA=${CKPT_CANDIDATES_EXTRA:-} ARCHIVE_ROOT=${ARCHIVE_ROOT:-}
+export CKPT_CANDIDATES=$(ckpt_candidates)   # colon list of candidate bases (v2.5)
 ckpt_link() {   # <task dir>: its ckpt becomes a symlink into $CKPT_ROOT; a real ckpt dir from an older run stays as it is
   local t=$(basename "$1"); mkdir -p "$CKPT_ROOT/$t/ckpt"
   [ -e "$1/ckpt" ] || [ -L "$1/ckpt" ] || ln -s "$CKPT_ROOT/$t/ckpt" "$1/ckpt"; }

@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Four checks before any task: (1) G2 unit tests of the patches, (2) accept: GPU/driver/CUDA, bf16 matmul, disk,
+# Five checks before any task: (1) G2 unit tests of the patches, (2) accept: GPU/driver/CUDA, bf16 matmul, disk,
 # vLLM start + 4 generations, (3) a 3-step P2 smoke with the 0.6B student + 8B teacher (no validation, no checkpoints),
 # (4) the upload path on a sharded 1.7B checkpoint (dry run: no credentials, nothing uploaded), checked against
-# reference/upload_manifest_qwen3-1.7b_bf16.json (v2.1: before, sharded checkpoints were silently not uploaded).
+# reference/upload_manifest_qwen3-1.7b_bf16.json (v2.1: before, sharded checkpoints were silently not uploaded),
+# (5) v2.5: the control plane's process rules on fake processes only (scripts/test_control_v25_linux.sh, no GPU;
+# reported, not a gate for training).
 # Pass = every step has a finite loss, no NaN anywhere, peak memory within the card. Send the log back. About 1 hour.
 set -uo pipefail
 source "$(dirname "$0")/env.sh"; source $OPD_ROOT/venv/bin/activate; cd $OPD_ROOT
@@ -49,3 +51,7 @@ grep -E "UP_DRY|BF16_FAIL|UPLOAD_DONE" $OPD_ROOT/logs/smoke_upload.log
 python $RUNBOOK/scripts/check_upload.py $U/ckpt/global_step_1/.bf16 $RUNBOOK/reference/upload_manifest_qwen3-1.7b_bf16.json \
   && echo "UPLOAD_CHECK PASS ($(( $(date +%s) - t ))s)" || { echo "UPLOAD_CHECK FAIL"; grep -E "Error|Traceback" $OPD_ROOT/logs/smoke_upload.log | tail -3; }
 rm -rf $U
+echo "== 5. control self-test (v2.5): its own fake sleep sessions only, no GPU, ~1 min"
+t=$(date +%s); bash $RUNBOOK/scripts/test_control_v25_linux.sh > $OPD_ROOT/logs/control_selftest.log 2>&1
+grep -q "LINUX_PROCESS_TEST PASS" $OPD_ROOT/logs/control_selftest.log && echo "CONTROL PASS ($(( $(date +%s) - t ))s; $(grep -o '[0-9]* checks passed' $OPD_ROOT/logs/control_selftest.log))" \
+  || { echo "CONTROL FAIL"; grep -E "FAIL|Error|Traceback" $OPD_ROOT/logs/control_selftest.log | tail -5; }

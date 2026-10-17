@@ -11,12 +11,14 @@ source "$(dirname "$0")/env.sh"; source $OPD_ROOT/venv/bin/activate
 H=$(hostname -s); F=$OPD_ROOT/logs/status_$H.json
 # software stack, read once: tells the project which install route this node is on
 python -c "import json, torch, vllm; json.dump({'torch': torch.__version__, 'torch_cuda': torch.version.cuda, 'vllm': vllm.__version__, 'arch_list': torch.cuda.get_arch_list(), 'device_capability': list(torch.cuda.get_device_capability())}, open('$OPD_ROOT/logs/stack.json', 'w'))" 2>/dev/null || echo '{}' > $OPD_ROOT/logs/stack.json
+# v2.5: run_tasks.sh restarts this loop when heartbeat.sh changes (it compares this sha with the current file)
+mkdir -p $OPD_ROOT/control; sha1sum $RUNBOOK/scripts/heartbeat.sh | cut -c1-12 > $OPD_ROOT/control/heartbeat.sha; echo $$ > $OPD_ROOT/control/heartbeat.pid
 while true; do
   python - "$F" <<'PY'
 import glob, json, os, re, subprocess, sys, time
 root = os.environ["OPD_ROOT"]; runbook = os.environ["RUNBOOK"]
 sys.path.insert(0, os.path.join(runbook, "scripts"))
-from control import redact, status as control_status
+from control import redact, status as control_status, roots_report
 def total_steps(d, text):
     cfg = open(os.path.join(d, "config.yaml"), errors="ignore").read() if os.path.exists(os.path.join(d, "config.yaml")) else ""
     m = re.search(r"^steps:\s*(\d+)", cfg, re.M) or re.search(r"total_training_steps[=:]\s*(\d+)", text)
@@ -70,14 +72,29 @@ json.dump({"host": os.uname().nodename, "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ
            "ckpt_disk_free_gb": (lambda c: round(c.f_bavail * c.f_frsize / 1e9, 1))(os.statvfs(os.environ["CKPT_ROOT"])) if os.path.isdir(os.environ.get("CKPT_ROOT", "")) else None,
            "ckpt_disk_alert": (lambda c: c.f_bavail * c.f_frsize / 1e9 < float(os.environ.get("CKPT_ALERT_GB", "100")))(os.statvfs(os.environ["CKPT_ROOT"])) if os.path.isdir(os.environ.get("CKPT_ROOT", "")) else None,
            "disk_used_pct": round(100 * (1 - st.f_bavail / st.f_blocks), 1) if st.f_blocks else None,
-           "runbook_head": git("rev-parse", "--short", "HEAD"), "runbook_version": "v2.4",
+           "runbook_head": git("rev-parse", "--short", "HEAD"), "runbook_version": "v2.5",
            "run_tasks_sha": open(os.path.join(root, "control", "run_tasks.sha")).read().strip() if os.path.exists(os.path.join(root, "control", "run_tasks.sha")) else None,
+           "ckpt_roots": roots_report(),   # v2.5: every candidate root: mount, free GB, writable, alert, task dirs and sizes
            "control": control_status()}, open(sys.argv[1], "w"), indent=1)
 PY
-  python $RUNBOOK/scripts/remote.py put $F status/$H.json 2>> $OPD_ROOT/logs/heartbeat.err && echo "HEARTBEAT $(date -u +%T)"
+  # v2.5: never upload an empty or broken status file (B300 node, 2026-10-17 07:53: the disk was full and a 0-byte JSON
+  # went up); a minimal status written to memory (/dev/shm) goes instead, with both disks' free space
+  UP=$F
+  if ! python -c "import json, sys; json.load(open(sys.argv[1]))" $F 2> /dev/null; then
+    UP=/dev/shm/status_$H.json; [ -d /dev/shm ] || UP=/tmp/status_$H.json
+    printf '{"host": "%s", "utc": "%s", "error": "status JSON not written (disk full?)", "disk_free_gb": %s, "ckpt_disk_free_gb": %s, "runbook_version": "v2.5"}\n' \
+      "$H" "$(date -u +%FT%TZ)" "$(df -Pk $OPD_ROOT | awk 'NR==2{printf "%.1f", $4/1e6}')" "$(df -Pk ${CKPT_ROOT:-$OPD_ROOT} | awk 'NR==2{printf "%.1f", $4/1e6}')" > $UP
+  fi
+  python $RUNBOOK/scripts/remote.py put $UP status/$H.json 2>> $OPD_ROOT/logs/heartbeat.err && echo "HEARTBEAT $(date -u +%T)"
+  # v2.5 (D-004): the process table every round, and receipts/events again (a failed first upload is retried here)
+  python $RUNBOOK/scripts/control.py procs --upload > /dev/null 2>> $OPD_ROOT/logs/heartbeat.err
+  python $RUNBOOK/scripts/control.py alerts $UP > /dev/null 2>> $OPD_ROOT/logs/heartbeat.err   # disk / stalled / uploader events
+  N=$(python $RUNBOOK/scripts/control.py node)
+  for d in replies events; do [ -d $OPD_ROOT/control/$d ] && python $RUNBOOK/scripts/remote.py put $OPD_ROOT/control/$d status/$N/$d > /dev/null 2>> $OPD_ROOT/logs/heartbeat.err; done
   # first-arm comparison with the reference H100 run, uploaded once when E10b-P2 has reached step 10
   if [ ! -f $OPD_ROOT/logs/.compare_uploaded ] && python $RUNBOOK/scripts/compare_first_arm.py >/dev/null 2>&1; then
     python $RUNBOOK/scripts/remote.py put $OPD_ROOT/logs/compare_$H.json status/compare_$H.json && touch $OPD_ROOT/logs/.compare_uploaded && echo "COMPARE_UPLOADED $(date -u +%T)"
   fi
-  sleep 600
+  # v2.5: `heartbeat` (control.py) asks for the next round now: the flag is checked every 10 s
+  for _i in $(seq 60); do [ -f $OPD_ROOT/control/heartbeat_now ] && { rm -f $OPD_ROOT/control/heartbeat_now; break; }; sleep 10; done
 done
