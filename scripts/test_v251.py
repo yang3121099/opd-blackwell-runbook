@@ -135,7 +135,7 @@ def test_pulse_has_no_paths_or_names(env, monkeypatch):
     text = json.dumps(p)
     assert "/" not in text and "someuser" not in text and "gpu-host" not in text and "example-corp" not in text
     assert p["tasks"]["E10b-P2"] == {"state": "running", "step": 59, "total_steps": 150, "val": 0.79, "trunc": 0.2, "s_per_step": 135.7,
-                                     "eta_min": 196, "attempts_failed": 0}
+                                     "eta_min": 196, "attempts_failed": 0, "gpu": None, "kind": None, "started_utc": None}
     assert p["gpus"][1] == {"idx": 1, "util": 100.0, "mem_used": 121681.0, "mem_total": 275040.0}
     assert p["alerts"] == ["ckpt_root_alert", "disk_alert", "stalled:E10b-P3"] and p["node_id"] == "testnode"
     assert env.c.leak_check(p) == [] and len(text) < 2048
@@ -351,3 +351,13 @@ def test_v_rerun(env, monkeypatch):
     open(os.path.join(d, ".done"), "w").write("x")
     monkeypatch.setattr(c, "running_pids", lambda t=None: [123])
     assert c.v_rerun(["FA-PROBE"], 52)[0] == "rejected"                    # running
+
+
+def test_pulse_task_gpu_kind_started(env):
+    st = {"tasks": {"FA-PROBE": {"state": "running", "gpu": 6, "kind": "probe", "started_utc": "2026-10-17T17:28:20Z"},
+                    "E10b-P2": {"state": "done", "gpu": None, "kind": "train", "started_utc": None},
+                    "EVAL-x": {"state": "running", "gpu": "6; rm", "kind": "/root", "started_utc": "17:28 on host-1"}}}
+    p = env.c.build_pulse(st, "6, 50, 1000, 275040\n")
+    assert p["tasks"]["FA-PROBE"]["gpu"] == 6 and p["tasks"]["FA-PROBE"]["kind"] == "probe"
+    assert p["tasks"]["FA-PROBE"]["started_utc"] == "2026-10-17T17:28:20Z" and p["tasks"]["E10b-P2"]["gpu"] is None
+    assert p["tasks"]["EVAL-x"]["gpu"] is None and p["tasks"]["EVAL-x"]["kind"] is None and p["tasks"]["EVAL-x"]["started_utc"] is None

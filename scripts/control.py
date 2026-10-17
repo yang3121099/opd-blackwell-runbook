@@ -855,7 +855,12 @@ def build_pulse(st, gpu_csv):
         tasks[name] = {"state": state, "step": _num(v.get("step")), "total_steps": _num(v.get("total_steps")),
                        "val": _num(v.get("val_math500")), "trunc": _num(v.get("truncation")),
                        "s_per_step": _num(v.get("step_time_mean5_s")), "eta_min": _num(v.get("eta_min")),
-                       "attempts_failed": _num(v.get("attempts_failed"))}
+                       "attempts_failed": _num(v.get("attempts_failed")),
+                       # v2.5.5: the GPU it holds, train / sft / eval / probe / other, its start (for grouping by GPU)
+                       "gpu": v.get("gpu") if isinstance(v.get("gpu"), int) and 0 <= v.get("gpu") <= 15 else None,
+                       "kind": v.get("kind") if v.get("kind") in ("train", "sft", "eval", "probe", "other") else None,
+                       "started_utc": v.get("started_utc") if isinstance(v.get("started_utc"), str)
+                       and re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", v.get("started_utc")) else None}
     ctl = st.get("control") if isinstance(st.get("control"), dict) else {}
     alerts = []
     for a in ctl.get("alerts") or []:

@@ -33,6 +33,32 @@ def tail(path, n=20):
         return []
 def last(pat, text):
     m = re.findall(pat, text); return float(m[-1]) if m else None
+def live_tasks():
+    """v2.5.5: {task: (gpu, start epoch)} of the running task.sh <gpu> <task> / run_adhoc_eval.sh <gpu> <seq> processes."""
+    out = {}
+    try:
+        btime = int(next(l.split()[1] for l in open("/proc/stat") if l.startswith("btime ")))
+        hz = os.sysconf("SC_CLK_TCK")
+    except (OSError, StopIteration, ValueError):
+        return out
+    for p in os.listdir("/proc"):
+        if not p.isdigit():
+            continue
+        try:
+            a = [x.decode(errors="ignore") for x in open(f"/proc/{p}/cmdline", "rb").read().split(b"\0") if x]
+            start = btime + int(open(f"/proc/{p}/stat").read().rsplit(")", 1)[1].split()[19]) / hz
+        except (OSError, IndexError, ValueError):
+            continue
+        for i, x in enumerate(a[:-2]):
+            if x.endswith(("/scripts/task.sh", "/scripts/run_adhoc_eval.sh")) and a[i + 1].isdigit():
+                name = a[i + 2] if x.endswith("task.sh") else f"adhoc_eval_{a[i + 2]}"
+                if name not in out or start < out[name][1]:
+                    out[name] = (int(a[i + 1]), start)
+    return out
+def kind(name):
+    return ("train" if re.match(r"E1[02]b-|E0[23]-", name) else "sft" if name.startswith("SFT-") else
+            "eval" if re.match(r"E11b-|EVAL-|adhoc_eval_", name) else "probe" if name == "FA-PROBE" else "other")
+live = live_tasks()
 tasks = {}
 for d in sorted(x for x in glob.glob(os.path.join(root, "runs", "*")) if os.path.isdir(x) and not os.path.basename(x).startswith("smoke")):
     log = os.path.join(d, "train.log"); text = open(log, errors="ignore").read()[-400000:] if os.path.exists(log) else ""
@@ -51,6 +77,11 @@ for d in sorted(x for x in glob.glob(os.path.join(root, "runs", "*")) if os.path
     t["total_steps"] = total_steps(d, text); t["step_time_mean5_s"] = round(sum(times) / len(times), 1) if times else None
     t["eta_min"] = round((t["total_steps"] - t["step"]) * t["step_time_mean5_s"] / 60) if t["total_steps"] and times and t["state"] == "running" else None
     t["log_tail"] = tail(os.path.join(root, "logs", os.path.basename(d) + ".log"))
+    lv = live.get(os.path.basename(d))   # v2.5.5: the GPU a running task holds, its kind and start (no paths, no names)
+    if lv and t["state"] == "queued":
+        t["state"] = "running"            # FA-PROBE, SFT's teacher traces, evaluations: running without a train.log
+    t["gpu"] = lv[0] if lv else None; t["kind"] = kind(os.path.basename(d))
+    t["started_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(lv[1])) if lv else None
 gpu = []
 for line in subprocess.run(["nvidia-smi", "--query-gpu=index,name,utilization.gpu,memory.used,memory.total", "--format=csv,noheader,nounits"],
                            capture_output=True, text=True).stdout.strip().splitlines():
@@ -75,7 +106,7 @@ json.dump({"host": os.uname().nodename, "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ
            "ckpt_disk_free_gb": (lambda c: round(c.f_bavail * c.f_frsize / 1e9, 1))(os.statvfs(os.environ["CKPT_ROOT"])) if os.path.isdir(os.environ.get("CKPT_ROOT", "")) else None,
            "ckpt_disk_alert": (lambda c: c.f_bavail * c.f_frsize / 1e9 < float(os.environ.get("CKPT_ALERT_GB", "100")))(os.statvfs(os.environ["CKPT_ROOT"])) if os.path.isdir(os.environ.get("CKPT_ROOT", "")) else None,
            "disk_used_pct": round(100 * (1 - st.f_bavail / st.f_blocks), 1) if st.f_blocks else None,
-           "runbook_head": git("rev-parse", "--short", "HEAD"), "runbook_version": "v2.5.5",
+           "runbook_head": git("rev-parse", "--short", "HEAD"), "runbook_version": "v2.5.5a",
            "run_tasks_sha": open(os.path.join(root, "control", "run_tasks.sha")).read().strip() if os.path.exists(os.path.join(root, "control", "run_tasks.sha")) else None,
            "ckpt_roots": roots_report(),   # v2.5: every candidate root: mount, free GB, writable, alert, task dirs and sizes
            "control": control_status()}, open(sys.argv[1], "w"), indent=1)
@@ -85,7 +116,7 @@ PY
   UP=$F
   if ! python -c "import json, sys; json.load(open(sys.argv[1]))" $F 2> /dev/null; then
     UP=/dev/shm/status_$H.json; [ -d /dev/shm ] || UP=/tmp/status_$H.json
-    printf '{"host": "%s", "utc": "%s", "error": "status JSON not written (disk full?)", "disk_free_gb": %s, "ckpt_disk_free_gb": %s, "runbook_version": "v2.5.5"}\n' \
+    printf '{"host": "%s", "utc": "%s", "error": "status JSON not written (disk full?)", "disk_free_gb": %s, "ckpt_disk_free_gb": %s, "runbook_version": "v2.5.5a"}\n' \
       "$H" "$(date -u +%FT%TZ)" "$(df -Pk $OPD_ROOT | awk 'NR==2{printf "%.1f", $4/1e6}')" "$(df -Pk ${CKPT_ROOT:-$OPD_ROOT} | awk 'NR==2{printf "%.1f", $4/1e6}')" > $UP
   fi
   N=$(python $RUNBOOK/scripts/control.py node)
