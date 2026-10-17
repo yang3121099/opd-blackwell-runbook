@@ -121,6 +121,14 @@ def main():
     repo, prefix, local = a
     r = fetch(repo, prefix, local)
     r.update({"repo": repo, "prefix": prefix})
+    if not r.get("cached"):   # v2.5.5b: into control/transfers.jsonl like every upload
+        try:
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); from remote import record_transfer
+            record_transfer({"dir": "down", "dst": prefix, "endpoint": r.get("endpoint"), "hf_transfer": r.get("hf_transfer"),
+                             "files": r.get("files"), "bytes": r.get("bytes"), "seconds": r.get("seconds"), "ok": r["ok"],
+                             "failed_attempts": len(r.get("errors") or [])})
+        except Exception:
+            pass
     print(json.dumps(r), flush=True)
     if task and not r.get("cached"):
         brief = {k: r.get(k) for k in ("endpoint", "hf_transfer", "files", "bytes", "seconds", "mb_s")}

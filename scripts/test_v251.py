@@ -361,3 +361,21 @@ def test_pulse_task_gpu_kind_started(env):
     assert p["tasks"]["FA-PROBE"]["gpu"] == 6 and p["tasks"]["FA-PROBE"]["kind"] == "probe"
     assert p["tasks"]["FA-PROBE"]["started_utc"] == "2026-10-17T17:28:20Z" and p["tasks"]["E10b-P2"]["gpu"] is None
     assert p["tasks"]["EVAL-x"]["gpu"] is None and p["tasks"]["EVAL-x"]["kind"] is None and p["tasks"]["EVAL-x"]["started_utc"] is None
+
+
+def test_put_records_transfer(rem, monkeypatch):
+    big = rem.root / "w.bin"; big.write_bytes(b"x" * 1000)
+    rem.r.put(str(big), "runs/E10b-P2/w.bin")
+    recs = [json.loads(l) for l in open(rem.root / "control" / "transfers.jsonl")]
+    assert recs[-1]["dir"] == "up" and recs[-1]["bytes"] == 1000 and recs[-1]["ok"] is True and recs[-1]["mb_s"] is None   # < 100 MB
+    def boom(src, dst):
+        raise OSError("network")
+    monkeypatch.setattr(rem.r, "_put", boom)
+    with pytest.raises(OSError):
+        rem.r.put(str(big), "runs/E10b-P2/w.bin")
+    assert json.loads(open(rem.root / "control" / "transfers.jsonl").read().splitlines()[-1])["ok"] is False
+
+
+def test_record_transfer_rate(rem):
+    rem.r.record_transfer({"dir": "down", "bytes": 1_519_183_690, "seconds": 192.1})
+    assert json.loads(open(rem.root / "control" / "transfers.jsonl").read().splitlines()[-1])["mb_s"] == 7.9

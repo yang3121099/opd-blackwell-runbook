@@ -16,6 +16,8 @@ node id, so no file is named after the host. Private-class files are refused whe
 """
 import hashlib
 import os
+import time
+import json
 import socket
 import sys
 
@@ -114,7 +116,30 @@ def check():
         api, repo = ms(); api.get_model(repo)
 
 
+def record_transfer(rec):
+    """v2.5.5b: one JSON line per upload / download in $OPD_ROOT/control/transfers.jsonl (the private status carries the
+    last 200; MB/s only for >= 100 MB taking > 5 s, since upload_folder skips files the Hub already has)."""
+    try:
+        b, s = rec.get("bytes") or 0, rec.get("seconds") or 0
+        rec["mb_s"] = round(b / 1e6 / s, 1) if b >= 100e6 and s > 5 else None
+        d = os.path.join(os.environ.get("OPD_ROOT", os.path.expanduser("~/opd-run")), "control"); os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, "transfers.jsonl"), "a") as f:
+            f.write(json.dumps({"utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), **rec}) + "\n")
+    except OSError:
+        pass
+
+
 def put(src, dst):
+    t0, ok = time.time(), False
+    try:
+        _put(src, dst); ok = True
+    finally:
+        files = [os.path.join(r, f) for r, _, fs in os.walk(src) for f in fs] if os.path.isdir(src) else [src]
+        record_transfer({"dir": "up", "dst": rename(dst), "files": len(files),
+                         "bytes": sum(os.path.getsize(f) for f in files if os.path.isfile(f)), "seconds": round(time.time() - t0, 1), "ok": ok})
+
+
+def _put(src, dst):
     dst = rename(dst)
     if BACKEND == "hf":
         kind = klass(dst)
