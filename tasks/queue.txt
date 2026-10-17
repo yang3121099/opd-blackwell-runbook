@@ -1,5 +1,5 @@
 # Remote-node task queue, version 2 (auto-advancing ladder). The project edits this file (git push); the node pulls
-# it every 30 minutes (run_tasks.sh). Format: <stage> <status> <task>[:<dep>+<dep>] ...
+# it every 60 s (run_tasks.sh v2.4). Format: <stage> <status> <task>[:<dep>+<dep>] ...
 #   status open   = runnable now
 #          auto   = opens by itself once every task of every earlier stage is finished (.done, or failed 3 times)
 #          locked = never opens (and so holds back every later stage) until the project changes it

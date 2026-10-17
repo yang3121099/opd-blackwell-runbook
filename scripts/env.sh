@@ -6,6 +6,22 @@ export RUNBOOK=${RUNBOOK:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}
 if [ -f $OPD_ROOT/models.env ]; then
   while IFS='=' read -r k v; do k=${k#export }; case "$k" in STUDENT_06B|STUDENT_17B|TEACHER) [ -z "${!k:-}" ] && export "$k=$v";; esac; done < $OPD_ROOT/models.env
 fi
+# v2.4: checkpoints live on a large local disk (B300: /home has far more room than the 48 GB of $OPD_ROOT's disk).
+# CKPT_ROOT is fixed once in $OPD_ROOT/paths.env: <writable directory under /home or $HOME whose filesystem has the most
+# free space>/opd-ckpt (a value set in the shell wins). runs/<task>/ckpt is a symlink to $CKPT_ROOT/<task>/ckpt
+# (ckpt_link below), so every script still reads and writes runs/<task>/ckpt.
+if [ -z "${CKPT_ROOT:-}" ] && [ -f $OPD_ROOT/paths.env ]; then source $OPD_ROOT/paths.env; fi
+if [ -z "${CKPT_ROOT:-}" ]; then
+  _best=""; _free=0
+  for _d in "$HOME" /home/*/ /home; do _d=${_d%/}; [ -d "$_d" ] && [ -w "$_d" ] || continue
+    _f=$(df -Pk "$_d" 2>/dev/null | awk 'NR==2{print $4}'); [ -n "$_f" ] && [ "$_f" -gt "$_free" ] && { _best=$_d; _free=$_f; }; done
+  CKPT_ROOT=${_best:+$_best/opd-ckpt}; CKPT_ROOT=${CKPT_ROOT:-$OPD_ROOT/ckpt}
+  mkdir -p "$CKPT_ROOT" && echo "CKPT_ROOT=$CKPT_ROOT" > $OPD_ROOT/paths.env
+fi
+export CKPT_ROOT
+ckpt_link() {   # <task dir>: its ckpt becomes a symlink into $CKPT_ROOT; a real ckpt dir from an older run stays as it is
+  local t=$(basename "$1"); mkdir -p "$CKPT_ROOT/$t/ckpt"
+  [ -e "$1/ckpt" ] || [ -L "$1/ckpt" ] || ln -s "$CKPT_ROOT/$t/ckpt" "$1/ckpt"; }
 export STUDENT_06B=${STUDENT_06B:-Qwen/Qwen3-0.6B} STUDENT_17B=${STUDENT_17B:-Qwen/Qwen3-1.7B} TEACHER=${TEACHER:-Qwen/Qwen3-8B}
 export GOPD_COMMIT=37371a4c31ad7947746200d234161769191f4748
 export UPLOAD_BACKEND=${UPLOAD_BACKEND:-hf}          # hf | modelscope
@@ -27,3 +43,5 @@ export B300_PTXAS="nvidia-cuda-nvcc-cu12==12.9.86"
 gpu_cap() { nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -1; }
 ptxas_rel() { [ -x "${1:-}" ] && "$1" --version 2>/dev/null | sed -n 's/.*release \([0-9.]*\),.*/\1/p'; }
 if [ -f $OPD_ROOT/triton.env ]; then source $OPD_ROOT/triton.env; fi
+# v2.4 (ops-1): variables set remotely with `setenv` (control.py; whitelisted keys only), sourced last
+if [ -f $OPD_ROOT/control.env ]; then source $OPD_ROOT/control.env; fi

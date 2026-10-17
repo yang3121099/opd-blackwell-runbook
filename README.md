@@ -257,6 +257,32 @@ status/<hostname>.json                           心跳
 - 脚本只从环境变量读凭证，不打印、不写盘。
 - **续跑**：机器重启或任务中断后，重跑同一条 `run_arm.sh` 或 `run_tasks.sh` 即可。verl 的 `resume_mode=auto` 会从本地最近的 ckpt（模型 + 优化器 + 数据加载状态）接着跑。
 
+## 6b. 远程控制与读数（v2.4）
+
+**全部停下之后用 v2.4 重新起跑**（2026-10-17 B300：v2.3.1 每 25 步全量存盘会写满磁盘）：在 runbook 目录里，`OPD_ROOT`、`HF_TOKEN`、`HF_REPO` 已 export 的同一个 shell 中运行。它会拉取新版本，确认旧的调度、心跳、上传循环都已停掉，删掉没有任何检查点的 `runs/E10b-*` 半成品（这样失败计数也一并清零），然后启动 v2.4 的 `run_tasks.sh` 和心跳。不需要重跑 `overnight.sh`（`triton.env` 和模型都保留）：
+
+```bash
+git pull -q --ff-only && grep -q CKPT_ROOT scripts/env.sh || { echo "STOP: runbook is older than v2.4 after git pull"; false; } && { pkill -f "scripts/run_tasks.s[h]"; pkill -f "scripts/heartbeat.s[h]"; pkill -f "scripts/upload_sync.s[h]"; sleep 2; echo "GPU processes left: $(nvidia-smi --query-compute-apps=pid --format=csv,noheader | wc -l)"; CK=$(bash -c 'source scripts/env.sh > /dev/null 2>&1; echo $CKPT_ROOT'); echo "CKPT_ROOT=$CK ($(df -h $CK | awk 'NR==2{print $4}') free)"; [ -n "$OPD_ROOT" ] && [ -d "$OPD_ROOT/runs" ] && rm -rf "$OPD_ROOT"/runs/E10b-*; [ -n "$CK" ] && rm -rf "$CK"/E10b-*; setsid nohup bash scripts/run_tasks.sh >> $OPD_ROOT/logs/run_tasks.log 2>&1 < /dev/null & sleep 2; setsid nohup bash scripts/heartbeat.sh >> $OPD_ROOT/logs/heartbeat.log 2>&1 < /dev/null & sleep 5; tail -3 $OPD_ROOT/logs/run_tasks.log; python scripts/control.py node; }
+```
+
+它也会删掉 `$OPD_ROOT/runs/E10b-*` 里 v2.3.1 留下的检查点残留，以及 `$CKPT_ROOT` 下的 `E10b-*`。如果 `GPU processes left` 不是 0，先把 `nvidia-smi` 的输出贴到 Issue 里；仍被占着的卡，新的调度不会去用。
+
+**你这边只需做一次**：`git pull` 之后重启一次 `run_tasks.sh`（旧版本不会自己重启）。之后它每 60 秒 `git pull` 一次（仓库没变时只是一次很小的请求）；如果拉下来的 `run_tasks.sh` 或 `env.sh` 有变化、并且新版本能通过 `bash -n` 检查，它会自己重启（`exec`）。正在跑的任务是独立的进程，不受影响。
+
+**项目方怎么下指令**：在本仓库的 `control/<节点号>.yaml` 里追加带 `seq` 的条目。节点号由 `python scripts/control.py node` 打印，默认是主机名经 sha256 后的前 8 位，所以公开仓库里不会出现你的主机名；心跳里也会报这个节点号。每条指令只执行一次，严格按 `seq` 顺序，结果写在 `$OPD_ROOT/control/log.jsonl`，并随心跳上传。执行之前会核对 `git remote origin` 确实是本仓库，否则一条都不执行。只有下面这些动作，**没有任意 shell**：参数按空格拆分，含 `; & | $ \` ( )` 等字符的整条拒绝。
+
+| 动作 | 作用 |
+|---|---|
+| `pause <任务>` / `resume <任务>` | 不再启动 / 恢复启动这个任务（正在跑的不受影响） |
+| `kill <任务>` | 停掉这个任务（先 SIGTERM，30 秒后 SIGKILL），连同它那张卡上残留的 Ray 进程，并核对该卡空出来了；同时 pause，这次退出不算失败。可续跑的任务 resume 后从最新 ckpt 继续 |
+| `prio <任务> <n>` | 同一阶段内先启动 n 小的（默认 100），不越过阶段和依赖 |
+| `restore <任务> runs/<任务>/global_step_<N>` | 从结果仓库下载这一步的检查点，逐个文件核对大小和 sha256，全部一致才放进 `runs/<任务>/ckpt/`；任务正在跑时拒绝 |
+| `rerun_verify` | 重跑 `verify.sh` 并上传日志；有任务在跑时拒绝 |
+| `setenv KEY=VAL` | 写进 `$OPD_ROOT/control.env`（`env.sh` 最后读它），只影响之后启动的任务；只允许 `VLLM_*`、`TRITON_*`、`TORCHINDUCTOR_*`、`NCCL_*` 和几个本项目的开关，`PATH`、`LD_*`、各种 token 一律拒绝 |
+| `snapshot <路径>` / `snapshot nvidia-smi` | 把 `$OPD_ROOT` 下的一个文件或目录（只传小文本文件：单个 ≤ 5 MB，共 ≤ 20 MB，最多 50 个；不传权重和数据，不传名字像 token/secret 的文件，解析符号链接后不能跑出 `$OPD_ROOT`）上传到结果仓库的 `logs/<节点号>/requests/<seq>/`，文本里的 token 形态一律替换成 `***` |
+
+心跳（`status/<主机名>.json`）新增：每张卡的利用率和显存；每个任务的步数、总步数、最近 5 步平均步时、预计剩余时间、日志末 20 行（已脱敏）；已执行到的 `seq` 和最近 5 条结果；当前的 `control.env`；最近一次 `git pull` 的结果；runbook 的提交号。如果某次 `setenv` 之后 10 分钟内有任务失败，且日志里有 vLLM/Triton 初始化错误，心跳会标出 `control_env_suspect`，只报告，不自动回滚。
+
 ## 7. 常见错误
 
 | 现象 | 原因与处理 |
@@ -294,3 +320,4 @@ status/<hostname>.json                           心跳
 - **v2.2（2026-10-16）**：下载改成单独一步（第 2a 节）：新增只读的 `scripts/scan_cache.sh`（查本机缓存，核对每个模型的权重是否齐全）；`download_models.sh` 默认走 hf-mirror，10 秒连不上自动回退，结束时打印每项的本地路径和权重文件数，五行 OK 才以 0 退出；模型的本地路径写进 `$OPD_ROOT/models.env`，由 `env.sh` 读取，`run_arm/run_sft/run_e12/run_eval` 的教师和学生都从 `TEACHER`、`STUDENT_17B`、`STUDENT_06B` 取，魔搭下载的模型因此也能直接用（修复前教师在 `run_arm.sh` 里写死成 `Qwen/Qwen3-8B`）；`install_gopd.sh` 不再顺带下载。另外，`scripts/remote.py` 对结果仓库固定使用 `https://huggingface.co`（可用 `HF_UPLOAD_ENDPOINT` 覆盖）。修复前，为了加速下载全局设置 `HF_ENDPOINT=https://hf-mirror.com` 后，令牌检查和所有上传都会打到只读镜像而失败。下载仍按 `HF_ENDPOINT` 走镜像；`hf-transfer` 在各安装路线和 `requirements.lock` 里都已安装（0.1.9）。
 - **v2.3（2026-10-17）**：代码审阅后的修复。① `run_e12.sh`、`run_eval.sh`、`run_sft.sh` 判断检查点是否存在时只认单文件 `model.safetensors`，而 1.7B 的检查点都是分片的：修复前，E10b 之后的 E11b、E12b、SFT-P1 会全部失败（SFT-P1 要在训练完以后才失败，并重训三次）。现在统一用 `env.sh` 里的 `has_weights`，认分片。② `run_tasks.sh`：依赖已失败三次的任务记为 `runs/<task>/.skipped`，算作完成，不再让所在阶段永远结束不了、卡住后面所有阶段；在结果仓库里查到的 `.done` 缓存到本地，不再每 5 分钟对每个任务问一次。③ `run_eval.sh`、`run_zero.sh` 先上传，上传成功才写 `.done`；修复前，上传失败的结果会被当作已完成而只留在本机。`run_zero.sh` 重试时跳过已完成的生成。④ `run_arm.sh`、`run_e12.sh` 只有跑满步数才写 `finished:`，提前退出写 `stopped:`，`upload_sync.sh` 因此会继续为重试上传检查点。⑤ 心跳：验证分数改为读任意 `mean@n`（E12b 是 mean@4，修复前一直为空），并报告各阶段的状态和新增的 `skipped` 任务状态。注意：`run_tasks.sh` 是常驻进程，`git pull` 之后要重启它，②才生效；正在跑的任务不受影响，新起的任务自动用新脚本。⑥ B300 的 Triton ptxas：判据和三档顺序见第 2b 节第 3 步；`env.sh` 读 `$OPD_ROOT/triton.env`；`install_uv.sh`、`install_conda.sh` 在 compute capability 10.3 的卡上预装 `nvidia-cuda-nvcc-cu12==12.9.86`，但不自动启用；`verify.sh` 打印当前用的 ptxas。⑦ 新增 `scripts/overnight.sh`（由项目审阅方编写），无人值守地从 `git pull` 跑到领任务，vLLM 按三档依次探测。
 - **v2.3.1（2026-10-17）**：B300 第一晚的结果。cu128 原样跑会报 `ptxas fatal : Value 'sm_103a' is not defined`；换成 12.9 的 ptxas 之后，Triton 编译通过，又卡在 FlashInfer 的即时编译采样核：系统 nvcc 早于 12.9，报 `Unsupported gpu architecture 'compute_103'`。`overnight.sh` 因此新增 B2（PyTorch 采样 + FlashAttention）和 B3（Triton 注意力）两档；通过那一档的全部变量写进 `$OPD_ROOT/triton.env`，`env.sh` 会读它。每次探测用各自的空编译缓存，避免前一档或前一晚编好的核让后一档在没有修复的情况下误判通过。同一时间只允许一份 `overnight.sh`（`$OPD_ROOT/overnight.lock`）。STEP 6 的报错改为完整的行（之前的正则把 `Command` 截成了 `Comma`）。重跑时不会再起第二份心跳或 `run_tasks.sh`。`verify.sh` 打印注意力后端和采样器设置。第 2b 节第 3 步和第 7 节补充了相应的判据。
+- **v2.4（2026-10-17）**：**存盘规则（Runming）**：专机不存续跑态，只在预注册的读数步存 HF 权重（E10b 只在第 150 步，即 E11b 和 E12b 读的那一份；E12b 每 20 步），`upload_sync.sh` 转成 bf16 上传，本地删掉 fp32，只留 bf16 给本机评测（E12b 不留）。E11b、E12b 都读这份 bf16，E12b 读完、E11b 也完成后删掉。1.7B 每次存盘只需临时约 11 GB，原来是 28 GB，且每 25 步一份全留。`SPOT=1` 的机器另存续跑态，只留最新一份。心跳增加 `disk_alert`（剩余 < 30 GB）。**检查点放在大盘**：`CKPT_ROOT` 在第一次使用时选定，取 `/home` 或 `$HOME` 下所在文件系统剩余空间最大的可写目录，再加 `/opd-ckpt`，写进 `$OPD_ROOT/paths.env`；shell 里已设的值优先。`runs/<任务>/ckpt` 是指向 `$CKPT_ROOT/<任务>/ckpt` 的软链，其余脚本不变；心跳另报这块盘的剩余（`ckpt_disk_free_gb`、`ckpt_disk_alert`，< 100 GB）。`UPLOAD_WEIGHTS`：哪几步的权重传到结果仓库，默认只传最后一步（E10b 是 s150）；其余步不做 bf16、删掉 fp32，标记为 `.not_uploaded`。E12b 默认也只在最后一步存权重。新单测：`scripts/test_upload_sync.sh`、`scripts/test_ckpt_root.sh`、`scripts/test_done_throttle.sh`（Linux）。**E12b 从 bf16 权重起步**（加载时升为 fp32），与实验室 0.6B 的 fp32 起点相比只差权重舍入，已记为偏离。`run_tasks.sh` 每 60 秒一轮，结果仓库里"是否已完成"的查询每个任务最多 10 分钟一次。远程控制与读数（第 6b 节）。新增 `scripts/control.py`（白名单动作、按 seq 只执行一次、核对仓库来源、统一脱敏）及其单测 `scripts/test_control.py`；`run_tasks.sh` 每 5 分钟拉取一次，支持 pause/prio、`kill` 不计入失败、远程 verify 期间不启动新任务，自身有变化时自动重启（新版本先过 `bash -n`）；`heartbeat.sh` 增加每卡、每任务和控制面的读数；`env.sh` 读 `$OPD_ROOT/control.env`。新增 G2 测试 `code/patches/test_variant_dispatch.py`：`task.sh` 白名单里的每个臂都必须真的走到对应的优势计算，否则测试失败（防止新臂因为补丁名单漏项而静默地按普通 OPD 训练）。**升级时要手动重启一次 `run_tasks.sh`**，之后就不用了。

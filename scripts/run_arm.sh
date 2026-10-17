@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One E10b arm on ONE GPU: student Qwen3-1.7B (non-thinking), teacher Qwen3-8B as verl "ref", 150 steps, 4K rollouts.
 # Same recipe as the lab's 0.6B E10 arms (run_e10_arm.sh) except: the student, checkpoints every 25 steps with the
-# resume state (resume_mode=auto: re-running the same command continues), and SDPA when flash-attn is absent.
+# v2.4 save rule below (dedicated node: HF weights at step 150 only, no resume state), and SDPA when flash-attn is absent.
 # Idempotent: a finished task (runs/<task>/.done) is skipped. SMOKE=1 runs 3 steps without validation or checkpoints
 # (the verification smoke sets STUDENT=$STUDENT_06B). Models: STUDENT_17B / TEACHER from env.sh (models.env).
 # Usage: bash run_arm.sh <gpu> <task id>      task ids: E10b-{P2,P3,P4lowlr,P5,P6,P6r,P2noEOS,Pstop,P6rand,P6top5,P4EOSpen}
@@ -30,7 +30,13 @@ if python -c "import flash_attn" 2>/dev/null; then RMPAD=True; ATTN=flash_attent
 else RMPAD=False; ATTN=sdpa; TOK_DEFAULT=6144; fi
 # without remove-padding every micro-batch is padded to its longest sequence, so the fp32 logits grow with the token
 # budget: 16384 ran out of memory on a B200 (183 GB) in the actor update; 6144 keeps the logits under ~10 GB
-STEPS=150; SAVE=25; TEST=10; VALB=True
+STEPS=150; TEST=10; VALB=True
+# save rule (v2.4, Runming 2026-10-17): no archive of resume states. A dedicated node saves only the HF weights at the
+# pre-registered reading steps (E10b: step 150, the one checkpoint E11b and E12b read; SAVE=<n> for others), which
+# upload_sync turns into bf16, uploads and keeps locally as bf16 only. SPOT=1 (a node that can vanish) also saves the
+# resume state every 25 steps, and upload_sync keeps only the newest one.
+if [ "${SPOT:-0}" = 1 ]; then SAVE=${SAVE:-25}; CONTENTS="['model','optimizer','extra','hf_model']"
+else SAVE=${SAVE:-$STEPS}; CONTENTS="['hf_model']"; fi
 [ "${SMOKE:-0}" = 1 ] && { STEPS=3; SAVE=-1; TEST=-1; VALB=False; }
 [ -f $OUT/config.yaml ] && echo "resumed: $(date -u +%FT%TZ)" >> $OUT/config.yaml || cat > $OUT/config.yaml <<CFG
 task: $TASK
@@ -45,8 +51,9 @@ gopd_commit: $GOPD_COMMIT
 gpu: $(nvidia-smi --query-gpu=name --format=csv,noheader -i $GPU)
 started: $(date -u +%FT%TZ)
 CFG
+[ "${SMOKE:-0}" = 1 ] || ckpt_link $OUT   # v2.4: checkpoints on $CKPT_ROOT (the large disk)
 [ "${SMOKE:-0}" = 1 ] || pgrep -f "upload_syn[c].sh $OUT\$" >/dev/null || \
-  setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OUT > $OUT/upload.log 2>&1 < /dev/null &
+  UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-$STEPS} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OUT > $OUT/upload.log 2>&1 < /dev/null &
 cd $OPD_ROOT/G-OPD/verl
 python3 -m verl.trainer.main_ppo \
   algorithm.adv_estimator=grpo \
@@ -67,7 +74,7 @@ python3 -m verl.trainer.main_ppo \
   actor_rollout_ref.actor.ppo_max_token_len_per_gpu=${MAX_TOK_GPU:-$TOK_DEFAULT} \
   actor_rollout_ref.actor.use_kl_loss=True actor_rollout_ref.actor.kl_loss_coef=0 actor_rollout_ref.actor.kl_loss_type=low_var_kl \
   actor_rollout_ref.actor.entropy_coeff=0 \
-  actor_rollout_ref.actor.checkpoint.save_contents=['model','optimizer','extra','hf_model'] \
+  actor_rollout_ref.actor.checkpoint.save_contents=$CONTENTS \
   actor_rollout_ref.model.enable_gradient_checkpointing=True \
   actor_rollout_ref.actor.fsdp_config.param_offload=False actor_rollout_ref.actor.fsdp_config.optimizer_offload=False \
   actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=8 actor_rollout_ref.rollout.tensor_model_parallel_size=1 \

@@ -13,7 +13,8 @@ source "$(dirname "$0")/env.sh"; G=$1; T=$2; A=${T#E12b-}; OUT=$OPD_ROOT/runs/$T
 case $A in
   P0) START=$STUDENT_17B;;
   P1) START=$OPD_ROOT/runs/SFT-P1/ckpt/global_step_$(cat $OPD_ROOT/runs/SFT-P1/final_step)/huggingface;;
-  *)  START=$OPD_ROOT/runs/E10b-$A/ckpt/global_step_150/actor/huggingface;;
+  *)  START=$OPD_ROOT/runs/E10b-$A/ckpt/global_step_150/actor/huggingface_bf16   # v2.4: the fp32 copy is not kept;
+       has_weights $START || START=${START%_bf16};;                                 # bf16 start (deviation: weight rounding)
 esac
 case $A in P0|P1|P2|P3|P5) STEPS=100;; *) STEPS=60;; esac
 [ $A = P0 ] || has_weights $START || { echo "missing start checkpoint $START"; exit 1; }
@@ -28,7 +29,12 @@ algo: GRPO 64x8, 4K, T=1.0, lr 1e-6, clip 0.2/0.28, KL 0, mini-batch 16, data.se
 attention: $ATTN (use_remove_padding=$RMPAD)
 started: $(date -u +%FT%TZ)
 CFG
-pgrep -f "upload_syn[c].sh $OUT\$" >/dev/null || setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OUT > $OUT/upload.log 2>&1 < /dev/null &
+# v2.4 save rule: dedicated node = HF weights at the last step only (queue v2 has no intermediate E12b reading; set
+# SAVE=<n> when one is registered), uploaded as bf16 and not kept locally (no local E12b evaluation); SPOT=1 also saves
+# the resume state every 20 steps and keeps only the newest. Checkpoints on $CKPT_ROOT (v2.4).
+if [ "${SPOT:-0}" = 1 ]; then CONTENTS="['model','optimizer','extra','hf_model']"; SAVE=${SAVE:-20}; else CONTENTS="['hf_model']"; SAVE=${SAVE:-$STEPS}; fi
+ckpt_link $OUT
+pgrep -f "upload_syn[c].sh $OUT\$" >/dev/null || KEEP_BF16=0 UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-$STEPS} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OUT > $OUT/upload.log 2>&1 < /dev/null &
 cd $OPD_ROOT/G-OPD/verl
 python3 -m verl.trainer.main_ppo \
   algorithm.adv_estimator=grpo algorithm.use_kl_in_reward=False \
@@ -46,7 +52,7 @@ python3 -m verl.trainer.main_ppo \
   actor_rollout_ref.actor.ppo_mini_batch_size=16 actor_rollout_ref.actor.use_dynamic_bsz=True \
   actor_rollout_ref.actor.ppo_max_token_len_per_gpu=${MAX_TOK_GPU:-$TOK} \
   actor_rollout_ref.actor.use_kl_loss=False actor_rollout_ref.actor.entropy_coeff=0 \
-  actor_rollout_ref.actor.checkpoint.save_contents=['model','optimizer','extra','hf_model'] \
+  actor_rollout_ref.actor.checkpoint.save_contents=$CONTENTS \
   actor_rollout_ref.actor.fsdp_config.param_offload=False actor_rollout_ref.actor.fsdp_config.optimizer_offload=False \
   actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=8 actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
   actor_rollout_ref.rollout.name=vllm actor_rollout_ref.rollout.gpu_memory_utilization=${VLLM_UTIL:-0.6} \
@@ -57,11 +63,13 @@ python3 -m verl.trainer.main_ppo \
   custom_reward_function.path=$RUNBOOK/code/train/reward_mathverify.py custom_reward_function.name=compute_score \
   reward_model.reward_manager=naive trainer.critic_warmup=0 trainer.val_before_train=True \
   trainer.logger='["console"]' trainer.project_name=opd-e10b trainer.experiment_name=$T \
-  trainer.n_gpus_per_node=1 trainer.nnodes=1 trainer.save_freq=20 trainer.test_freq=25 trainer.resume_mode=auto \
+  trainer.n_gpus_per_node=1 trainer.nnodes=1 trainer.save_freq=$SAVE trainer.test_freq=25 trainer.resume_mode=auto \
   trainer.rollout_data_dir=$OUT/rollouts trainer.total_training_steps=$STEPS trainer.total_epochs=1 \
   trainer.default_local_dir=$OUT/ckpt 2>&1 | tee -a $OUT/train.log
 LAST=$(grep -oE "(^|[ )])step:[0-9]+ - " $OUT/train.log | tail -1 | grep -oE "[0-9]+")
 echo "completed_steps: ${LAST:-unknown}" >> $OUT/config.yaml
 if [ "${LAST:-0}" -ge $STEPS ]; then echo "finished: $(date -u +%FT%TZ)" >> $OUT/config.yaml; touch $OUT/.done
+  # v2.4: the E10b start (bf16, 3.4 GB) is freed once both readers of it (E11b and this E12b) are done
+  case $A in P0|P1) ;; *) [ -f $OPD_ROOT/runs/E11b-$A/.done ] && rm -rf $OPD_ROOT/runs/E10b-$A/ckpt/global_step_150/actor/huggingface_bf16;; esac
 else echo "stopped: $(date -u +%FT%TZ) before the last step (v2.3: no finished: line, so upload_sync keeps running for the retry)" >> $OUT/config.yaml; fi
 cd $RUNBOOK && python code/analysis/e12_rollout_stats.py $OUT --tokenizer $STUDENT_17B > /dev/null 2>&1 || true

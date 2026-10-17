@@ -1,0 +1,2 @@
+# control/<node>.yaml: whitelisted commands for one remote node (README section 6b, scripts/control.py).
+# The node id is printed by `python scripts/control.py node` and reported in the heartbeat.

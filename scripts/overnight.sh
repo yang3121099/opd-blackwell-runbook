@@ -112,6 +112,7 @@ for i in $(seq 1 180); do complete_dir $P8 && complete_dir $P06 && break; sleep 
 complete_dir $P8 || fail 5 "Qwen3-8B incomplete after 3 h (see logs/aria2_Qwen3-8B.log)"; complete_dir $P06 || fail 5 "Qwen3-0.6B incomplete after 3 h (see logs/aria2_Qwen3-0.6B.log)"
 printf 'STUDENT_06B=%s\nSTUDENT_17B=%s\nTEACHER=%s\n' "$P06" "$P17" "$P8" > $OPD_ROOT/models.env
 step 5 "models.env: $(tr '\n' ' ' < $OPD_ROOT/models.env)"
+step 5 "checkpoints in CKPT_ROOT=$CKPT_ROOT ($(df -h $CKPT_ROOT | awk 'NR==2{print $4}') free; $OPD_ROOT/paths.env); $OPD_ROOT has $(df -h $OPD_ROOT | awk 'NR==2{print $4}') free"
 # ---------- 6. vLLM probe, tiers in order (v2.3.1) ----------
 #   A  cu128 as is
 #   B  + the CUDA 12.9 ptxas for Triton (Triton's own CUDA 12.8 ptxas: "Value 'sm_103a' is not defined")

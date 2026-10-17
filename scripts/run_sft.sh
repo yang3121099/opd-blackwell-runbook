@@ -10,6 +10,7 @@
 # Usage: bash run_sft.sh <gpu> SFT-P1
 set -euo pipefail
 source "$(dirname "$0")/env.sh"; G=$1; T=$2; OUT=$OPD_ROOT/runs/$T; mkdir -p $OUT $OPD_ROOT/data/p1_traces
+ckpt_link $OUT   # v2.4: checkpoints on $CKPT_ROOT (the large disk)
 [ -f $OUT/.done ] && exit 0
 source $OPD_ROOT/venv/bin/activate; export CUDA_VISIBLE_DEVICES=$G; cd $RUNBOOK
 ls $OPD_ROOT/data/p1_traces/shard*.jsonl* >/dev/null 2>&1 || \
