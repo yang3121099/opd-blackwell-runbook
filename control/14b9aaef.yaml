@@ -49,3 +49,4 @@ commands:
   - {"seq": 47, "cmd": "republish E11b-P6", "reason": "reviewer A1 18:3x: runs/E11b-P6/.failed still carried paths (dotfile treated as binary); v2.5.6a scrubs it", "utc": "2026-10-17T18:36:57Z"}
   - {"seq": 48, "cmd": "republish E11b-P6r", "reason": "reviewer A1 18:3x: runs/E11b-P6r/.failed still carried paths (dotfile treated as binary); v2.5.6a scrubs it", "utc": "2026-10-17T18:37:04Z"}
   - {"seq": 49, "cmd": "logs SFT-P1 300", "reason": "SFT-P1 failed for the 3rd time at 18:52 UTC in the SFT training step; root cause needed (reviewer 18:54)", "utc": "2026-10-17T18:54:57Z"}
+  - {"seq": 50, "cmd": "rerun SFT-P1", "reason": "reviewer A1 19:0x: SFT-P1 failed 3 times on the missing SFT attention patch (fixed in v2.5.6b); E12b-P1 was skipped because of it", "utc": "2026-10-17T19:05:24Z"}
