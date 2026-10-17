@@ -636,15 +636,32 @@ def _gpu_used_mib(gpu):
         return None
 
 
+def _read_lossy(path):
+    try:
+        return open(path, "rb").read().decode("utf-8", "replace")
+    except OSError:
+        return ""
+
+
+def _our_roots():
+    """Real paths (with a trailing /) of OPD_ROOT and its venvs; venv may be a link to another disk (LINK_VENV)."""
+    out = set()
+    for p in (ROOT, os.path.join(ROOT, "venv"), os.path.join(ROOT, "venv-fa")):
+        if os.path.exists(p):
+            out.add(os.path.realpath(p).rstrip("/") + "/")
+    return out
+
+
 def reap(gpu, task=None, wait_s=120, proc_root="/proc", grace_s=10):
     """v2.5.4b: our orphaned GPU processes on <gpu>, after an evaluation or a task has ended. A process qualifies only if
     all three hold: its parent has died (PPid 1); it is a vLLM engine or worker (VLLM::EngineCore, multiprocessing.spawn)
     or a Ray worker (ray::...); its environment shows it was started by this node's tasks for this GPU (OPD_ROOT equal to
-    ours, and CUDA_VISIBLE_DEVICES=<gpu> or RAY_TMPDIR=/tmp/ray_gpu<gpu>). Such a process holds the GPU after gen_eval or
+    ours, and CUDA_VISIBLE_DEVICES=<gpu> or RAY_TMPDIR=/tmp/ray_gpu<gpu>; v2.5.4c: where the process title has overwritten
+    the environment, it maps a file under our OPD_ROOT or venv and nvidia-smi lists it on <gpu>). Such a process holds the GPU after gen_eval or
     a training exits (B300, 2026-10-17: ~250 GB each, the next vLLM engine could not start). TERM, KILL after grace_s; an
     event per process (pid, gpu, memory before); then wait until the GPU has <= 2 GB in use (at most wait_s). Returns the
     list of reaped pids."""
-    found = []
+    found, roots, apps = [], None, None
     for d in os.listdir(proc_root):
         if not d.isdigit():
             continue
@@ -656,14 +673,26 @@ def reap(gpu, task=None, wait_s=120, proc_root="/proc", grace_s=10):
         if not m or int(m.group(1)) != 1:
             continue
         env = {}
-        for kv in _read(os.path.join(proc_root, d, "environ")).split("\0"):
+        for kv in _read_lossy(os.path.join(proc_root, d, "environ")).split("\0"):
             k, _, v = kv.partition("=")
             if k:
                 env[k] = v
-        if env.get("OPD_ROOT") != ROOT:
-            continue
-        if env.get("CUDA_VISIBLE_DEVICES") != str(gpu) and env.get("RAY_TMPDIR") != f"/tmp/ray_gpu{gpu}":
-            continue
+        if "OPD_ROOT" in env:   # environment intact (SPT_NOENV=1, v2.5.4c): ours and this GPU by the environment
+            if env["OPD_ROOT"] != ROOT:
+                continue
+            if env.get("CUDA_VISIBLE_DEVICES") != str(gpu) and env.get("RAY_TMPDIR") != f"/tmp/ray_gpu{gpu}":
+                continue
+        else:   # v2.5.4c: setproctitle (vLLM, Ray) wrote the title over the environment area (B300 2026-10-17: environ
+            # read "VLLM::EngineCore"): ours if it maps a library from our venv / OPD_ROOT, this GPU by nvidia-smi's pid map
+            if roots is None:
+                roots = _our_roots()
+            maps = _read_lossy(os.path.join(proc_root, d, "maps"))
+            if not any(r in maps for r in roots):
+                continue
+            if apps is None:
+                apps = _gpu_apps()
+            if (apps.get(pid) or (None,))[0] != gpu:
+                continue
         found.append((pid, cmd[:60]))
     before = _gpu_used_mib(gpu) if found else None
     for pid, _ in found:

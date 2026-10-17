@@ -266,6 +266,37 @@ def test_reap_only_our_orphans(env, monkeypatch, tmp_path):
     assert [e[1] for e in events] == ["orphan_reaped", "orphan_reaped"] and "gpu_mem_before_mib=251000.0" in events[0][2]
 
 
+def test_reap_clobbered_environ(env, monkeypatch, tmp_path):
+    """v2.5.4c: vLLM / Ray titles overwrite the environment area; ours by the mapped venv, the GPU by nvidia-smi."""
+    import os as _os
+    c = env.c; pr = tmp_path / "proc"
+    real_venv = tmp_path / "disk2" / "venv"; real_venv.mkdir(parents=True)
+    vlink = _os.path.join(c.ROOT, "venv")
+    if not _os.path.lexists(vlink):
+        _os.symlink(real_venv, vlink)                                           # LINK_VENV: venv on another disk
+    lib = lambda root: f"7f00-7f01 r-xp 0 08:01 1 {root}/lib/python3.10/site-packages/torch/lib/libtorch_cuda.so\n"
+    def fake(pid, maps):
+        _fake_proc(pr, pid, "VLLM::EngineCore", 1, {})
+        (pr / str(pid) / "environ").write_bytes(b"VLLM::EngineCore" + b"\0" * 40)   # what setproctitle leaves
+        (pr / str(pid) / "maps").write_text(maps)
+    fake(201, lib(_os.path.realpath(real_venv)))           # ours (through the link), on gpu 4: reap
+    fake(202, lib("/opt/someone/venv"))                    # another venv: keep
+    fake(203, lib(_os.path.realpath(real_venv)))           # ours but on gpu 5: keep
+    fake(204, lib(_os.path.realpath(c.ROOT) + "2/venv"))   # a sibling directory that only shares the prefix: keep
+    monkeypatch.setattr(c, "_gpu_apps", lambda: {201: (4, 248000), 202: (4, 1000), 203: (5, 248000), 204: (4, 1000)})
+    killed = []
+    monkeypatch.setattr(c.os, "kill", lambda pid, sig: killed.append(pid))
+    monkeypatch.setattr(c, "_alive", lambda pid: False)
+    monkeypatch.setattr(c, "_gpu_used_mib", lambda g: 100.0)
+    monkeypatch.setattr(c, "event", lambda *a, **k: None)
+    assert c.reap(4, "gpu4", wait_s=1, proc_root=str(pr), grace_s=0) == [201] and killed == [201]
+
+
+def test_env_sh_sets_spt_noenv():
+    import os as _os
+    assert "export SPT_NOENV=${SPT_NOENV:-1}" in open(_os.path.join(_os.path.dirname(__file__), "env.sh")).read()
+
+
 def test_pulse_eval_gpu_and_orphan_alerts(env):
     import json as _j
     rows = [{"gpu": 0, "task": "E11b-P2", "ours": True, "gpu_mem_mb": 249784},

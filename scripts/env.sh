@@ -1,6 +1,9 @@
 # Common settings, sourced by every script. Override any of them in your shell before running.
 export OPD_ROOT=${OPD_ROOT:-$HOME/opd-run}
 export RUNBOOK=${RUNBOOK:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}
+# v2.5.4c: setproctitle (vLLM's VLLM::EngineCore, Ray's ray::...) must not write the title over the environment area, so
+# /proc/<pid>/environ keeps OPD_ROOT and CUDA_VISIBLE_DEVICES for control.py reap (titles stay within the command line's length)
+export SPT_NOENV=${SPT_NOENV:-1}
 # model locations (v2.2): download_models.sh writes the three models' local paths to $OPD_ROOT/models.env (Hugging Face
 # or ModelScope route); a value already set in your shell wins; without the file the Hugging Face IDs are used
 if [ -f $OPD_ROOT/models.env ]; then
