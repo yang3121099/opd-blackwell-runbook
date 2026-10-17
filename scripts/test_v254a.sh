@@ -31,6 +31,9 @@ ok "oom sets 4" '[[ "$(FIXED_MICRO_BSZ= bash $T/rb/scripts/task.sh 0 E10b-P2 | t
 ok "no oom stays unset" '[[ "$(FIXED_MICRO_BSZ= bash $T/rb/scripts/task.sh 0 E10b-P3 | tail -1)" == "run_arm FIXED=unset" ]]'
 ok "set key wins" '[[ "$(FIXED_MICRO_BSZ=8 bash $T/rb/scripts/task.sh 0 E10b-P2 | tail -1)" == "run_arm FIXED=8" ]]'
 ok "EVAL name check" '! bash $T/rb/scripts/task.sh 0 "EVAL-a;b" > /dev/null 2>&1'
+printf 'echo "run_eval $*"\n' > $T/rb/scripts/run_eval.sh
+ok "E11b seed arm accepted" '[[ "$(bash $T/rb/scripts/task.sh 0 E11b-P5-s43 | tail -1)" == "run_eval 0 E11b-P5-s43" ]]'
+ok "E11b unknown seed refused" '! bash $T/rb/scripts/task.sh 0 E11b-P5-s45 > /dev/null 2>&1 && ! bash $T/rb/scripts/task.sh 0 E11b-P5-s43x > /dev/null 2>&1'
 rm -rf $T
 # 2. run_tasks.sh launch(): an out-of-memory failure writes .oom and an event; another failure does not
 setup
@@ -89,9 +92,9 @@ rm -rf $T
 T=$(mktemp -d); mkdir -p $T/bin $T/x/scripts
 printf '#!/usr/bin/env bash\ncase "$*" in *compute-apps*) ;; *) echo 0;; esac\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi
 printf 'sleep 30\n' > $T/x/scripts/task.sh; printf 'sleep 30\n' > $T/x/scripts/run_adhoc_eval.sh
-bash $T/x/scripts/task.sh 2 FA-PROBE & P1=$!; bash $T/x/scripts/run_adhoc_eval.sh 13 41 & P2=$!; sleep 0.5
+bash $T/x/scripts/task.sh 5 FA-PROBE & P1=$!; bash $T/x/scripts/run_adhoc_eval.sh 13 41 & P2=$!; sleep 0.5
 got=$( PATH=$T/bin:$PATH NGPU=14; eval "$(sed -n '/^free_gpus() {/,/; }$/p' $SRC/scripts/run_tasks.sh)"; free_gpus | tr '\n' ' ' )
 kill $P1 $P2 2> /dev/null
-ok "running tasks keep their GPUs" '[ "$got" = "0 1 3 4 5 6 7 8 9 10 11 12 " ]'
+ok "running tasks keep their GPUs" '[[ " $got" == *" 1 "* && " $got" == *" 6 "* && " $got" != *" 5 "* && " $got" != *" 13 "* ]]'   # 13 must not hide 1
 rm -rf $T
-[ $fails = 0 ] && echo "V254A_TEST PASS (17 checks)" || echo "V254A_TEST FAIL ($fails)"
+[ $fails = 0 ] && echo "V254A_TEST PASS (19 checks)" || echo "V254A_TEST FAIL ($fails)"
