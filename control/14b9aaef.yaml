@@ -15,3 +15,4 @@ commands:
   - {"seq": 13, "cmd": "set HEARTBEAT_SEC=120", "reason": "Runming 13:4x: v2.5.1 switch step 5, heartbeat every 2 minutes for the monitor page", "utc": "2026-10-17T13:50:13Z"}
   - {"seq": 14, "cmd": "setenv FIXED_MICRO_BSZ=4", "reason": "Runming 14:5x: restart E10b-P4lowlr with 4 sequences per micro-batch (OOM at step 97 with the token budget, no flash-attn)", "utc": "2026-10-17T14:55:33Z"}
   - {"seq": 15, "cmd": "kill E10b-P4lowlr", "reason": "Runming 14:5x: stop attempt 2 (old token budget, would run out of memory again near step 97); restarted with FIXED_MICRO_BSZ=4 by the next resume", "utc": "2026-10-17T14:56:06Z"}
+  - {"seq": 16, "cmd": "resume E10b-P4lowlr", "reason": "Runming 14:5x: restart E10b-P4lowlr from step 0 with FIXED_MICRO_BSZ=4", "utc": "2026-10-17T14:57:44Z"}
