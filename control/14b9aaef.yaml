@@ -7,3 +7,4 @@ commands:
   - {"seq": 5, "cmd": "logs E10b-P2 50", "reason": "control-channel test 4/7: last 50 log lines of E10b-P2", "utc": "2026-10-17T12:03:35Z"}
   - {"seq": 6, "cmd": "pause E10b-P5-s43", "reason": "control-channel test 6a/7: pause = scheduling marker only, the running task is not touched", "utc": "2026-10-17T12:04:29Z"}
   - {"seq": 7, "cmd": "resume E10b-P5-s43", "reason": "control-channel test 6b/7: resume (removes the marker)", "utc": "2026-10-17T12:05:39Z"}
+  - {"seq": 8, "cmd": "run E10b-NOTATASK", "reason": "control-channel test 7/7: deliberately invalid task name, must come back refused", "utc": "2026-10-17T12:06:52Z"}
