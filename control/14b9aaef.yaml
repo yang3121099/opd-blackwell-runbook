@@ -8,3 +8,4 @@ commands:
   - {"seq": 6, "cmd": "pause E10b-P5-s43", "reason": "control-channel test 6a/7: pause = scheduling marker only, the running task is not touched", "utc": "2026-10-17T12:04:29Z"}
   - {"seq": 7, "cmd": "resume E10b-P5-s43", "reason": "control-channel test 6b/7: resume (removes the marker)", "utc": "2026-10-17T12:05:39Z"}
   - {"seq": 8, "cmd": "run E10b-NOTATASK", "reason": "control-channel test 7/7: deliberately invalid task name, must come back refused", "utc": "2026-10-17T12:06:52Z"}
+  - {"seq": 9, "cmd": "set HF_REPO_PRIVATE=yang31210999/opd-lab-b300-ops", "reason": "Runming 13:4x: v2.5.1 switch step 2, private repository for status, logs, receipts, events, procs", "utc": "2026-10-17T13:44:41Z"}
