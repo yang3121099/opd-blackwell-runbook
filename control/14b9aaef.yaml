@@ -3,3 +3,4 @@ commands:
   - {"seq": 1, "cmd": "run E10b-P5-s43", "reason": "Runming 11:5x via reviewer: GPU7 idle while the seven E10b arms run; start the P5 seed-43 replicate (data.seed 43, otherwise E10b-P5) now", "utc": "2026-10-17T11:56:09Z"}
   - {"seq": 2, "cmd": "heartbeat", "reason": "control-channel test 1/7: on-demand heartbeat", "utc": "2026-10-17T11:59:51Z"}
   - {"seq": 3, "cmd": "ps", "reason": "control-channel test 2/7: process table", "utc": "2026-10-17T12:00:46Z"}
+  - {"seq": 4, "cmd": "snapshot nvidia-smi", "reason": "control-channel test 3/7: snapshot of nvidia-smi", "utc": "2026-10-17T12:02:10Z"}
