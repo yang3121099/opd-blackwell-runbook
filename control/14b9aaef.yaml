@@ -41,3 +41,4 @@ commands:
   - {"seq": 39, "cmd": "republish E11b-P2", "reason": "reviewer A1 18:2x: public result files of E11b-P2 carried paths and the user name; re-upload the published text files scrubbed (v2.5.5c)", "utc": "2026-10-17T18:23:44Z"}
   - {"seq": 40, "cmd": "republish E11b-P2noEOS", "reason": "reviewer A1 18:2x: public result files of E11b-P2noEOS carried paths and the user name; re-upload the published text files scrubbed (v2.5.5c)", "utc": "2026-10-17T18:23:51Z"}
   - {"seq": 41, "cmd": "republish E11b-P6", "reason": "reviewer A1 18:2x: public result files of E11b-P6 carried paths and the user name; re-upload the published text files scrubbed (v2.5.5c)", "utc": "2026-10-17T18:23:58Z"}
+  - {"seq": 42, "cmd": "republish E11b-P6r", "reason": "reviewer A1 18:2x: public result files of E11b-P6r carried paths and the user name; re-upload the published text files scrubbed (v2.5.5c)", "utc": "2026-10-17T18:24:06Z"}
