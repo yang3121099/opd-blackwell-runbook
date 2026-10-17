@@ -53,6 +53,9 @@ attempts() { sed -n 's/^attempts: //p' $OPD_ROOT/runs/$1/.failed 2>/dev/null || 
 dead() { [ "$(attempts $1)" -ge 3 ]; }
 running() { pgrep -f "task.sh [0-9]+ $1\$" >/dev/null; }
 free_gpus() { for i in $(seq 0 $((NGPU-1))); do
+    # v2.5.4d: a GPU given to a task stays taken while its task.sh / ad-hoc evaluation runs, also before the task touches it
+    # (2026-10-17: FA-PROBE's CPU-only venv copy left GPU6 empty, and EVAL-bridge and EVAL-p5s43-s20 were started on it too)
+    pgrep -f "scripts/(task|run_adhoc_eval)\.sh $i( |\$)" > /dev/null && continue
     [ -z "$(nvidia-smi --query-compute-apps=pid --format=csv,noheader -i $i)" ] || continue
     [ "$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $i | tr -d ' ')" -le 2048 ] && echo $i; done; }
 launch() { # gpu task   (v2.5: start / done / killed / failed also go to status/<node>/events/ as receipts)

@@ -64,4 +64,13 @@ ok "finished evals skipped" '[ "$(grep -c "^gen_eval" $CALLS)" = 0 ] && grep -q 
 bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-other > $T/out3 2>&1
 ok "bad model refused" 'grep -q REFUSED $T/out3 && [ ! -f $T/root/runs/EVAL-other/.done ]'
 rm -rf $T
-[ $fails = 0 ] && echo "V254A_TEST PASS (12 checks)" || echo "V254A_TEST FAIL ($fails)"
+# 4. v2.5.4d free_gpus(): a GPU whose task.sh (or ad-hoc evaluation) runs is not free, even with nothing on it yet
+T=$(mktemp -d); mkdir -p $T/bin $T/x/scripts
+printf '#!/usr/bin/env bash\ncase "$*" in *compute-apps*) ;; *) echo 0;; esac\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi
+printf 'sleep 30\n' > $T/x/scripts/task.sh; printf 'sleep 30\n' > $T/x/scripts/run_adhoc_eval.sh
+bash $T/x/scripts/task.sh 2 FA-PROBE & P1=$!; bash $T/x/scripts/run_adhoc_eval.sh 13 41 & P2=$!; sleep 0.5
+got=$( PATH=$T/bin:$PATH NGPU=14; eval "$(sed -n '/^free_gpus() {/,/; }$/p' $SRC/scripts/run_tasks.sh)"; free_gpus | tr '\n' ' ' )
+kill $P1 $P2 2> /dev/null
+ok "running tasks keep their GPUs" '[ "$got" = "0 1 3 4 5 6 7 8 9 10 11 12 " ]'
+rm -rf $T
+[ $fails = 0 ] && echo "V254A_TEST PASS (13 checks)" || echo "V254A_TEST FAIL ($fails)"
