@@ -1055,7 +1055,10 @@ def do_upload(seq, real, rel):
 def v_republish(a, seq, flags=None, entry=None):
     """republish <task> (v2.5.6): the text files this task already has in the public repository are uploaded again from
     this node's copies, through the scrubbing upload of v2.5.5c, over the versions that carried paths (2026-10-18). Only
-    files already published and only text files (remote.TEXT_EXT); checkpoints and weights are never touched."""
+    files already published and only text files (remote.TEXT_EXT); checkpoints and weights are never touched. v2.5.6k: a
+    model directory's text files (tokenizer, configs) come from ckpt/global_step_N/actor/huggingface_bf16 or huggingface
+    and go up unchanged (remote.scrub_model_file), repairing the vocabularies the scrub broke; this node's fetched copies
+    of them are deleted, so the next evaluation fetches the repaired files."""
     t = a[0]
     if not os.path.isdir(os.path.join(ROOT, "runs", t)):
         return "rejected", f"no runs/{t} on this node", {}
@@ -1078,6 +1081,12 @@ def do_republish(seq, t):
     for f in names:
         rel = f[len(f"runs/{t}/"):]
         src = os.path.join(ROOT, "runs", t, rel)
+        m = re.match(r"(global_step_\d+)/actor/huggingface/(.+)$", rel)
+        if m and not os.path.isfile(src):   # v2.5.6k: a model directory's text files from the checkpoint (bf16 copy, else the HF
+            for sub in ("huggingface_bf16", "huggingface"):   # directory, whose tokenizer / config stay after the weights go)
+                q = os.path.join(ROOT, "runs", t, "ckpt", m.group(1), "actor", sub, m.group(2))
+                if os.path.isfile(q):
+                    src = q; break
         if "/ckpt/" in f"/{rel}" or rel.startswith(".cache/") or not remote.is_text(os.path.basename(rel), os.path.getsize(src) if os.path.isfile(src) else 0):
             continue
         if not os.path.isfile(src):
@@ -1085,6 +1094,15 @@ def do_republish(seq, t):
         os.makedirs(os.path.dirname(os.path.join(stage, rel)), exist_ok=True); shutil.copy2(src, os.path.join(stage, rel)); done.append(rel)
     ok = remote_put(stage, f"runs/{t}") if done else True
     shutil.rmtree(stage, ignore_errors=True)
+    ck = os.environ.get("CKPT_ROOT") or _paths_env().get("CKPT_ROOT")
+    if ok and ck:   # v2.5.6k: copies of this task's models fetched from the public repository (result:...) are fetched again
+        for rel in done:
+            m = re.match(r"(global_step_\d+/actor/huggingface)/", rel)
+            if m:
+                d = os.path.join(ck, "adhoc_models", "result", "runs", t, m.group(1))
+                for x in (os.path.join(d, os.path.basename(rel)), os.path.join(d, ".fetch_ok")):
+                    if os.path.isfile(x):
+                        os.remove(x)
     receipt(seq, None, "ok" if ok else "failed", f"runs/{t}: {len(done)} text files {'republished scrubbed' if ok else 'not uploaded'}"
             + (f"; {len(missing)} not on this node" if missing else ""), files=done[:50], missing=missing[:50])
     event(t, "republished" if ok else "republish_failed", f"{len(done)} files")
@@ -1144,12 +1162,13 @@ def v_leakscan(a, seq, flags=None, entry=None):
     return "accepted", "public repository scan started on this node", {}
 
 
-def leak_counts(text, toks, ips, generation):
-    """Hits in one text: forbidden tokens, HF / ModelScope tokens, and (outside generation outputs) addresses."""
+def leak_counts(text, toks, ips, generation, vocab=False):
+    """Hits in one text: forbidden tokens, HF / ModelScope tokens, and (outside generation outputs) addresses. vocab
+    (v2.5.6k): a model's vocabulary file, uploaded unchanged; its words are the base model's tokens, not counted."""
     sys.path.insert(0, os.path.join(RUNBOOK, "scripts"))
     import remote
     n = 0
-    if toks:
+    if toks and not vocab:
         n += len(re.findall(r"(?i)(?<![A-Za-z0-9_])(" + "|".join(map(re.escape, sorted(toks, key=len, reverse=True))) + r")(?![A-Za-z0-9_])", text))
     n += len(re.findall(r"hf_[A-Za-z0-9]{30,}|ms-[A-Za-z0-9]{8}-[A-Za-z0-9-]{20,}", text))
     if not generation:
@@ -1175,7 +1194,8 @@ def do_leakscan(seq):
                 t = open(hf_hub_download(pub, f, revision=info.sha, cache_dir=tmp), errors="ignore").read()
             except Exception:
                 hits[f] = -1; continue
-            n = leak_counts(t, toks, ips, f.endswith((".jsonl", ".part")))
+            n = leak_counts(t, toks, ips, f.endswith((".jsonl", ".part")),
+                            vocab=os.path.basename(f) in remote.VOCAB_FILES and remote.is_model_file("", f))
             if n:
                 hits[f] = n
     real = {f: n for f, n in hits.items() if n > 0}

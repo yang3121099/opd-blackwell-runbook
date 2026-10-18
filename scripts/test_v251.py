@@ -419,6 +419,29 @@ def test_public_upload_is_scrubbed(rem, monkeypatch, tmp_path):
     assert FakeApi.calls[-1] == ("me/ops", "logs/abcd1234/x.log")
 
 
+def test_public_model_files_unchanged(rem, monkeypatch, tmp_path):
+    """v2.5.6k: a model directory's vocabulary goes up byte for byte, its JSON configs only lose path values (B300
+    2026-10-18: HOME -> "~" broke the vocabulary entry equal to HOME; EVAL-e12b-P0 / -P2 failed on the tokenizer)."""
+    import control
+    (rem.root / "hf_repos.txt").write_text("public=me/pub\nprivate=me/ops\n")
+    home = tmp_path / "root"; home.mkdir(); monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setattr(control, "_forbidden_tokens", lambda: {"someuser", "share"})
+    d = tmp_path / "bf16"; d.mkdir()
+    vocab = json.dumps({str(home): 1, "~": 2, "share": 3, "/mnt/someuser/x": 4})
+    (d / "vocab.json").write_text(vocab); (d / "tokenizer.json").write_text(vocab); (d / "merges.txt").write_text("sh are\n")
+    cfg = {"architectures": ["Qwen3ForCausalLM"], "_name_or_path": f"{rem.root}/runs/E12b-P0/ckpt", "note": "share this"}
+    (d / "config.json").write_text(json.dumps(cfg))
+    (d / "generation_config.json").write_text('{"do_sample": true}')
+    (d / "model-00001-of-00002.safetensors").write_bytes(b"\x00w")
+    rem.r.put(str(d), "runs/E12b-P0/global_step_100/actor/huggingface")
+    ops = {o.path_in_repo.rsplit("/", 1)[1]: o.path_or_fileobj for o in FakeApi.commits[-1]}
+    for f in ("vocab.json", "tokenizer.json", "merges.txt", "generation_config.json"):
+        assert ops[f] == str(d / f)                                  # the file itself, unchanged
+    c = json.loads(ops["config.json"].decode())
+    assert c["_name_or_path"] == "$OPD_ROOT/runs/E12b-P0/ckpt" and c["note"] == "share this" and c["architectures"] == ["Qwen3ForCausalLM"]
+    assert rem.r.is_model_file("", "runs/X/global_step_1/actor/huggingface/vocab.json") and not rem.r.is_model_file("", "runs/X/train.log")
+
+
 @pytest.mark.parametrize("cmd,ok", [("republish E10b-P2", True), ("republish EVAL-bridge", True), ("republish a/b", False), ("republish", False)])
 def test_rules_republish(cmd, ok):
     if ok:
@@ -448,6 +471,34 @@ def test_do_republish_only_published_text_files(env, monkeypatch):
     c.do_republish(60, "E10b-P2")
     assert staged == [".failed", "global_step_150/actor/huggingface/config.json", "train.log"] and got["dst"] == "runs/E10b-P2"   # no weights, no ckpt/, no unpublished upload.log
     assert got["st"] == "ok" and got["missing"] == ["gone.log"]
+
+
+def test_do_republish_model_files_from_ckpt(env, monkeypatch, tmp_path):
+    """v2.5.6k: E12b keeps no weights after the upload, but ckpt/global_step_N/actor/huggingface keeps the tokenizer and
+    configs: republish takes them from there, and drops this node's fetched copies so the next reading fetches again."""
+    c = env.c; d = os.path.join(c.ROOT, "runs", "E12b-P0"); hf = os.path.join(d, "ckpt", "global_step_100", "actor", "huggingface")
+    os.makedirs(hf)
+    for f in ("tokenizer.json", "vocab.json", "config.json"):
+        open(os.path.join(hf, f), "w").write("{}")
+    ck = tmp_path / "ck"; got_dir = ck / "adhoc_models" / "result" / "runs" / "E12b-P0" / "global_step_100" / "actor" / "huggingface"
+    got_dir.mkdir(parents=True)
+    for f in ("tokenizer.json", ".fetch_ok", "model-00001-of-00002.safetensors"):
+        (got_dir / f).write_text("x")
+    monkeypatch.setenv("CKPT_ROOT", str(ck))
+    pre = "runs/E12b-P0/global_step_100/actor/huggingface/"
+    published = [pre + f for f in ("tokenizer.json", "vocab.json", "config.json", "model-00001-of-00002.safetensors", "merges.txt")]
+    monkeypatch.setitem(sys.modules, "huggingface_hub", types.SimpleNamespace(HfApi=lambda token=None: types.SimpleNamespace(list_repo_files=lambda repo: published)))
+    monkeypatch.setenv("HF_REPO", "me/pub")
+    staged, got = [], {}
+    def put(src, dst):
+        staged.extend(sorted(os.path.relpath(os.path.join(r, f), src) for r, _, fs in os.walk(src) for f in fs)); return True
+    monkeypatch.setattr(c, "remote_put", put)
+    monkeypatch.setattr(c, "receipt", lambda seq, e, st, detail, **k: got.update(st=st, detail=detail, **k))
+    monkeypatch.setattr(c, "event", lambda *a, **k: None)
+    c.do_republish(61, "E12b-P0")
+    assert staged == [pre[len("runs/E12b-P0/"):] + f for f in ("config.json", "tokenizer.json", "vocab.json")]
+    assert got["st"] == "ok" and got["missing"] == ["global_step_100/actor/huggingface/merges.txt"]
+    assert sorted(os.listdir(got_dir)) == ["model-00001-of-00002.safetensors"]   # stale tokenizer and .fetch_ok gone, weights kept
 
 
 
@@ -498,3 +549,4 @@ def test_leak_counts(env):
     assert c.leak_counts(t, {"someuser"}, set(), False) == 3
     assert c.leak_counts(t, {"someuser"}, set(), True) == 2          # generation outputs: no address check
     assert c.leak_counts("clean text 1.2.1.2", {"someuser"}, set(), False) == 0
+    assert c.leak_counts('{"Ġsomeuser": 5, "x": "hf_' + "b" * 32 + '"}', {"someuser"}, set(), False, vocab=True) == 1   # v2.5.6k: tokens only

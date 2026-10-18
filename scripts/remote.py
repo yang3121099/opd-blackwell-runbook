@@ -208,6 +208,54 @@ def scrub_text(t, roots, toks, ips=None):
     return t
 
 
+VOCAB_FILES = ("tokenizer.json", "vocab.json", "merges.txt", "tokenizer.model")
+PATH_VALUE = re.compile(r"(?:~|\.{1,2}|\$[A-Z_]+)?/[^\s\"'<>]*")
+
+
+def is_model_file(local, pin):
+    """v2.5.6k: a file of a saved Hugging Face model directory (.../huggingface/ or huggingface_bf16/ in the repository
+    path, or config.json next to it together with weights or a tokenizer)."""
+    if re.search(r"/huggingface(?:_bf16)?/[^/]+$", "/" + pin):
+        return True
+    d = os.path.dirname(local)
+    try:
+        names = os.listdir(d)
+    except OSError:
+        return False
+    return "config.json" in names and any(n.endswith(".safetensors") or n in VOCAB_FILES for n in names)
+
+
+def scrub_model_file(name, data, roots, toks):
+    """v2.5.6k: the text of a model directory file for the public repository, or None to upload it byte for byte. The
+    vocabulary (tokenizer.json, vocab.json, merges.txt) is the base model's and goes up unchanged: the text scrub broke
+    it (B300 2026-10-18: $HOME -> "~" also turned the vocabulary entry equal to $HOME into a second "~", and EVAL-e12b-P0 /
+    -P2 failed 3 times each with "Token `~` out of vocabulary"). In a JSON config only string values that are paths
+    (e.g. _name_or_path) are scrubbed, so the file stays the same config; other text files are scrubbed as usual."""
+    if name in VOCAB_FILES:
+        return None
+    if not name.endswith(".json"):
+        return scrub_text(data, roots, toks)
+    try:
+        obj = json.loads(data)
+    except ValueError:
+        return scrub_text(data, roots, toks)
+    hit = []
+
+    def walk(x):
+        if isinstance(x, dict):
+            return {k: walk(v) for k, v in x.items()}
+        if isinstance(x, list):
+            return [walk(v) for v in x]
+        if isinstance(x, str) and PATH_VALUE.fullmatch(x):
+            y = scrub_text(x, roots, toks)
+            if y != x:
+                hit.append(1)
+            return y
+        return x
+    out = walk(obj)
+    return json.dumps(out, indent=2, ensure_ascii=False) + "\n" if hit else None
+
+
 def _public_files(src, dst):
     if not os.path.isdir(src):
         return [(src, dst)]
@@ -229,7 +277,10 @@ def _put_public(api, repo, src, dst):
     ops = []
     for local, pin in _public_files(src, dst):
         name = os.path.basename(local)
-        if is_text(name, os.path.getsize(local)):
+        if is_text(name, os.path.getsize(local)) and is_model_file(local, pin):
+            t = scrub_model_file(name, open(local, "rb").read().decode("utf-8", "replace"), roots, toks)
+            ops.append(CommitOperationAdd(path_in_repo=pin, path_or_fileobj=local if t is None else t.encode()))
+        elif is_text(name, os.path.getsize(local)):
             data = open(local, "rb").read().decode("utf-8", "replace")
             gen = name.lower().endswith((".jsonl", ".part"))   # generation outputs: no address scrub
             ops.append(CommitOperationAdd(path_in_repo=pin, path_or_fileobj=scrub_text(data, roots, toks, None if gen else ips).encode()))
