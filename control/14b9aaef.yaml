@@ -95,3 +95,4 @@ commands:
   - {"seq": 93, "cmd": "rerun EVAL-e12b-P0", "reason": "tokenizer repaired by republish (seq 80/81, v2.5.6k); reviewer A1 12:5x Beijing", "utc": "2026-10-18T05:01:28Z"}
   - {"seq": 94, "cmd": "rerun EVAL-e12b-P2", "reason": "tokenizer repaired by republish (seq 80/81, v2.5.6k); reviewer A1 12:5x Beijing", "utc": "2026-10-18T05:01:39Z"}
   - {"seq": 95, "cmd": "leakscan", "reason": "after the v2.5.6k republish of 13 model directories (reviewer A1 (d))", "utc": "2026-10-18T05:02:38Z"}
+  - {"seq": 96, "cmd": "fa-build", "reason": "flash-attn 2.8.3.post2 from source into venv-fa (release wheel needs GLIBC_2.32); CPU only, nice 19; reviewer A1 05:1x UTC", "utc": "2026-10-18T05:15:24Z"}
