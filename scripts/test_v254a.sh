@@ -216,4 +216,6 @@ got=$( PATH=$T/bin:$PATH NGPU=14; eval "$(sed -n '/^free_gpus() {/,/; }$/p' $SRC
 kill $P1 $P2 2> /dev/null
 ok "running tasks keep their GPUs" '[[ " $got" == *" 1 "* && " $got" == *" 6 "* && " $got" != *" 5 "* && " $got" != *" 13 "* ]]'   # 13 must not hide 1
 rm -rf $T
-[ $fails = 0 ] && echo "V254A_TEST PASS (47 checks)" || echo "V254A_TEST FAIL ($fails)"
+# v2.5.7j: no task script deletes a final bf16 copy (Runming: final weights keep a local copy after upload)
+ok "final bf16 copies are never deleted by run_e12.sh / run_arm.sh / run_eval.sh" '! grep -nE "rm -rf[^#]*huggingface_bf16" $SRC/scripts/run_e12.sh $SRC/scripts/run_arm.sh $SRC/scripts/run_eval.sh'
+[ $fails = 0 ] && echo "V254A_TEST PASS (48 checks)" || echo "V254A_TEST FAIL ($fails)"

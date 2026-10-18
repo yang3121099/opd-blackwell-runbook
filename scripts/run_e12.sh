@@ -103,7 +103,8 @@ python3 -m verl.trainer.main_ppo \
 LAST=$(grep -oE "(^|[ )])step:[0-9]+ - " $OUT/train.log | tail -1 | grep -oE "[0-9]+")
 echo "completed_steps: ${LAST:-unknown}" >> $OUT/config.yaml
 if [ "${LAST:-0}" -ge $STEPS ]; then echo "finished: $(date -u +%FT%TZ)" >> $OUT/config.yaml; touch $OUT/.done
-  # v2.4: the E10b start (bf16, 3.4 GB) is freed once both readers of it (E11b and this E12b) are done (never by a smoke)
-  [ $SM = 1 ] || case $A in P0|P1) ;; *) [ -f $OPD_ROOT/runs/E11b-$A/.done ] && rm -rf $OPD_ROOT/runs/E10b-$A/ckpt/global_step_150/actor/huggingface_bf16;; esac
+  # v2.5.7j: the E10b start (its final bf16) stays on this node after E12b (Runming's policy: final weights keep a local
+  # copy after upload). Until v2.5.7i it was deleted here once E11b and E12b were done, so E10b-P2 / P3 / P4lowlr / P5 /
+  # P6 / P6r / P2noEOS s150 had to be read back from the result repository (EVAL-budA17b, 2026-10-18 20:0x UTC).
 else echo "stopped: $(date -u +%FT%TZ) before the last step (v2.3: no finished: line, so upload_sync keeps running for the retry)" >> $OUT/config.yaml; fi
 [ $SM = 1 ] || { cd $RUNBOOK && python code/analysis/e12_rollout_stats.py $OUT --tokenizer $STUDENT_17B > /dev/null 2>&1 || true; }
