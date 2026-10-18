@@ -76,3 +76,4 @@ commands:
   - {"seq": 74, "cmd": "publish E11b-P6", "reason": "reviewer A1 11:0x: migrate E11b-P6 from the old (private) public repository to opd-lab-b300-pub from this node's copies, scrubbed", "utc": "2026-10-18T03:04:59Z"}
   - {"seq": 75, "cmd": "publish E11b-P6r", "reason": "reviewer A1 11:0x: migrate E11b-P6r from the old (private) public repository to opd-lab-b300-pub from this node's copies, scrubbed", "utc": "2026-10-18T03:05:07Z"}
   - {"seq": 76, "cmd": "publish EVAL-bridge", "reason": "reviewer A1 11:0x: migrate EVAL-bridge from the old (private) public repository to opd-lab-b300-pub from this node's copies, scrubbed", "utc": "2026-10-18T03:05:14Z"}
+  - {"seq": 77, "cmd": "publish EVAL-p5s43-s20", "reason": "reviewer A1 11:0x: migrate EVAL-p5s43-s20 from the old (private) public repository to opd-lab-b300-pub from this node's copies, scrubbed", "utc": "2026-10-18T03:05:22Z"}
