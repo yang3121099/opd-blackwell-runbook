@@ -124,3 +124,4 @@ commands:
   - {"seq": 122, "cmd": "logs E10c-P4lowlr-dyn16k 40", "reason": "E10c-dyn16k failed 3 times at step 0: cause", "utc": "2026-10-18T18:21:03Z"}
   - {"seq": 123, "cmd": "logs EVAL-e12b-P6 20", "reason": "E12bRest reading not started while GPUs 1/2/6 idle", "utc": "2026-10-18T18:40:59Z"}
   - {"seq": 124, "cmd": "logs E10c-P4lowlr-dyn16k 40", "reason": "E10c-dyn16k failed: reason for the V3-c1 record", "utc": "2026-10-18T18:41:55Z"}
+  - {"seq": 125, "cmd": "logs E10b-P5-s44 1500", "reason": "first 20 steps s/step of the flash-attn arm for the reviewer", "utc": "2026-10-18T19:15:36Z"}
