@@ -191,8 +191,8 @@ ext      open   EVAL-ext-base17 EVAL-ext-E12b-P5:E12b-P5 EVAL-ext-E12b-P0:E12b-P
 #pair EVAL-ext-E10b-P4lowlr ext_E10bP4lowlr_olympiadbench_T0.6 EVAL-ext-base17/ext_base17_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
 # v2.5.7g readings A (reviewer URGENT 18:4x UTC, A1 19:2x UTC): budget dependence, one 32K generation per model, curves at 2K-32K vs base
 #eval EVAL-budA17a budA_base17_math500_T0.6_32k Qwen/Qwen3-1.7B math500 4 0.6 32768
-#eval EVAL-budA17b budA_E10bP2_s150_math500_T0.6_32k local:runs/E10b-P2/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6 32768
-#eval EVAL-budA17b budA_E10bP5_s150_math500_T0.6_32k local:runs/E10b-P5/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6 32768
+#eval EVAL-budA17b budA_E10bP2_s150_math500_T0.6_32k result:runs/E10b-P2/global_step_150/actor/huggingface math500 4 0.6 32768
+#eval EVAL-budA17b budA_E10bP5_s150_math500_T0.6_32k result:runs/E10b-P5/global_step_150/actor/huggingface math500 4 0.6 32768
 #eval EVAL-budA06 budA_base06_math500_T0.6_32k Qwen/Qwen3-0.6B math500 4 0.6 32768
 #eval EVAL-budA06 budA_E10P2_s150_math500_T0.6_32k yang31210999/opd-lab-ckpts/ckpts/E10-P2-0.6B-lr3e-6/global_step_150 math500 4 0.6 32768
 #eval EVAL-budA06 budA_E10P5_s100_math500_T0.6_32k yang31210999/opd-lab-ckpts/runs/E10-P5-0.6B-lr3e-6/global_step_100/actor/huggingface math500 4 0.6 32768
@@ -201,9 +201,9 @@ ext      open   EVAL-ext-base17 EVAL-ext-E12b-P5:E12b-P5 EVAL-ext-E12b-P0:E12b-P
 #budget EVAL-budA06 budget_curve budA_base06_math500_T0.6_32k budA_E10P2_s150_math500_T0.6_32k budA_E10P5_s100_math500_T0.6_32k
 # v2.5.7g PROBE-TERM (reviewer 19:0x UTC, A1 19:2x UTC): termination quality, forward passes on each model's own MATH500 T0.6 16K generations
 #term PROBE-TERM 17_P0 Qwen/Qwen3-1.7B E11b-P0/e11b_P0_math500_T0.6_math500_no_think_t0.6.jsonl
-#term PROBE-TERM 17_P2 local:runs/E10b-P2/ckpt/global_step_150/actor/huggingface_bf16 E11b-P2/e11b_P2_math500_T0.6_math500_no_think_t0.6.jsonl
-#term PROBE-TERM 17_P5 local:runs/E10b-P5/ckpt/global_step_150/actor/huggingface_bf16 E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl
-#term PROBE-TERM 17_P4lowlr local:runs/E10b-P4lowlr/ckpt/global_step_150/actor/huggingface_bf16 E11b-P4lowlr/e11b_P4lowlr_math500_T0.6_math500_no_think_t0.6.jsonl
+#term PROBE-TERM 17_P2 result:runs/E10b-P2/global_step_150/actor/huggingface E11b-P2/e11b_P2_math500_T0.6_math500_no_think_t0.6.jsonl
+#term PROBE-TERM 17_P5 result:runs/E10b-P5/global_step_150/actor/huggingface E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl
+#term PROBE-TERM 17_P4lowlr result:runs/E10b-P4lowlr/global_step_150/actor/huggingface E11b-P4lowlr/e11b_P4lowlr_math500_T0.6_math500_no_think_t0.6.jsonl
 #term PROBE-TERM 17_E12bP5 result:runs/E12b-P5/global_step_100/actor/huggingface EVAL-e12b-P5/e12b_P5_s100_math500_T0.6_math500_no_think_t0.6.jsonl
 #term PROBE-TERM 17_E12bP0 result:runs/E12b-P0/global_step_100/actor/huggingface EVAL-e12b-P0/e12b_P0_s100_math500_T0.6_math500_no_think_t0.6.jsonl
 #term PROBE-TERM 06_P0 Qwen/Qwen3-0.6B archive:runs/e11/e11_P0_math500_T0.6_math500_no_think_t0.6.jsonl
@@ -216,8 +216,8 @@ ext      open   EVAL-ext-base17 EVAL-ext-E12b-P5:E12b-P5 EVAL-ext-E12b-P0:E12b-P
 #eval EVAL-budB budB_P0think_math500_T0.6_32k Qwen/Qwen3-1.7B math500 4 0.6 32768 think
 #forced EVAL-budB budB_P0think_math500_T0.6_32k Qwen/Qwen3-1.7B think
 #forced EVAL-budB EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl Qwen/Qwen3-1.7B no_think
-#forced EVAL-budB EVAL-budA17b/budA_E10bP2_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl local:runs/E10b-P2/ckpt/global_step_150/actor/huggingface_bf16 no_think
-#forced EVAL-budB EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl local:runs/E10b-P5/ckpt/global_step_150/actor/huggingface_bf16 no_think
+#forced EVAL-budB EVAL-budA17b/budA_E10bP2_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl result:runs/E10b-P2/global_step_150/actor/huggingface no_think
+#forced EVAL-budB EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl result:runs/E10b-P5/global_step_150/actor/huggingface no_think
 #forced EVAL-budB EVAL-e12b-P0/e12b_P0_s100_math500_T0.6_math500_no_think_t0.6.jsonl result:runs/E12b-P0/global_step_100/actor/huggingface no_think
 #forced EVAL-budB EVAL-e12b-P2/e12b_P2_s100_math500_T0.6_math500_no_think_t0.6.jsonl result:runs/E12b-P2/global_step_100/actor/huggingface no_think
 #forced EVAL-budB EVAL-e12b-P5/e12b_P5_s100_math500_T0.6_math500_no_think_t0.6.jsonl result:runs/E12b-P5/global_step_100/actor/huggingface no_think
