@@ -17,7 +17,8 @@ budB     open   EVAL-budB:EVAL-budA17a+EVAL-budA17b
 term     open   PROBE-TERM
 budAe12b open   EVAL-budA-e12b
 term2    open   PROBE-TERM2
-v3c1b    open   E10c-P4lowlr-dyn6144 E10c-P4lowlr-fix4-s43 EVAL-e10c-dyn6144:E10c-P4lowlr-dyn6144 EVAL-e10c-fix4-s43:E10c-P4lowlr-fix4-s43
+v3c1b    open   E10c-P4lowlr-dyn6144 E10c-P4lowlr-fix4-s43 EVAL-e10c-fix4-s43:E10c-P4lowlr-fix4-s43
+# v3c1b: E10c-P4lowlr-dyn6144 ran out of memory at step 105 (2026-10-18 23:4x UTC; paused, not retried: a feasibility probe, reviewer 23:3x UTC), so its reading EVAL-e10c-dyn6144 is not queued
 top10    open   PROBE-TOP10 E10b-P5top10:PROBE-TOP10 E10b-P5rand10m:PROBE-TOP10 E11b-P5top10:E10b-P5top10+E11b-P0 E11b-P5rand10m:E10b-P5rand10m+E11b-P0
 evals    open   EVAL-bridge E11b-P5-s43:E10b-P5-s43+E11b-P0 EVAL-p5s43-s20 EVAL-p5s43-s40
 #eval EVAL-bridge e12_P5c05_s40_math500_T0.6 yang31210999/opd-lab-ckpts/runs/E12-P5c05/global_step_40/actor/huggingface math500 4 0.6
