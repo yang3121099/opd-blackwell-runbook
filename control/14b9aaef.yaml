@@ -131,3 +131,4 @@ commands:
   - {"seq": 129, "cmd": "du opd_root runs/E10b-P2/ckpt/global_step_150/actor", "reason": "same, the step-150 actor dir", "utc": "2026-10-18T20:05:17Z"}
   - {"seq": 130, "cmd": "snapshot runs/E10b-P2/upload.log", "reason": "where the E10b-P2 s150 bf16 copy went (reviewer 20:0x UTC)", "utc": "2026-10-18T20:10:17Z"}
   - {"seq": 131, "cmd": "dr-keep E10b-P5-s43", "reason": "keep E10b-P5-s43's final bf16 on the share: the running E12b-P5-s43 (old run_e12.sh, v2.4 rule) deletes the local copy when it finishes; Runming's policy keeps final weights (reviewer 20:1x UTC)", "utc": "2026-10-18T20:14:23Z"}
+  - {"seq": 132, "cmd": "dr-keep E10b-P2-s43", "reason": "reviewer A1 20:20 UTC: finished arms' final weights to the share, one at a time (Runming's keep-final policy; the container disk does not survive a rebuild)", "utc": "2026-10-18T20:20:14Z"}
