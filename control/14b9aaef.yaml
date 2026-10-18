@@ -74,3 +74,4 @@ commands:
   - {"seq": 72, "cmd": "publish E11b-P5", "reason": "reviewer A1 11:0x: migrate E11b-P5 from the old (private) public repository to opd-lab-b300-pub from this node's copies, scrubbed", "utc": "2026-10-18T03:04:44Z"}
   - {"seq": 73, "cmd": "publish E11b-P5-s43", "reason": "reviewer A1 11:0x: migrate E11b-P5-s43 from the old (private) public repository to opd-lab-b300-pub from this node's copies, scrubbed", "utc": "2026-10-18T03:04:52Z"}
   - {"seq": 74, "cmd": "publish E11b-P6", "reason": "reviewer A1 11:0x: migrate E11b-P6 from the old (private) public repository to opd-lab-b300-pub from this node's copies, scrubbed", "utc": "2026-10-18T03:04:59Z"}
+  - {"seq": 75, "cmd": "publish E11b-P6r", "reason": "reviewer A1 11:0x: migrate E11b-P6r from the old (private) public repository to opd-lab-b300-pub from this node's copies, scrubbed", "utc": "2026-10-18T03:05:07Z"}
