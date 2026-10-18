@@ -15,9 +15,9 @@ fa1      open   E10b-P5-s44 E11b-P5-s44:E10b-P5-s44+E11b-P0
 budA     open   EVAL-budA17a EVAL-budA17b EVAL-budA06
 budB     open   EVAL-budB:EVAL-budA17a+EVAL-budA17b
 term     open   PROBE-TERM
+budAe12b open   EVAL-budA-e12b
 v3c1b    open   E10c-P4lowlr-dyn6144 E10c-P4lowlr-fix4-s43 EVAL-e10c-dyn6144:E10c-P4lowlr-dyn6144 EVAL-e10c-fix4-s43:E10c-P4lowlr-fix4-s43
 top10    open   PROBE-TOP10 E10b-P5top10:PROBE-TOP10 E10b-P5rand10m:PROBE-TOP10 E11b-P5top10:E10b-P5top10+E11b-P0 E11b-P5rand10m:E10b-P5rand10m+E11b-P0
-budAe12b open   EVAL-budA-e12b
 evals    open   EVAL-bridge E11b-P5-s43:E10b-P5-s43+E11b-P0 EVAL-p5s43-s20 EVAL-p5s43-s40
 #eval EVAL-bridge e12_P5c05_s40_math500_T0.6 yang31210999/opd-lab-ckpts/runs/E12-P5c05/global_step_40/actor/huggingface math500 4 0.6
 #eval EVAL-p5s43-s20 e12_P5s43_s20_math500_T0.6 yang31210999/opd-lab-ckpts/runs/E12-P5s43/global_step_20/actor/huggingface math500 4 0.6
