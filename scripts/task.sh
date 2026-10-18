@@ -12,6 +12,7 @@ ARMS="P2|P3|P4lowlr|P5|P6|P6r|P2noEOS|Pstop|P6rand|P6top5|P4EOSpen"
 case $T in
   E10b-*)  [[ $T =~ ^E10b-($ARMS)(-s(43|44))?$ ]] || exit 2; bash $RUNBOOK/scripts/run_arm.sh $G $T;;
   E10c-*)  [[ $T =~ ^E10c-($ARMS)-(fix4|dyn16k)$ ]] || exit 2; bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # v2.5.6f: 0.6B, V3-c1
+  E10d-*)  [[ $T =~ ^E10d-(P2|P5)$ ]] || exit 2; bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # v2.5.7b: 4B student, V3-c5
   E11b-*)  [[ $T =~ ^E11b-(P0|($ARMS)(-s(43|44))?)$ ]] || exit 2; bash $RUNBOOK/scripts/run_eval.sh $G $T;;   # v2.5.6c: seed arms too
   SFT-P1)  bash $RUNBOOK/scripts/run_sft.sh $G $T;;
   E12b-*)  [[ $T =~ ^E12b-(P0|P1|$ARMS|P5-s43)$ ]] || exit 2; bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # v2.5.6j: P5-s43
@@ -21,7 +22,8 @@ case $T in
   E01-opsa17-think|E01-opsa17-nothink|E01-base17-think) bash $RUNBOOK/scripts/run_zero.sh $G $T;;   # v2.5.6j: E01 remainder (V3-c3 d)
   E05-fstop-base06|E05-fstop-art06) bash $RUNBOOK/scripts/run_zero.sh $G $T;;   # v2.5.6l: E05-p3 forced stop (V3-c3 c)
   FA-PROBE) bash $RUNBOOK/scripts/fa_probe.sh $G;;
-  SPEED-PROBE) bash $RUNBOOK/scripts/speed_probe.sh $G;;   # v2.5.6o: fused kernels / no gradient checkpointing
+  SPEED-PROBE) bash $RUNBOOK/scripts/speed_probe.sh $G;;
+  PROBE-4B) bash $RUNBOOK/scripts/probe_4b.sh $G;;   # v2.5.7b: 10-step smoke of the 4B student   # v2.5.6o: fused kernels / no gradient checkpointing
   EVAL-*)  [[ $T =~ ^EVAL-[A-Za-z0-9._-]+$ ]] || exit 2; bash $RUNBOOK/scripts/run_queue_eval.sh $G $T;;   # v2.5.4a: #eval lines of queue.txt   # v2.5.3: can flash-attn 2 varlen run here (no E10b directory touched)
   *) echo "NOT_WHITELISTED $T"; exit 2;;
 esac

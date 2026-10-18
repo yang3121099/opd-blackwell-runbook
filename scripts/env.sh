@@ -7,7 +7,7 @@ export SPT_NOENV=${SPT_NOENV:-1}
 # model locations (v2.2): download_models.sh writes the three models' local paths to $OPD_ROOT/models.env (Hugging Face
 # or ModelScope route); a value already set in your shell wins; without the file the Hugging Face IDs are used
 if [ -f $OPD_ROOT/models.env ]; then
-  while IFS='=' read -r k v; do k=${k#export }; case "$k" in STUDENT_06B|STUDENT_17B|TEACHER) [ -z "${!k:-}" ] && export "$k=$v";; esac; done < $OPD_ROOT/models.env
+  while IFS='=' read -r k v; do k=${k#export }; case "$k" in STUDENT_06B|STUDENT_17B|STUDENT_4B|TEACHER) [ -z "${!k:-}" ] && export "$k=$v";; esac; done < $OPD_ROOT/models.env
 fi
 # v2.4: checkpoints live on a large local disk (B300: /home has far more room than the 48 GB of $OPD_ROOT's disk).
 # CKPT_ROOT is fixed once in $OPD_ROOT/paths.env: <writable directory under /home or $HOME whose filesystem has the most
@@ -48,7 +48,9 @@ export CKPT_CANDIDATES=$(ckpt_candidates)   # colon list of candidate bases (v2.
 ckpt_link() {   # <task dir>: its ckpt becomes a symlink into $CKPT_ROOT; a real ckpt dir from an older run stays as it is
   local t=$(basename "$1"); mkdir -p "$CKPT_ROOT/$t/ckpt"
   [ -e "$1/ckpt" ] || [ -L "$1/ckpt" ] || ln -s "$CKPT_ROOT/$t/ckpt" "$1/ckpt"; }
-export STUDENT_06B=${STUDENT_06B:-Qwen/Qwen3-0.6B} STUDENT_17B=${STUDENT_17B:-Qwen/Qwen3-1.7B} TEACHER=${TEACHER:-Qwen/Qwen3-8B}
+# v2.5.7b: the 4B student (V3-c5) from $OPD_ROOT/models/Qwen3-4B once PROBE-4B has fetched it, else its HF id
+[ -z "${STUDENT_4B:-}" ] && [ -f "$OPD_ROOT/models/Qwen3-4B/.fetch_ok" ] && STUDENT_4B=$OPD_ROOT/models/Qwen3-4B
+export STUDENT_06B=${STUDENT_06B:-Qwen/Qwen3-0.6B} STUDENT_17B=${STUDENT_17B:-Qwen/Qwen3-1.7B} TEACHER=${TEACHER:-Qwen/Qwen3-8B} STUDENT_4B=${STUDENT_4B:-Qwen/Qwen3-4B}
 export GOPD_COMMIT=37371a4c31ad7947746200d234161769191f4748
 export UPLOAD_BACKEND=${UPLOAD_BACKEND:-hf}          # hf | modelscope
 export HF_HUB_ENABLE_HF_TRANSFER=${HF_HUB_ENABLE_HF_TRANSFER:-1}
