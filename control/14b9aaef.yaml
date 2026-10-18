@@ -90,3 +90,4 @@ commands:
   - {"seq": 88, "cmd": "republish E10b-P5", "reason": "v2.5.6k: restore the model directory tokenizer/config files the public scrub broke (reviewer A1 12:5x Beijing)", "utc": "2026-10-18T04:59:37Z"}
   - {"seq": 89, "cmd": "republish E10b-P5-s43", "reason": "v2.5.6k: restore the model directory tokenizer/config files the public scrub broke (reviewer A1 12:5x Beijing)", "utc": "2026-10-18T04:59:48Z"}
   - {"seq": 90, "cmd": "republish E10b-P6", "reason": "v2.5.6k: restore the model directory tokenizer/config files the public scrub broke (reviewer A1 12:5x Beijing)", "utc": "2026-10-18T04:59:57Z"}
+  - {"seq": 91, "cmd": "republish E10b-P6r", "reason": "v2.5.6k: restore the model directory tokenizer/config files the public scrub broke (reviewer A1 12:5x Beijing)", "utc": "2026-10-18T05:00:07Z"}
