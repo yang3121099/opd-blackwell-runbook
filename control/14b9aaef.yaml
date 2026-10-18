@@ -97,3 +97,4 @@ commands:
   - {"seq": 95, "cmd": "leakscan", "reason": "after the v2.5.6k republish of 13 model directories (reviewer A1 (d))", "utc": "2026-10-18T05:02:38Z"}
   - {"seq": 96, "cmd": "fa-build", "reason": "flash-attn 2.8.3.post2 from source into venv-fa (release wheel needs GLIBC_2.32); CPU only, nice 19; reviewer A1 05:1x UTC", "utc": "2026-10-18T05:15:24Z"}
   - {"seq": 97, "cmd": "scrubdiff", "reason": "count what the public scrub changed in generation outputs (report only; reviewer A1 05:3x UTC)", "utc": "2026-10-18T05:36:41Z"}
+  - {"seq": 98, "cmd": "fa-build", "reason": "v2.5.6n: CUDA 12.8 from pip wheels (system nvcc 12.1), sm_100 test kernel first, then flash-attn 2.8.3.post2 from source into venv-fa; CPU only, nice 19; reviewer A1 05:3x UTC", "utc": "2026-10-18T05:40:58Z"}
