@@ -118,3 +118,4 @@ commands:
   - {"seq": 116, "cmd": "persist-env", "reason": "v2.5.7a (reviewer A1 07:3x UTC): python, venv, G-OPD and the three models to the share; links / models.env switch only after the checks", "utc": "2026-10-18T07:27:21Z"}
   - {"seq": 117, "cmd": "rebuild-drill", "reason": "v2.5.7a (reviewer A1 07:3x UTC): REBUILD.md steps timed without a GPU in a temporary directory on the share", "utc": "2026-10-18T07:38:20Z"}
   - {"seq": 118, "cmd": "rerun FA-PROBE", "reason": "fa-build seq 103 PASS (flash-attn built from source, CUDA 12.8 redist): the probe's varlen + 3-step smoke with venv-fa (reviewer: next free GPU, no need to wait for readings)", "utc": "2026-10-18T08:47:12Z"}
+  - {"seq": 119, "cmd": "logs EVAL-e12b-P3 25", "reason": "EVAL-e12b-P3 running 1 h 40 min (P0 took 25 min): progress check", "utc": "2026-10-18T08:47:22Z"}
