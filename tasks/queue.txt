@@ -16,6 +16,7 @@ budA     open   EVAL-budA17a EVAL-budA17b EVAL-budA06
 budB     open   EVAL-budB:EVAL-budA17a+EVAL-budA17b
 term     open   PROBE-TERM
 budAe12b open   EVAL-budA-e12b
+term2    open   PROBE-TERM2
 v3c1b    open   E10c-P4lowlr-dyn6144 E10c-P4lowlr-fix4-s43 EVAL-e10c-dyn6144:E10c-P4lowlr-dyn6144 EVAL-e10c-fix4-s43:E10c-P4lowlr-fix4-s43
 top10    open   PROBE-TOP10 E10b-P5top10:PROBE-TOP10 E10b-P5rand10m:PROBE-TOP10 E11b-P5top10:E10b-P5top10+E11b-P0 E11b-P5rand10m:E10b-P5rand10m+E11b-P0
 evals    open   EVAL-bridge E11b-P5-s43:E10b-P5-s43+E11b-P0 EVAL-p5s43-s20 EVAL-p5s43-s40
