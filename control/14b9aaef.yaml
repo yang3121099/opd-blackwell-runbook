@@ -107,3 +107,4 @@ commands:
   - {"seq": 105, "cmd": "setenv GC=0", "reason": "SPEED-PROBE accepted (reviewer A1 07:0x UTC): no gradient checkpointing for run_arm tasks started from now on (E10b / E10c); bit-exact step-1 loss, -9.5% step time; E12b stays on until E12B_GC", "utc": "2026-10-18T07:06:26Z"}
   - {"seq": 106, "cmd": "du old_base", "reason": "read-only sizes of the old base for Runming's disk table (reviewer A1 07:0x UTC)", "utc": "2026-10-18T07:06:33Z"}
   - {"seq": 107, "cmd": "du opd_root", "reason": "read-only sizes of OPD_ROOT for Runming's disk table (reviewer A1 07:0x UTC)", "utc": "2026-10-18T07:06:41Z"}
+  - {"seq": 108, "cmd": "dr-keep SFT-P1", "reason": "keep SFT-P1's final HF weights on the share (start of E12b-P1; reviewer A1 07:0x UTC, final weights only)", "utc": "2026-10-18T07:06:47Z"}
