@@ -58,3 +58,4 @@ commands:
   - {"seq": 56, "cmd": "set HF_REPO_PUBLIC=yang31210999/opd-lab-b300-pub", "reason": "Runming created opd-lab-b300-pub (public) for the clean public results: opd-lab-b300 stays private because squashed old revisions are still readable by sha", "utc": "2026-10-18T01:41:00Z"}
   - {"seq": 57, "cmd": "leakscan", "reason": "reviewer A1 11:0x: baseline scan of opd-lab-b300-pub before the migration (node side, counts only)", "utc": "2026-10-18T03:02:50Z"}
   - {"seq": 58, "cmd": "publish E10b-P2", "reason": "reviewer A1 11:0x: migrate E10b-P2 from the old (private) public repository to opd-lab-b300-pub from this node's copies, scrubbed", "utc": "2026-10-18T03:02:57Z"}
+  - {"seq": 59, "cmd": "publish E10b-P2noEOS", "reason": "reviewer A1 11:0x: migrate E10b-P2noEOS from the old (private) public repository to opd-lab-b300-pub from this node's copies, scrubbed", "utc": "2026-10-18T03:03:05Z"}
