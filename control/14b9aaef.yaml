@@ -59,3 +59,4 @@ commands:
   - {"seq": 57, "cmd": "leakscan", "reason": "reviewer A1 11:0x: baseline scan of opd-lab-b300-pub before the migration (node side, counts only)", "utc": "2026-10-18T03:02:50Z"}
   - {"seq": 58, "cmd": "publish E10b-P2", "reason": "reviewer A1 11:0x: migrate E10b-P2 from the old (private) public repository to opd-lab-b300-pub from this node's copies, scrubbed", "utc": "2026-10-18T03:02:57Z"}
   - {"seq": 59, "cmd": "publish E10b-P2noEOS", "reason": "reviewer A1 11:0x: migrate E10b-P2noEOS from the old (private) public repository to opd-lab-b300-pub from this node's copies, scrubbed", "utc": "2026-10-18T03:03:05Z"}
+  - {"seq": 60, "cmd": "publish E10b-P3", "reason": "reviewer A1 11:0x: migrate E10b-P3 from the old (private) public repository to opd-lab-b300-pub from this node's copies, scrubbed", "utc": "2026-10-18T03:03:13Z"}
