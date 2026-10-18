@@ -7,6 +7,7 @@ ok() { if eval "$2"; then :; else echo "  FAIL [$1]"; fails=$((fails + 1)); fi; 
 setup() {
   T=$(mktemp -d); mkdir -p $T/rb/scripts $T/rb/code/eval $T/rb/tasks $T/root/runs $T/root/logs $T/root/venv/bin
   cp $SRC/scripts/task.sh $SRC/scripts/run_queue_eval.sh $SRC/scripts/control_rules.py $T/rb/scripts/
+  mkdir -p $T/rb/code/leakage; printf 'import sys, os; open(os.environ["CALLS"], "a").write("twr " + " ".join(sys.argv[1:]) + "\\n")\n' > $T/rb/code/leakage/twr_alpha.py
   : > $T/root/venv/bin/activate
   cat > $T/rb/scripts/env.sh <<EOF
 export OPD_ROOT=$T/root RUNBOOK=$T/rb CKPT_ROOT=$T/root STUDENT_06B=$T/m06 STUDENT_17B=$T/m17 TEACHER=$T/m8
@@ -21,6 +22,7 @@ import sys, os, json
 a = sys.argv; tag = a[a.index("--tag") + 1]; out = a[a.index("--out") + 1]; b = a[a.index("--bench") + 1]
 open(os.environ["CALLS"], "a").write("gen_eval " + " ".join(a[1:]) + "\n")
 json.dump({"avg_acc": 50.0}, open(os.path.join(out, f"{tag}_{b}_no_think_t0.6.metrics.json"), "w"))
+open(os.path.join(out, f"{tag}_{b}_no_think_t0.6.jsonl"), "w").write("{}\n")
 PY
   export CALLS=$T/calls; : > $CALLS
 }
@@ -59,9 +61,13 @@ version: 2
 #eval EVAL-bridge e12_P5c05_s40_math500_T0.6 yang31210999/opd-lab-ckpts/runs/E12-P5c05/global_step_40/actor/huggingface math500 4 0.6
 #eval EVAL-bridge e12_x_amc23_T1.0 yang31210999/opd-lab-ckpts/runs/E12-P5c05/global_step_40/actor/huggingface amc23 8 1.0
 #eval EVAL-other e12_y_math500_T0.6 /etc/passwd math500 4 0.6
+#twr EVAL-bridge e12_P5c05_s40_math500_T0.6
 EOF
+mkdir -p $T/root/runs/E11b-P0; : > $T/root/runs/E11b-P0/e11b_P0_math500_T0.6_math500_no_think_t0.6.jsonl
+for tg in e12_P5c05_s40_math500_T0.6 e12_x_amc23_T1.0; do :; done
 bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-bridge > $T/out 2>&1
 ok "two evals ran" '[ "$(grep -c "^gen_eval" $CALLS)" = 2 ] && grep -q -- "--temperature 1.0 --top_p 1.0 --top_k 0" $CALLS && grep -q -- "--chunk 10" $CALLS'
+ok "TWR after the readings" 'grep -q "^twr --judge $T/m17 --bench math500 --ref $T/root/runs/E11b-P0/e11b_P0_math500_T0.6_math500_no_think_t0.6.jsonl --score $T/root/runs/EVAL-bridge/e12_P5c05_s40_math500_T0.6_" $CALLS && grep -q -- "--model_k $T/root/adhoc_models/runs/E12-P5c05/global_step_40/actor/huggingface" $CALLS'
 ok "upload + done" 'grep -q "remote put $T/root/runs/EVAL-bridge runs/EVAL-bridge" $CALLS && [ -f $T/root/runs/EVAL-bridge/.done ]'
 rm -f $T/root/runs/EVAL-bridge/.done; : > $CALLS; bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-bridge > $T/out2 2>&1
 ok "finished evals skipped" '[ "$(grep -c "^gen_eval" $CALLS)" = 0 ] && grep -q DONE_ALREADY $T/out2'
@@ -88,6 +94,9 @@ bash $T/rb/scripts/run_queue_eval.sh prefetch EVAL-gone > $T/p2 2>&1; rc2=$?
 ok "failed fetch: no inputs_ok" '[ $rc2 = 1 ] && [ ! -f $T/root/runs/EVAL-gone/.inputs_ok ] && grep -q PREFETCH_FAILED $T/p2'
 : > $CALLS; bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-gone > $T/p3 2>&1
 bash $T/rb/scripts/run_queue_eval.sh prefetch EVAL-res > $T/p4 2>&1; rc4=$?
+R1=$( Q=$T/rb/tasks/queue.txt; eval "$(sed -n '/^result_only() {/p' $SRC/scripts/run_tasks.sh)"; result_only EVAL-res && echo yes || echo no )
+R2=$( Q=$T/rb/tasks/queue.txt; eval "$(sed -n '/^result_only() {/p' $SRC/scripts/run_tasks.sh)"; result_only EVAL-bridge && echo yes || echo no )
+ok "result-only EVAL ready without inputs_ok" '[ "$R1" = yes ] && [ "$R2" = no ]'
 ok "result: model from the public repository" '[ $rc4 = 0 ] && grep -q "^fetch me/pub runs/E12b-P0/global_step_100/actor/huggingface $T/root/adhoc_models/result" $CALLS'
 ok "eval with failed fetch not run" '! grep -q "^gen_eval" $CALLS && grep -q MODEL_FETCH_FAILED $T/p3 && [ ! -f $T/root/runs/EVAL-gone/.done ]'
 rm -rf $T
@@ -112,4 +121,4 @@ got=$( PATH=$T/bin:$PATH NGPU=14; eval "$(sed -n '/^free_gpus() {/,/; }$/p' $SRC
 kill $P1 $P2 2> /dev/null
 ok "running tasks keep their GPUs" '[[ " $got" == *" 1 "* && " $got" == *" 6 "* && " $got" != *" 5 "* && " $got" != *" 13 "* ]]'   # 13 must not hide 1
 rm -rf $T
-[ $fails = 0 ] && echo "V254A_TEST PASS (24 checks)" || echo "V254A_TEST FAIL ($fails)"
+[ $fails = 0 ] && echo "V254A_TEST PASS (26 checks)" || echo "V254A_TEST FAIL ($fails)"

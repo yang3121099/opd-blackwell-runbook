@@ -63,6 +63,9 @@ free_gpus() { for i in $(seq 0 $((NGPU-1))); do
 # (also in locked stages), a failed one again after 30 min
 eval_hash() { awk -v t="$1" '$1 == "#eval" && $2 == t' "$Q" | cksum | cut -d' ' -f1; }
 inputs_ok() { [ "$(cat $OPD_ROOT/runs/$1/.inputs_ok 2>/dev/null)" = "$(eval_hash $1)" ]; }
+# v2.5.6h: an EVAL task whose models are all result:runs/... (read back from this node's public repository after the
+# training's upload) is ready once its deps are done; it waits for the upload itself, so it takes the first free GPU
+result_only() { local m; m=$(awk -v t="$1" '$1 == "#eval" && $2 == t {print $4}' "$Q"); [ -n "$m" ] && ! echo "$m" | grep -qv '^result:'; }
 prefetch_pass() {
   pgrep -f "run_queue_eval\.sh prefetch " > /dev/null && return
   for t in $(awk '$1 == "#eval" {print $2}' "$Q" | sort -u); do
@@ -134,7 +137,7 @@ while true; do
       paused $t && continue
       ok=1; for d in $deps; do done_ $d || ok=0; done
       [ $ok = 1 ] || continue
-      case $t in EVAL-*) inputs_ok $t || continue;; esac   # v2.5.4e: no GPU while its models are being fetched
+      case $t in EVAL-*) inputs_ok $t || result_only $t || continue;; esac   # v2.5.4e: no GPU while its models are being fetched
       [ ${#FREE[@]} -gt 0 ] || continue
       g=${FREE[0]}; FREE=("${FREE[@]:1}")
       if [ "${DRY:-0}" = 1 ]; then echo "WOULD_START gpu=$g $t (stage $stage, attempt $(( $(attempts $t) + 1 )))"; continue; fi
