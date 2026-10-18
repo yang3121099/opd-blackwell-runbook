@@ -56,7 +56,7 @@ fi
 # 2. the smokes
 for V in $VARS; do
   case $V in
-    sdpa_fix4) E="VENV= FIXED_MICRO_BSZ=4 GC=0";;   fa_tok) E="VENV=fa FIXED_MICRO_BSZ= GC=0";;  fa_fix4) E="VENV=fa FIXED_MICRO_BSZ=4 GC=0";;
+    sdpa_fix4) E="VENV= FIXED_MICRO_BSZ=4 GC=0";;   fa_tok) E="VENV=fa E10D_FA=1 FIXED_MICRO_BSZ= GC=0";;  fa_fix4) E="VENV=fa E10D_FA=1 FIXED_MICRO_BSZ=4 GC=0";;
     sdpa_gc1) E="VENV= E12B_FA=0 FIXED_MICRO_BSZ=4 GC=1 E12B_GC=0";;   sdpa_gc0) E="VENV= E12B_FA=0 FIXED_MICRO_BSZ=4 GC=0 E12B_GC=1";;
     fa_gc0) E="VENV=fa E12B_FA=1 FIXED_MICRO_BSZ= GC=0 E12B_GC=1";;
   esac

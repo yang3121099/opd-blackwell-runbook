@@ -17,7 +17,7 @@ case "$*" in *"import flash_attn"*) exit 0;; *fa_speed.py\ lp*) echo "verl noise
 SH
   chmod +x $T/root/venv-fa/bin/python
   for s in run_arm.sh run_e12.sh; do cat > $T/rb/scripts/$s <<'SH'
-echo "$(basename $0) $* VENV=${VENV:-} FIXED=${FIXED_MICRO_BSZ:-} GC=${GC:-} E12B_GC=${E12B_GC:-} E12B_FA=${E12B_FA:-} STEPS=$SMOKE_STEPS TASK=$PROBE_TASK" >> $CALLS
+echo "$(basename $0) $* VENV=${VENV:-}${E10D_FA:+ E10D_FA=$E10D_FA} FIXED=${FIXED_MICRO_BSZ:-} GC=${GC:-} E12B_GC=${E12B_GC:-} E12B_FA=${E12B_FA:-} STEPS=$SMOKE_STEPS TASK=$PROBE_TASK" >> $CALLS
 d=$OPD_ROOT/runs/$PROBE_TASK; mkdir -p $d; : > $d/config.yaml; st=$([ "${VENV:-}" = fa ] && echo 100 || echo 130)
 for i in 1 2 3; do echo "(TaskRunner pid=1) step:$i - timing_s/gen:30 - timing_s/update_actor:40 - timing_s/step:$st - response_length/mean:2000" >> $d/train.log; done
 SH
@@ -30,7 +30,7 @@ rep() { python3 -c "import json, sys; r = json.load(open(sys.argv[1])); print(ev
 setup
 bash $T/rb/scripts/fa_speed.sh 4 FA-SPEED-17 > /dev/null 2>&1
 ok "lp both models through venv-fa" 'grep -q "^pyfa .*fa_speed.py lp $T/m17 " $CALLS && grep -q "^pyfa .*fa_speed.py lp $T/m8 " $CALLS && [ "$(rep FA-SPEED-17 "r[\"lp_pass\"]")" = True ]'
-ok "three smokes, settings" 'grep -q "^run_arm.sh 4 E10b-P5 VENV= FIXED=4 GC=0 .*TASK=FA-SPEED-17-sdpa_fix4" $CALLS && grep -q "^run_arm.sh 4 E10b-P5 VENV=fa FIXED= GC=0 .*TASK=FA-SPEED-17-fa_tok" $CALLS && grep -q "^run_arm.sh 4 E10b-P5 VENV=fa FIXED=4 GC=0 .*TASK=FA-SPEED-17-fa_fix4" $CALLS'
+ok "three smokes, settings" 'grep -q "^run_arm.sh 4 E10b-P5 VENV= FIXED=4 GC=0 .*TASK=FA-SPEED-17-sdpa_fix4" $CALLS && grep -q "^run_arm.sh 4 E10b-P5 VENV=fa E10D_FA=1 FIXED= GC=0 .*TASK=FA-SPEED-17-fa_tok" $CALLS && grep -q "^run_arm.sh 4 E10b-P5 VENV=fa E10D_FA=1 FIXED=4 GC=0 .*TASK=FA-SPEED-17-fa_fix4" $CALLS'
 ok "speed-up vs sdpa" '[ "$(rep FA-SPEED-17 "r[\"variants\"][\"fa_tok\"][\"speedup_vs_sdpa_fix4\"][\"step\"]")" = 1.3 ] && [ "$(rep FA-SPEED-17 "r[\"smokes_ok\"]")" = True ]'
 ok "report up, event, .done" 'grep -q "^remote put $T/root/runs/FA-SPEED-17/up logs/abcd1234/fa_speed/FA-SPEED-17" $CALLS && grep -q "^control event FA-SPEED-17 fa_speed_done" $CALLS && [ -f $T/root/runs/FA-SPEED-17/.done ]'
 rm -rf $T
