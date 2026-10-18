@@ -140,3 +140,4 @@ commands:
   - {"seq": 138, "cmd": "dr-keep E10b-P6top5", "reason": "reviewer A1 20:20 UTC: finished arms' final weights to the share, one at a time (Runming's keep-final policy; the container disk does not survive a rebuild)", "utc": "2026-10-18T20:27:20Z"}
   - {"seq": 139, "cmd": "dr-keep E10b-P4EOSpen", "reason": "reviewer A1 20:20 UTC: finished arms' final weights to the share, one at a time (Runming's keep-final policy; the container disk does not survive a rebuild)", "utc": "2026-10-18T20:28:13Z"}
   - {"seq": 140, "cmd": "dr-keep E10c-P4lowlr-fix4", "reason": "reviewer A1 20:20 UTC: finished arms' final weights to the share, one at a time (Runming's keep-final policy; the container disk does not survive a rebuild)", "utc": "2026-10-18T20:29:22Z"}
+  - {"seq": 141, "cmd": "du dr", "reason": "share usage after the dr-keeps (reviewer A1 20:20 UTC asks for the total)", "utc": "2026-10-18T20:31:03Z"}
