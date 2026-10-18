@@ -145,3 +145,4 @@ commands:
   - {"seq": 143, "cmd": "logs EVAL-budA06 30", "reason": "reviewer 23:1x UTC: progress of EVAL-budA06 and PROBE-TERM", "utc": "2026-10-18T23:05:16Z"}
   - {"seq": 144, "cmd": "snapshot runs/EVAL-budA06/gen_eval.log", "reason": "reviewer 23:1x UTC: progress of EVAL-budA06 and PROBE-TERM", "utc": "2026-10-18T23:05:38Z"}
   - {"seq": 145, "cmd": "snapshot runs/PROBE-TERM/probe.log", "reason": "reviewer 23:1x UTC: progress of EVAL-budA06 and PROBE-TERM", "utc": "2026-10-18T23:07:08Z"}
+  - {"seq": 146, "cmd": "logs E10c-P4lowlr-dyn6144 400", "reason": "patrol URGENT 23:23 UTC: GPU2 265/275 GB, is the peak stable (perf/max_memory_allocated per step)", "utc": "2026-10-18T23:25:04Z"}
