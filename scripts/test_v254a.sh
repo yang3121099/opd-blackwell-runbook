@@ -138,6 +138,8 @@ mkdir -p $T/root/venv-fa/bin; : > $T/root/venv-fa/bin/activate   # v2.5.7c: E10c
 d6=$(VENV=fa DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10c-P4lowlr-fix4 | tail -1); d7=$(VENV=fa DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10b-P2 | tail -1)
 ok "VENV=fa: E10c pinned, E10b on venv-fa" '[[ "$d6" == *"venv=venv "* && "$d7" == *"venv=venv-fa "* ]]'
 d8=$(VENV=fa DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10d-P2 | tail -1); d9=$(VENV=fa E10D_FA=1 DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10d-P2 | tail -1)
+mkdir -p $T/root/runs/PROBE-4B; ( bash $T/rb/scripts/run_arm.sh 0 E10d-P2 > $T/g1 2>&1 ); r1=$?; echo '{"result": "PASS"}' > $T/root/runs/PROBE-4B/report.json
+ok "E10d gated on PROBE-4B PASS" '[ $r1 = 3 ] && grep -q "PROBE-4B has not passed" $T/g1'
 ok "E10d on SDPA unless E10D_FA=1" '[[ "$d8" == *"venv=venv "* && "$d9" == *"venv=venv-fa "* ]]'
 ok "E10d-P5: 4B student, P5, GC on" '[[ "$d5" == *"arm=P5 lr=3e-6 seed=42 student=$T/m4 "* && "$d5" == *"gc=True"* ]] && ! bash $T/rb/scripts/task.sh 0 E10d-P3 > /dev/null 2>&1'
 ok "FUSED=1 GC=0" '[[ "$d4" == *"kern=[actor_rollout_ref.model.use_fused_kernels=True actor_rollout_ref.model.fused_kernel_options.impl_backend=torch] gc=False"* && "$d3" == *"kern=[] gc=True"* ]]'
@@ -166,4 +168,4 @@ got=$( PATH=$T/bin:$PATH NGPU=14; eval "$(sed -n '/^free_gpus() {/,/; }$/p' $SRC
 kill $P1 $P2 2> /dev/null
 ok "running tasks keep their GPUs" '[[ " $got" == *" 1 "* && " $got" == *" 6 "* && " $got" != *" 5 "* && " $got" != *" 13 "* ]]'   # 13 must not hide 1
 rm -rf $T
-[ $fails = 0 ] && echo "V254A_TEST PASS (38 checks)" || echo "V254A_TEST FAIL ($fails)"
+[ $fails = 0 ] && echo "V254A_TEST PASS (39 checks)" || echo "V254A_TEST FAIL ($fails)"
