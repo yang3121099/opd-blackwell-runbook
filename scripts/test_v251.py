@@ -522,6 +522,27 @@ def test_rules_publish_leakscan(cmd, ok):
             R.parse({"cmd": cmd, "reason": "t"})
 
 
+@pytest.mark.parametrize("cmd,ok", [("fa-build", True), ("fa-build now", False)])
+def test_rules_fa_build(cmd, ok):
+    if ok:
+        R.parse({"cmd": cmd, "reason": "t"})
+    else:
+        with pytest.raises(R.Reject):
+            R.parse({"cmd": cmd, "reason": "t"})
+
+
+def test_v_fa_build_needs_venv_fa(env, monkeypatch):
+    """v2.5.6m: fa-build is refused without FA-PROBE's venv-fa and while a build runs; otherwise started in the background."""
+    c = env.c; started = []
+    monkeypatch.setattr(c.subprocess, "Popen", lambda a, **k: started.append(a))
+    assert c.v_fa_build([], 90)[0] == "rejected" and not started
+    os.makedirs(os.path.join(c.ROOT, "venv-fa"))
+    monkeypatch.setattr(c.subprocess, "run", lambda a, **k: types.SimpleNamespace(returncode=0))     # pgrep finds a build
+    assert c.v_fa_build([], 91)[0] == "rejected" and not started
+    monkeypatch.setattr(c.subprocess, "run", lambda a, **k: types.SimpleNamespace(returncode=1))
+    assert c.v_fa_build([], 92)[0] == "accepted" and started[0][-2:] == ["do_fa_build", "92"]
+
+
 def test_do_publish_maps_weights_to_local_bf16(env, monkeypatch):
     c = env.c; d = os.path.join(c.ROOT, "runs", "E10b-P2"); bf = os.path.join(d, "ckpt", "global_step_150", "actor", "huggingface_bf16")
     os.makedirs(bf)

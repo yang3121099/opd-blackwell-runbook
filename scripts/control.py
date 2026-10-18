@@ -1205,6 +1205,31 @@ def do_leakscan(seq):
     event("node", "leakscan", f"{len(real)} files with hits")
 
 
+def v_fa_build(a, seq, flags=None, entry=None):
+    """fa-build (v2.5.6m, rules 2.5.10): scripts/fa_build.sh in the background, without a GPU (nice 19): flash-attn
+    2.8.3.post2 built from its PyPI source into venv-fa (FA-PROBE's release wheel needs GLIBC_2.32). The receipt is
+    written when the build ends; `rerun FA-PROBE` afterwards runs the probe's varlen and smoke steps."""
+    if not os.path.isdir(os.path.join(ROOT, "venv-fa")):
+        return "rejected", "no venv-fa on this node (FA-PROBE builds it)", {}
+    if subprocess.run(["pgrep", "-f", "scripts/fa_build[.]sh"], capture_output=True).returncode == 0:
+        return "rejected", "a build is already running", {}
+    subprocess.Popen(["setsid", sys.executable, os.path.abspath(__file__), "do_fa_build", str(seq)],
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return "accepted", "flash-attn source build started (no GPU, nice 19); the receipt follows when it ends", {}
+
+
+def do_fa_build(seq):
+    d = os.environ.get("FA_BUILD_DIR") or os.path.join(ROOT, "tmp", "fa_build"); os.makedirs(d, exist_ok=True)
+    t0 = time.time()
+    with open(os.path.join(d, "run.out"), "a") as out:
+        rc = subprocess.run(["nice", "-n", "19", "bash", os.path.join(RUNBOOK, "scripts", "fa_build.sh")], stdin=subprocess.DEVNULL,
+                            stdout=out, stderr=subprocess.STDOUT).returncode
+    r = json.loads(_read(os.path.join(d, "result.json"), "{}") or "{}")
+    ok = rc == 0 and r.get("result") == "PASS"
+    receipt(seq, None, "ok" if ok else "failed", f"fa-build {r.get('result', 'no result')}: {r.get('reason', f'exit {rc}')}"[:600],
+            seconds=round(time.time() - t0), **{k: r.get(k) for k in ("cuda_home", "wheel", "build_seconds", "after") if k in r})
+
+
 def v_cancel(a, seq, flags=None, entry=None):
     target = int(a[0]); os.makedirs(_p("cancelled"), exist_ok=True)
     open(_p("cancelled", str(target)), "w").write(f"by seq {seq} {utc()}\n")
@@ -1391,7 +1416,7 @@ def _v24(fn):
 VERBS = {"pause": _v24(v_pause), "resume": _v24(v_resume), "kill": _v24(v_kill), "prio": _v24(v_prio),
          "restore": _v24(v_restore), "rerun_verify": _v24(v_rerun_verify), "setenv": v_set, "set": v_set,
          "snapshot": lambda a, seq, flags=None, entry=None: v_snapshot0(seq) if not a else v_snapshot(a, seq),
-         "ps": v_ps, "logs": v_logs, "run": v_run, "rerun": v_rerun, "republish": v_republish, "publish": v_publish, "leakscan": v_leakscan, "eval": v_eval, "update": v_update, "upload": v_upload,
+         "ps": v_ps, "logs": v_logs, "run": v_run, "rerun": v_rerun, "republish": v_republish, "publish": v_publish, "leakscan": v_leakscan, "fa-build": v_fa_build, "eval": v_eval, "update": v_update, "upload": v_upload,
          "signal": v_signal, "kill-pgid": v_killpgid, "cancel": v_cancel, "heartbeat": v_heartbeat, "move-ckpt": v_move_ckpt, "reap": v_reap}
 assert set(VERBS) == set(R.VERBS), set(VERBS) ^ set(R.VERBS)
 TASK_VERBS = R.TASK_VERBS
@@ -1536,6 +1561,8 @@ if __name__ == "__main__":
         do_publish(int(sys.argv[2]), sys.argv[3])
     elif cmd == "do_leakscan":
         do_leakscan(int(sys.argv[2]))
+    elif cmd == "do_fa_build":
+        do_fa_build(int(sys.argv[2]))
     elif cmd == "do_republish":
         do_republish(int(sys.argv[2]), sys.argv[3])
     elif cmd == "do_move":
