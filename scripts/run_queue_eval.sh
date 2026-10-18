@@ -6,6 +6,8 @@
 # rules of the `eval` command (control_rules.check_eval_args). They run one after the other on this GPU with the settings
 # of run_adhoc_eval.sh (no_think, T=0.6: top_p 0.95 / T=1.0: top_p 1.0, top_k 0, 16K, resumable blocks); results in
 # runs/EVAL-<name>/ locally and in the public result repository; .done once every listed evaluation has its metrics.
+# v2.5.7g (reviewer 18:4x UTC, budget-dependence readings A): an optional 7th field = the generation budget max_tokens
+# (2048 / 4096 / 8192 / 16384 / 32768; default 16384, as before):  #eval EVAL-<name> <tag> <model> <bench> <n> <temp> [<max_tokens>]
 # v2.5.4e: models from yang31210999/opd-lab-ckpts come through fetch_model.py (complete by size and sha256, or not used);
 # `prefetch` mode fetches every model of the task without a GPU and writes runs/EVAL-<name>/.inputs_ok (the hash of the
 # task's #eval lines); run_tasks.sh starts prefetches for all EVAL tasks of the queue and gives a GPU only after .inputs_ok.
@@ -14,7 +16,7 @@ set -uo pipefail
 source "$(dirname "$0")/env.sh"; source ${VENV_EVAL:-$OPD_ROOT/venv}/bin/activate
 G=$1; T=$2; OUT=$OPD_ROOT/runs/$T; Q=${QUEUE_FILE:-$RUNBOOK/tasks/queue.txt}; mkdir -p $OUT
 [ -f $OUT/.done ] && { echo "TASK_ALREADY_DONE $T"; exit 0; }
-SPECS=$(awk -v t="$T" '$1 == "#eval" && $2 == t {print $3, $4, $5, $6, $7}' "$Q")
+SPECS=$(awk -v t="$T" '$1 == "#eval" && $2 == t {print $3, $4, $5, $6, $7, $8}' "$Q")
 [ -n "$SPECS" ] || { echo "no #eval lines for $T in the queue"; exit 1; }
 HASH=$(awk -v t="$T" '$1 == "#eval" && $2 == t' "$Q" | cksum | cut -d' ' -f1)
 fetch_ckpt() {   # $1 = path inside yang31210999/opd-lab-ckpts; 0 when complete
@@ -27,7 +29,7 @@ fetch_result() {   # v2.5.6h: $1 = path inside this node's public result reposit
     [ "$G" = prefetch ] && return 1; sleep ${RESULT_WAIT_STEP:-60}; done; return 1; }
 if [ "$G" = prefetch ]; then
   pok=1
-  while read -r TAG MODEL BENCH N TEMP; do
+  while read -r TAG MODEL BENCH N TEMP MAXT; do
     case $MODEL in yang31210999/opd-lab-ckpts/*) fetch_ckpt "${MODEL#yang31210999/opd-lab-ckpts/}" || { echo "PREFETCH_FAILED $TAG $MODEL"; pok=0; };;
       result:*) fetch_result "${MODEL#result:}" || { echo "PREFETCH_FAILED $TAG $MODEL"; pok=0; };; esac
   done <<< "$SPECS"
@@ -35,11 +37,12 @@ if [ "$G" = prefetch ]; then
   rm -f $OUT/.inputs_ok; exit 1
 fi
 ok=1; touch $OUT/.models   # v2.5.6i: "<tag> <resolved model>" per reading, for a #twr line (kept across attempts)
-while read -r TAG MODEL BENCH N TEMP; do
+while read -r TAG MODEL BENCH N TEMP MAXT; do
+  MAXT=${MAXT:-16384}
   [[ $TAG =~ ^[A-Za-z0-9._-]+$ ]] || { echo "REFUSED bad tag $TAG"; ok=0; continue; }
   ls $OUT/${TAG}_*.metrics.json > /dev/null 2>&1 && { echo "DONE_ALREADY $TAG"; continue; }
-  python -c "import sys; sys.path.insert(0, sys.argv[1]); import control_rules as R; R.check_eval_args(sys.argv[2:6])" \
-    "$RUNBOOK/scripts" "$MODEL" "$BENCH" "$N" "$TEMP" || { echo "REFUSED $TAG: $MODEL $BENCH $N $TEMP"; ok=0; continue; }
+  python -c "import sys; sys.path.insert(0, sys.argv[1]); import control_rules as R; R.check_eval_args(sys.argv[2:7])" \
+    "$RUNBOOK/scripts" "$MODEL" "$BENCH" "$N" "$TEMP" "$MAXT" || { echo "REFUSED $TAG: $MODEL $BENCH $N $TEMP $MAXT"; ok=0; continue; }
   case $MODEL in
     Qwen/Qwen3-0.6B) M=$STUDENT_06B;; Qwen/Qwen3-1.7B) M=$STUDENT_17B;; Qwen/Qwen3-8B) M=$TEACHER;; Qwen/*) M=$MODEL;;
     yang31210999/opd-lab-ckpts/*)
@@ -55,7 +58,7 @@ while read -r TAG MODEL BENCH N TEMP; do
   case $BENCH in aime24|aime25|amc23) K=10;; *) K=50;; esac
   echo "EVAL_START $(date -u +%T) $TAG"
   CUDA_VISIBLE_DEVICES=$G python $RUNBOOK/code/eval/gen_eval.py --model $M --bench $BENCH --mode no_think --n $N $SAMP \
-    --max_tokens 16384 --chunk $K --tag $TAG --out $OUT >> $OUT/gen_eval.log 2>&1 || { echo "EVAL_FAIL $TAG"; ok=0; python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1; continue; }
+    --max_tokens $MAXT --chunk $K --tag $TAG --out $OUT >> $OUT/gen_eval.log 2>&1 || { echo "EVAL_FAIL $TAG"; ok=0; python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1; continue; }
   echo "EVAL_DONE $(date -u +%T) $TAG"; echo "$TAG $M" >> $OUT/.models
   python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true   # v2.5.4b: release the GPU before the next engine
 done <<< "$SPECS"
@@ -83,6 +86,23 @@ while read -r PTAG PREFS; do
   python3 $RUNBOOK/code/analysis/paired_bootstrap.py --pairs $OUT/${PTAG}.paired.json "$SC" "${RP[@]}" > /dev/null 2>> $OUT/pair.log \
     && echo "PAIR_DONE $PTAG (${#RP[@]} refs)" || echo "PAIR_FAIL $PTAG (see pair.log)"
 done <<< "$(awk -v t="$T" '$1 == "#pair" && $2 == t {$1 = ""; $2 = ""; sub(/^  /, ""); print}' "$Q")"
+# v2.5.7g (reviewer 18:4x UTC, readings A): "#budget EVAL-<name> <out> <base> <reading> [<reading> ...]" = accuracy and
+# truncation rate of each reading at the budgets 2K / 4K / 8K / 16K / 32K, read off one long generation (a sample counts
+# at budget B as it would have been graded had it been cut at B tokens: unchanged if it ended within B, else its first B
+# tokens graded again), every reading paired against <base> at every budget (problem-level bootstrap), and the crossing
+# budget (the smallest B where reading - base turns positive); code/analysis/budget_curve.py, CPU only, <out>.json
+# (reviewer A1 19:2x UTC: <out> = budget_curve, i.e. runs/EVAL-bud*/budget_curve.json; the table in <out>.txt).
+# A reading is a tag of this task or <task dir>/<file>.jsonl under $OPD_ROOT/runs; a missing one is listed.
+while read -r BOUT BREFS; do
+  [ -n "$BOUT" ] || continue
+  [[ $BOUT =~ ^[A-Za-z0-9._-]+$ ]] || { echo "BUDGET_REFUSED bad name $BOUT"; continue; }
+  BP=(); for R in $BREFS; do
+    if [[ $R =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+\.jsonl$ ]]; then BP+=("$OPD_ROOT/runs/$R")
+    elif [[ $R =~ ^[A-Za-z0-9._-]+$ ]]; then F=$(ls $OUT/${R}_*.jsonl 2>/dev/null | head -1); BP+=("${F:-$OUT/$R.missing.jsonl}")
+    else echo "BUDGET_REF_REFUSED $R"; fi; done
+  python $RUNBOOK/code/analysis/budget_curve.py --out $OUT/$BOUT.json --tokenizer $STUDENT_17B "${BP[@]}" > $OUT/$BOUT.txt 2>> $OUT/budget.log \
+    && echo "BUDGET_DONE $BOUT (${#BP[@]} readings)" || echo "BUDGET_FAIL $BOUT (see budget.log)"
+done <<< "$(awk -v t="$T" '$1 == "#budget" && $2 == t {$1 = ""; $2 = ""; sub(/^  /, ""); print}' "$Q")"
 python $RUNBOOK/scripts/remote.py put $OUT runs/$T || { echo "upload failed (results kept in $OUT)"; ok=0; }
 [ $ok = 1 ] && touch $OUT/.done
 echo "TASK_FINISHED $T ok=$ok"

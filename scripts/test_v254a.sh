@@ -95,6 +95,23 @@ PJ=$T/root/runs/EVAL-pp/pp_s100_math500_T0.6.paired.json
 ok "paired CI written" 'python3 -c "import json, sys; r = json.load(open(sys.argv[1]))[\"pairs\"]; sys.exit(0 if r[0][\"diff\"] == 12.5 and r[0][\"problems\"] == 20 and r[0][\"wins\"] == 10 and r[0][\"ref\"] == \"E11b-P0/base.jsonl\" and r[1][\"error\"] == \"missing\" and len(r) == 2 else 1)" $PJ'
 ok "bad pair ref refused, no absolute path in the result" 'grep -q "PAIR_REF_REFUSED ../etc/passwd.jsonl" $T/out4 && ! grep -q "$T" $PJ && grep -q "PAIR_DONE pp_s100_math500_T0.6" $T/out4'
 rm -rf $T
+# 3c. v2.5.7g: the 7th field max_tokens (checked; default 16384) and "#budget" (budget_curve.py on this task's tags and
+#     references under runs/; a bad reference refused, a missing tag listed)
+setup
+mkdir -p $T/m17; touch $T/m17/model.safetensors
+mkdir -p $T/rb/code/analysis; printf 'import sys, os; open(os.environ["CALLS"], "a").write("budget " + " ".join(sys.argv[1:]) + "\\n")\n' > $T/rb/code/analysis/budget_curve.py
+cat > $T/rb/tasks/queue.txt <<'EOF'
+version: 2
+#eval EVAL-bud bud_base17_32k Qwen/Qwen3-1.7B math500 4 0.6 32768
+#eval EVAL-bud bud_x Qwen/Qwen3-1.7B math500 4 0.6
+#eval EVAL-bud bud_y Qwen/Qwen3-1.7B math500 4 0.6 12000
+#budget EVAL-bud budget_curve bud_base17_32k bud_x E11b-P0/base.jsonl nosuch ../etc/x.jsonl
+EOF
+bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-bud > $T/out5 2>&1
+ok "max_tokens 32768 / default 16384 / 12000 refused" 'grep -q "^gen_eval .*--max_tokens 32768 .*--tag bud_base17_32k " $CALLS && grep -q "^gen_eval .*--max_tokens 16384 .*--tag bud_x " $CALLS && ! grep -q "tag bud_y" $CALLS && grep -q "REFUSED bud_y: .* 12000" $T/out5'
+O=$T/root/runs/EVAL-bud
+ok "#budget: tags, runs/ reference, missing tag listed, bad reference refused" 'grep -q "^budget --out $O/budget_curve.json --tokenizer $T/m17 $O/bud_base17_32k_math500_no_think_t0.6.jsonl $O/bud_x_math500_no_think_t0.6.jsonl $T/root/runs/E11b-P0/base.jsonl $O/nosuch.missing.jsonl$" $CALLS && grep -q "BUDGET_REF_REFUSED ../etc/x.jsonl" $T/out5 && grep -q "BUDGET_DONE budget_curve" $T/out5'
+rm -rf $T
 # 5. v2.5.4e prefetch: every opd-lab-ckpts model through fetch_model.py, .inputs_ok = hash of the #eval lines (run_tasks'
 #    inputs_ok agrees), a changed spec list invalidates it, a failed fetch writes none; an eval whose fetch fails is not run
 setup
@@ -131,6 +148,8 @@ d2=$(FIXED_MICRO_BSZ=4 DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10c-P4lowlr-dyn
 d3=$(FIXED_MICRO_BSZ= DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10b-P4lowlr | tail -1)
 ok "E10c fix4" '[[ "$d1" == *"arm=P4 lr=6e-7 seed=42 student=$T/m06 "* && "$d1" == *"use_dynamic_bsz=False"*"ppo_micro_batch_size_per_gpu=4"* ]]'
 ok "E10c dyn16k ignores the OOM retry key" '[[ "$d2" == *"student=$T/m06 "* && "$d2" == *"use_dynamic_bsz=True"*"ppo_max_token_len_per_gpu=16384"* ]]'
+d8=$(FIXED_MICRO_BSZ=4 DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10c-P4lowlr-dyn6144 | tail -1); d9=$(FIXED_MICRO_BSZ= DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10c-P4lowlr-fix4-s43 | tail -1)
+ok "v2.5.7g E10c dyn6144, fix4-s43 (data seed 43)" '[[ "$d8" == *"arm=P4 lr=6e-7 seed=42 student=$T/m06 "*"use_dynamic_bsz=True"*"ppo_max_token_len_per_gpu=6144"* && "$d9" == *"arm=P4 lr=6e-7 seed=43 student=$T/m06 "*"ppo_micro_batch_size_per_gpu=4"* ]] && [[ "$(DRYRUN=1 bash $T/rb/scripts/task.sh 0 E10c-P5-dyn6144-s43 | tail -1)" == DRYRUN* ]] && ! bash $T/rb/scripts/task.sh 0 E10c-P5-dyn6144-s44 > /dev/null 2>&1 && ! bash $T/rb/scripts/task.sh 0 E10c-P5-dyn8192 > /dev/null 2>&1'
 ok "E10b unchanged" '[[ "$d3" == *"student=$T/m17 "* && "$d3" == *"use_dynamic_bsz=True"* ]]'
 d4=$(FUSED=1 GC=0 DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10b-P2 | tail -1)   # v2.5.6o: SPEED-PROBE knobs
 d5=$(GC=0 DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10d-P5 | tail -1)   # v2.5.7b: the 4B student, checkpointing on
@@ -168,4 +187,4 @@ got=$( PATH=$T/bin:$PATH NGPU=14; eval "$(sed -n '/^free_gpus() {/,/; }$/p' $SRC
 kill $P1 $P2 2> /dev/null
 ok "running tasks keep their GPUs" '[[ " $got" == *" 1 "* && " $got" == *" 6 "* && " $got" != *" 5 "* && " $got" != *" 13 "* ]]'   # 13 must not hide 1
 rm -rf $T
-[ $fails = 0 ] && echo "V254A_TEST PASS (39 checks)" || echo "V254A_TEST FAIL ($fails)"
+[ $fails = 0 ] && echo "V254A_TEST PASS (42 checks)" || echo "V254A_TEST FAIL ($fails)"

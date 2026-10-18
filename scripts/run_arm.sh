@@ -13,7 +13,9 @@ SEED=42; BASE=$TASK; [[ $TASK =~ -s(43|44)$ ]] && { SEED=${BASH_REMATCH[1]}; BAS
 # v2.5.6f (queue v3 V3-c1): E10c-<arm>-fix4 / -dyn16k = the lab's 0.6B E10 arm on this node (student Qwen3-0.6B; data,
 # seeds and hyper-parameters as the lab's run_e10_arm.sh), with a fixed 4 sequences per micro-batch or the lab's dynamic
 # token budget of 16384. The batching mode is the experiment: an out-of-memory retry does not change it.
-MODE=""; [[ $TASK =~ ^E10c-(.+)-(fix4|dyn16k)$ ]] && { BASE=E10b-${BASH_REMATCH[1]}; MODE=${BASH_REMATCH[2]}; }
+# v2.5.7g (reviewer 18:4x UTC): -dyn6144 = the dynamic token budget at 6144 (dyn16k ran out of memory in the entropy
+# without remove-padding; verl needs the budget >= the padded 5120), and -s43 = data.seed 43 (the seed parse above)
+MODE=""; [[ $TASK =~ ^E10c-(.+)-(fix4|dyn16k|dyn6144)(-s(43|44))?$ ]] && { BASE=E10b-${BASH_REMATCH[1]}; MODE=${BASH_REMATCH[2]}; }
 # v2.5.7b (queue v3 V3-c5, the 4B probe): E10d-<P2|P5> = the E10b arm with the 4B student ($STUDENT_4B); gradient
 # checkpointing stays on for it (GC=0 was measured on 1.7B only), the batching is the node's (FIXED_MICRO_BSZ)
 SIZE=""; [[ $TASK =~ ^E10d-(P2|P5)$ ]] && { BASE=E10b-${BASH_REMATCH[1]}; SIZE=4B; }
@@ -34,7 +36,7 @@ STUDENT=${STUDENT:-$STUDENT_17B}   # the verification smoke uses $STUDENT_06B
 if [ "$SIZE" = 4B ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
   grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-4B/report.json 2> /dev/null || { echo "PROBE-4B has not passed: $TASK not started"; exit 3; }
 fi
-case $MODE in fix4) FIXED_MICRO_BSZ=4;; dyn16k) FIXED_MICRO_BSZ=""; MAX_TOK_GPU=16384;; esac
+case $MODE in fix4) FIXED_MICRO_BSZ=4;; dyn16k) FIXED_MICRO_BSZ=""; MAX_TOK_GPU=16384;; dyn6144) FIXED_MICRO_BSZ=""; MAX_TOK_GPU=6144;; esac
 [ -n "$MODE" ] && VENV=   # v2.5.7c: E10c is registered on this node without remove-padding (V3-c1): the venv in use
 [ "$SIZE" = 4B ] && [ "${E10D_FA:-0}" != 1 ] && VENV=   # v2.5.7d: the 4B ladder stays on SDPA (reviewer 09:0x UTC), FA-SPEED-4B sets E10D_FA=1
 case ${VENV:-} in fa) VENV=$OPD_ROOT/venv-fa;; esac   # v2.5.3: setenv VENV=fa (after FA-PROBE passed) = venv-fa with flash-attn

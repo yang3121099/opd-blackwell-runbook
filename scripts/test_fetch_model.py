@@ -31,6 +31,10 @@ def hub(monkeypatch):
             self.ep = endpoint
             state.setdefault("tokens", []).append((endpoint, token))
 
+        def get_paths_info(self, repo, paths):   # v2.5.7g: one file
+            state["paths_info"] = paths
+            return [types.SimpleNamespace(path=paths[0], size=len(W), lfs={"sha256": SHA_W})]
+
         def list_repo_tree(self, repo, path_in_repo, recursive=True):
             if self.ep in state["list_fail"]:
                 raise OSError("HEAD failed")
@@ -103,3 +107,10 @@ def test_hf_transfer_off_after_a_failure(hub, monkeypatch, tmp_path):
     monkeypatch.setattr(huggingface_hub, "hf_hub_download", flaky)
     r = F.fetch("o/r", "runs/X/s/actor/huggingface", str(tmp_path))
     assert r["ok"] and r["hf_transfer"] is False and r["errors"][0].get("hf_transfer_off")
+
+
+def test_single_file(hub, tmp_path):   # v2.5.7g: an archived generation file (PROBE-TERM)
+    f = "runs/e11/e11_P0_math500_T0.6_math500_no_think_t0.6.jsonl"
+    r = F.fetch("o/r", f, str(tmp_path))
+    assert r["ok"] and r["files"] == 1 and hub["paths_info"] == [f] and (tmp_path / f).read_bytes() == W
+    assert os.path.isfile(str(tmp_path / f) + ".fetch_ok") and F.fetch("o/r", f, str(tmp_path)).get("cached")

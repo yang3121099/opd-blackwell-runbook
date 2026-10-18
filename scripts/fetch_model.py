@@ -6,7 +6,9 @@ The file list, sizes and LFS sha256 come from the Hub API (list_repo_tree). Endp
 HF_DOWNLOAD_ENDPOINTS (comma list; default https://huggingface.co, then https://hf-mirror.com), each up to 3 times, with
 the token (HF_TOKEN) sent to huggingface.co only, never to a mirror; longer timeouts than the library's (HF_HUB_ETAG_TIMEOUT 60 s, HF_HUB_DOWNLOAD_TIMEOUT 120 s, unless set). The directory
 counts as complete when every listed file exists locally with the listed size and every LFS file has the listed sha256;
-a file of the wrong size is downloaded again. A complete directory gets <local dir>/<prefix>/.fetch_ok (the file list
+a file of the wrong size is downloaded again. v2.5.7g: a prefix ending in .jsonl or .json names one file (PROBE-TERM's
+archived generations; its metadata from get_paths_info, its record <local dir>/<prefix>.fetch_ok).
+A complete directory gets <local dir>/<prefix>/.fetch_ok (the file list
 with sizes and sha256), so a later call returns at once. One JSON line on stdout: ok, endpoint, files, bytes fetched,
 seconds, MB/s, and the error of every failed attempt (type and the first 200 characters); with --task, also an event
 fetch_done / fetch_failed. Exit 0 when complete, 1 when not.
@@ -42,10 +44,15 @@ def sha256(path, bs=1 << 22):
     return h.hexdigest()
 
 
+def single_file(prefix):
+    return prefix.endswith((".jsonl", ".json"))
+
+
 def listing(api, repo, prefix):
-    """[(path, size, sha256 or None)] of the files under prefix."""
+    """[(path, size, sha256 or None)] of the files under prefix (or of the one file prefix names)."""
     out = []
-    for f in api.list_repo_tree(repo, path_in_repo=prefix, recursive=True):
+    entries = api.get_paths_info(repo, [prefix]) if single_file(prefix) else api.list_repo_tree(repo, path_in_repo=prefix, recursive=True)
+    for f in entries:
         size = getattr(f, "size", None)
         if size is None:          # a folder
             continue
@@ -69,7 +76,7 @@ def fetch(repo, prefix, local):
     from huggingface_hub import HfApi, hf_hub_download
     from huggingface_hub import constants as K
     prefix = prefix.strip("/")
-    ok_file = os.path.join(local, prefix, ".fetch_ok")
+    ok_file = os.path.join(local, prefix + ".fetch_ok") if single_file(prefix) else os.path.join(local, prefix, ".fetch_ok")
     if os.path.isfile(ok_file):
         try:
             files = [tuple(x) for x in json.load(open(ok_file))["files"]]

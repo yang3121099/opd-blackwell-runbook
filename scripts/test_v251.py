@@ -333,7 +333,21 @@ def test_v_reap_calls_reap(env, monkeypatch):
     assert "no orphaned" in env.c.v_reap(["5"], 42)[1]
 
 
-@pytest.mark.parametrize("cmd,ok", [("rerun FA-PROBE", True), ("rerun EVAL-bridge", True), ("rerun E10b-P2", True), ("rerun SFT-P1", True), ("rerun E10c-P4lowlr-fix4", True), ("rerun /etc", False),
+def test_eval_max_tokens():   # v2.5.7g: the 7th field of a queue #eval line
+    R.check_eval_args(["Qwen/Qwen3-1.7B", "math500", "4", "0.6", "32768"]); R.check_eval_args(["Qwen/Qwen3-1.7B", "math500", "4", "0.6"])
+    for bad in ("12000", "65536", "2k", ""):
+        with pytest.raises(R.Reject):
+            R.check_eval_args(["Qwen/Qwen3-1.7B", "math500", "4", "0.6", bad])
+
+
+@pytest.mark.parametrize("cmd,ok", [("eval Qwen/Qwen3-1.7B math500 4 0.6", True)])
+def test_eval_verb_unchanged(cmd, ok):   # the eval verb keeps 2-4 arguments (no budget there)
+    R.parse({"cmd": cmd, "reason": "t"})
+    with pytest.raises(R.Reject):
+        R.parse({"cmd": cmd + " 32768", "reason": "t"})
+
+
+@pytest.mark.parametrize("cmd,ok", [("rerun FA-PROBE", True), ("rerun EVAL-bridge", True), ("rerun E10b-P2", True), ("rerun SFT-P1", True), ("rerun E10c-P4lowlr-fix4", True), ("rerun PROBE-TERM", True), ("rerun E10c-P4lowlr-dyn6144", True), ("rerun /etc", False),
                                     ("rerun EVAL-a;b", False), ("rerun", False), ("rerun FA-PROBE x", False)])
 def test_rules_rerun(cmd, ok):
     if ok:
