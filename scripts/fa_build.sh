@@ -85,8 +85,11 @@ PY
   R=$(ls $SP/cuda_runtime/lib/libcudart.so.12* 2> /dev/null | head -1)
   [ -n "$R" ] || finish FAIL "no libcudart.so.12 in venv-fa's nvidia/cuda_runtime"
   ln -s $R $C/lib64/libcudart.so; ln -s $R $C/lib64/libcudart.so.12
-  v=$($C/bin/nvcc --version 2> /dev/null | sed -n 's/.*release \([0-9]*\)\.\([0-9]*\).*/\1.\2/p' | head -1)
-  [ "$v" = 12.8 ] || finish FAIL "pip nvcc does not run or is not 12.8 (got '${v}')"
+  # v2.5.6p: uv unpacked the wheel without the executable bits (B300 05:42 UTC, seq 98: nvcc --version printed nothing)
+  chmod -R u+x $C/bin $P/nvidia/cuda_nvcc/nvvm/bin 2> /dev/null
+  VOUT=$($C/bin/nvcc --version 2>&1); echo "$VOUT" >> $LOG
+  v=$(echo "$VOUT" | sed -n 's/.*release \([0-9]*\)\.\([0-9]*\).*/\1.\2/p' | head -1)
+  [ "$v" = 12.8 ] || finish FAIL "pip nvcc does not run or is not 12.8 (got '${v}'; mode $(stat -c %A $C/bin/nvcc 2> /dev/null); $(echo "$VOUT" | tail -c 300 | tr '\n' ' '))"
   printf '#include <cuda_runtime.h>\n#include <cuda_bf16.h>\n#include <cuda/std/cstdint>\n__global__ void k(__nv_bfloat16 *x, cuda::std::int32_t n) { if (threadIdx.x < n) x[threadIdx.x] = __float2bfloat16(1.0f); }\nint main() { return 0; }\n' > $D/t.cu
   $C/bin/nvcc -arch=sm_100 -I$C/include -L$C/lib64 -lcudart -o $D/t $D/t.cu >> $LOG 2>&1 || finish FAIL "pip CUDA 12.8 cannot compile a test kernel for sm_100: $(tail -c 300 $LOG | tr '\n' ' ')"
   CH=$C; put cuda_from pip
