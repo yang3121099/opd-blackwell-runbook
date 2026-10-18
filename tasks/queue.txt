@@ -35,3 +35,8 @@ zero     open   E03-MI-l0.0 E03-MI-l0.3 E03-MI-l0.5 E03-MI-l0.7 E03-MI-l1.0 E02-
 #eval EVAL-e12b-P3 e12b_P3_s100_math500_T1.0 result:runs/E12b-P3/global_step_100/actor/huggingface math500 4 1.0
 #eval EVAL-e12b-P1 e12b_P1_s100_math500_T0.6 result:runs/E12b-P1/global_step_100/actor/huggingface math500 4 0.6
 #eval EVAL-e12b-P1 e12b_P1_s100_math500_T1.0 result:runs/E12b-P1/global_step_100/actor/huggingface math500 4 1.0
+#twr EVAL-e12b-P0 e12b_P0_s100_math500_T0.6
+#twr EVAL-e12b-P2 e12b_P2_s100_math500_T0.6
+#twr EVAL-e12b-P5 e12b_P5_s100_math500_T0.6
+#twr EVAL-e12b-P3 e12b_P3_s100_math500_T0.6
+#twr EVAL-e12b-P1 e12b_P1_s100_math500_T0.6
