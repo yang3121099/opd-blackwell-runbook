@@ -71,6 +71,18 @@ if [ -n "$TWR_TAG" ] && [ ! -f $OUT/twr.json ]; then
     python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true
   else echo "TWR_SKIPPED $TWR_TAG (ref ${REF:-missing}, score ${SC:-missing}, model ${M:-missing})"; fi
 fi
+# v2.5.6r (reviewer A1 06:3x UTC): "#pair EVAL-<name> <tag> <ref> [<ref> ...]" = problem-level paired bootstrap of that
+# reading against each reference (code/analysis/paired_bootstrap.py, the lab's method: per-problem accuracy, 10000
+# resamples, seed 0, 95% percentile CI, wins / losses); a ref is <task dir>/<file>.jsonl under $OPD_ROOT/runs; the result
+# is <tag>.paired.json next to the reading; CPU only; a missing reference is listed, the readings are not affected
+while read -r PTAG PREFS; do
+  [ -n "$PTAG" ] || continue
+  SC=$(ls $OUT/${PTAG}_*.jsonl 2>/dev/null | head -1)
+  [ -n "$SC" ] || { echo "PAIR_SKIPPED $PTAG (no reading)"; continue; }
+  RP=(); for R in $PREFS; do [[ $R =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+\.jsonl$ ]] && RP+=("$OPD_ROOT/runs/$R") || echo "PAIR_REF_REFUSED $R"; done
+  python3 $RUNBOOK/code/analysis/paired_bootstrap.py --pairs $OUT/${PTAG}.paired.json "$SC" "${RP[@]}" > /dev/null 2>> $OUT/pair.log \
+    && echo "PAIR_DONE $PTAG (${#RP[@]} refs)" || echo "PAIR_FAIL $PTAG (see pair.log)"
+done <<< "$(awk -v t="$T" '$1 == "#pair" && $2 == t {$1 = ""; $2 = ""; sub(/^  /, ""); print}' "$Q")"
 python $RUNBOOK/scripts/remote.py put $OUT runs/$T || { echo "upload failed (results kept in $OUT)"; ok=0; }
 [ $ok = 1 ] && touch $OUT/.done
 echo "TASK_FINISHED $T ok=$ok"

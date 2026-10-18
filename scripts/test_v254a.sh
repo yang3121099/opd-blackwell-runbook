@@ -74,6 +74,27 @@ ok "finished evals skipped" '[ "$(grep -c "^gen_eval" $CALLS)" = 0 ] && grep -q 
 bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-other > $T/out3 2>&1
 ok "bad model refused" 'grep -q REFUSED $T/out3 && [ ! -f $T/root/runs/EVAL-other/.done ]'
 rm -rf $T
+# 3b. v2.5.6r "#pair": a finished reading paired against references under runs/ (problem-level bootstrap, CPU only)
+setup
+mkdir -p $T/rb/code/analysis $T/root/runs/EVAL-pp $T/root/runs/E11b-P0; cp $SRC/code/analysis/paired_bootstrap.py $T/rb/code/analysis/
+cat > $T/rb/tasks/queue.txt <<'EOF'
+version: 2
+#eval EVAL-pp pp_s100_math500_T0.6 result:runs/E12b-PP/global_step_100/actor/huggingface math500 4 0.6
+#pair EVAL-pp pp_s100_math500_T0.6 E11b-P0/base.jsonl E11b-P9/missing.jsonl ../etc/passwd.jsonl
+EOF
+echo '{"avg_acc": 1}' > $T/root/runs/EVAL-pp/pp_s100_math500_T0.6_math500_no_think_t0.6.metrics.json
+python3 -c "
+import json, sys
+a, b = open(sys.argv[1], 'w'), open(sys.argv[2], 'w')
+for p in range(20):
+    for s in range(4):
+        a.write(json.dumps({'pid': p, 'sample': s, 'correct': p % 2 == 0 or s == 0}) + chr(10)); b.write(json.dumps({'pid': p, 'sample': s, 'correct': p % 2 == 0}) + chr(10))
+" $T/root/runs/EVAL-pp/pp_s100_math500_T0.6_math500_no_think_t0.6.jsonl $T/root/runs/E11b-P0/base.jsonl
+bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-pp > $T/out4 2>&1
+PJ=$T/root/runs/EVAL-pp/pp_s100_math500_T0.6.paired.json
+ok "paired CI written" 'python3 -c "import json, sys; r = json.load(open(sys.argv[1]))[\"pairs\"]; sys.exit(0 if r[0][\"diff\"] == 12.5 and r[0][\"problems\"] == 20 and r[0][\"wins\"] == 10 and r[0][\"ref\"] == \"E11b-P0/base.jsonl\" and r[1][\"error\"] == \"missing\" and len(r) == 2 else 1)" $PJ'
+ok "bad pair ref refused, no absolute path in the result" 'grep -q "PAIR_REF_REFUSED ../etc/passwd.jsonl" $T/out4 && ! grep -q "$T" $PJ && grep -q "PAIR_DONE pp_s100_math500_T0.6" $T/out4'
+rm -rf $T
 # 5. v2.5.4e prefetch: every opd-lab-ckpts model through fetch_model.py, .inputs_ok = hash of the #eval lines (run_tasks'
 #    inputs_ok agrees), a changed spec list invalidates it, a failed fetch writes none; an eval whose fetch fails is not run
 setup
@@ -138,4 +159,4 @@ got=$( PATH=$T/bin:$PATH NGPU=14; eval "$(sed -n '/^free_gpus() {/,/; }$/p' $SRC
 kill $P1 $P2 2> /dev/null
 ok "running tasks keep their GPUs" '[[ " $got" == *" 1 "* && " $got" == *" 6 "* && " $got" != *" 5 "* && " $got" != *" 13 "* ]]'   # 13 must not hide 1
 rm -rf $T
-[ $fails = 0 ] && echo "V254A_TEST PASS (33 checks)" || echo "V254A_TEST FAIL ($fails)"
+[ $fails = 0 ] && echo "V254A_TEST PASS (35 checks)" || echo "V254A_TEST FAIL ($fails)"
