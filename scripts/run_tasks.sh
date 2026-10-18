@@ -67,7 +67,8 @@ prefetch_pass() {
   pgrep -f "run_queue_eval\.sh prefetch " > /dev/null && return
   for t in $(awk '$1 == "#eval" {print $2}' "$Q" | sort -u); do
     [ -f $OPD_ROOT/runs/$t/.done ] && continue; inputs_ok $t && continue
-    [ -n "$(find $OPD_ROOT/runs/$t/.prefetch_fail -mmin -30 2>/dev/null)" ] && continue
+    [ -n "$(find $OPD_ROOT/runs/$t/.prefetch_fail -mmin -10 2>/dev/null)" ] && continue   # v2.5.6h: retry after 10 min
+    _wait=0; for d in $(deps_of $t); do [ -f $OPD_ROOT/runs/$d/.done ] || _wait=1; done; [ $_wait = 1 ] && continue   # v2.5.6h: only once its inputs exist
     mkdir -p $OPD_ROOT/runs/$t
     setsid nohup bash -c "bash $RUNBOOK/scripts/run_queue_eval.sh prefetch $t >> $OPD_ROOT/logs/prefetch_$t.log 2>&1 || touch $OPD_ROOT/runs/$t/.prefetch_fail" < /dev/null > /dev/null 2>&1 &
     return

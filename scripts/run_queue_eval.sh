@@ -19,10 +19,14 @@ SPECS=$(awk -v t="$T" '$1 == "#eval" && $2 == t {print $3, $4, $5, $6, $7}' "$Q"
 HASH=$(awk -v t="$T" '$1 == "#eval" && $2 == t' "$Q" | cksum | cut -d' ' -f1)
 fetch_ckpt() {   # $1 = path inside yang31210999/opd-lab-ckpts; 0 when complete
   python $RUNBOOK/scripts/fetch_model.py yang31210999/opd-lab-ckpts "$1" "$CKPT_ROOT/adhoc_models" --task $T >> $OUT/fetch.log 2>&1; }
+fetch_result() {   # v2.5.6h: $1 = path inside this node's public result repository (result:runs/<task>/global_step_N/...;
+  # E12b keeps no local weights after its bf16 upload, so its readings read them back from there)
+  python $RUNBOOK/scripts/fetch_model.py "$(python $RUNBOOK/scripts/remote.py repo public)" "$1" "$CKPT_ROOT/adhoc_models/result" --task $T >> $OUT/fetch.log 2>&1; }
 if [ "$G" = prefetch ]; then
   pok=1
   while read -r TAG MODEL BENCH N TEMP; do
-    case $MODEL in yang31210999/opd-lab-ckpts/*) fetch_ckpt "${MODEL#yang31210999/opd-lab-ckpts/}" || { echo "PREFETCH_FAILED $TAG $MODEL"; pok=0; };; esac
+    case $MODEL in yang31210999/opd-lab-ckpts/*) fetch_ckpt "${MODEL#yang31210999/opd-lab-ckpts/}" || { echo "PREFETCH_FAILED $TAG $MODEL"; pok=0; };;
+      result:*) fetch_result "${MODEL#result:}" || { echo "PREFETCH_FAILED $TAG $MODEL"; pok=0; };; esac
   done <<< "$SPECS"
   [ $pok = 1 ] && { echo $HASH > $OUT/.inputs_ok; rm -f $OUT/.prefetch_fail; echo "PREFETCH_DONE $T"; exit 0; }
   rm -f $OUT/.inputs_ok; exit 1
@@ -38,6 +42,9 @@ while read -r TAG MODEL BENCH N TEMP; do
     yang31210999/opd-lab-ckpts/*)
       P=${MODEL#yang31210999/opd-lab-ckpts/}; M=$CKPT_ROOT/adhoc_models/$P
       fetch_ckpt "$P" || { echo "MODEL_FETCH_FAILED $TAG: $MODEL (see $OUT/fetch.log)"; ok=0; continue; };;
+    result:*)
+      P=${MODEL#result:}; M=$CKPT_ROOT/adhoc_models/result/$P
+      fetch_result "$P" || { echo "MODEL_FETCH_FAILED $TAG: $MODEL (see $OUT/fetch.log)"; ok=0; continue; };;
     *) M=$OPD_ROOT/${MODEL#local:}; has_weights $M || M=$CKPT_ROOT/${MODEL#local:};;
   esac
   has_weights $M || [ "${M#Qwen/}" != "$M" ] || [ -f $M/config.json ] || { echo "MODEL_MISSING $TAG: $MODEL"; ok=0; continue; }
