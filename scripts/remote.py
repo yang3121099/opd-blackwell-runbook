@@ -171,7 +171,29 @@ def scrub_roots():
     return sorted(m.items(), key=lambda kv: -len(kv[0]))
 
 
-def scrub_text(t, roots, toks):
+PRIVATE_IP = re.compile(r"(?<![0-9.])(?:10\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])|192\.168|100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])|169\.254)"
+                        r"\.\d{1,3}\.\d{1,3}(?![0-9]|\.\d)")
+
+
+def own_ips():
+    """This machine's IPv4 addresses (v2.5.6g: Ray / vLLM print them in train.log)."""
+    out = set()
+    try:
+        for fam, _, _, _, addr in socket.getaddrinfo(socket.gethostname(), None):
+            if fam == socket.AF_INET:
+                out.add(addr[0])
+    except OSError:
+        pass
+    return {a for a in out if not a.startswith("127.")}
+
+
+def scrub_text(t, roots, toks, ips=None):
+    """ips: addresses to replace by <ip> in addition to private / internal ranges; None = no address scrub (generation
+    outputs: model text, where a string like 1.2.1.2 is content)."""
+    if ips is not None:
+        for a in sorted(ips, key=len, reverse=True):
+            t = re.sub(r"(?<![0-9.])" + re.escape(a) + r"(?![0-9])", "<ip>", t)
+        t = PRIVATE_IP.sub("<ip>", t)
     """v2.5.5c: text for the public repository without this machine's paths, user or host names (B300 2026-10-18 02:1x
     Beijing: train.log, metrics.json, twr.json and gen_eval.log in the public repository carried them)."""
     for p, name in roots:
@@ -203,13 +225,14 @@ def _put_public(api, repo, src, dst):
     from huggingface_hub import CommitOperationAdd
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from control import _forbidden_tokens
-    roots, toks = scrub_roots(), _forbidden_tokens()
+    roots, toks, ips = scrub_roots(), _forbidden_tokens(), own_ips()
     ops = []
     for local, pin in _public_files(src, dst):
         name = os.path.basename(local)
         if is_text(name, os.path.getsize(local)):
             data = open(local, "rb").read().decode("utf-8", "replace")
-            ops.append(CommitOperationAdd(path_in_repo=pin, path_or_fileobj=scrub_text(data, roots, toks).encode()))
+            gen = name.lower().endswith((".jsonl", ".part"))   # generation outputs: no address scrub
+            ops.append(CommitOperationAdd(path_in_repo=pin, path_or_fileobj=scrub_text(data, roots, toks, None if gen else ips).encode()))
         else:
             ops.append(CommitOperationAdd(path_in_repo=pin, path_or_fileobj=local))
     if ops:

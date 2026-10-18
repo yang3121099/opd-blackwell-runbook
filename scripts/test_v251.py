@@ -399,6 +399,9 @@ def test_public_upload_is_scrubbed(rem, monkeypatch, tmp_path):
     (d / "m.metrics.json").write_text(json.dumps({"model": f"{ck}/adhoc_models/runs/E12-P5c05/global_step_40", "avg_acc": 74.1}))
     (d / "model.safetensors").write_bytes(b"\x00weights")
     (d / ".failed").write_text(f"attempts: 1\n  File \"/mnt/someuser/venv/lib/x.py\", line 3\n")      # v2.5.6a: a dotfile is text
+    (d / "ray.log").write_text("Started a local Ray instance at 10.9.8.7:6379; node 192.168.3.4; version 2.49.1.0; ok 8.8.8.8\n")
+    (d / "gen.jsonl").write_text('{"text": "1.2.1.2 then 10.1.1.1"}\n')
+    monkeypatch.setattr(rem.r, "own_ips", lambda: {"8.8.8.8"})
     rem.r.put(str(d), "runs/EVAL-bridge")
     ops = {o.path_in_repo: o.path_or_fileobj for o in FakeApi.commits[-1]}
     log, met = ops["runs/EVAL-bridge/train.log"].decode(), ops["runs/EVAL-bridge/m.metrics.json"].decode()
@@ -407,6 +410,9 @@ def test_public_upload_is_scrubbed(rem, monkeypatch, tmp_path):
     assert json.loads(met) == {"model": "$CKPT_ROOT/adhoc_models/runs/E12-P5c05/global_step_40", "avg_acc": 74.1}
     assert ops["runs/EVAL-bridge/model.safetensors"] == str(d / "model.safetensors")    # weights as they are
     assert b"someuser" not in ops["runs/EVAL-bridge/.failed"] and b"<path>" in ops["runs/EVAL-bridge/.failed"]
+    ray = ops["runs/EVAL-bridge/ray.log"].decode()                                        # v2.5.6g: addresses
+    assert "10.9.8.7" not in ray and "192.168.3.4" not in ray and "8.8.8.8" not in ray and "<ip>:6379" in ray and "2.49.1.0" in ray
+    assert ops["runs/EVAL-bridge/gen.jsonl"] == b'{"text": "1.2.1.2 then 10.1.1.1"}\n'     # generation outputs untouched
     assert rem.r.is_text(".inputs_ok", 10) and rem.r.is_text("train.log", 10**9) and not rem.r.is_text("model.safetensors", 10)
     assert not rem.r.is_text(".big", 2 << 20)
     rem.r.put(str(d / "train.log"), "logs/abcd1234/x.log")                              # private: unchanged route
