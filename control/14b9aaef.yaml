@@ -127,3 +127,4 @@ commands:
   - {"seq": 125, "cmd": "logs E10b-P5-s44 1500", "reason": "first 20 steps s/step of the flash-attn arm for the reviewer", "utc": "2026-10-18T19:15:36Z"}
   - {"seq": 126, "cmd": "logs E10b-P5-s44 1500", "reason": "E10b-P5-s44 steps 15-24 timing for the reviewer", "utc": "2026-10-18T19:39:44Z"}
   - {"seq": 127, "cmd": "logs EVAL-budA17b 120", "reason": "EVAL-budA17b retrying: why did the first attempt fail", "utc": "2026-10-18T20:02:03Z"}
+  - {"seq": 128, "cmd": "du opd_root runs/E10b-P2", "reason": "why the E10b-P2 s150 bf16 copy is gone (reviewer 20:0x UTC)", "utc": "2026-10-18T20:04:55Z"}
