@@ -8,7 +8,10 @@
 # Status: syntax-checked; the lab runs the same configuration for 0.6B on H100/H200; not yet run on Blackwell.
 # Usage: bash run_e12.sh <gpu> <task id>      e.g. E12b-P2
 set -euo pipefail
-source "$(dirname "$0")/env.sh"; source "$(dirname "$0")/dr.sh"; G=$1; T=$2; A=${T#E12b-}; OUT=$OPD_ROOT/runs/$T; mkdir -p $OUT/rollouts
+# v2.5.7c: SMOKE=1 (FA-SPEED-E12) runs SMOKE_STEPS (3) steps in runs/$PROBE_TASK: no checkpoint, upload, DR, validation
+source "$(dirname "$0")/env.sh"; source "$(dirname "$0")/dr.sh"; G=$1; T=$2; A=${T#E12b-}
+SM=${SMOKE:-0}; NAME=$T; [ $SM = 1 ] && NAME=${PROBE_TASK:-smoke-$T}
+OUT=$OPD_ROOT/runs/$NAME; mkdir -p $OUT/rollouts
 [ -f $OUT/.done ] && exit 0
 case $A in
   P0) START=$STUDENT_17B;;
@@ -28,7 +31,9 @@ if [ $A != P0 ] && ! has_weights $START; then
 fi
 case $A in P0|P1|P2|P3|P5|P5-s43) STEPS=100;; *) STEPS=60;; esac   # v2.5.6j: P5-s43 = the headline chain's second seed (queue v3 V3-c2)
 [ $A = P0 ] || has_weights $START || { echo "missing start checkpoint $START"; exit 1; }
-source $OPD_ROOT/venv/bin/activate
+# v2.5.7c: venv-fa (flash-attn, remove-padding) only with VENV=fa and E12B_FA=1: the E12b ladder stays on one attention
+V=$OPD_ROOT/venv; [ "${VENV:-}" = fa ] && [ "${E12B_FA:-0}" = 1 ] && V=$OPD_ROOT/venv-fa
+source $V/bin/activate
 export CUDA_VISIBLE_DEVICES=$G RAY_TMPDIR=/tmp/ray_gpu$G PYTHONPATH=$RUNBOOK/code/patches:${PYTHONPATH:-}
 unset OPD_VARIANT
 if python -c "import flash_attn" 2>/dev/null; then RMPAD=True; ATTN=flash_attention_2; TOK=16384; else RMPAD=False; ATTN=sdpa; TOK=6144; fi
@@ -57,10 +62,13 @@ CFG
 if [ "${SPOT:-0}" = 1 ]; then CONTENTS="['model','optimizer','extra','hf_model']"; SAVE=${SAVE:-20}
 elif dr_on; then CONTENTS="['model','optimizer','extra','hf_model']"; SAVE=${SAVE:-${DR_EVERY:-25}}   # v2.5.7: resume state for dr_sync.sh
 else CONTENTS="['hf_model']"; SAVE=${SAVE:-$STEPS}; fi
-[ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $T start=$START steps=$STEPS save=$SAVE contents=$CONTENTS kern=[$KERN] gc=$GCK"; exit 0; }   # tests
-ckpt_link $OUT
-dr_restore $OUT || echo "DR_RESTORE_FAILED $T"; dr_start_sync $OUT   # v2.5.7
-pgrep -f "upload_syn[c].sh $OUT\$" >/dev/null || KEEP_BF16=0 UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-$STEPS} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OUT > $OUT/upload.log 2>&1 < /dev/null &
+VALB=True; TESTF=25; [ $SM = 1 ] && { STEPS=${SMOKE_STEPS:-3}; SAVE=-1; VALB=False; TESTF=-1; }
+[ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $NAME start=$START steps=$STEPS save=$SAVE contents=$CONTENTS kern=[$KERN] gc=$GCK venv=$(basename $V) rmpad=$RMPAD"; exit 0; }   # tests
+if [ $SM = 0 ]; then
+  ckpt_link $OUT
+  dr_restore $OUT || echo "DR_RESTORE_FAILED $T"; dr_start_sync $OUT   # v2.5.7
+  pgrep -f "upload_syn[c].sh $OUT\$" >/dev/null || KEEP_BF16=0 UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-$STEPS} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OUT > $OUT/upload.log 2>&1 < /dev/null &
+fi
 cd $OPD_ROOT/G-OPD/verl
 python3 -m verl.trainer.main_ppo \
   algorithm.adv_estimator=grpo algorithm.use_kl_in_reward=False \
@@ -86,15 +94,15 @@ python3 -m verl.trainer.main_ppo \
   actor_rollout_ref.rollout.val_kwargs.do_sample=True actor_rollout_ref.rollout.val_kwargs.temperature=0.6 \
   actor_rollout_ref.rollout.val_kwargs.top_p=0.95 actor_rollout_ref.rollout.val_kwargs.n=4 \
   custom_reward_function.path=$RUNBOOK/code/train/reward_mathverify.py custom_reward_function.name=compute_score \
-  reward_model.reward_manager=naive trainer.critic_warmup=0 trainer.val_before_train=True \
-  trainer.logger='["console"]' trainer.project_name=opd-e10b trainer.experiment_name=$T \
-  trainer.n_gpus_per_node=1 trainer.nnodes=1 trainer.save_freq=$SAVE trainer.test_freq=25 trainer.resume_mode=auto \
+  reward_model.reward_manager=naive trainer.critic_warmup=0 trainer.val_before_train=$VALB \
+  trainer.logger='["console"]' trainer.project_name=opd-e10b trainer.experiment_name=$NAME \
+  trainer.n_gpus_per_node=1 trainer.nnodes=1 trainer.save_freq=$SAVE trainer.test_freq=$TESTF trainer.resume_mode=auto \
   trainer.rollout_data_dir=$OUT/rollouts trainer.total_training_steps=$STEPS trainer.total_epochs=1 \
   trainer.default_local_dir=$OUT/ckpt 2>&1 | tee -a $OUT/train.log
 LAST=$(grep -oE "(^|[ )])step:[0-9]+ - " $OUT/train.log | tail -1 | grep -oE "[0-9]+")
 echo "completed_steps: ${LAST:-unknown}" >> $OUT/config.yaml
 if [ "${LAST:-0}" -ge $STEPS ]; then echo "finished: $(date -u +%FT%TZ)" >> $OUT/config.yaml; touch $OUT/.done
-  # v2.4: the E10b start (bf16, 3.4 GB) is freed once both readers of it (E11b and this E12b) are done
-  case $A in P0|P1) ;; *) [ -f $OPD_ROOT/runs/E11b-$A/.done ] && rm -rf $OPD_ROOT/runs/E10b-$A/ckpt/global_step_150/actor/huggingface_bf16;; esac
+  # v2.4: the E10b start (bf16, 3.4 GB) is freed once both readers of it (E11b and this E12b) are done (never by a smoke)
+  [ $SM = 1 ] || case $A in P0|P1) ;; *) [ -f $OPD_ROOT/runs/E11b-$A/.done ] && rm -rf $OPD_ROOT/runs/E10b-$A/ckpt/global_step_150/actor/huggingface_bf16;; esac
 else echo "stopped: $(date -u +%FT%TZ) before the last step (v2.3: no finished: line, so upload_sync keeps running for the retry)" >> $OUT/config.yaml; fi
-cd $RUNBOOK && python code/analysis/e12_rollout_stats.py $OUT --tokenizer $STUDENT_17B > /dev/null 2>&1 || true
+[ $SM = 1 ] || { cd $RUNBOOK && python code/analysis/e12_rollout_stats.py $OUT --tokenizer $STUDENT_17B > /dev/null 2>&1 || true; }

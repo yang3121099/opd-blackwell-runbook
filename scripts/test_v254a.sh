@@ -134,6 +134,9 @@ ok "E10c dyn16k ignores the OOM retry key" '[[ "$d2" == *"student=$T/m06 "* && "
 ok "E10b unchanged" '[[ "$d3" == *"student=$T/m17 "* && "$d3" == *"use_dynamic_bsz=True"* ]]'
 d4=$(FUSED=1 GC=0 DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10b-P2 | tail -1)   # v2.5.6o: SPEED-PROBE knobs
 d5=$(GC=0 DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10d-P5 | tail -1)   # v2.5.7b: the 4B student, checkpointing on
+mkdir -p $T/root/venv-fa/bin; : > $T/root/venv-fa/bin/activate   # v2.5.7c: E10c stays on the venv in use, E10b takes venv-fa
+d6=$(VENV=fa DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10c-P4lowlr-fix4 | tail -1); d7=$(VENV=fa DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10b-P2 | tail -1)
+ok "VENV=fa: E10c pinned, E10b on venv-fa" '[[ "$d6" == *"venv=venv "* && "$d7" == *"venv=venv-fa "* ]]'
 ok "E10d-P5: 4B student, P5, GC on" '[[ "$d5" == *"arm=P5 lr=3e-6 seed=42 student=$T/m4 "* && "$d5" == *"gc=True"* ]] && ! bash $T/rb/scripts/task.sh 0 E10d-P3 > /dev/null 2>&1'
 ok "FUSED=1 GC=0" '[[ "$d4" == *"kern=[actor_rollout_ref.model.use_fused_kernels=True actor_rollout_ref.model.fused_kernel_options.impl_backend=torch] gc=False"* && "$d3" == *"kern=[] gc=True"* ]]'
 printf 'echo "speed_probe $*"\n' > $T/rb/scripts/speed_probe.sh
@@ -161,4 +164,4 @@ got=$( PATH=$T/bin:$PATH NGPU=14; eval "$(sed -n '/^free_gpus() {/,/; }$/p' $SRC
 kill $P1 $P2 2> /dev/null
 ok "running tasks keep their GPUs" '[[ " $got" == *" 1 "* && " $got" == *" 6 "* && " $got" != *" 5 "* && " $got" != *" 13 "* ]]'   # 13 must not hide 1
 rm -rf $T
-[ $fails = 0 ] && echo "V254A_TEST PASS (36 checks)" || echo "V254A_TEST FAIL ($fails)"
+[ $fails = 0 ] && echo "V254A_TEST PASS (37 checks)" || echo "V254A_TEST FAIL ($fails)"

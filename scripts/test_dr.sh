@@ -52,13 +52,17 @@ ok "done task: local resume files deleted, weights kept" '! ls $R/ckpt/global_st
 rm -rf $T
 # 5. run_e12.sh: every 25 steps with the resume state (DR on), as before with DR=0; GC=0; starts from the share / result repo
 setup
-mkdir -p $T/m17; d1=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P0 2>&1 | tail -1); d2=$(DR=0 DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P0 2>&1 | tail -1)
+mkdir -p $T/m17 $T/base/root/venv-fa/bin; : > $T/base/root/venv-fa/bin/activate; d1=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P0 2>&1 | tail -1); d2=$(DR=0 DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P0 2>&1 | tail -1)
 d3=$(GC=0 DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P0 2>&1 | tail -1); d5=$(GC=0 E12B_GC=1 DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P0 2>&1 | tail -1)
 ok "E12b DR: save 25 with resume state" '[[ "$d1" == *"steps=100 save=25 contents=['"'"'model'"'"','"'"'optimizer'"'"','"'"'extra'"'"','"'"'hf_model'"'"']"*"gc=True"* ]]'
 ok "E12b DR=0: as before" '[[ "$d2" == *"save=100 contents=['"'"'hf_model'"'"']"* ]] && [[ "$d3" == *"gc=True"* ]] && [[ "$d5" == *"gc=False"* ]]'
 mkdir -p $T/base/root/runs/SFT-P1 $T/base/opd-dr/keep/SFT-P1/ckpt/global_step_283/huggingface; echo 283 > $T/base/root/runs/SFT-P1/final_step
 : > $T/base/opd-dr/keep/SFT-P1/ckpt/global_step_283/huggingface/model.safetensors
 d4=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P1 2>&1 | tail -1)
+d6=$(VENV=fa DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P0 2>&1 | tail -1); d7=$(VENV=fa E12B_FA=1 DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P0 2>&1 | tail -1)
+d8=$(SMOKE=1 PROBE_TASK=FA-SPEED-E12-fa_gc0 DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P0 2>&1 | tail -1)   # v2.5.7c
+ok "E12b: venv-fa only with E12B_FA=1" '[[ "$d6" == *"venv=venv "* && "$d7" == *"venv=venv-fa "* ]]'
+ok "E12b smoke: own dir, 3 steps, no save" '[[ "$d8" == "DRYRUN FA-SPEED-E12-fa_gc0 "*"steps=3 save=-1 "* ]] && [ ! -e $T/ck/FA-SPEED-E12-fa_gc0 ]'
 ok "P1 start from the share when the container disk lost it" '[[ "$d4" == *"start=$T/base/opd-dr/keep/SFT-P1/ckpt/global_step_283/huggingface "* ]]'
 bash $T/rb/scripts/run_e12.sh 0 E12b-P4lowlr > $T/e4 2>&1
 ok "E10b start fetched from the result repository" 'grep -q "^fetch me/pub runs/E10b-P4lowlr/global_step_150/actor/huggingface $T/ck/adhoc_models/result --task E12b-P4lowlr" $CALLS'

@@ -31,6 +31,7 @@ STUDENT=${STUDENT:-$STUDENT_17B}   # the verification smoke uses $STUDENT_06B
 [ -n "$MODE" ] && STUDENT=$STUDENT_06B
 [ "$SIZE" = 4B ] && { STUDENT=$STUDENT_4B; GC=1; }
 case $MODE in fix4) FIXED_MICRO_BSZ=4;; dyn16k) FIXED_MICRO_BSZ=""; MAX_TOK_GPU=16384;; esac
+[ -n "$MODE" ] && VENV=   # v2.5.7c: E10c is registered on this node without remove-padding (V3-c1): the venv in use
 case ${VENV:-} in fa) VENV=$OPD_ROOT/venv-fa;; esac   # v2.5.3: setenv VENV=fa (after FA-PROBE passed) = venv-fa with flash-attn
 source ${VENV:-$OPD_ROOT/venv}/bin/activate   # FA-PROBE passes its own VENV; default: the venv in use
 export CUDA_VISIBLE_DEVICES=$GPU RAY_TMPDIR=/tmp/ray_gpu$GPU
@@ -54,7 +55,7 @@ ENT=""; [ "$RMPAD" = False ] && ENT="actor_rollout_ref.actor.entropy_from_logits
 # GC=0 (setenv) = no gradient checkpointing in the actor. SPEED-PROBE measures both; unset, the ladder runs as before.
 KERN=""; [ "${FUSED:-0}" = 1 ] && KERN="actor_rollout_ref.model.use_fused_kernels=True actor_rollout_ref.model.fused_kernel_options.impl_backend=torch"
 GCK=True; [ "${GC:-1}" = 0 ] && GCK=False
-[ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $TASK arm=$ARM lr=$LR seed=$SEED student=$STUDENT batch=[$BATCH] kern=[$KERN] gc=$GCK"; exit 0; }   # tests
+[ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $TASK arm=$ARM lr=$LR seed=$SEED student=$STUDENT batch=[$BATCH] kern=[$KERN] gc=$GCK venv=$(basename ${VENV:-$OPD_ROOT/venv}) rmpad=$RMPAD"; exit 0; }   # tests
 STEPS=150; TEST=10; VALB=True
 # save rule (v2.4, Runming 2026-10-17): no archive of resume states. A dedicated node saves only the HF weights at the
 # pre-registered reading steps (E10b: step 150, the one checkpoint E11b and E12b read; SAVE=<n> for others), which

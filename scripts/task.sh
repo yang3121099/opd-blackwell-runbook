@@ -23,7 +23,8 @@ case $T in
   E05-fstop-base06|E05-fstop-art06) bash $RUNBOOK/scripts/run_zero.sh $G $T;;   # v2.5.6l: E05-p3 forced stop (V3-c3 c)
   FA-PROBE) bash $RUNBOOK/scripts/fa_probe.sh $G;;
   SPEED-PROBE) bash $RUNBOOK/scripts/speed_probe.sh $G;;
-  PROBE-4B) bash $RUNBOOK/scripts/probe_4b.sh $G;;   # v2.5.7b: 10-step smoke of the 4B student   # v2.5.6o: fused kernels / no gradient checkpointing
+  PROBE-4B) bash $RUNBOOK/scripts/probe_4b.sh $G;;
+  FA-SPEED-17|FA-SPEED-4B|FA-SPEED-E12) bash $RUNBOOK/scripts/fa_speed.sh $G $T;;   # v2.5.7c: flash-attn equivalence + speed   # v2.5.7b: 10-step smoke of the 4B student   # v2.5.6o: fused kernels / no gradient checkpointing
   EVAL-*)  [[ $T =~ ^EVAL-[A-Za-z0-9._-]+$ ]] || exit 2; bash $RUNBOOK/scripts/run_queue_eval.sh $G $T;;   # v2.5.4a: #eval lines of queue.txt   # v2.5.3: can flash-attn 2 varlen run here (no E10b directory touched)
   *) echo "NOT_WHITELISTED $T"; exit 2;;
 esac
