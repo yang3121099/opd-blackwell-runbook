@@ -28,6 +28,15 @@ case $T in
     ls $OUT/e02_opsa${S}_c${C}_aime24_nothink_*.metrics.json > /dev/null 2>&1 || \
     python code/eval/gen_eval.py --model $M --bench aime24 --mode no_think --n 16 --temperature 0.7 --top_p 0.8 --top_k 20 \
       --max_tokens 32768 --tag e02_opsa${S}_c${C}_aime24_nothink --out $OUT;;
+  E05-fstop-*)   # v2.5.6l (queue v3 V3-c3 c): E05-p3 forced stop. AIME25 avg@8, thinking template, 32K (E05's setup),
+    # then code/eval/forced_stop.py at 8K / 16K / 32K: unterminated samples cut there, the E05 stop string appended, <= 64 tokens
+    W=${T#E05-fstop-}
+    case $W in base06) M=$STUDENT_06B;; art06) M=taki555/Qwen3-0.6B-Art;; *) echo "unknown model $W"; exit 2;; esac
+    ls $OUT/e05_${W}_aime25_think_*.metrics.json > /dev/null 2>&1 || \
+    python code/eval/gen_eval.py --model $M --bench aime25 --mode think --n 8 --temperature 0.6 --top_p 0.95 --top_k 20 \
+      --max_tokens 32768 --tag e05_${W}_aime25_think --out $OUT
+    [ -f $OUT/e05_fstop_${W}.json ] || python code/eval/forced_stop.py --model $M --jsonl "$(ls $OUT/e05_${W}_aime25_think_*.jsonl | head -1)" \
+      --bench aime25 --budgets 8192,16384,32768 --out $OUT/e05_fstop_${W}.json;;
   E01-*)   # v2.5.6j (queue v3 V3-c3 d): E01 remainder, AIME24 avg@32 at 32K with OPSA's sampling (T=0.7, top-p 0.8, top-k 20)
     W=${T#E01-}; MODE=${W##*-}; NAME=${W%-*}
     case $NAME in opsa17) M=Tuwhy/Qwen3-1.7B-OPSA;; base17) M=$STUDENT_17B;; *) echo "unknown model $NAME"; exit 2;; esac

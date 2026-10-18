@@ -121,6 +121,8 @@ ok "E12b-P5-s43 accepted" '[[ "$(bash $T/rb/scripts/task.sh 0 E12b-P5-s43 | tail
 ok "run_e12 gives P5-s43 100 steps" 'grep -q "P0|P1|P2|P3|P5|P5-s43) STEPS=100" $SRC/scripts/run_e12.sh'
 bash $T/rb/scripts/task.sh 0 E02-opsa17-c2 > $T/z1 2>&1; bash $T/rb/scripts/task.sh 0 E01-opsa17-think > $T/z2 2>&1
 ok "E02 OPSA name from the HF id" 'grep -q "^wops scale --base $T/m17 --ft Tuwhy/Qwen3-1.7B-OPSA --c 2 " $CALLS && grep -q "e02_opsa17_c2_aime24_nothink" $CALLS'
+bash $T/rb/scripts/task.sh 0 E05-fstop-base06 > $T/z3 2>&1
+ok "E05-p3 forced stop" 'grep -q -- "--model $T/m06 --bench aime25 --mode think --n 8 --temperature 0.6 --top_p 0.95 --top_k 20 --max_tokens 32768 --tag e05_base06_aime25_think" $CALLS && ! bash $T/rb/scripts/task.sh 0 E05-fstop-x > /dev/null 2>&1'
 ok "E01 remainder" 'grep -q -- "--model Tuwhy/Qwen3-1.7B-OPSA --bench aime24 --mode think --n 32 --temperature 0.7 --top_p 0.8 --top_k 20 --max_tokens 32768 --tag e01_opsa17_think_aime24" $CALLS && ! bash $T/rb/scripts/task.sh 0 E01-opsa9-think > /dev/null 2>&1'
 rm -rf $T
 # 4. v2.5.4d free_gpus(): a GPU whose task.sh (or ad-hoc evaluation) runs is not free, even with nothing on it yet
@@ -132,4 +134,4 @@ got=$( PATH=$T/bin:$PATH NGPU=14; eval "$(sed -n '/^free_gpus() {/,/; }$/p' $SRC
 kill $P1 $P2 2> /dev/null
 ok "running tasks keep their GPUs" '[[ " $got" == *" 1 "* && " $got" == *" 6 "* && " $got" != *" 5 "* && " $got" != *" 13 "* ]]'   # 13 must not hide 1
 rm -rf $T
-[ $fails = 0 ] && echo "V254A_TEST PASS (30 checks)" || echo "V254A_TEST FAIL ($fails)"
+[ $fails = 0 ] && echo "V254A_TEST PASS (31 checks)" || echo "V254A_TEST FAIL ($fails)"

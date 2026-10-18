@@ -19,6 +19,7 @@ case $T in
   E02-opsa17-c0.5|E02-opsa17-c1.5|E02-opsa4-c-1|E02-opsa4-c0.5|E02-opsa4-c1.5) bash $RUNBOOK/scripts/run_zero.sh $G $T;;
   E02-opsa17-c-1|E02-opsa17-c2|E02-opsa4-c2) bash $RUNBOOK/scripts/run_zero.sh $G $T;;   # v2.5.6j: the scaling ends (V3-c3 a)
   E01-opsa17-think|E01-opsa17-nothink|E01-base17-think) bash $RUNBOOK/scripts/run_zero.sh $G $T;;   # v2.5.6j: E01 remainder (V3-c3 d)
+  E05-fstop-base06|E05-fstop-art06) bash $RUNBOOK/scripts/run_zero.sh $G $T;;   # v2.5.6l: E05-p3 forced stop (V3-c3 c)
   FA-PROBE) bash $RUNBOOK/scripts/fa_probe.sh $G;;
   EVAL-*)  [[ $T =~ ^EVAL-[A-Za-z0-9._-]+$ ]] || exit 2; bash $RUNBOOK/scripts/run_queue_eval.sh $G $T;;   # v2.5.4a: #eval lines of queue.txt   # v2.5.3: can flash-attn 2 varlen run here (no E10b directory touched)
   *) echo "NOT_WHITELISTED $T"; exit 2;;
