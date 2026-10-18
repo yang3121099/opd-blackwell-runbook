@@ -53,6 +53,7 @@ task: $T
 start: $START
 algo: GRPO 64x8, 4K, T=1.0, lr 1e-6, clip 0.2/0.28, KL 0, mini-batch 16, data.seed 4242, $STEPS steps
 attention: $ATTN (use_remove_padding=$RMPAD)
+batching: [$BATCH]
 kernels: fused=${FUSED:-0} gradient_checkpointing=$GCK
 started: $(date -u +%FT%TZ)
 CFG

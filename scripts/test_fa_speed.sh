@@ -17,8 +17,8 @@ case "$*" in *"import flash_attn"*) exit 0;; *fa_speed.py\ lp*) echo "verl noise
 SH
   chmod +x $T/root/venv-fa/bin/python
   for s in run_arm.sh run_e12.sh; do cat > $T/rb/scripts/$s <<'SH'
-echo "$(basename $0) $* VENV=${VENV:-}${E10D_FA:+ E10D_FA=$E10D_FA} FIXED=${FIXED_MICRO_BSZ:-} GC=${GC:-} E12B_GC=${E12B_GC:-} E12B_FA=${E12B_FA:-} STEPS=$SMOKE_STEPS TASK=$PROBE_TASK" >> $CALLS
-d=$OPD_ROOT/runs/$PROBE_TASK; mkdir -p $d; : > $d/config.yaml; st=$([ "${VENV:-}" = fa ] && echo 100 || echo 130)
+echo "$(basename $0) $* VENV=${VENV:-}${E10D_FA:+ E10D_FA=$E10D_FA} FIXED=${FIXED_MICRO_BSZ:-} GC=${GC:-} E12B_GC=${E12B_GC:-} E12B_FA=${E12B_FA:-} STEPS=$SMOKE_STEPS TASK=$PROBE_TASK PROBE_ENV=[${PROBE_ENV:-}]" >> $CALLS
+d=$OPD_ROOT/runs/$PROBE_TASK; mkdir -p $d; printf "attention: %s (stub)\nbatching: default [fixed %s]\n" "$([ "${VENV:-}" = fa ] && echo flash_attention_2 || echo sdpa)" "${FIXED_MICRO_BSZ:-none}" > $d/config.yaml; st=$([ "${VENV:-}" = fa ] && echo 100 || echo 130)
 for i in $(seq 1 ${SMOKE_STEPS:-3}); do v=""; [ -n "${SMOKE_TEST:-}" ] && [ $((i % SMOKE_TEST)) = 0 ] && v=" - val-core/math/acc/mean@2:0.7$([ "${VENV:-}" = fa ] && echo 1 || echo 0)"
   echo "(TaskRunner pid=1) step:$i - timing_s/gen:30 - timing_s/update_actor:40 - timing_s/step:$st - actor/pg_loss:0.004 - response_length/mean:2000$v" >> $d/train.log; done
 SH
@@ -50,6 +50,7 @@ rm -rf $T
 setup
 bash $T/rb/scripts/fa_speed.sh 2 FA-SPEED-TWIN > /dev/null 2>&1
 ok "twins: 20 steps, val every 10, same arm" 'grep -q "^run_arm.sh 2 E10b-P2 VENV= FIXED=4 GC=0 .*STEPS=20 TASK=FA-SPEED-TWIN-twin_sdpa" $CALLS && grep -q "^run_arm.sh 2 E10b-P2 VENV=fa FIXED=4 GC=0 .*STEPS=20 TASK=FA-SPEED-TWIN-twin_fa" $CALLS'
+ok "v2.5.7i: each twin passes its settings as PROBE_ENV (wins over control.env); the attention it ran is reported" 'grep -q "TASK=FA-SPEED-TWIN-twin_sdpa PROBE_ENV=\[VENV= FIXED_MICRO_BSZ=4 GC=0 SMOKE_TEST=10\]" $CALLS && [ "$(rep FA-SPEED-TWIN "r[\"variants\"][\"twin_sdpa\"][\"attention\"]")" = "sdpa (stub)" ] && [ "$(rep FA-SPEED-TWIN "r[\"variants\"][\"twin_fa\"][\"attention\"]")" = "flash_attention_2 (stub)" ] && [ "$(rep FA-SPEED-TWIN "r[\"variants\"][\"twin_fa\"][\"batching\"]")" = "default [fixed 4]" ]'
 ok "twin verdict: +1 point at s10 / s20, length 0%, pass" '[ "$(rep FA-SPEED-TWIN "r[\"twin\"][\"pass\"]")" = True ] && [ "$(rep FA-SPEED-TWIN "r[\"twin\"][\"val_diff_points\"][\"s20 val-core/math/acc/mean@2\"]")" = 1.0 ] && [ "$(rep FA-SPEED-TWIN "r[\"twin\"][\"len_diff_pct\"]")" = 0.0 ]'
 rm -rf $T
 [ $fails = 0 ] && echo "FA_SPEED_TEST PASS ($n checks)" || echo "FA_SPEED_TEST FAIL ($fails of $n)"

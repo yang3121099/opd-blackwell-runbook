@@ -113,6 +113,12 @@ def report(d, variants):
         except OSError:
             text = ""
         st = steps_of(text); r["steps"] = len(st)
+        try:   # v2.5.7i: what the smoke really ran (run_arm.sh / run_e12.sh write it), not what it was given
+            cfg = open(os.path.join(d, v, "config.yaml")).read().splitlines()
+        except OSError:
+            cfg = []
+        for key in ("attention", "batching", "kernels"):
+            r[key] = next((l.split(":", 1)[1].strip() for l in cfg if l.startswith(key + ":")), None)
         r["oom"] = "CUDA out of memory" in text or "OutOfMemoryError" in text
         late = [s for s in st if s["i"] >= 2]
         r["mean_s2plus"] = {}

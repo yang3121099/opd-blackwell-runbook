@@ -76,3 +76,7 @@ ptxas_rel() { [ -x "${1:-}" ] && "$1" --version 2>/dev/null | sed -n 's/.*releas
 if [ -f $OPD_ROOT/triton.env ]; then source $OPD_ROOT/triton.env; fi
 # v2.4 (ops-1): variables set remotely with `setenv` (control.py; whitelisted keys only), sourced last
 if [ -f $OPD_ROOT/control.env ]; then source $OPD_ROOT/control.env; fi
+# v2.5.7i: a probe's own settings (PROBE_ENV="KEY=VAL ...", set by fa_speed.sh for its variants) win over control.env.
+# (FA-SPEED-TWIN 2026-10-18 19:5x UTC: `env VENV= ...` was overwritten by control.env's VENV=fa when run_arm.sh sourced
+# this file, so both twins ran flash-attn; the token-budget variants ran 4 per micro-batch the same way.)
+for _kv in ${PROBE_ENV:-}; do [[ $_kv =~ ^[A-Z][A-Z0-9_]*=[A-Za-z0-9_.,:/=+-]*$ ]] && export "$_kv"; done

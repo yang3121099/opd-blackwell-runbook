@@ -29,7 +29,8 @@ finish() {
 print('lp', 'PASS' if r['lp_pass'] else ('n/a' if not any(r['lp'].values()) else 'FAIL'), 'smokes', 'ok' if r['smokes_ok'] else 'FAIL',
       ' '.join(f\"{k}={x['mean_s2plus'].get('step')}s/{x['mem_peak_mib']}MiB\" for k, x in v.items()))" $D/report.json 2> /dev/null || echo "report missing")
   mkdir -p $D/up; cp $D/report.json $D/probe.log $D/lp_*.json $D/*.rc $D/up/ 2> /dev/null
-  for v in $VARS; do [ -f $D/$v/train.log ] && mkdir -p $D/up/$v && tail -c 200000 $D/$v/train.log > $D/up/$v/train.log; done
+  for v in $VARS; do [ -f $D/$v/train.log ] && mkdir -p $D/up/$v && tail -c 200000 $D/$v/train.log > $D/up/$v/train.log; cp $D/$v/config.yaml $D/up/$v/ 2> /dev/null; done
+  cp $D/variants.txt $D/up/ 2> /dev/null
   python3 $RUNBOOK/scripts/remote.py put $D/up logs/$(python3 $RUNBOOK/scripts/control.py node)/fa_speed/$T >> $LOG 2>&1 || step "report upload failed (kept in $D)"
   python3 $RUNBOOK/scripts/control.py event $T fa_speed_done "${1:-} $S" > /dev/null 2>&1
   step "DONE ${1:-} $S"; touch $D/.done; exit 0
@@ -66,8 +67,9 @@ for V in $VARS; do
   ( while true; do echo "$(date -u +%s),$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $G | tr -d ' ')" >> $D/$V.mem.csv; sleep 5; done ) &
   MP=$!
   rm -rf $OPD_ROOT/runs/$T-$V $D/$V
+  echo "$V $E" >> $D/variants.txt   # v2.5.7i: what each variant was given (the twin's config.yaml records what it ran)
   ST=${FS_STEPS:-3}; [ $T = FA-SPEED-TWIN ] && ST=${FS_TWIN_STEPS:-20}
-  env $E SMOKE=1 SMOKE_STEPS=$ST PROBE_TASK=$T-$V bash $RUNBOOK/scripts/$S > $D/$V.out 2>&1; echo $? > $D/$V.rc
+  env $E PROBE_ENV="$E" SMOKE=1 SMOKE_STEPS=$ST PROBE_TASK=$T-$V bash $RUNBOOK/scripts/$S > $D/$V.out 2>&1; echo $? > $D/$V.rc   # v2.5.7i: PROBE_ENV wins over control.env
   kill $MP 2> /dev/null
   mkdir -p $D/$V; cp $OPD_ROOT/runs/$T-$V/train.log $OPD_ROOT/runs/$T-$V/config.yaml $D/$V/ 2> /dev/null
   step "smoke $V ($E) exit $(cat $D/$V.rc), peak $(cut -d, -f2 $D/$V.mem.csv 2> /dev/null | sort -n | tail -1) MiB"
