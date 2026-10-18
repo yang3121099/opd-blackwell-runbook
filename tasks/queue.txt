@@ -13,8 +13,10 @@ E11b     open   E11b-P2:E10b-P2+E11b-P0 E11b-P3:E10b-P3+E11b-P0 E11b-P4lowlr:E10
 probe    open   FA-PROBE FA-SPEED-17 FA-SPEED-E12 FA-SPEED-4B FA-SPEED-TWIN
 fa1      open   E10b-P5-s44 E11b-P5-s44:E10b-P5-s44+E11b-P0
 budA     open   EVAL-budA17a EVAL-budA17b EVAL-budA06
+budB     open   EVAL-budB:EVAL-budA17a+EVAL-budA17b
 term     open   PROBE-TERM
 v3c1b    open   E10c-P4lowlr-dyn6144 E10c-P4lowlr-fix4-s43 EVAL-e10c-dyn6144:E10c-P4lowlr-dyn6144 EVAL-e10c-fix4-s43:E10c-P4lowlr-fix4-s43
+top10    open   PROBE-TOP10 E10b-P5top10:PROBE-TOP10 E10b-P5rand10m:PROBE-TOP10 E11b-P5top10:E10b-P5top10+E11b-P0 E11b-P5rand10m:E10b-P5rand10m+E11b-P0
 evals    open   EVAL-bridge E11b-P5-s43:E10b-P5-s43+E11b-P0 EVAL-p5s43-s20 EVAL-p5s43-s40
 #eval EVAL-bridge e12_P5c05_s40_math500_T0.6 yang31210999/opd-lab-ckpts/runs/E12-P5c05/global_step_40/actor/huggingface math500 4 0.6
 #eval EVAL-p5s43-s20 e12_P5s43_s20_math500_T0.6 yang31210999/opd-lab-ckpts/runs/E12-P5s43/global_step_20/actor/huggingface math500 4 0.6
@@ -210,3 +212,15 @@ ext      open   EVAL-ext-base17 EVAL-ext-E12b-P5:E12b-P5 EVAL-ext-E12b-P0:E12b-P
 #term PROBE-TERM 06_P5noEOS yang31210999/opd-lab-ckpts/runs/E14-P5noEOS/global_step_100/actor/huggingface gen
 #term PROBE-TERM 06_P5stopP2 yang31210999/opd-lab-ckpts/ckpts/E14-P5stopP2/global_step_100 gen
 #term PROBE-TERM 06_E12P5 yang31210999/opd-lab-ckpts/runs/E12-P5/global_step_100/actor/huggingface archive:runs/e12/e12_P5_s100_math500_T0.6_math500_no_think_t0.6.jsonl
+# v2.5.7h readings B (reviewer 19:3x UTC, lab Q-013): thinking-mode ceiling at 32K, forced answers at 2K-32K, curves vs P0 / P0think / P0->RL
+#eval EVAL-budB budB_P0think_math500_T0.6_32k Qwen/Qwen3-1.7B math500 4 0.6 32768 think
+#forced EVAL-budB budB_P0think_math500_T0.6_32k Qwen/Qwen3-1.7B think
+#forced EVAL-budB EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl Qwen/Qwen3-1.7B no_think
+#forced EVAL-budB EVAL-budA17b/budA_E10bP2_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl local:runs/E10b-P2/ckpt/global_step_150/actor/huggingface_bf16 no_think
+#forced EVAL-budB EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl local:runs/E10b-P5/ckpt/global_step_150/actor/huggingface_bf16 no_think
+#forced EVAL-budB EVAL-e12b-P0/e12b_P0_s100_math500_T0.6_math500_no_think_t0.6.jsonl result:runs/E12b-P0/global_step_100/actor/huggingface no_think
+#forced EVAL-budB EVAL-e12b-P2/e12b_P2_s100_math500_T0.6_math500_no_think_t0.6.jsonl result:runs/E12b-P2/global_step_100/actor/huggingface no_think
+#forced EVAL-budB EVAL-e12b-P5/e12b_P5_s100_math500_T0.6_math500_no_think_t0.6.jsonl result:runs/E12b-P5/global_step_100/actor/huggingface no_think
+#budget EVAL-budB budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA17b/budA_E10bP2_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budB_P0think_math500_T0.6_32k EVAL-e12b-P0/e12b_P0_s100_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e12b-P2/e12b_P2_s100_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e12b-P5/e12b_P5_s100_math500_T0.6_math500_no_think_t0.6.jsonl
+#budget EVAL-budB budget_curve_vsP0think budB_P0think_math500_T0.6_32k EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#budget EVAL-budB budget_curve_RL EVAL-e12b-P0/e12b_P0_s100_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e12b-P5/e12b_P5_s100_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e12b-P2/e12b_P2_s100_math500_T0.6_math500_no_think_t0.6.jsonl
