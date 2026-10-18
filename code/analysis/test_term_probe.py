@@ -65,3 +65,23 @@ def test_token_bytes_byte_level():
 def test_bare_verify_recheck():   # reviewer A1 19:2x UTC
     pieces, _ = P("\\boxed{", "4", "}", " To", " verify", ",", " re", "-check", ".")
     assert TP.markers(pieces, TP.first_boxed_end(b"".join(pieces))) == (6, 3)
+
+
+def test_env_close_display_inline_and_bare():   # v2.5.7k (PROBE-TERM2)
+    for text, close in [(b"so\n$$\n\\boxed{4}\n$$\nmore", b"$$"), (b"\\[ x = \\boxed{4} \\]\n", b"\\]"),
+                        (b"answer $\\boxed{4}$.\n", b"$"), (b"the answer is \\boxed{4}\n", b"}"), (b"$$a$$ then \\boxed{4}\n", b"}")]:
+        s, e = TP.first_boxed_span(text)
+        ec = TP.env_close(text, s, e)
+        assert text[:ec].endswith(close), (text, text[:ec])
+
+
+def test_env_positions_past_the_display_math():
+    # "$$\n\boxed{4}\n$$" then EOS: the old anchor is the newline before "$$"; the new one is the end of sequence
+    pieces, ids = P("$$", "\n", "\\boxed{", "4", "}", "\n", "$$", None)
+    assert TP.anchor_positions(pieces, ids) == (5, 5, "nl")          # old: the "\n" inside the display math
+    k_box, k_env, case, ctx = TP.env_positions(pieces, ids)
+    assert (k_box, k_env, case) == (4, 7, "env_eos") and ctx.endswith("$$")
+    # the answer goes on after the closing "$$": the new anchor is the newline after it
+    pieces, ids = P("$$", "\n", "\\boxed{", "4", "}", "\n", "$$", "\n\n", "Wait", None)
+    assert TP.env_positions(pieces, ids)[1:3] == (7, "env_nl")
+    assert TP.env_positions(*P("no box", "\n")) is None

@@ -12,7 +12,9 @@
 # says so). A model or generation that cannot be had is listed in the report; the others are measured.
 # Output: up/ = report.json, samples.jsonl (one line per generation) and gen/*.jsonl, path-free, to the public result
 # repository as runs/PROBE-TERM; probe.log to logs/<node>/term_probe/ (private); an event term_probe_done; .done.
-# Usage: bash term_probe.sh <gpu> PROBE-TERM
+# v2.5.7k: PROBE-TERM2 = the same models and generations (the #term PROBE-TERM lines; the E14 generations PROBE-TERM made
+# are reused, not drawn again) with the environment-close anchor and the 16-token maximum (term_probe.py, reviewer 23:35 UTC)
+# Usage: bash term_probe.sh <gpu> PROBE-TERM|PROBE-TERM2
 set -uo pipefail
 G=$1; T=$2; source "$(dirname "$0")/env.sh"; source ${VENV_EVAL:-$OPD_ROOT/venv}/bin/activate
 D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; Q=${QUEUE_FILE:-$RUNBOOK/tasks/queue.txt}; mkdir -p $D/gen $D/up/gen
@@ -36,6 +38,8 @@ while read -r TAG MODEL GENS; do
   [ -n "$M" ] && { has_weights $M || [ "${M#Qwen/}" != "$M" ]; } || { step "MODEL_MISSING $TAG: $MODEL"; printf '%s\t-\t-\t%s\tmodel missing\n' $TAG $MODEL >> $D/inputs.tsv; continue; }
   case $GENS in
     gen) F=$D/gen/term_${TAG}_math500_no_think_t0.6.jsonl
+         P1=$OPD_ROOT/runs/PROBE-TERM/gen/term_${TAG}_math500_no_think_t0.6.jsonl   # v2.5.7k: PROBE-TERM2 reuses PROBE-TERM's
+         [ $T != PROBE-TERM ] && [ ! -f $F ] && [ -f $P1 ] && F=$P1
          if [ ! -f $F ]; then
            step "generate $TAG (EVAL-v1 MATH500 T0.6 16K n4; not archived)"
            CUDA_VISIBLE_DEVICES=$G python $RUNBOOK/code/eval/gen_eval.py --model $M --bench math500 --mode no_think --n 4 \
@@ -51,7 +55,7 @@ while read -r TAG MODEL GENS; do
   [ -n "$F" ] && [ -f "$F" ] || { step "GENERATIONS_MISSING $TAG: $GENS"; F=-; }
   printf '%s\t%s\t%s\t%s\t%s\n' "$TAG" "$M" "$F" "$MODEL" "$SRC" >> $D/inputs.tsv
   step "input $TAG: $MODEL, $SRC"
-done <<< "$(awk -v t="$T" '$1 == "#term" && $2 == t {print $3, $4, $5}' "$Q")"
+done <<< "$(awk -v t="${T%2}" '$1 == "#term" && $2 == t {print $3, $4, $5}' "$Q")"
 [ -s $D/inputs.tsv ] || { step "no #term lines for $T"; exit 1; }
 step "measure $(wc -l < $D/inputs.tsv) models"
 CUDA_VISIBLE_DEVICES=$G python $RUNBOOK/code/analysis/term_probe.py --teacher $TEACHER --inputs $D/inputs.tsv --out $D/report.json \

@@ -52,5 +52,9 @@ ok "fetches: the archive model and file" 'grep -q "^fetch yang31210999/opd-lab-c
 ok "measured with the teacher, path-free upload, private logs, event, .done" 'grep -q "^term_probe --teacher $T/m8 --inputs $D/inputs.tsv --out $D/report.json --samples $D/samples.jsonl" $CALLS && grep -q "^remote put $D/up runs/PROBE-TERM$" $CALLS && grep -q "^remote put $D/logs logs/abcd1234/term_probe/PROBE-TERM$" $CALLS && grep -q "^control event PROBE-TERM term_probe_done rc=0 17_P0:0.4/0.1 17_P9:model missing" $CALLS && [ -f $D/.done ] && [ $rc = 0 ] && [ -f $D/up/gen/term_06_P5noEOS_math500_no_think_t0.6.jsonl ] && [ ! -f $D/up/inputs.tsv ]'
 : > $CALLS; bash $T/rb/scripts/term_probe.sh 3 PROBE-TERM > /dev/null 2>&1
 ok "done: not run again" '! grep -q term_probe $CALLS'
+# v2.5.7k PROBE-TERM2: the PROBE-TERM lines, PROBE-TERM's generations reused (no new gen_eval), its own output directory
+: > $CALLS; bash $T/rb/scripts/term_probe.sh 3 PROBE-TERM2 > $T/out2 2>&1
+D2=$T/root/runs/PROBE-TERM2
+ok "PROBE-TERM2 reads the PROBE-TERM lines and reuses its E14 generations" '! grep -q "^gen_eval" $CALLS && grep -q "^06_P5noEOS	.*	$D/gen/term_06_P5noEOS_math500_no_think_t0.6.jsonl	" $CALLS.tsv && grep -q "^17_P0	" $CALLS.tsv && grep -q "^remote put $D2/up runs/PROBE-TERM2$" $CALLS && [ -f $D2/.done ]'
 rm -rf $T
 [ $fails = 0 ] && echo "TERM_PROBE_TEST PASS ($n checks)" || echo "TERM_PROBE_TEST FAIL ($fails of $n)"

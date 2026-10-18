@@ -13,6 +13,12 @@ Per generation, with the response tokens as generated (token_ids):
       continuation, and pooled (all marker tokens / all continuation tokens).
   (3) teacher_stop_nl: the 8B teacher's p(<|im_end|>) at the same nl after the same prefix, in the thinking template
       (P5's teacher prompt, OPD_REF_THINK=1); teacher_nothink_stop_nl in the non-thinking template (P2's).
+  v2.5.7k (PROBE-TERM2; reviewer 23:35 UTC): nl lands inside the display math that holds the box in most answers
+  ("$$\n\boxed{x}\n$$": 96% of E11b-P0's samples), where no model stops. env_nl = the first token after the math
+  environment that encloses the box closes ($$ / \\] / \\) / $), whose text holds a newline (or the end-of-sequence token
+  if the answer ends first): p_stop_env_nl, teacher_stop_env_nl, teacher_nothink_stop_env_nl; and p_stop_max16 /
+  teacher_stop_max16 = the largest p(<|im_end|>) over the 16 tokens after the token that closes the box. The nl measures
+  are kept for comparison; ctx_env in samples.jsonl shows 12 bytes either side of the environment's close.
 Per model: generations, truncation rate, anchor rate, mean / median / 10 25 75 90th percentiles of every measure and a
 95% CI of the mean (bootstrap over problems, 10000 resamples, seed 0); within each size group (tag prefix before the
 first "_"), every pair of models on (1), (2), (3) (problem-level paired bootstrap of the per-problem means).
@@ -61,17 +67,76 @@ def token_bytes(tok, ids):
     return out
 
 
-def first_boxed_end(b):
-    """Byte index just past the closing brace of the first complete \\boxed{...}, or None."""
+def first_boxed_span(b):
+    """(start, end) bytes of the first complete \\boxed{...} (end just past its closing brace), or None."""
     i = b.find(b"\\boxed{")
     while i >= 0:
         depth, j = 1, i + 7
         while j < len(b) and depth:
             depth += {123: 1, 125: -1}.get(b[j], 0); j += 1
         if depth == 0:
-            return j
+            return i, j
         i = b.find(b"\\boxed{", i + 1)
     return None
+
+
+def first_boxed_end(b):
+    """Byte index just past the closing brace of the first complete \\boxed{...}, or None."""
+    sp = first_boxed_span(b)
+    return sp[1] if sp else None
+
+
+def env_close(b, s, e):
+    """Byte index just past the delimiter that closes the math environment open at s ($$, \\[ ... \\], \\( ... \\), $),
+    or e when the box is not inside one (or its environment never closes)."""
+    i, st = 0, None
+    while i < s:
+        if st is None:
+            if b.startswith(b"$$", i):
+                st = b"$$"; i += 2; continue
+            if b.startswith(b"\\[", i):
+                st = b"\\]"; i += 2; continue
+            if b.startswith(b"\\(", i):
+                st = b"\\)"; i += 2; continue
+            if b[i:i + 1] == b"$":
+                st = b"$"; i += 1; continue
+        elif st == b"$" and b[i:i + 1] == b"$" and not b.startswith(b"$$", i):
+            st = None; i += 1; continue
+        elif st != b"$" and b.startswith(st, i):
+            i += len(st); st = None; continue
+        i += 1
+    if st is None:
+        return e
+    if st == b"$":
+        j = e
+        while j < len(b):
+            if b[j:j + 1] == b"$" and not b.startswith(b"$$", j):
+                return j + 1
+            j += 2 if b.startswith(b"$$", j) else 1
+        return e
+    j = b.find(st, e)
+    return j + len(st) if j >= 0 else e
+
+
+def env_positions(pieces, ids):
+    """(k_box, k_env, case_env, ctx): the token holding the box's closing brace, the first token after the enclosing
+    math environment's close that holds a newline (env_nl) or the end-of-sequence token if that comes first (env_eos),
+    else None (env_none); ctx = 12 bytes either side of the close. None without a complete box."""
+    b = b"".join(pieces)
+    sp = first_boxed_span(b)
+    if sp is None:
+        return None
+    starts = starts_of(pieces)
+    tok_of = lambda byte: bisect.bisect_right(starts, byte) - 1
+    k_box = tok_of(sp[1] - 1)
+    ec = env_close(b, sp[0], sp[1])
+    ctx = b[max(0, ec - 12): ec + 12].decode("utf-8", "replace")
+    nl = b.find(b"\n", ec)
+    eos = next((k for k in range(k_box + 1, len(ids)) if ids[k] in EOS_IDS and (starts[k] >= ec or k == len(ids) - 1)), None)
+    if nl >= 0:
+        k = tok_of(nl)
+        return (k_box, eos, "env_eos", ctx) if eos is not None and eos < k else (k_box, k, "env_nl", ctx)
+    return (k_box, eos, "env_eos", ctx) if eos is not None else (k_box, None, "env_none", ctx)
 
 
 def starts_of(pieces):
@@ -215,30 +280,37 @@ def main():
                 ct, mt = markers(pieces, end)
                 row.update(cont_tokens=ct, marker_tokens=mt); pooled[0] += mt; pooled[1] += ct
                 vals = {"cont_tokens": ct, "marker_frac": (mt / ct) if ct else None}
-                s = stop_probs(student, sp[r["pid"]], ids, [k_after, k_nl])
+                k_box, k_env, case_env, ctx = env_positions(pieces, ids); cnt[case_env] += 1   # v2.5.7k
+                row.update(case_env=case_env, ctx_env=ctx)
+                k16 = list(range(k_box + 1, min(k_box + 17, len(ids))))
+                mx = lambda d: max((d[k][0] for k in k16 if k in d), default=None)
+                s = stop_probs(student, sp[r["pid"]], ids, [k_after, k_nl, k_env] + k16)
                 vals["p_stop_nl"] = s.get(k_nl, (None,))[0]; vals["p_stop_any_nl"] = s.get(k_nl, (None, None))[1]
                 vals["p_stop_after_box"] = s.get(k_after, (None,))[0]
-                t = stop_probs(teacher, tp_think[r["pid"]], ids, [k_nl])
+                vals["p_stop_env_nl"] = s.get(k_env, (None,))[0]; vals["p_stop_max16"] = mx(s)
+                t = stop_probs(teacher, tp_think[r["pid"]], ids, [k_nl, k_env] + k16)
                 vals["teacher_stop_nl"] = t.get(k_nl, (None,))[0]
+                vals["teacher_stop_env_nl"] = t.get(k_env, (None,))[0]; vals["teacher_stop_max16"] = mx(t)
                 if not a.no_teacher_nothink:
-                    vals["teacher_nothink_stop_nl"] = stop_probs(teacher, tp_plain[r["pid"]], ids, [k_nl]).get(k_nl, (None,))[0]
+                    tn = stop_probs(teacher, tp_plain[r["pid"]], ids, [k_nl, k_env])
+                    vals["teacher_nothink_stop_nl"] = tn.get(k_nl, (None,))[0]; vals["teacher_nothink_stop_env_nl"] = tn.get(k_env, (None,))[0]
                 for k, v in vals.items():
                     allv[k].append(v)
                     if v is not None:
                         m[k][r["pid"]].append(v)
                 row.update(vals)
-                for k in ("p_stop_nl",):   # (1) split by how the generation ended
+                for k in ("p_stop_nl", "p_stop_env_nl", "p_stop_max16"):   # (1) split by how the generation ended
                     if vals[k] is not None:
                         allv[k + ("_truncated" if r["finish_reason"] == "length" else "_terminated")].append(vals[k])
             if sf:
                 sf.write(json.dumps(row) + "\n")
         n = max(cnt["generations"], 1)
         info.update(generations=cnt["generations"], trunc_rate=round(cnt["truncated"] / n, 4), anchor_rate=round(1 - cnt["no_anchor"] / n, 4),
-                    cases={c: cnt[c] for c in ("nl", "eos_first", "none", "no_anchor")},
+                    cases={c: cnt[c] for c in ("nl", "eos_first", "none", "no_anchor", "env_nl", "env_eos", "env_none")},
                     marker_frac_pooled=round(pooled[0] / pooled[1], 5) if pooled[1] else None,
                     measures={k: describe(v, m.get(k, {})) for k, v in allv.items()})
         report["models"][tag] = info; per[tag] = m
-        print(json.dumps({"tag": tag, "trunc_rate": info["trunc_rate"], **{k: info["measures"][k].get("mean") for k in ("p_stop_nl", "marker_frac", "teacher_stop_nl") if k in info["measures"]}}), flush=True)
+        print(json.dumps({"tag": tag, "trunc_rate": info["trunc_rate"], **{k: info["measures"][k].get("mean") for k in ("p_stop_nl", "p_stop_env_nl", "p_stop_max16", "marker_frac", "teacher_stop_env_nl") if k in info["measures"]}}), flush=True)
         del student; torch.cuda.empty_cache()
         json.dump(report, open(a.out, "w"), indent=1)   # partial report after every model
     groups = defaultdict(list)
@@ -248,7 +320,8 @@ def main():
         for i, x in enumerate(tags):
             for y in tags[i + 1:]:
                 report["pairs"][f"{x} - {y}"] = {k: paired_metric(per[x].get(k, {}), per[y].get(k, {}))
-                                                 for k in ("p_stop_nl", "marker_frac", "teacher_stop_nl", "cont_tokens")}
+                                                 for k in ("p_stop_nl", "p_stop_env_nl", "p_stop_max16", "marker_frac", "teacher_stop_nl",
+                                                           "teacher_stop_env_nl", "teacher_stop_max16", "cont_tokens")}
     json.dump(report, open(a.out, "w"), indent=1)
     if sf:
         sf.close()
