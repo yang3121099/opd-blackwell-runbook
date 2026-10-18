@@ -37,24 +37,43 @@ SH
 res() { python3 -c "import json, sys; print(json.load(open(sys.argv[1])).get(sys.argv[2], ''))" $T/root/tmp/fa_build/result.json "$1"; }
 # 1. no nvcc >= 12.8: FAIL with what was seen, an event, the report to logs/<node>/fa_build
 setup
-FA_PIP_CUDA=0 FA_CUDA_CANDIDATES="$T/none $T/cuda124" bash $T/rb/scripts/fa_build.sh > /dev/null 2>&1
+FA_REDIST_CUDA=0 FA_CUDA_CANDIDATES="$T/none $T/cuda124" bash $T/rb/scripts/fa_build.sh > /dev/null 2>&1
 ok "old nvcc refused" '[ "$(res result)" = FAIL ] && [[ "$(res reason)" == *"no nvcc >= 12.8"* && "$(res reason)" == *"cuda124=12.4"* ]]'
 ok "fail event + report" 'grep -q "^control event FA-BUILD fa_build_fail" $CALLS && grep -q "^remote put $T/root/tmp/fa_build/report logs/abcd1234/fa_build" $CALLS'
 ok "no build tried" '! grep -q "^build " $CALLS'
 rm -rf $T
-# 1b. v2.5.6n: only an old system nvcc -> CUDA 12.8 from pip wheels into $D/cuda_pkgs, laid out as $D/cuda; a test kernel first
+# 1b. v2.5.6q: only an old system nvcc -> NVIDIA's CUDA 12.8.1 redistributable archives (sha256-pinned) laid out as $D/cuda;
+#     a test kernel first. Fake archives through FA_REDIST_MANIFEST / FA_REDIST_URL (file://).
+mkfake() {   # $1 = served directory; writes $T/man with the fake archives' sha256
+  local s=$1 c; mkdir -p $T/src
+  for c in cuda_nvcc cuda_cudart cuda_cccl cuda_nvtx; do
+    r=$T/src/$c-archive; mkdir -p $r/bin $r/include $r/lib
+    case $c in
+      cuda_nvcc) mkdir -p $r/nvvm/bin $r/include/crt; : > $r/include/crt/host_config.h
+        printf '#!/usr/bin/env bash\necho "nvcc $*" >> $CALLS\n[ "$1" = --version ] && { echo "Cuda compilation tools, release 12.8, V12.8.93"; exit 0; }\nwhile [ $# -gt 0 ]; do [ "$1" = -o ] && : > "$2"; shift; done; exit ${NVCC_RC:-0}\n' > $r/bin/nvcc;;   # no +x: the archive's mode is not trusted
+      cuda_cudart) : > $r/include/cuda_runtime.h; : > $r/lib/libcudart.so.12;;
+      cuda_cccl) mkdir -p $r/include/cuda/std; : > $r/include/cuda/std/cstdint;;
+      cuda_nvtx) mkdir -p $r/include/nvtx3; : > $r/include/nvtx3/nvToolsExt.h;;
+    esac
+    mkdir -p $s/$c; (cd $T/src && tar -cJf $s/$c/$c-archive.tar.xz $c-archive)
+    echo "$c $c/$c-archive.tar.xz $(sha256sum $s/$c/$c-archive.tar.xz | cut -c1-64)" >> $T/man
+  done; }
 setup
-D=$T/root/tmp/fa_build
-NVCC_RC=1 FA_CUDA_CANDIDATES="$T/cuda124" bash $T/rb/scripts/fa_build.sh > /dev/null 2>&1
-ok "pip CUDA wheels pinned, --no-deps, --target" 'grep -q "^py -m pip install --no-deps --target $D/cuda_pkgs nvidia-cuda-nvcc-cu12==12.8.93 nvidia-cuda-cccl-cu12==12.8.90" $CALLS'
-ok "CUDA_HOME layout" '[ -x $D/cuda/bin/nvcc ] && [ -L $D/cuda/nvvm ] && [ -L $D/cuda/include/cuda_runtime.h ] && [ -L $D/cuda/include/cublas_v2.h ] && [ -L $D/cuda/include/cuda/std/cstdint ] && [ -L $D/cuda/lib64/libcudart.so ]'
+D=$T/root/tmp/fa_build; mkfake $T/srv
+NVCC_RC=1 FA_REDIST_MANIFEST=$T/man FA_REDIST_URL=file://$T/srv FA_CUDA_CANDIDATES="$T/cuda124" bash $T/rb/scripts/fa_build.sh > /dev/null 2>&1
+ok "CUDA_HOME layout from the archives" '[ -x $D/cuda/bin/nvcc ] && [ -L $D/cuda/nvvm ] && [ -L $D/cuda/include/cuda_runtime.h ] && [ -L $D/cuda/include/cublas_v2.h ] && [ -L $D/cuda/include/cuda/std/cstdint ] && [ -L $D/cuda/include/nvtx3/nvToolsExt.h ] && [ -L $D/cuda/lib64/libcudart.so.12 ] && [ -L $D/cuda/targets/x86_64-linux/include ]'
 ok "test kernel for sm_100 first" 'grep -q "^nvcc -arch=sm_100 -I$D/cuda/include -L$D/cuda/lib64 -lcudart -o $D/t $D/t.cu" $CALLS'
 ok "a failing test kernel stops before the build" '[ "$(res result)" = FAIL ] && [[ "$(res reason)" == *"cannot compile a test kernel"* ]] && ! grep -q "^build " $CALLS'
 rm -rf $T
 setup
-D=$T/root/tmp/fa_build; mkdir -p $D/src; echo junk > $D/src/flash_attn-2.8.3.post2.tar.gz
-NOEXEC=1 FA_CUDA_CANDIDATES="$T/cuda124" bash $T/rb/scripts/fa_build.sh > /dev/null 2>&1   # v2.5.6p: a wheel unpacked without +x
-ok "pip CUDA becomes CUDA_HOME" '[ "$(res cuda_home)" = $D/cuda ] && [ "$(res cuda_from)" = pip ] && [[ "$(res reason)" == *"sha256 mismatch"* ]]'
+D=$T/root/tmp/fa_build; mkfake $T/srv; mkdir -p $D/src; echo junk > $D/src/flash_attn-2.8.3.post2.tar.gz
+FA_REDIST_MANIFEST=$T/man FA_REDIST_URL=file://$T/srv FA_CUDA_CANDIDATES="$T/cuda124" bash $T/rb/scripts/fa_build.sh > /dev/null 2>&1
+ok "redist CUDA becomes CUDA_HOME" '[ "$(res cuda_home)" = $D/cuda ] && [ "$(res cuda_from)" = redist ] && [[ "$(res reason)" == *"sha256 mismatch for flash_attn"* ]]'
+rm -rf $T
+setup
+D=$T/root/tmp/fa_build; mkfake $T/srv; sed -i.bak 's/^\(cuda_cccl [^ ]* \).*/\1deadbeef/' $T/man
+FA_REDIST_MANIFEST=$T/man FA_REDIST_URL=file://$T/srv FA_CUDA_CANDIDATES="$T/cuda124" bash $T/rb/scripts/fa_build.sh > /dev/null 2>&1
+ok "an archive with the wrong sha256 is refused" '[ "$(res result)" = FAIL ] && [[ "$(res reason)" == *"sha256 mismatch for cuda_cccl"* ]]'
 rm -rf $T
 # 2. a stack other than torch 2.8 is refused before anything is installed
 setup

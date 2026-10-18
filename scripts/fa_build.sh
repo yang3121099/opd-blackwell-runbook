@@ -6,6 +6,7 @@
 # (default 2) compiler threads; never touches the venv in use, torch or vLLM. Steps, each in $OPD_ROOT/tmp/fa_build/build.log:
 #   1. venv-fa exists (FA-PROBE made it) and still has the stack the probe read (torch 2.8 / Python 3.10)
 #   2. an nvcc >= 12.8 (sm_100 needs it): $CUDA_HOME, /usr/local/cuda-12.9, -12.8, /usr/local/cuda, then PATH
+#      (v2.5.6q: none there -> NVIDIA's CUDA 12.8.1 redistributable archives, sha256-pinned, under $D/cuda; step 2b)
 #   3. build tools inside venv-fa (ninja, packaging, wheel, setuptools, psutil, einops) with --no-deps when missing
 #   4. the PyPI source archive, stopped if its sha256 differs; built with FLASH_ATTENTION_FORCE_BUILD=TRUE (setup.py
 #      would otherwise fetch the same release wheel) and FLASH_ATTN_CUDA_ARCHS=100 (sm_100; B300 is sm_103, same major)
@@ -54,26 +55,41 @@ inst() {   # pip if present, else uv (the uv-built venv has no pip; FA-PROBE use
   if $VF/bin/python -m pip --version > /dev/null 2>&1; then $VF/bin/python -m pip install --no-deps "$@" >> $LOG 2>&1
   elif command -v uv > /dev/null 2>&1; then uv pip install --python $VF/bin/python --no-deps "$@" >> $LOG 2>&1
   else return 1; fi; }
-# 2b. v2.5.6n: no system nvcc >= 12.8 (B300 2026-10-18 05:15 UTC: /usr/local/cuda is 12.1, fa-build seq 96): NVIDIA's CUDA
-# 12.8 pip wheels (nvcc, cccl) unpacked under $D/cuda_pkgs and laid out as a CUDA_HOME in $D/cuda, with the runtime /
-# cuBLAS / cuSPARSE / cuSOLVER / cuRAND headers and libcudart of the nvidia-* packages torch already installed in venv-fa
-# (the CUDA 12.8 that torch 2.8.0+cu128 was built with); nothing outside $D changes. A test kernel (bf16, cuda::std) is
-# compiled for sm_100 before the long build, so a toolchain that cannot work fails in seconds.
-if [ -z "$CH" ] && [ "${FA_PIP_CUDA:-1}" = 1 ]; then
-  P=$D/cuda_pkgs; C=$D/cuda; step "no system nvcc >= 12.8:${SEEN:- none}; CUDA 12.8 from pip wheels into $P"
-  if [ ! -x $P/nvidia/cuda_nvcc/bin/nvcc ]; then
-    rm -rf $P; mkdir -p $P
-    inst --target $P nvidia-cuda-nvcc-cu12==12.8.93 nvidia-cuda-cccl-cu12==12.8.90 || finish FAIL "CUDA 12.8 pip wheels not installed into $P"
-  fi
+# 2b. no system nvcc >= 12.8 (B300 2026-10-18 05:15 UTC: /usr/local/cuda is 12.1, fa-build seq 96). v2.5.6q: NVIDIA's CUDA
+# 12.8.1 redistributable archives (developer.download.nvidia.com/compute/cuda/redist, sha256 of redistrib_12.8.1.json
+# pinned here): cuda_nvcc (nvcc, cicc, ptxas, crt), cuda_cudart, cuda_cccl, cuda_nvtx, unpacked under $D/redist and laid
+# out as a CUDA_HOME in $D/cuda, with the cuBLAS / cuSPARSE / cuSOLVER / cuRAND headers of the nvidia-* packages torch
+# installed in venv-fa (the same 12.8.1 versions); nothing outside $D changes. (v2.5.6n-p used the PyPI wheel
+# nvidia-cuda-nvcc-cu12, which has ptxas but no nvcc: seq 99 "cuda/bin/nvcc: No such file or directory".) A test kernel
+# (bf16, cuda::std) is compiled for sm_100 before the long build, so a toolchain that cannot work fails in seconds.
+if [ -z "$CH" ] && [ "${FA_REDIST_CUDA:-1}" = 1 ]; then
+  RU=${FA_REDIST_URL:-https://developer.download.nvidia.com/compute/cuda/redist}; RD=$D/redist; C=$D/cuda; mkdir -p $RD
+  step "no system nvcc >= 12.8:${SEEN:- none}; CUDA 12.8.1 redistributable archives into $RD"
+  MANF=${FA_REDIST_MANIFEST:-$D/redist.manifest}   # tests point this at their own archives
+  [ -n "${FA_REDIST_MANIFEST:-}" ] || cat > $MANF <<'MAN'
+cuda_nvcc cuda_nvcc/linux-x86_64/cuda_nvcc-linux-x86_64-12.8.93-archive.tar.xz 9961b3484b6b71314063709a4f9529654f96782ad39e72bf1e00f070db8210d3
+cuda_cudart cuda_cudart/linux-x86_64/cuda_cudart-linux-x86_64-12.8.90-archive.tar.xz 8d566b5fe745c46842dc16945cf36686227536decd2302c372be86da37faca68
+cuda_cccl cuda_cccl/linux-x86_64/cuda_cccl-linux-x86_64-12.8.90-archive.tar.xz 0740e9e01e4f15e17c5ab8d68bba4f8ec0eb6b84edccba4ac45112d2d2174e4b
+cuda_nvtx cuda_nvtx/linux-x86_64/cuda_nvtx-linux-x86_64-12.8.90-archive.tar.xz 7755524026d30e2c211d793392166517e379724d19eb9e8e352693f7d5fa0c95
+MAN
+  while read -r comp rel sha; do
+    f=$RD/$(basename $rel)
+    if [ ! -f $f ] || [ "$(sha256sum $f | cut -c1-64)" != "$sha" ]; then
+      curl -fsSL --retry 3 -o $f.part "$RU/$rel" && mv $f.part $f || finish FAIL "download failed: $comp"
+    fi
+    [ "$(sha256sum $f | cut -c1-64)" = "$sha" ] || { rm -f $f; finish FAIL "sha256 mismatch for $comp (redistrib_12.8.1.json $sha)"; }
+    rm -rf $RD/$comp; mkdir -p $RD/$comp; tar -xJf $f -C $RD/$comp --strip-components=1 || finish FAIL "unpack failed: $comp"
+  done < $MANF
+  put redist_ok true
   SP=$($VF/bin/python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])")/nvidia
-  [ -d $SP/cuda_runtime/include ] || finish FAIL "venv-fa has no nvidia/cuda_runtime headers (torch's CUDA runtime package)"
-  rm -rf $C; mkdir -p $C/lib64
-  cp -r $P/nvidia/cuda_nvcc/bin $C/bin || finish FAIL "nvcc copy failed"   # a copy, so nvcc.profile's TOP is $C
-  ln -s $P/nvidia/cuda_nvcc/nvvm $C/nvvm
-  python3 - $C/include $P/nvidia/cuda_nvcc/include $P/nvidia/cuda_cccl/include $SP/*/include <<'PY' || finish FAIL "CUDA_HOME include layout failed"
+  rm -rf $C; mkdir -p $C/lib64 $C/targets/x86_64-linux
+  cp -r $RD/cuda_nvcc/bin $C/bin || finish FAIL "nvcc copy failed"   # a copy, so nvcc.profile's TOP is $C
+  chmod -R u+x $C/bin $RD/cuda_nvcc/nvvm/bin 2> /dev/null
+  ln -s $RD/cuda_nvcc/nvvm $C/nvvm
+  python3 - $C/include $RD/cuda_nvcc/include $RD/cuda_cudart/include $RD/cuda_cccl/include $RD/cuda_nvtx/include $SP/*/include <<'PY' || finish FAIL "CUDA_HOME include layout failed"
 import os, sys
 dst, srcs = sys.argv[1], sys.argv[2:]
-for s in srcs:                       # one include tree of symlinks; the first package that has a file wins
+for s in srcs:                       # one include tree of symlinks; the first archive / package that has a file wins
     for r, ds, fs in os.walk(s):
         rel = os.path.relpath(r, s)
         os.makedirs(os.path.join(dst, rel), exist_ok=True)
@@ -82,17 +98,14 @@ for s in srcs:                       # one include tree of symlinks; the first p
             if not os.path.lexists(t):
                 os.symlink(os.path.join(r, f), t)
 PY
-  R=$(ls $SP/cuda_runtime/lib/libcudart.so.12* 2> /dev/null | head -1)
-  [ -n "$R" ] || finish FAIL "no libcudart.so.12 in venv-fa's nvidia/cuda_runtime"
-  ln -s $R $C/lib64/libcudart.so; ln -s $R $C/lib64/libcudart.so.12
-  # v2.5.6p: uv unpacked the wheel without the executable bits (B300 05:42 UTC, seq 98: nvcc --version printed nothing)
-  chmod -R u+x $C/bin $P/nvidia/cuda_nvcc/nvvm/bin 2> /dev/null
+  for l in $RD/cuda_nvcc/lib/* $RD/cuda_cudart/lib/*; do [ -e "$l" ] && ln -sf $l $C/lib64/; done
+  ln -s $C/include $C/targets/x86_64-linux/include; ln -s $C/lib64 $C/targets/x86_64-linux/lib   # nvcc.profile's target dir
   VOUT=$($C/bin/nvcc --version 2>&1); echo "$VOUT" >> $LOG
   v=$(echo "$VOUT" | sed -n 's/.*release \([0-9]*\)\.\([0-9]*\).*/\1.\2/p' | head -1)
-  [ "$v" = 12.8 ] || finish FAIL "pip nvcc does not run or is not 12.8 (got '${v}'; mode $(stat -c %A $C/bin/nvcc 2> /dev/null); $(echo "$VOUT" | tail -c 300 | tr '\n' ' '))"
+  [ "$v" = 12.8 ] || finish FAIL "redistributable nvcc does not run or is not 12.8 (got '${v}'; mode $(stat -c %A $C/bin/nvcc 2> /dev/null); $(echo "$VOUT" | tail -c 300 | tr '\n' ' '))"
   printf '#include <cuda_runtime.h>\n#include <cuda_bf16.h>\n#include <cuda/std/cstdint>\n__global__ void k(__nv_bfloat16 *x, cuda::std::int32_t n) { if (threadIdx.x < n) x[threadIdx.x] = __float2bfloat16(1.0f); }\nint main() { return 0; }\n' > $D/t.cu
-  $C/bin/nvcc -arch=sm_100 -I$C/include -L$C/lib64 -lcudart -o $D/t $D/t.cu >> $LOG 2>&1 || finish FAIL "pip CUDA 12.8 cannot compile a test kernel for sm_100: $(tail -c 300 $LOG | tr '\n' ' ')"
-  CH=$C; put cuda_from pip
+  $C/bin/nvcc -arch=sm_100 -I$C/include -L$C/lib64 -lcudart -o $D/t $D/t.cu >> $LOG 2>&1 || finish FAIL "CUDA 12.8 cannot compile a test kernel for sm_100: $(tail -c 300 $LOG | tr '\n' ' ')"
+  CH=$C; put cuda_from redist
 fi
 [ -n "$CH" ] || finish FAIL "no nvcc >= 12.8 found (CUDA_HOME, /usr/local/cuda-12.9, -12.8, /usr/local/cuda, PATH):${SEEN:- none}"
 put cuda_home "$CH"; step "nvcc: $CH (${v:-})"
