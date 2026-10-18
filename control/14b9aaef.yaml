@@ -116,3 +116,4 @@ commands:
   - {"seq": 114, "cmd": "rm-ours old_base runs/_old_E10b-P4lowlr_0856", "reason": "Runming's standing yes (15:2x Beijing) + reviewer A1 07:3x UTC: leftover of the first E10b attempt before the move (30.04 GB, du seq 112); E10b-P4lowlr redone and on HF", "utc": "2026-10-18T07:23:10Z"}
   - {"seq": 115, "cmd": "du old_base", "reason": "read-only: old base total and the disk's free space after the two deletions", "utc": "2026-10-18T07:23:54Z"}
   - {"seq": 116, "cmd": "persist-env", "reason": "v2.5.7a (reviewer A1 07:3x UTC): python, venv, G-OPD and the three models to the share; links / models.env switch only after the checks", "utc": "2026-10-18T07:27:21Z"}
+  - {"seq": 117, "cmd": "rebuild-drill", "reason": "v2.5.7a (reviewer A1 07:3x UTC): REBUILD.md steps timed without a GPU in a temporary directory on the share", "utc": "2026-10-18T07:38:20Z"}
