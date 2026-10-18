@@ -129,3 +129,4 @@ commands:
   - {"seq": 127, "cmd": "logs EVAL-budA17b 120", "reason": "EVAL-budA17b retrying: why did the first attempt fail", "utc": "2026-10-18T20:02:03Z"}
   - {"seq": 128, "cmd": "du opd_root runs/E10b-P2", "reason": "why the E10b-P2 s150 bf16 copy is gone (reviewer 20:0x UTC)", "utc": "2026-10-18T20:04:55Z"}
   - {"seq": 129, "cmd": "du opd_root runs/E10b-P2/ckpt/global_step_150/actor", "reason": "same, the step-150 actor dir", "utc": "2026-10-18T20:05:17Z"}
+  - {"seq": 130, "cmd": "snapshot runs/E10b-P2/upload.log", "reason": "where the E10b-P2 s150 bf16 copy went (reviewer 20:0x UTC)", "utc": "2026-10-18T20:10:17Z"}
