@@ -8,7 +8,7 @@
 # Status: syntax-checked; the lab runs the same configuration for 0.6B on H100/H200; not yet run on Blackwell.
 # Usage: bash run_e12.sh <gpu> <task id>      e.g. E12b-P2
 set -euo pipefail
-source "$(dirname "$0")/env.sh"; G=$1; T=$2; A=${T#E12b-}; OUT=$OPD_ROOT/runs/$T; mkdir -p $OUT/rollouts
+source "$(dirname "$0")/env.sh"; source "$(dirname "$0")/dr.sh"; G=$1; T=$2; A=${T#E12b-}; OUT=$OPD_ROOT/runs/$T; mkdir -p $OUT/rollouts
 [ -f $OUT/.done ] && exit 0
 case $A in
   P0) START=$STUDENT_17B;;
@@ -16,6 +16,16 @@ case $A in
   *)  START=$OPD_ROOT/runs/E10b-$A/ckpt/global_step_150/actor/huggingface_bf16   # v2.4: the fp32 copy is not kept;
        has_weights $START || START=${START%_bf16};;                                 # bf16 start (deviation: weight rounding)
 esac
+# v2.5.7: a start on the container disk that a rebuild removed comes from the copy that survived: P1 from
+# $(dr_root)/keep/SFT-P1 (dr-keep), an E10b start from this node's public result repository (its final bf16 upload)
+if [ $A != P0 ] && ! has_weights $START; then
+  case $A in
+    P1) K=$(ls -d $(dr_root)/keep/SFT-P1/ckpt/global_step_*/huggingface 2> /dev/null | sort -V | tail -1); [ -n "$K" ] && START=$K;;
+    *) R=runs/E10b-$A/global_step_150/actor/huggingface
+       python $RUNBOOK/scripts/fetch_model.py "$(python $RUNBOOK/scripts/remote.py repo public)" $R $CKPT_ROOT/adhoc_models/result --task $T \
+         && START=$CKPT_ROOT/adhoc_models/result/$R;;
+  esac
+fi
 case $A in P0|P1|P2|P3|P5|P5-s43) STEPS=100;; *) STEPS=60;; esac   # v2.5.6j: P5-s43 = the headline chain's second seed (queue v3 V3-c2)
 [ $A = P0 ] || has_weights $START || { echo "missing start checkpoint $START"; exit 1; }
 source $OPD_ROOT/venv/bin/activate
@@ -28,18 +38,28 @@ if python -c "import flash_attn" 2>/dev/null; then RMPAD=True; ATTN=flash_attent
 if [ -n "${FIXED_MICRO_BSZ:-}" ]; then BATCH="actor_rollout_ref.actor.use_dynamic_bsz=False actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=$FIXED_MICRO_BSZ"; LOGP_MB=$FIXED_MICRO_BSZ
 else BATCH="actor_rollout_ref.actor.use_dynamic_bsz=True actor_rollout_ref.actor.ppo_max_token_len_per_gpu=${MAX_TOK_GPU:-$TOK}"; LOGP_MB=8; fi
 ENT=""; [ "$RMPAD" = False ] && ENT="actor_rollout_ref.actor.entropy_from_logits_with_chunking=True"
+# v2.5.7: FUSED=1 / GC=0 (setenv) as in run_arm.sh (SPEED-PROBE 2026-10-18: GC=0 bit-exact, -9% step time on an E10b arm).
+# E12b turns gradient checkpointing off only with E12B_GC=1 as well (setenv, after its own 3-step comparison; reviewer
+# A1 07:0x UTC), so GC=0 for the E10b / E10c arms does not reach it; unset, E12b runs as before
+KERN=""; [ "${FUSED:-0}" = 1 ] && KERN="actor_rollout_ref.model.use_fused_kernels=True actor_rollout_ref.model.fused_kernel_options.impl_backend=torch"
+GCK=True; [ "${GC:-1}" = 0 ] && [ "${E12B_GC:-0}" = 1 ] && GCK=False
 [ -f $OUT/config.yaml ] && echo "resumed: $(date -u +%FT%TZ)" >> $OUT/config.yaml || cat > $OUT/config.yaml <<CFG
 task: $T
 start: $START
 algo: GRPO 64x8, 4K, T=1.0, lr 1e-6, clip 0.2/0.28, KL 0, mini-batch 16, data.seed 4242, $STEPS steps
 attention: $ATTN (use_remove_padding=$RMPAD)
+kernels: fused=${FUSED:-0} gradient_checkpointing=$GCK
 started: $(date -u +%FT%TZ)
 CFG
 # v2.4 save rule: dedicated node = HF weights at the last step only (queue v2 has no intermediate E12b reading; set
 # SAVE=<n> when one is registered), uploaded as bf16 and not kept locally (no local E12b evaluation); SPOT=1 also saves
 # the resume state every 20 steps and keeps only the newest. Checkpoints on $CKPT_ROOT (v2.4).
-if [ "${SPOT:-0}" = 1 ]; then CONTENTS="['model','optimizer','extra','hf_model']"; SAVE=${SAVE:-20}; else CONTENTS="['hf_model']"; SAVE=${SAVE:-$STEPS}; fi
+if [ "${SPOT:-0}" = 1 ]; then CONTENTS="['model','optimizer','extra','hf_model']"; SAVE=${SAVE:-20}
+elif dr_on; then CONTENTS="['model','optimizer','extra','hf_model']"; SAVE=${SAVE:-${DR_EVERY:-25}}   # v2.5.7: resume state for dr_sync.sh
+else CONTENTS="['hf_model']"; SAVE=${SAVE:-$STEPS}; fi
+[ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $T start=$START steps=$STEPS save=$SAVE contents=$CONTENTS kern=[$KERN] gc=$GCK"; exit 0; }   # tests
 ckpt_link $OUT
+dr_restore $OUT || echo "DR_RESTORE_FAILED $T"; dr_start_sync $OUT   # v2.5.7
 pgrep -f "upload_syn[c].sh $OUT\$" >/dev/null || KEEP_BF16=0 UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-$STEPS} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OUT > $OUT/upload.log 2>&1 < /dev/null &
 cd $OPD_ROOT/G-OPD/verl
 python3 -m verl.trainer.main_ppo \
@@ -52,10 +72,10 @@ python3 -m verl.trainer.main_ppo \
   data.filter_overlong_prompts=True data.truncation=error data.shuffle=True data.seed=4242 data.return_raw_chat=True \
   +data.apply_chat_template_kwargs.enable_thinking=False \
   actor_rollout_ref.model.path=$START +actor_rollout_ref.model.override_config.attn_implementation=$ATTN \
-  actor_rollout_ref.model.use_remove_padding=$RMPAD actor_rollout_ref.model.enable_gradient_checkpointing=True \
+  actor_rollout_ref.model.use_remove_padding=$RMPAD actor_rollout_ref.model.enable_gradient_checkpointing=$GCK \
   actor_rollout_ref.actor.optim.lr=1e-6 actor_rollout_ref.actor.optim.lr_warmup_steps_ratio=0.0 \
   actor_rollout_ref.actor.clip_ratio_low=0.2 actor_rollout_ref.actor.clip_ratio_high=0.28 \
-  actor_rollout_ref.actor.ppo_mini_batch_size=16 $BATCH $ENT \
+  actor_rollout_ref.actor.ppo_mini_batch_size=16 $BATCH $ENT $KERN \
   actor_rollout_ref.actor.use_kl_loss=False actor_rollout_ref.actor.entropy_coeff=0 \
   actor_rollout_ref.actor.checkpoint.save_contents=$CONTENTS \
   actor_rollout_ref.actor.fsdp_config.param_offload=False actor_rollout_ref.actor.fsdp_config.optimizer_offload=False \

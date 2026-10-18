@@ -652,3 +652,73 @@ def test_leak_counts(env):
     assert c.leak_counts(t, {"someuser"}, set(), True) == 2          # generation outputs: no address check
     assert c.leak_counts("clean text 1.2.1.2", {"someuser"}, set(), False) == 0
     assert c.leak_counts('{"Ġsomeuser": 5, "x": "hf_' + "b" * 32 + '"}', {"someuser"}, set(), False, vocab=True) == 1   # v2.5.6k: tokens only
+
+
+# ---------- v2.5.7: disaster recovery, du / rm-ours / dr-keep ----------
+@pytest.mark.parametrize("cmd,ok", [("du opd_root", True), ("du old_base runs", True), ("du /etc", False), ("du dr ../x", False),
+                                    ("rm-ours old_base runs/E10b-P2", True), ("rm-ours opd_root runs", False), ("rm-ours dr", False),
+                                    ("rm-ours old_base /abs", False), ("dr-keep SFT-P1", True), ("dr-keep a/b", False),
+                                    ("setenv DR=0", True), ("setenv DR=2", False), ("setenv DR_EVERY=25", True), ("setenv DR_EVERY=5", False),
+                                    ("setenv DR_MBPS=300", True), ("setenv DR_MBPS=5000", False), ("setenv E12B_GC=1", True), ("setenv E12B_GC=y", False)])
+def test_rules_dr(cmd, ok):
+    if ok:
+        R.parse({"cmd": cmd, "reason": "t"})
+    else:
+        with pytest.raises(R.Reject):
+            R.parse({"cmd": cmd, "reason": "t"})
+
+
+def _old_base(env, tmp_path):
+    old = tmp_path / "disk2" / "opd-run"; (old / "venv" / "bin").mkdir(parents=True); (old / "runs" / "E10b-P2").mkdir(parents=True)
+    (old / "runs" / "E10b-P2" / "a.bin").write_bytes(b"x" * 1000); (old / "models").mkdir()
+    os.symlink(old / "venv", env.root / "venv")      # the venv in use lives in the old base (LINK_VENV)
+    return old
+
+
+def _quiet(c, monkeypatch, got):
+    monkeypatch.setattr(c, "running_pids", lambda t=None: [])
+    monkeypatch.setattr(c, "receipt", lambda seq, e, st, detail, **k: got.update(st=st, detail=detail, **k))
+    monkeypatch.setattr(c, "event", lambda *a, **k: None)
+
+
+def test_our_prefixes_and_protection(env, tmp_path, monkeypatch):
+    c = env.c; old = _old_base(env, tmp_path); _quiet(c, monkeypatch, {})
+    p = c.our_prefixes()
+    assert p["old_base"] == os.path.realpath(old) and p["dr"] == os.path.realpath(str(tmp_path / "opd-dr"))
+    assert c.resolve_ours("old_base", "runs/E10b-P2", deleting=True)[0] == os.path.realpath(old / "runs" / "E10b-P2")
+    for rel, why in (("venv", "protected"), ("venv/bin", "protected"), (".", "relative"), ("", "relative"), ("runs/../venv", "relative"), ("nope", "no such")):
+        assert why in (c.resolve_ours("old_base", rel, deleting=True)[1] or ""), rel
+    assert "dr or old_base" in c.resolve_ours("opd_root", "runs", deleting=True)[1]
+    os.symlink(tmp_path, old / "escape")
+    assert "leaves" in c.resolve_ours("old_base", "escape", deleting=True)[1]
+    assert c.resolve_ours("old_base", "")[0] == os.path.realpath(old)            # du may size the whole prefix
+
+
+def test_do_du_and_rm_ours(env, tmp_path, monkeypatch):
+    c = env.c; old = _old_base(env, tmp_path); got = {}; _quiet(c, monkeypatch, got)
+    c.do_du(110, "old_base", "runs")
+    assert got["st"] == "ok" and got["children_gb"] == {"E10b-P2": 0.0} and "fs_free_gb" in got
+    c.do_rm_ours(111, "old_base", "runs/E10b-P2")
+    assert got["st"] == "ok" and got["freed_gb"] == 0.0 and not (old / "runs" / "E10b-P2").exists() and (old / "venv").exists()
+    c.do_rm_ours(112, "old_base", "venv")
+    assert got["st"] == "failed" and "protected" in got["detail"] and (old / "venv").exists()
+
+
+def test_dr_report_and_keep(env, tmp_path, monkeypatch):
+    c = env.c; got = {}; _quiet(c, monkeypatch, got)
+    d = tmp_path / "opd-dr" / "dr" / "E10b-P2" / "global_step_25" / "actor"; d.mkdir(parents=True); (d / "m.pt").write_bytes(b"x" * 2000)
+    (tmp_path / "opd-dr" / "dr" / "E10b-P2" / "latest").write_text("25\n")
+    r = c.dr_report()
+    assert r["exists"] and r["tasks"]["E10b-P2"]["step"] == "25" and r["cap_gb"] == 900 and not r["over_cap"]
+    hf = env.root / "runs" / "SFT-P1" / "ckpt" / "global_step_283" / "huggingface"; hf.mkdir(parents=True); (hf / "model.safetensors").write_bytes(b"w")
+    (env.root / "runs" / "SFT-P1" / "global_step_1").mkdir(); (env.root / "runs" / "SFT-P1" / "final_step").write_text("283\n")
+    started, real = [], c.subprocess.Popen
+    c.subprocess.Popen = lambda a, **k: started.append(a)
+    try:
+        assert c.v_dr_keep(["SFT-P1"], 113)[0] == "accepted" and started[0][-2:] == ["113", "SFT-P1"]
+    finally:
+        c.subprocess.Popen = real
+    c.do_dr_keep(113, "SFT-P1")
+    k = tmp_path / "opd-dr" / "keep" / "SFT-P1"
+    assert got["st"] == "ok" and (k / "ckpt" / "global_step_283" / "huggingface" / "model.safetensors").exists() and (k / "final_step").exists()
+    assert c.v_dr_keep(["E10b-none"], 114)[0] == "rejected"

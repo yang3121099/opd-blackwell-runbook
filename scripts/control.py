@@ -1321,6 +1321,201 @@ def do_scrubdiff(seq, fix=False):
     event("node", "scrubdiff", f"{len(changed)} differ, {len(clean)} clean" + (" re-uploaded" if up else ""))
 
 
+# ---------- v2.5.7: disaster recovery and our own disk space (Runming 2026-10-18 via the reviewer, A1 06:4x UTC) ----------
+def dr_root():
+    """As scripts/dr.sh: DR_ROOT, else the directory above $OPD_ROOT, /opd-dr (on the network share with $OPD_ROOT)."""
+    return os.environ.get("DR_ROOT") or os.path.join(os.path.dirname(ROOT.rstrip("/")), "opd-dr")
+
+
+def _tree_bytes(p):
+    n = 0
+    for dp, ds, fs in os.walk(p, followlinks=False):
+        for f in fs:
+            try:
+                n += os.lstat(os.path.join(dp, f)).st_size
+            except OSError:
+                pass
+    return n
+
+
+def dr_report():
+    """For the heartbeat: DR_ROOT's total, each mirrored task's step and size, the kept models, the cap."""
+    d = dr_root(); out = {"exists": os.path.isdir(d), "cap_gb": float(os.environ.get("DR_CAP_GB", "900")), "tasks": {}, "keep": {}}
+    if not out["exists"]:
+        return out
+    tot = 0
+    for sub, key in (("dr", "tasks"), ("keep", "keep")):
+        base = os.path.join(d, sub)
+        for t in sorted(os.listdir(base)) if os.path.isdir(base) else []:
+            b = _tree_bytes(os.path.join(base, t)); tot += b
+            r = {"gb": round(b / 1e9, 2)}
+            if sub == "dr":
+                r["step"] = (_read(os.path.join(base, t, "latest")) or "").strip() or None
+            out[key][t] = r
+    out["total_gb"] = round((tot + _tree_bytes(os.path.join(d, "state"))) / 1e9, 2)
+    out["over_cap"] = out["total_gb"] >= out["cap_gb"]
+    return out
+
+
+def our_prefixes():
+    """The roots du / rm-ours name symbolically (never as paths: control files are public): opd_root, dr, and old_base,
+    the directory the venv in use really lives in when that is outside $OPD_ROOT (the base before the 10-17 move)."""
+    root = os.path.realpath(ROOT); out = {"opd_root": root, "dr": os.path.realpath(dr_root())}
+    v = os.path.realpath(os.path.join(ROOT, "venv"))
+    if not (v + "/").startswith(root + "/") and os.path.isdir(v):
+        out["old_base"] = os.path.dirname(v)
+    return out
+
+
+def _protected():
+    """Paths rm-ours never deletes, nor anything that contains them: both venvs' real directories, $OPD_ROOT, the
+    runbook clone, CKPT_ROOT, the models of models.env / the environment."""
+    ps = [os.path.join(ROOT, "venv"), os.path.join(ROOT, "venv-fa"), ROOT, RUNBOOK, os.environ.get("CKPT_ROOT") or _paths_env().get("CKPT_ROOT")]
+    for k in ("STUDENT_06B", "STUDENT_17B", "TEACHER"):
+        ps.append(os.environ.get(k))
+    for line in (_read(os.path.join(ROOT, "models.env")) or "").splitlines():
+        if "=" in line:
+            ps.append(line.split("=", 1)[1].strip())
+    return [os.path.realpath(p) for p in ps if p and os.path.isabs(p) and os.path.exists(p)]
+
+
+def resolve_ours(prefix, rel, deleting=False):
+    """(absolute target, None) or (None, refusal)."""
+    pre = our_prefixes()
+    if prefix not in pre:
+        return None, f"unknown prefix {prefix} (known here: {', '.join(sorted(pre))})"
+    if deleting and prefix not in ("dr", "old_base"):
+        return None, "rm-ours deletes under dr or old_base only"
+    base = pre[prefix]; rel = (rel or "").strip("/")
+    if rel.startswith("/") or ".." in rel.split("/") or (deleting and rel in ("", ".")):
+        return None, "relative path below the prefix required (no .., not the prefix itself)"
+    t = os.path.realpath(os.path.join(base, rel)) if rel else base
+    if t != base and not t.startswith(base + "/"):
+        return None, "path leaves the prefix (symlink?)"
+    if not os.path.exists(t):
+        return None, "no such path"
+    if deleting:
+        if t == base:
+            return None, "not the prefix itself"
+        for p in _protected():
+            if t == p or p.startswith(t + "/") or t.startswith(p + "/"):
+                return None, "protected (a venv, $OPD_ROOT, the runbook, CKPT_ROOT or a model in use is at or below / above it)"
+        if prefix == "dr":
+            parts = os.path.relpath(t, base).split("/")
+            if len(parts) >= 2 and parts[0] == "dr" and running_pids(parts[1]):
+                return None, f"{parts[1]} is running (its mirror is in use)"
+        if subprocess.run(["pgrep", "-f", t], capture_output=True).returncode == 0:
+            return None, "a running process names this path"
+    return t, None
+
+
+def du_children(t):
+    """{child: GB} one level below t (symlinks not followed) and the total."""
+    kids = {}
+    if os.path.isdir(t) and not os.path.islink(t):
+        for c in sorted(os.listdir(t)):
+            p = os.path.join(t, c)
+            kids[c] = round((os.lstat(p).st_size if os.path.islink(p) or not os.path.isdir(p) else _tree_bytes(p)) / 1e9, 3)
+        tot = sum(kids.values())
+    else:
+        tot = round(os.lstat(t).st_size / 1e9, 3)
+    return kids, round(tot, 3)
+
+
+def v_du(a, seq, flags=None, entry=None):
+    """du <opd_root|dr|old_base> [relative path] (v2.5.7, read-only): sizes one level below, in the background."""
+    t, why = resolve_ours(a[0], a[1] if len(a) > 1 else "")
+    if why:
+        return "rejected", why, {}
+    subprocess.Popen(["setsid", sys.executable, os.path.abspath(__file__), "do_du", str(seq), a[0], a[1] if len(a) > 1 else ""],
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return "accepted", f"sizing {a[0]}/{a[1] if len(a) > 1 else ''} (read-only)", {}
+
+
+def do_du(seq, prefix, rel):
+    t0 = time.time(); t, why = resolve_ours(prefix, rel)
+    if why:
+        receipt(seq, None, "failed", why); return
+    kids, tot = du_children(t)
+    st = os.statvfs(t)
+    receipt(seq, None, "ok", f"{prefix}/{rel}: {tot:.1f} GB in {len(kids)} entries", total_gb=tot, children_gb=kids,
+            fs_free_gb=round(st.f_bavail * st.f_frsize / 1e9, 1), seconds=round(time.time() - t0, 1))
+
+
+def v_rm_ours(a, seq, flags=None, entry=None):
+    """rm-ours <dr|old_base> <relative path> (v2.5.7): our own directory or file under one of the two prefixes, never a
+    venv, $OPD_ROOT, the runbook, CKPT_ROOT, a model in use, a running task's mirror or a path a running process names;
+    sized first, then deleted, in the background; the receipt gives the GB freed. Each deletion under old_base is shown
+    to the reviewer and Runming (du first) before it is sent."""
+    t, why = resolve_ours(a[0], a[1], deleting=True)
+    if why:
+        return "rejected", why, {}
+    subprocess.Popen(["setsid", sys.executable, os.path.abspath(__file__), "do_rm_ours", str(seq), a[0], a[1]],
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return "accepted", f"{a[0]}/{a[1]} is sized, then deleted", {}
+
+
+def do_rm_ours(seq, prefix, rel):
+    t0 = time.time(); t, why = resolve_ours(prefix, rel, deleting=True)   # checked again: things may have changed
+    if why:
+        receipt(seq, None, "failed", why); return
+    kids, tot = du_children(t)
+    errs = []
+    if os.path.isdir(t) and not os.path.islink(t):
+        shutil.rmtree(t, onerror=lambda f, p, e: errs.append(type(e[1]).__name__))
+    else:
+        try:
+            os.unlink(t)
+        except OSError as e:
+            errs.append(type(e).__name__)
+    gone = not os.path.lexists(t)
+    receipt(seq, None, "ok" if gone and not errs else "failed", f"{prefix}/{rel}: {tot:.1f} GB {'freed' if gone else 'not fully deleted'}",
+            freed_gb=tot if gone else None, children_gb=kids, errors=errs[:20], seconds=round(time.time() - t0, 1))
+    event("node", "rm_ours", f"{prefix}/{rel} {tot:.1f} GB {'freed' if gone else 'partly deleted'}")
+
+
+def v_dr_keep(a, seq, flags=None, entry=None):
+    """dr-keep <task> (v2.5.7): a finished task's final model goes to $(dr_root)/keep/<task>/ on the network share (for
+    SFT-P1: global_step_<final_step>/huggingface, the start of E12b-P1); refused while it runs or over DR_CAP_GB."""
+    t = a[0]
+    if running_pids(t):
+        return "rejected", f"{t} is running", {}
+    if not os.path.isdir(os.path.join(ROOT, "runs", t, "ckpt")):
+        return "rejected", f"{t} has no checkpoints on this node", {}
+    r = dr_report()
+    if r.get("over_cap"):
+        return "rejected", f"DR_ROOT holds {r.get('total_gb')} GB >= {r['cap_gb']} GB", {}
+    subprocess.Popen(["setsid", sys.executable, os.path.abspath(__file__), "do_dr_keep", str(seq), t],
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return "accepted", f"{t}: final model copied to the share", {}
+
+
+def do_dr_keep(seq, t):
+    t0 = time.time(); ck = os.path.join(ROOT, "runs", t, "ckpt")
+    fs = (_read(os.path.join(ROOT, "runs", t, "final_step")) or "").strip()
+    steps = sorted((int(m.group(1)), d) for d in os.listdir(ck) for m in [re.match(r"global_step_(\d+)$", d)] if m)
+    step = next((d for n, d in steps if str(n) == fs), steps[-1][1] if steps else None)
+    src = None
+    for sub in ("huggingface", os.path.join("actor", "huggingface_bf16"), os.path.join("actor", "huggingface")):
+        p = os.path.join(ck, step, sub) if step else ""
+        if step and os.path.isdir(p) and any(f.endswith(".safetensors") for f in os.listdir(p)):
+            src = (p, sub); break
+    if not src:
+        receipt(seq, None, "failed", f"{t}: no final model with weights under ckpt/"); return
+    dst = os.path.join(dr_root(), "keep", t, "ckpt", step, src[1])
+    os.makedirs(os.path.dirname(dst), exist_ok=True); shutil.rmtree(dst + ".tmp", ignore_errors=True)
+    rc = subprocess.run(["nice", "-n", "19", "cp", "-a", src[0], dst + ".tmp"]).returncode
+    if rc == 0:
+        shutil.rmtree(dst, ignore_errors=True); os.rename(dst + ".tmp", dst)
+        for f in ("final_step", "config.yaml"):
+            if os.path.isfile(os.path.join(ROOT, "runs", t, f)):
+                shutil.copy2(os.path.join(ROOT, "runs", t, f), os.path.join(dr_root(), "keep", t, f))
+    gb = round(_tree_bytes(dst) / 1e9, 2) if rc == 0 else None
+    receipt(seq, None, "ok" if rc == 0 else "failed", f"{t}: {step}/{src[1]} {'kept on the share' if rc == 0 else 'copy failed'}" + (f", {gb} GB" if gb else ""),
+            kept_gb=gb, seconds=round(time.time() - t0, 1))
+    event(t, "dr_kept" if rc == 0 else "dr_keep_failed", f"{step} {gb} GB")
+
+
 def v_cancel(a, seq, flags=None, entry=None):
     target = int(a[0]); os.makedirs(_p("cancelled"), exist_ok=True)
     open(_p("cancelled", str(target)), "w").write(f"by seq {seq} {utc()}\n")
@@ -1507,7 +1702,7 @@ def _v24(fn):
 VERBS = {"pause": _v24(v_pause), "resume": _v24(v_resume), "kill": _v24(v_kill), "prio": _v24(v_prio),
          "restore": _v24(v_restore), "rerun_verify": _v24(v_rerun_verify), "setenv": v_set, "set": v_set,
          "snapshot": lambda a, seq, flags=None, entry=None: v_snapshot0(seq) if not a else v_snapshot(a, seq),
-         "ps": v_ps, "logs": v_logs, "run": v_run, "rerun": v_rerun, "republish": v_republish, "publish": v_publish, "leakscan": v_leakscan, "fa-build": v_fa_build, "scrubdiff": v_scrubdiff, "eval": v_eval, "update": v_update, "upload": v_upload,
+         "ps": v_ps, "logs": v_logs, "run": v_run, "rerun": v_rerun, "republish": v_republish, "publish": v_publish, "leakscan": v_leakscan, "fa-build": v_fa_build, "scrubdiff": v_scrubdiff, "du": v_du, "rm-ours": v_rm_ours, "dr-keep": v_dr_keep, "eval": v_eval, "update": v_update, "upload": v_upload,
          "signal": v_signal, "kill-pgid": v_killpgid, "cancel": v_cancel, "heartbeat": v_heartbeat, "move-ckpt": v_move_ckpt, "reap": v_reap}
 assert set(VERBS) == set(R.VERBS), set(VERBS) ^ set(R.VERBS)
 TASK_VERBS = R.TASK_VERBS
@@ -1656,6 +1851,14 @@ if __name__ == "__main__":
         do_fa_build(int(sys.argv[2]))
     elif cmd == "do_scrubdiff":
         do_scrubdiff(int(sys.argv[2]), fix=sys.argv[3:4] == ["fix"])
+    elif cmd == "do_du":
+        do_du(int(sys.argv[2]), sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else "")
+    elif cmd == "do_rm_ours":
+        do_rm_ours(int(sys.argv[2]), sys.argv[3], sys.argv[4])
+    elif cmd == "do_dr_keep":
+        do_dr_keep(int(sys.argv[2]), sys.argv[3])
+    elif cmd == "dr":
+        print(json.dumps(dr_report(), indent=1))
     elif cmd == "do_republish":
         do_republish(int(sys.argv[2]), sys.argv[3])
     elif cmd == "do_move":

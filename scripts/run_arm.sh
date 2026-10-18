@@ -7,7 +7,7 @@
 # Usage: bash run_arm.sh <gpu> <task id>      task ids: E10b-{P2,P3,P4lowlr,P5,P6,P6r,P2noEOS,Pstop,P6rand,P6top5,P4EOSpen}
 #        and the seed replicates E10b-P2-s43/-s44, E10b-P6r-s43/-s44
 set -euo pipefail
-source "$(dirname "$0")/env.sh"; GPU=$1; TASK=$2
+source "$(dirname "$0")/env.sh"; source "$(dirname "$0")/dr.sh"; GPU=$1; TASK=$2
 # task id E10b-<arm>[-s<seed>]: the seed changes only the data order (data.seed); the default seed is 42
 SEED=42; BASE=$TASK; [[ $TASK =~ -s(43|44)$ ]] && { SEED=${BASH_REMATCH[1]}; BASE=${TASK%-s*}; }
 # v2.5.6f (queue v3 V3-c1): E10c-<arm>-fix4 / -dyn16k = the lab's 0.6B E10 arm on this node (student Qwen3-0.6B; data,
@@ -57,6 +57,7 @@ STEPS=150; TEST=10; VALB=True
 # upload_sync turns into bf16, uploads and keeps locally as bf16 only. SPOT=1 (a node that can vanish) also saves the
 # resume state every 25 steps, and upload_sync keeps only the newest one.
 if [ "${SPOT:-0}" = 1 ]; then SAVE=${SAVE:-25}; CONTENTS="['model','optimizer','extra','hf_model']"
+elif dr_on; then SAVE=${SAVE:-${DR_EVERY:-25}}; CONTENTS="['model','optimizer','extra','hf_model']"   # v2.5.7: resume state for dr_sync.sh
 else SAVE=${SAVE:-$STEPS}; CONTENTS="['hf_model']"; fi
 [ "${SMOKE:-0}" = 1 ] && { STEPS=3; SAVE=-1; TEST=-1; VALB=False; }
 [ -f $OUT/config.yaml ] && echo "resumed: $(date -u +%FT%TZ)" >> $OUT/config.yaml || cat > $OUT/config.yaml <<CFG
@@ -70,11 +71,13 @@ teacher: $TEACHER (ref; think-template=$OPD_REF_THINK)
 attention: $ATTN (use_remove_padding=$RMPAD)
 batching: ${MODE:-default} [$BATCH]
 kernels: fused=${FUSED:-0} gradient_checkpointing=$GCK
+dr: $(dr_on && echo "every $SAVE steps" || echo off)
 gopd_commit: $GOPD_COMMIT
 gpu: $(nvidia-smi --query-gpu=name --format=csv,noheader -i $GPU)
 started: $(date -u +%FT%TZ)
 CFG
 [ "${SMOKE:-0}" = 1 ] || ckpt_link $OUT   # v2.4: checkpoints on $CKPT_ROOT (the large disk)
+[ "${SMOKE:-0}" = 1 ] || { dr_restore $OUT || echo "DR_RESTORE_FAILED $TASK"; dr_start_sync $OUT; }   # v2.5.7
 [ "${SMOKE:-0}" = 1 ] || pgrep -f "upload_syn[c].sh $OUT\$" >/dev/null || \
   UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-$STEPS} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OUT > $OUT/upload.log 2>&1 < /dev/null &
 cd $OPD_ROOT/G-OPD/verl

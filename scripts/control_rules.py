@@ -6,13 +6,13 @@ import calendar
 import re
 import time
 
-RULES_VERSION = "2.5.12"   # 2.5.1: HF_REPO_PUBLIC / HF_REPO_PRIVATE / HEARTBEAT_SEC; 2.5.2: FIXED_MICRO_BSZ; 2.5.3: VENV=fa; 2.5.4: reap; 2.5.5: rerun; 2.5.6: republish; 2.5.7: rerun failed / skipped tasks; 2.5.8: E10c; 2.5.9: publish, leakscan; 2.5.10: fa-build; 2.5.11: scrubdiff; 2.5.12: SPEED-PROBE, setenv FUSED / GC
+RULES_VERSION = "2.5.13"   # 2.5.1: HF_REPO_PUBLIC / HF_REPO_PRIVATE / HEARTBEAT_SEC; 2.5.2: FIXED_MICRO_BSZ; 2.5.3: VENV=fa; 2.5.4: reap; 2.5.5: rerun; 2.5.6: republish; 2.5.7: rerun failed / skipped tasks; 2.5.8: E10c; 2.5.9: publish, leakscan; 2.5.10: fa-build; 2.5.11: scrubdiff; 2.5.12: SPEED-PROBE, setenv FUSED / GC; 2.5.13: du, rm-ours, dr-keep, setenv DR / DR_EVERY / DR_MBPS / E12B_GC
 
 META = set(";&|`$<>\\\"'(){}*?!#~\n\r")
 TASK_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 KEY_RE = re.compile(r"^(VLLM_[A-Z0-9_]+|TRITON_[A-Z0-9_]+|TORCHINDUCTOR_[A-Z0-9_]+|NCCL_[A-Z0-9_]+|VLLM_UTIL|TEACHER_OFFLOAD"
                     r"|MAX_TOK_GPU|KEEP_LOCAL_HF|MAX_JOBS|SAVE|CKPT_ROOT|CKPT_CANDIDATES\+|UPLOAD_WEIGHTS|KEEP_BF16|ARCHIVE_ROOT"
-                    r"|HF_REPO_PUBLIC|HF_REPO_PRIVATE|HEARTBEAT_SEC|FIXED_MICRO_BSZ|VENV|FUSED|GC)$")
+                    r"|HF_REPO_PUBLIC|HF_REPO_PRIVATE|HEARTBEAT_SEC|FIXED_MICRO_BSZ|VENV|FUSED|GC|E12B_GC|DR|DR_EVERY|DR_MBPS)$")
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")   # owner/name of an HF repository
 VAL_RE = re.compile(r"^[A-Za-z0-9_.,:/=+-]*$")
 BENCHES = {"math500", "amc23", "aime24", "aime25", "olympiadbench", "minervamath"}
@@ -28,7 +28,7 @@ VERBS = {
     "pause": (1, 1, H24), "resume": (1, 1, H24), "prio": (2, 2, H24), "set": (1, 1, H24), "setenv": (1, 1, H24),
     "kill": (1, 1, H2), "run": (1, 1, H2), "eval": (2, 4, H2), "update": (0, 0, H2), "upload": (1, 1, H2),
     "restore": (2, 2, H2), "rerun_verify": (0, 0, H2),
-    "signal": (2, 3, H2), "kill-pgid": (1, 2, H2), "cancel": (1, 1, H24), "heartbeat": (0, 0, H2), "move-ckpt": (2, 2, H2), "reap": (1, 1, H2), "rerun": (1, 1, H2), "republish": (1, 1, H2), "publish": (1, 1, H2), "leakscan": (0, 0, H2), "fa-build": (0, 0, H2), "scrubdiff": (0, 1, H2),
+    "signal": (2, 3, H2), "kill-pgid": (1, 2, H2), "cancel": (1, 1, H24), "heartbeat": (0, 0, H2), "move-ckpt": (2, 2, H2), "reap": (1, 1, H2), "rerun": (1, 1, H2), "republish": (1, 1, H2), "publish": (1, 1, H2), "leakscan": (0, 0, H2), "fa-build": (0, 0, H2), "scrubdiff": (0, 1, H2), "du": (1, 2, H2), "rm-ours": (2, 2, H2), "dr-keep": (1, 1, H2),
 }
 TASK_VERBS = {"pause", "resume", "kill", "prio", "restore", "logs", "run", "move-ckpt"}
 
@@ -103,8 +103,14 @@ def parse(entry):
             raise Reject("FIXED_MICRO_BSZ must be an integer 1-16 (empty: back to the token budget)")
         if k == "VENV" and v not in ("", "fa"):
             raise Reject("VENV must be fa (the venv-fa that FA-PROBE built) or empty (the venv in use)")
-        if k in ("FUSED", "GC") and v not in ("", "0", "1"):
+        if k in ("FUSED", "GC", "E12B_GC") and v not in ("", "0", "1"):
             raise Reject(f"{k} must be 0, 1 or empty (v2.5.6o: FUSED=1 fused log-prob kernels, GC=0 no gradient checkpointing)")
+        if k == "DR" and v not in ("", "0", "1"):
+            raise Reject("DR must be 0, 1 or empty (v2.5.7: resume state mirrored to the share; default on)")
+        if k == "DR_EVERY" and v and not (v.isdigit() and 10 <= int(v) <= 100):
+            raise Reject("DR_EVERY must be an integer 10-100 (steps between resume states)")
+        if k == "DR_MBPS" and v and not (v.isdigit() and 50 <= int(v) <= 1000):
+            raise Reject("DR_MBPS must be an integer 50-1000 (mirror bandwidth limit, MB/s)")
     if verb == "eval":
         check_eval_args(args)
     if verb == "signal":
@@ -122,6 +128,14 @@ def parse(entry):
         raise Reject("republish <task>")
     if verb == "scrubdiff" and args and args[0] != "fix":
         raise Reject("scrubdiff [fix]")
+    if verb in ("du", "rm-ours"):   # v2.5.7: symbolic prefixes only (control files are public: no paths in them)
+        allowed = ("opd_root", "dr", "old_base") if verb == "du" else ("dr", "old_base")
+        if args[0] not in allowed:
+            raise Reject(f"{verb} <{'|'.join(allowed)}> {'[' if verb == 'du' else '<'}relative path{']' if verb == 'du' else '>'}")
+        if len(args) > 1 and (not re.fullmatch(r"[A-Za-z0-9._/-]+", args[1]) or args[1].startswith("/") or ".." in args[1].split("/")):
+            raise Reject("relative path of [A-Za-z0-9._/-], no leading / and no ..")
+    if verb == "dr-keep" and not TASK_RE.match(args[0]):
+        raise Reject("dr-keep <task>")
     if verb == "rerun" and not re.fullmatch(r"FA-PROBE|SPEED-PROBE|EVAL-[A-Za-z0-9._-]+|SFT-[A-Za-z0-9]+|E1[012]b-[A-Za-z0-9._-]+|E10c-[A-Za-z0-9._-]+|E0[23]-[A-Za-z0-9._-]+", args[0]):
         raise Reject("rerun <FA-PROBE | SPEED-PROBE | EVAL-name | SFT-* | E10b/E11b/E12b-* | E02/E03-*>")
     if verb == "cancel" and not (args[0].isdigit() and int(args[0]) > 0):

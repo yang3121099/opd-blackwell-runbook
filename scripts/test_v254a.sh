@@ -6,7 +6,7 @@ SRC=$(cd "$(dirname "$0")/.." && pwd); fails=0
 ok() { if eval "$2"; then :; else echo "  FAIL [$1]"; fails=$((fails + 1)); fi; }
 setup() {
   T=$(mktemp -d); mkdir -p $T/rb/scripts $T/rb/code/eval $T/rb/tasks $T/root/runs $T/root/logs $T/root/venv/bin
-  cp $SRC/scripts/task.sh $SRC/scripts/run_queue_eval.sh $SRC/scripts/control_rules.py $T/rb/scripts/
+  cp $SRC/scripts/task.sh $SRC/scripts/run_queue_eval.sh $SRC/scripts/control_rules.py $SRC/scripts/dr.sh $T/rb/scripts/
   mkdir -p $T/rb/code/leakage; printf 'import sys, os; open(os.environ["CALLS"], "a").write("twr " + " ".join(sys.argv[1:]) + "\\n")\n' > $T/rb/code/leakage/twr_alpha.py
   : > $T/root/venv/bin/activate
   cat > $T/rb/scripts/env.sh <<EOF

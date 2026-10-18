@@ -72,11 +72,16 @@ def steps_of(text):
 
 def report(d):
     out = {"lp": {}, "variants": {}}
-    for k in ("student", "teacher"):
+    for k in ("student", "teacher"):   # v2.5.7: the last JSON line (verl's monkey patch prints before it; B300 SPEED-PROBE 06:47)
+        out["lp"][k] = None
         try:
-            out["lp"][k] = json.load(open(os.path.join(d, f"lp_{k}.json")))
-        except (OSError, ValueError):
-            out["lp"][k] = None
+            for line in reversed(open(os.path.join(d, f"lp_{k}.json")).read().splitlines()):
+                try:
+                    out["lp"][k] = json.loads(line); break
+                except ValueError:
+                    continue
+        except OSError:
+            pass
     for v in VARIANTS:
         r = {}
         try:
