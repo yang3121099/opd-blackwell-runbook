@@ -143,3 +143,4 @@ commands:
   - {"seq": 141, "cmd": "du dr", "reason": "share usage after the dr-keeps (reviewer A1 20:20 UTC asks for the total)", "utc": "2026-10-18T20:31:03Z"}
   - {"seq": 142, "cmd": "logs EVAL-budB 40", "reason": "GPU1 idle 2 polls: is EVAL-budB between forced passes or stopped", "utc": "2026-10-18T22:59:58Z"}
   - {"seq": 143, "cmd": "logs EVAL-budA06 30", "reason": "reviewer 23:1x UTC: progress of EVAL-budA06 and PROBE-TERM", "utc": "2026-10-18T23:05:16Z"}
+  - {"seq": 144, "cmd": "snapshot runs/EVAL-budA06/gen_eval.log", "reason": "reviewer 23:1x UTC: progress of EVAL-budA06 and PROBE-TERM", "utc": "2026-10-18T23:05:38Z"}
