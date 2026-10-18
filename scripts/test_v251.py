@@ -598,6 +598,32 @@ def test_do_scrubdiff_fix_only_clean_files(env, monkeypatch, tmp_path):
     assert ups == [(os.path.join(c.ROOT, "runs/EVAL-x/a.jsonl"), "runs/EVAL-x/a.jsonl")] and "re-uploaded unchanged" in got["detail"]
 
 
+@pytest.mark.parametrize("cmd,ok", [("setenv FUSED=1", True), ("setenv FUSED=", True), ("setenv GC=0", True), ("setenv GC=2", False),
+                                    ("setenv FUSED=yes", False), ("rerun SPEED-PROBE", True)])
+def test_rules_speed_probe(cmd, ok):
+    if ok:
+        R.parse({"cmd": cmd, "reason": "t"})
+    else:
+        with pytest.raises(R.Reject):
+            R.parse({"cmd": cmd, "reason": "t"})
+
+
+def test_speed_probe_report(tmp_path):
+    """v2.5.6o: report.json from the probe's files: log-prob checks, rc, peak, steps 2-3 means and ratios to base."""
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__))))
+    import speed_probe as S
+    d = tmp_path
+    (d / "lp_student.json").write_text(json.dumps({"pass": True, "max_abs_diff": 0.004})); (d / "lp_teacher.json").write_text(json.dumps({"pass": True}))
+    for v, st, rc, oom in (("base", 130, 0, False), ("fused", 120, 0, False), ("gc0", 100, 1, True), ("fused_gc0", 95, 0, False)):
+        (d / f"{v}.rc").write_text(f"{rc}\n"); (d / f"{v}.mem.csv").write_text("1,1000\n2,150000\n3,90000\n"); (d / v).mkdir()
+        log = "".join(f"(TaskRunner pid=1) step:{i} - timing_s/gen:{40 + i} - timing_s/update_actor:{st - 80} - timing_s/step:{st + (30 if i == 1 else 0)} - actor/pg_loss:0.0{i} - response_length/mean:2200\n" for i in (1, 2, 3))
+        (d / v / "train.log").write_text(log + ("torch.OutOfMemoryError: CUDA out of memory\n" if oom else ""))
+    r = S.report(str(d))
+    assert r["variants"]["base"]["mean_s23"]["step"] == 130 and r["variants"]["fused"]["ratio_to_base"]["step"] == round(130 / 120, 3)
+    assert r["variants"]["base"]["mem_peak_mib"] == 150000 and r["variants"]["base"]["steps"][0]["actor/pg_loss"] == 0.01
+    assert r["fused_pass"] and not r["gc0_pass"] and r["fused_gc0_pass"] and r["variants"]["gc0"]["oom"]
+
+
 def test_do_publish_maps_weights_to_local_bf16(env, monkeypatch):
     c = env.c; d = os.path.join(c.ROOT, "runs", "E10b-P2"); bf = os.path.join(d, "ckpt", "global_step_150", "actor", "huggingface_bf16")
     os.makedirs(bf)

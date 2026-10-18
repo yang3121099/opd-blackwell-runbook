@@ -111,6 +111,10 @@ d3=$(FIXED_MICRO_BSZ= DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10b-P4lowlr | ta
 ok "E10c fix4" '[[ "$d1" == *"arm=P4 lr=6e-7 seed=42 student=$T/m06 "* && "$d1" == *"use_dynamic_bsz=False"*"ppo_micro_batch_size_per_gpu=4"* ]]'
 ok "E10c dyn16k ignores the OOM retry key" '[[ "$d2" == *"student=$T/m06 "* && "$d2" == *"use_dynamic_bsz=True"*"ppo_max_token_len_per_gpu=16384"* ]]'
 ok "E10b unchanged" '[[ "$d3" == *"student=$T/m17 "* && "$d3" == *"use_dynamic_bsz=True"* ]]'
+d4=$(FUSED=1 GC=0 DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10b-P2 | tail -1)   # v2.5.6o: SPEED-PROBE knobs
+ok "FUSED=1 GC=0" '[[ "$d4" == *"kern=[actor_rollout_ref.model.use_fused_kernels=True actor_rollout_ref.model.fused_kernel_options.impl_backend=torch] gc=False"* && "$d3" == *"kern=[] gc=True"* ]]'
+printf 'echo "speed_probe $*"\n' > $T/rb/scripts/speed_probe.sh
+ok "SPEED-PROBE task id" '[[ "$(bash $T/rb/scripts/task.sh 3 SPEED-PROBE | tail -1)" == "speed_probe 3" ]]'
 rm -rf $T
 # 7. v2.5.6j: E12b-P5-s43 (100 steps), E01 / E02 task ids, the OPSA name from the HF id (not from a local base path)
 setup
@@ -134,4 +138,4 @@ got=$( PATH=$T/bin:$PATH NGPU=14; eval "$(sed -n '/^free_gpus() {/,/; }$/p' $SRC
 kill $P1 $P2 2> /dev/null
 ok "running tasks keep their GPUs" '[[ " $got" == *" 1 "* && " $got" == *" 6 "* && " $got" != *" 5 "* && " $got" != *" 13 "* ]]'   # 13 must not hide 1
 rm -rf $T
-[ $fails = 0 ] && echo "V254A_TEST PASS (31 checks)" || echo "V254A_TEST FAIL ($fails)"
+[ $fails = 0 ] && echo "V254A_TEST PASS (33 checks)" || echo "V254A_TEST FAIL ($fails)"

@@ -46,7 +46,11 @@ else RMPAD=False; ATTN=sdpa; TOK_DEFAULT=6144; fi
 if [ -n "${FIXED_MICRO_BSZ:-}" ]; then BATCH="actor_rollout_ref.actor.use_dynamic_bsz=False actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=$FIXED_MICRO_BSZ"; LOGP_MB=$FIXED_MICRO_BSZ
 else BATCH="actor_rollout_ref.actor.use_dynamic_bsz=True actor_rollout_ref.actor.ppo_max_token_len_per_gpu=${MAX_TOK_GPU:-$TOK_DEFAULT}"; LOGP_MB=8; fi
 ENT=""; [ "$RMPAD" = False ] && ENT="actor_rollout_ref.actor.entropy_from_logits_with_chunking=True"
-[ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $TASK arm=$ARM lr=$LR seed=$SEED student=$STUDENT batch=[$BATCH]"; exit 0; }   # tests
+# v2.5.6o: FUSED=1 (setenv) = verl's fused log-prob / entropy kernels (torch backend, actor and teacher: no full logits);
+# GC=0 (setenv) = no gradient checkpointing in the actor. SPEED-PROBE measures both; unset, the ladder runs as before.
+KERN=""; [ "${FUSED:-0}" = 1 ] && KERN="actor_rollout_ref.model.use_fused_kernels=True actor_rollout_ref.model.fused_kernel_options.impl_backend=torch"
+GCK=True; [ "${GC:-1}" = 0 ] && GCK=False
+[ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $TASK arm=$ARM lr=$LR seed=$SEED student=$STUDENT batch=[$BATCH] kern=[$KERN] gc=$GCK"; exit 0; }   # tests
 STEPS=150; TEST=10; VALB=True
 # save rule (v2.4, Runming 2026-10-17): no archive of resume states. A dedicated node saves only the HF weights at the
 # pre-registered reading steps (E10b: step 150, the one checkpoint E11b and E12b read; SAVE=<n> for others), which
@@ -65,6 +69,7 @@ student: $STUDENT (no_think)
 teacher: $TEACHER (ref; think-template=$OPD_REF_THINK)
 attention: $ATTN (use_remove_padding=$RMPAD)
 batching: ${MODE:-default} [$BATCH]
+kernels: fused=${FUSED:-0} gradient_checkpointing=$GCK
 gopd_commit: $GOPD_COMMIT
 gpu: $(nvidia-smi --query-gpu=name --format=csv,noheader -i $GPU)
 started: $(date -u +%FT%TZ)
@@ -88,11 +93,11 @@ python3 -m verl.trainer.main_ppo \
   actor_rollout_ref.actor.optim.lr=$LR actor_rollout_ref.actor.optim.lr_warmup_steps_ratio=0.0 \
   actor_rollout_ref.model.use_remove_padding=$RMPAD \
   actor_rollout_ref.actor.policy_loss.only_reverse_kl_advantages=True actor_rollout_ref.actor.policy_loss.lambda_vals=1.0 \
-  actor_rollout_ref.actor.ppo_mini_batch_size=128 $BATCH $ENT \
+  actor_rollout_ref.actor.ppo_mini_batch_size=128 $BATCH $ENT $KERN \
   actor_rollout_ref.actor.use_kl_loss=True actor_rollout_ref.actor.kl_loss_coef=0 actor_rollout_ref.actor.kl_loss_type=low_var_kl \
   actor_rollout_ref.actor.entropy_coeff=0 \
   actor_rollout_ref.actor.checkpoint.save_contents=$CONTENTS \
-  actor_rollout_ref.model.enable_gradient_checkpointing=True \
+  actor_rollout_ref.model.enable_gradient_checkpointing=$GCK \
   actor_rollout_ref.actor.fsdp_config.param_offload=False actor_rollout_ref.actor.fsdp_config.optimizer_offload=False \
   actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=$LOGP_MB actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
   actor_rollout_ref.rollout.name=vllm actor_rollout_ref.rollout.gpu_memory_utilization=${VLLM_UTIL:-0.5} \

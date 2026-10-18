@@ -6,13 +6,13 @@ import calendar
 import re
 import time
 
-RULES_VERSION = "2.5.11"   # 2.5.1: HF_REPO_PUBLIC / HF_REPO_PRIVATE / HEARTBEAT_SEC; 2.5.2: FIXED_MICRO_BSZ; 2.5.3: VENV=fa; 2.5.4: reap; 2.5.5: rerun; 2.5.6: republish; 2.5.7: rerun failed / skipped tasks; 2.5.8: E10c; 2.5.9: publish, leakscan; 2.5.10: fa-build; 2.5.11: scrubdiff
+RULES_VERSION = "2.5.12"   # 2.5.1: HF_REPO_PUBLIC / HF_REPO_PRIVATE / HEARTBEAT_SEC; 2.5.2: FIXED_MICRO_BSZ; 2.5.3: VENV=fa; 2.5.4: reap; 2.5.5: rerun; 2.5.6: republish; 2.5.7: rerun failed / skipped tasks; 2.5.8: E10c; 2.5.9: publish, leakscan; 2.5.10: fa-build; 2.5.11: scrubdiff; 2.5.12: SPEED-PROBE, setenv FUSED / GC
 
 META = set(";&|`$<>\\\"'(){}*?!#~\n\r")
 TASK_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 KEY_RE = re.compile(r"^(VLLM_[A-Z0-9_]+|TRITON_[A-Z0-9_]+|TORCHINDUCTOR_[A-Z0-9_]+|NCCL_[A-Z0-9_]+|VLLM_UTIL|TEACHER_OFFLOAD"
                     r"|MAX_TOK_GPU|KEEP_LOCAL_HF|MAX_JOBS|SAVE|CKPT_ROOT|CKPT_CANDIDATES\+|UPLOAD_WEIGHTS|KEEP_BF16|ARCHIVE_ROOT"
-                    r"|HF_REPO_PUBLIC|HF_REPO_PRIVATE|HEARTBEAT_SEC|FIXED_MICRO_BSZ|VENV)$")
+                    r"|HF_REPO_PUBLIC|HF_REPO_PRIVATE|HEARTBEAT_SEC|FIXED_MICRO_BSZ|VENV|FUSED|GC)$")
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")   # owner/name of an HF repository
 VAL_RE = re.compile(r"^[A-Za-z0-9_.,:/=+-]*$")
 BENCHES = {"math500", "amc23", "aime24", "aime25", "olympiadbench", "minervamath"}
@@ -103,6 +103,8 @@ def parse(entry):
             raise Reject("FIXED_MICRO_BSZ must be an integer 1-16 (empty: back to the token budget)")
         if k == "VENV" and v not in ("", "fa"):
             raise Reject("VENV must be fa (the venv-fa that FA-PROBE built) or empty (the venv in use)")
+        if k in ("FUSED", "GC") and v not in ("", "0", "1"):
+            raise Reject(f"{k} must be 0, 1 or empty (v2.5.6o: FUSED=1 fused log-prob kernels, GC=0 no gradient checkpointing)")
     if verb == "eval":
         check_eval_args(args)
     if verb == "signal":
@@ -120,8 +122,8 @@ def parse(entry):
         raise Reject("republish <task>")
     if verb == "scrubdiff" and args and args[0] != "fix":
         raise Reject("scrubdiff [fix]")
-    if verb == "rerun" and not re.fullmatch(r"FA-PROBE|EVAL-[A-Za-z0-9._-]+|SFT-[A-Za-z0-9]+|E1[012]b-[A-Za-z0-9._-]+|E10c-[A-Za-z0-9._-]+|E0[23]-[A-Za-z0-9._-]+", args[0]):
-        raise Reject("rerun <FA-PROBE | EVAL-name | SFT-* | E10b/E11b/E12b-* | E02/E03-*>")
+    if verb == "rerun" and not re.fullmatch(r"FA-PROBE|SPEED-PROBE|EVAL-[A-Za-z0-9._-]+|SFT-[A-Za-z0-9]+|E1[012]b-[A-Za-z0-9._-]+|E10c-[A-Za-z0-9._-]+|E0[23]-[A-Za-z0-9._-]+", args[0]):
+        raise Reject("rerun <FA-PROBE | SPEED-PROBE | EVAL-name | SFT-* | E10b/E11b/E12b-* | E02/E03-*>")
     if verb == "cancel" and not (args[0].isdigit() and int(args[0]) > 0):
         raise Reject("cancel <seq>")
     flags["confirm_foreign"] = bool(entry.get("confirm_foreign"))
