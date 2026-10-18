@@ -14,9 +14,11 @@ case $T in
   E10c-*)  [[ $T =~ ^E10c-($ARMS)-(fix4|dyn16k)$ ]] || exit 2; bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # v2.5.6f: 0.6B, V3-c1
   E11b-*)  [[ $T =~ ^E11b-(P0|($ARMS)(-s(43|44))?)$ ]] || exit 2; bash $RUNBOOK/scripts/run_eval.sh $G $T;;   # v2.5.6c: seed arms too
   SFT-P1)  bash $RUNBOOK/scripts/run_sft.sh $G $T;;
-  E12b-*)  [[ $T =~ ^E12b-(P0|P1|$ARMS)$ ]] || exit 2; bash $RUNBOOK/scripts/run_e12.sh $G $T;;
+  E12b-*)  [[ $T =~ ^E12b-(P0|P1|$ARMS|P5-s43)$ ]] || exit 2; bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # v2.5.6j: P5-s43
   E03-MI-l0.0|E03-MI-l0.3|E03-MI-l0.5|E03-MI-l0.7|E03-MI-l1.0) bash $RUNBOOK/scripts/run_zero.sh $G $T;;
   E02-opsa17-c0.5|E02-opsa17-c1.5|E02-opsa4-c-1|E02-opsa4-c0.5|E02-opsa4-c1.5) bash $RUNBOOK/scripts/run_zero.sh $G $T;;
+  E02-opsa17-c-1|E02-opsa17-c2|E02-opsa4-c2) bash $RUNBOOK/scripts/run_zero.sh $G $T;;   # v2.5.6j: the scaling ends (V3-c3 a)
+  E01-opsa17-think|E01-opsa17-nothink|E01-base17-think) bash $RUNBOOK/scripts/run_zero.sh $G $T;;   # v2.5.6j: E01 remainder (V3-c3 d)
   FA-PROBE) bash $RUNBOOK/scripts/fa_probe.sh $G;;
   EVAL-*)  [[ $T =~ ^EVAL-[A-Za-z0-9._-]+$ ]] || exit 2; bash $RUNBOOK/scripts/run_queue_eval.sh $G $T;;   # v2.5.4a: #eval lines of queue.txt   # v2.5.3: can flash-attn 2 varlen run here (no E10b directory touched)
   *) echo "NOT_WHITELISTED $T"; exit 2;;

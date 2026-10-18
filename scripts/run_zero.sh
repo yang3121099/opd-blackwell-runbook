@@ -20,12 +20,21 @@ case $T in
     python code/eval/gen_eval.py --model $M --bench math500 --mode think --n 4 --temperature 0.6 --top_p 0.95 --top_k 20 \
       --max_tokens 32768 --tag e03_mi_${L}_math500 --out $OUT;;
   E02-opsa*)
-    S=${T#E02-opsa}; S=${S%%-c*}; C=${T##*-c}; B=Qwen/Qwen3-4B; [ $S = 17 ] && B=$STUDENT_17B
+    S=${T#E02-opsa}; S=${S%%-c*}; C=${T##*-c}
+    # v2.5.6j: the OPSA name comes from the HF id, not from $STUDENT_17B (a local path on a node: "Tuwhy//<path>-OPSA")
+    case $S in 17) B=$STUDENT_17B; FT=Tuwhy/Qwen3-1.7B-OPSA;; 4) B=Qwen/Qwen3-4B; FT=Tuwhy/Qwen3-4B-OPSA;; *) echo "unknown size $S"; exit 2;; esac
     M=$TMP/opsa${S}_c$C
-    [ -d $M ] || python code/weights/wops.py scale --base $B --ft Tuwhy/${B#Qwen/}-OPSA --c $C --out $M
+    [ -d $M ] || python code/weights/wops.py scale --base $B --ft $FT --c $C --out $M
     ls $OUT/e02_opsa${S}_c${C}_aime24_nothink_*.metrics.json > /dev/null 2>&1 || \
     python code/eval/gen_eval.py --model $M --bench aime24 --mode no_think --n 16 --temperature 0.7 --top_p 0.8 --top_k 20 \
       --max_tokens 32768 --tag e02_opsa${S}_c${C}_aime24_nothink --out $OUT;;
+  E01-*)   # v2.5.6j (queue v3 V3-c3 d): E01 remainder, AIME24 avg@32 at 32K with OPSA's sampling (T=0.7, top-p 0.8, top-k 20)
+    W=${T#E01-}; MODE=${W##*-}; NAME=${W%-*}
+    case $NAME in opsa17) M=Tuwhy/Qwen3-1.7B-OPSA;; base17) M=$STUDENT_17B;; *) echo "unknown model $NAME"; exit 2;; esac
+    case $MODE in think) GM=think;; nothink) GM=no_think;; *) echo "unknown mode $MODE"; exit 2;; esac
+    ls $OUT/e01_${NAME}_${MODE}_aime24_*.metrics.json > /dev/null 2>&1 || \
+    python code/eval/gen_eval.py --model $M --bench aime24 --mode $GM --n 32 --temperature 0.7 --top_p 0.8 --top_k 20 \
+      --max_tokens 32768 --tag e01_${NAME}_${MODE}_aime24 --out $OUT;;
   *) echo "unknown task $T"; exit 2;;
 esac
 rm -rf $TMP/mi_* $TMP/opsa*

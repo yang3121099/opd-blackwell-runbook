@@ -460,3 +460,41 @@ def test_v_rerun_failed_and_skipped(env, monkeypatch):
     assert c.v_rerun(["E12b-P1"], 71)[0] == "ok" and not os.path.exists(os.path.join(e12, ".skipped"))
     open(os.path.join(sft, ".done"), "w").write("x")
     assert c.v_rerun(["SFT-P1"], 72)[0] == "rejected"                      # a finished training is never rerun
+
+
+@pytest.mark.parametrize("cmd,ok", [("publish E10b-P2", True), ("publish a/b", False), ("leakscan", True), ("leakscan x", False)])
+def test_rules_publish_leakscan(cmd, ok):
+    if ok:
+        R.parse({"cmd": cmd, "reason": "t"})
+    else:
+        with pytest.raises(R.Reject):
+            R.parse({"cmd": cmd, "reason": "t"})
+
+
+def test_do_publish_maps_weights_to_local_bf16(env, monkeypatch):
+    c = env.c; d = os.path.join(c.ROOT, "runs", "E10b-P2"); bf = os.path.join(d, "ckpt", "global_step_150", "actor", "huggingface_bf16")
+    os.makedirs(bf)
+    for f, body in (("train.log", "log"), ("config.yaml", "c")): open(os.path.join(d, f), "w").write(body)
+    for f in ("model-00001-of-00002.safetensors", "config.json"): open(os.path.join(bf, f), "w").write("w")
+    old = ["runs/E10b-P2/train.log", "runs/E10b-P2/config.yaml", "runs/E10b-P2/gone.json",
+           "runs/E10b-P2/global_step_150/actor/huggingface/model-00001-of-00002.safetensors",
+           "runs/E10b-P2/global_step_150/actor/huggingface/config.json", "runs/E10b-P2/global_step_150/actor/x.pt", "runs/E10b-P3/train.log"]
+    monkeypatch.setitem(sys.modules, "huggingface_hub", types.SimpleNamespace(HfApi=lambda token=None: types.SimpleNamespace(list_repo_files=lambda repo: old)))
+    staged, got = [], {}
+    def put(src, dst):
+        staged.extend(sorted(os.path.relpath(os.path.join(r, f), src) for r, _, fs in os.walk(src) for f in fs)); got["dst"] = dst; return True
+    monkeypatch.setattr(c, "remote_put", put)
+    monkeypatch.setattr(c, "receipt", lambda seq, e, st, detail, **k: got.update(st=st, detail=detail, **k))
+    monkeypatch.setattr(c, "event", lambda *a, **k: None)
+    c.do_publish(80, "E10b-P2")
+    assert staged == ["config.yaml", "global_step_150/actor/huggingface/config.json",
+                      "global_step_150/actor/huggingface/model-00001-of-00002.safetensors", "train.log"] and got["dst"] == "runs/E10b-P2"
+    assert got["st"] == "ok" and sorted(got["missing"]) == ["global_step_150/actor/x.pt", "gone.json"]
+
+
+def test_leak_counts(env):
+    c = env.c
+    t = "path /home/someuser/x and 10.9.8.7 and hf_" + "a" * 32
+    assert c.leak_counts(t, {"someuser"}, set(), False) == 3
+    assert c.leak_counts(t, {"someuser"}, set(), True) == 2          # generation outputs: no address check
+    assert c.leak_counts("clean text 1.2.1.2", {"someuser"}, set(), False) == 0

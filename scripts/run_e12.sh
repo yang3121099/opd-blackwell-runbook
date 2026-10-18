@@ -16,7 +16,7 @@ case $A in
   *)  START=$OPD_ROOT/runs/E10b-$A/ckpt/global_step_150/actor/huggingface_bf16   # v2.4: the fp32 copy is not kept;
        has_weights $START || START=${START%_bf16};;                                 # bf16 start (deviation: weight rounding)
 esac
-case $A in P0|P1|P2|P3|P5) STEPS=100;; *) STEPS=60;; esac
+case $A in P0|P1|P2|P3|P5|P5-s43) STEPS=100;; *) STEPS=60;; esac   # v2.5.6j: P5-s43 = the headline chain's second seed (queue v3 V3-c2)
 [ $A = P0 ] || has_weights $START || { echo "missing start checkpoint $START"; exit 1; }
 source $OPD_ROOT/venv/bin/activate
 export CUDA_VISIBLE_DEVICES=$G RAY_TMPDIR=/tmp/ray_gpu$G PYTHONPATH=$RUNBOOK/code/patches:${PYTHONPATH:-}

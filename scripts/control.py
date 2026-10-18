@@ -928,7 +928,7 @@ def v_run(a, seq, flags=None, entry=None):
     t = a[0]
     r = subprocess.run(["bash", "-c", f'T={t}; ARMS="P2|P3|P4lowlr|P5|P6|P6r|P2noEOS|Pstop|P6rand|P6top5|P4EOSpen"; '
                         'case $T in E10b-*) [[ $T =~ ^E10b-($ARMS)(-s(43|44))?$ ]];; E10c-*) [[ $T =~ ^E10c-($ARMS)-(fix4|dyn16k)$ ]];; E11b-*) [[ $T =~ ^E11b-(P0|($ARMS)(-s(43|44))?)$ ]];; '
-                        'E12b-*) [[ $T =~ ^E12b-(P0|P1|$ARMS)$ ]];; EVAL-*) [[ $T =~ ^EVAL-[A-Za-z0-9._-]+$ ]];; SFT-P1|FA-PROBE|E03-MI-l0.[0357]|E03-MI-l1.0|E02-opsa17-c0.5|E02-opsa17-c1.5|E02-opsa4-c-1|'
+                        'E12b-*) [[ $T =~ ^E12b-(P0|P1|$ARMS|P5-s43)$ ]];; EVAL-*) [[ $T =~ ^EVAL-[A-Za-z0-9._-]+$ ]];; SFT-P1|FA-PROBE|E03-MI-l0.[0357]|E03-MI-l1.0|E02-opsa17-c0.5|E02-opsa17-c1.5|E02-opsa4-c-1|'
                         'E02-opsa4-c0.5|E02-opsa4-c1.5) true;; *) false;; esac'])
     if r.returncode != 0:
         return "rejected", f"{t} is not accepted by task.sh", {}
@@ -1088,6 +1088,101 @@ def do_republish(seq, t):
     receipt(seq, None, "ok" if ok else "failed", f"runs/{t}: {len(done)} text files {'republished scrubbed' if ok else 'not uploaded'}"
             + (f"; {len(missing)} not on this node" if missing else ""), files=done[:50], missing=missing[:50])
     event(t, "republished" if ok else "republish_failed", f"{len(done)} files")
+
+
+OLD_PUBLIC = os.environ.get("OPD_OLD_PUBLIC_REPO", "yang31210999/opd-lab-b300")   # private since 2026-10-18 (history leak)
+
+
+def v_publish(a, seq, flags=None, entry=None):
+    """publish <task> (v2.5.6j): the files this task had in the old public repository (now private) go to the current
+    public repository from this node's copies, through the scrubbing upload: text from runs/<task>/, weights
+    (global_step_N/actor/huggingface/*) from the local bf16 copy ckpt/global_step_N/actor/huggingface_bf16/. Resume
+    states and fp32 files are never uploaded; files missing on this node are listed in the receipt."""
+    t = a[0]
+    if not os.path.isdir(os.path.join(ROOT, "runs", t)):
+        return "rejected", f"no runs/{t} on this node", {}
+    subprocess.Popen(["setsid", sys.executable, os.path.abspath(__file__), "do_publish", str(seq), t],
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return "accepted", f"runs/{t}: old public files are re-published from this node", {}
+
+
+def do_publish(seq, t):
+    sys.path.insert(0, os.path.join(RUNBOOK, "scripts"))
+    import remote
+    from huggingface_hub import HfApi
+    try:
+        names = [f for f in HfApi(token=os.environ.get("HF_TOKEN")).list_repo_files(OLD_PUBLIC) if f.startswith(f"runs/{t}/")]
+    except Exception as e:
+        receipt(seq, None, "failed", f"listing {OLD_PUBLIC} failed: {type(e).__name__}"); return
+    stage = _p(f"req_{seq}"); shutil.rmtree(stage, ignore_errors=True); os.makedirs(stage)
+    done, missing, nbytes = [], [], 0
+    for f in names:
+        rel = f[len(f"runs/{t}/"):]
+        m = re.match(r"(global_step_\d+)/actor/huggingface/(.+)$", rel)
+        src = os.path.join(ROOT, "runs", t, "ckpt", m.group(1), "actor", "huggingface_bf16", m.group(2)) if m else os.path.join(ROOT, "runs", t, rel)
+        if "/ckpt/" in f"/{rel}" or rel.endswith((".pt", ".pth")) or not os.path.isfile(src):
+            missing.append(rel); continue
+        dst = os.path.join(stage, rel); os.makedirs(os.path.dirname(dst), exist_ok=True)
+        try:
+            os.link(src, dst)          # weights: no copy on the same disk
+        except OSError:
+            shutil.copy2(src, dst)
+        done.append(rel); nbytes += os.path.getsize(src)
+    ok = remote_put(stage, f"runs/{t}") if done else True
+    shutil.rmtree(stage, ignore_errors=True)
+    receipt(seq, None, "ok" if ok else "failed", f"runs/{t}: {len(done)} files, {nbytes / 1e9:.2f} GB {'published' if ok else 'not uploaded'}"
+            + (f"; {len(missing)} not on this node" if missing else ""), files=done[:60], missing=missing[:60])
+    event(t, "published" if ok else "publish_failed", f"{len(done)} files {nbytes / 1e9:.2f} GB")
+
+
+def v_leakscan(a, seq, flags=None, entry=None):
+    """leakscan (v2.5.6j): scan the current public repository's non-weight files on this node (nothing is downloaded
+    anywhere else) for this machine's user / host / path tokens, private or own IPv4 addresses (not in generation outputs)
+    and HF tokens; the receipt carries counts per file only, never content."""
+    subprocess.Popen(["setsid", sys.executable, os.path.abspath(__file__), "do_leakscan", str(seq)],
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return "accepted", "public repository scan started on this node", {}
+
+
+def leak_counts(text, toks, ips, generation):
+    """Hits in one text: forbidden tokens, HF / ModelScope tokens, and (outside generation outputs) addresses."""
+    sys.path.insert(0, os.path.join(RUNBOOK, "scripts"))
+    import remote
+    n = 0
+    if toks:
+        n += len(re.findall(r"(?i)(?<![A-Za-z0-9_])(" + "|".join(map(re.escape, sorted(toks, key=len, reverse=True))) + r")(?![A-Za-z0-9_])", text))
+    n += len(re.findall(r"hf_[A-Za-z0-9]{30,}|ms-[A-Za-z0-9]{8}-[A-Za-z0-9-]{20,}", text))
+    if not generation:
+        n += len(remote.PRIVATE_IP.findall(text)) + sum(text.count(a) for a in ips)
+    return n
+
+
+def do_leakscan(seq):
+    sys.path.insert(0, os.path.join(RUNBOOK, "scripts"))
+    import tempfile
+    import remote
+    from huggingface_hub import HfApi, hf_hub_download
+    pub = remote.repos()[0]
+    try:
+        info = HfApi().repo_info(pub)
+        names = [s.rfilename for s in info.siblings if not s.rfilename.endswith((".safetensors", ".pt", ".bin", ".parquet", ".pth", ".gguf"))]
+    except Exception as e:
+        receipt(seq, None, "failed", f"listing failed: {type(e).__name__}"); return
+    toks, ips, hits = _forbidden_tokens(), remote.own_ips(), {}
+    with tempfile.TemporaryDirectory() as tmp:
+        for f in names:
+            try:
+                t = open(hf_hub_download(pub, f, revision=info.sha, cache_dir=tmp), errors="ignore").read()
+            except Exception:
+                hits[f] = -1; continue
+            n = leak_counts(t, toks, ips, f.endswith((".jsonl", ".part")))
+            if n:
+                hits[f] = n
+    real = {f: n for f, n in hits.items() if n > 0}
+    receipt(seq, None, "ok", f"{pub} @ {info.sha[:12]}: {len(names)} text files scanned, {len(real)} with hits"
+            + (f", {sum(1 for n in hits.values() if n < 0)} unreadable" if any(n < 0 for n in hits.values()) else ""),
+            revision=info.sha, scanned=len(names), hits=dict(list(real.items())[:60]))
+    event("node", "leakscan", f"{len(real)} files with hits")
 
 
 def v_cancel(a, seq, flags=None, entry=None):
@@ -1276,7 +1371,7 @@ def _v24(fn):
 VERBS = {"pause": _v24(v_pause), "resume": _v24(v_resume), "kill": _v24(v_kill), "prio": _v24(v_prio),
          "restore": _v24(v_restore), "rerun_verify": _v24(v_rerun_verify), "setenv": v_set, "set": v_set,
          "snapshot": lambda a, seq, flags=None, entry=None: v_snapshot0(seq) if not a else v_snapshot(a, seq),
-         "ps": v_ps, "logs": v_logs, "run": v_run, "rerun": v_rerun, "republish": v_republish, "eval": v_eval, "update": v_update, "upload": v_upload,
+         "ps": v_ps, "logs": v_logs, "run": v_run, "rerun": v_rerun, "republish": v_republish, "publish": v_publish, "leakscan": v_leakscan, "eval": v_eval, "update": v_update, "upload": v_upload,
          "signal": v_signal, "kill-pgid": v_killpgid, "cancel": v_cancel, "heartbeat": v_heartbeat, "move-ckpt": v_move_ckpt, "reap": v_reap}
 assert set(VERBS) == set(R.VERBS), set(VERBS) ^ set(R.VERBS)
 TASK_VERBS = R.TASK_VERBS
@@ -1417,6 +1512,10 @@ if __name__ == "__main__":
         sys.exit(0 if check_pull(sys.argv[2], sys.argv[3]) else 1)
     elif cmd == "do_upload":
         do_upload(int(sys.argv[2]), sys.argv[3], sys.argv[4])
+    elif cmd == "do_publish":
+        do_publish(int(sys.argv[2]), sys.argv[3])
+    elif cmd == "do_leakscan":
+        do_leakscan(int(sys.argv[2]))
     elif cmd == "do_republish":
         do_republish(int(sys.argv[2]), sys.argv[3])
     elif cmd == "do_move":

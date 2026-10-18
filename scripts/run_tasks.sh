@@ -110,7 +110,7 @@ while true; do
       pgrep -f "upload_syn[c].sh $OPD_ROOT/runs/$t\$" > /dev/null && continue
       case $t in
         E10b-*|E10c-*) env UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-150} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;
-        E12b-*) case ${t#E12b-} in P0|P1|P2|P3|P5) s=100;; *) s=60;; esac
+        E12b-*) case ${t#E12b-} in P0|P1|P2|P3|P5|P5-s43) s=100;; *) s=60;; esac
                 env KEEP_BF16=0 UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-$s} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;
       esac
       python $RUNBOOK/scripts/control.py event $t upload_sync_restarted > /dev/null 2>&1 &

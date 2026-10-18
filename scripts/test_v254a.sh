@@ -112,6 +112,17 @@ ok "E10c fix4" '[[ "$d1" == *"arm=P4 lr=6e-7 seed=42 student=$T/m06 "* && "$d1" 
 ok "E10c dyn16k ignores the OOM retry key" '[[ "$d2" == *"student=$T/m06 "* && "$d2" == *"use_dynamic_bsz=True"*"ppo_max_token_len_per_gpu=16384"* ]]'
 ok "E10b unchanged" '[[ "$d3" == *"student=$T/m17 "* && "$d3" == *"use_dynamic_bsz=True"* ]]'
 rm -rf $T
+# 7. v2.5.6j: E12b-P5-s43 (100 steps), E01 / E02 task ids, the OPSA name from the HF id (not from a local base path)
+setup
+printf 'echo "run_e12 $*"\n' > $T/rb/scripts/run_e12.sh
+cp $SRC/scripts/run_zero.sh $T/rb/scripts/run_zero.sh; mkdir -p $T/rb/code/weights
+printf 'import sys, os; open(os.environ["CALLS"], "a").write("wops " + " ".join(sys.argv[1:]) + "\\n")\n' > $T/rb/code/weights/wops.py
+ok "E12b-P5-s43 accepted" '[[ "$(bash $T/rb/scripts/task.sh 0 E12b-P5-s43 | tail -1)" == "run_e12 0 E12b-P5-s43" ]] && ! bash $T/rb/scripts/task.sh 0 E12b-P5-s45 > /dev/null 2>&1'
+ok "run_e12 gives P5-s43 100 steps" 'grep -q "P0|P1|P2|P3|P5|P5-s43) STEPS=100" $SRC/scripts/run_e12.sh'
+bash $T/rb/scripts/task.sh 0 E02-opsa17-c2 > $T/z1 2>&1; bash $T/rb/scripts/task.sh 0 E01-opsa17-think > $T/z2 2>&1
+ok "E02 OPSA name from the HF id" 'grep -q "^wops scale --base $T/m17 --ft Tuwhy/Qwen3-1.7B-OPSA --c 2 " $CALLS && grep -q "e02_opsa17_c2_aime24_nothink" $CALLS'
+ok "E01 remainder" 'grep -q -- "--model Tuwhy/Qwen3-1.7B-OPSA --bench aime24 --mode think --n 32 --temperature 0.7 --top_p 0.8 --top_k 20 --max_tokens 32768 --tag e01_opsa17_think_aime24" $CALLS && ! bash $T/rb/scripts/task.sh 0 E01-opsa9-think > /dev/null 2>&1'
+rm -rf $T
 # 4. v2.5.4d free_gpus(): a GPU whose task.sh (or ad-hoc evaluation) runs is not free, even with nothing on it yet
 T=$(mktemp -d); mkdir -p $T/bin $T/x/scripts
 printf '#!/usr/bin/env bash\ncase "$*" in *compute-apps*) ;; *) echo 0;; esac\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi
@@ -121,4 +132,4 @@ got=$( PATH=$T/bin:$PATH NGPU=14; eval "$(sed -n '/^free_gpus() {/,/; }$/p' $SRC
 kill $P1 $P2 2> /dev/null
 ok "running tasks keep their GPUs" '[[ " $got" == *" 1 "* && " $got" == *" 6 "* && " $got" != *" 5 "* && " $got" != *" 13 "* ]]'   # 13 must not hide 1
 rm -rf $T
-[ $fails = 0 ] && echo "V254A_TEST PASS (26 checks)" || echo "V254A_TEST FAIL ($fails)"
+[ $fails = 0 ] && echo "V254A_TEST PASS (30 checks)" || echo "V254A_TEST FAIL ($fails)"
