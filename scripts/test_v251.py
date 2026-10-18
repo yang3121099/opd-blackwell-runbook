@@ -722,3 +722,25 @@ def test_dr_report_and_keep(env, tmp_path, monkeypatch):
     k = tmp_path / "opd-dr" / "keep" / "SFT-P1"
     assert got["st"] == "ok" and (k / "ckpt" / "global_step_283" / "huggingface" / "model.safetensors").exists() and (k / "final_step").exists()
     assert c.v_dr_keep(["E10b-none"], 114)[0] == "rejected"
+
+
+@pytest.mark.parametrize("cmd,ok", [("persist-env", True), ("persist-env now", False), ("rebuild-drill", True), ("rebuild-drill x", False)])
+def test_rules_persist(cmd, ok):
+    if ok:
+        R.parse({"cmd": cmd, "reason": "t"})
+    else:
+        with pytest.raises(R.Reject):
+            R.parse({"cmd": cmd, "reason": "t"})
+
+
+def test_do_script_receipt(env, monkeypatch):
+    """v2.5.7a: persist-env / rebuild-drill run their script and write the receipt from its JSON result."""
+    c = env.c; got = {}; _quiet(c, monkeypatch, got)
+    os.makedirs(os.path.join(c.ROOT, "logs"), exist_ok=True)
+    s = os.path.join(c.RUNBOOK, "scripts", "rebuild_drill.sh")
+    open(s, "w").write('echo \'{"steps": {"clone": {"seconds": 3, "ok": true}}, "seconds_total": "3", "pass": "true"}\' > $OPD_ROOT/logs/rebuild_drill.json\n')
+    c.do_script(120, "rebuild_drill.sh", "rebuild_drill.json")
+    assert got["st"] == "ok" and got["result"]["seconds_total"] == "3" and "clone" in got["detail"]
+    open(s, "w").write('echo \'{"result": "FAIL", "reason": "venv copy failed"}\' > $OPD_ROOT/logs/rebuild_drill.json\n')
+    c.do_script(121, "rebuild_drill.sh", "rebuild_drill.json")
+    assert got["st"] == "failed" and "venv copy failed" in got["detail"]

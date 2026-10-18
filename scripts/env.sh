@@ -55,6 +55,9 @@ export HF_HUB_ENABLE_HF_TRANSFER=${HF_HUB_ENABLE_HF_TRANSFER:-1}
 export RAY_prestart_worker_first_driver=${RAY_prestart_worker_first_driver:-0}
 export RAY_num_workers_soft_limit=${RAY_num_workers_soft_limit:-8}
 export VLLM_WORKER_MULTIPROC_METHOD=spawn PYTHONUNBUFFERED=1
+# v2.5.7a: once persist-env has made <the directory above $OPD_ROOT>/opd-env/hf on the share, Hugging Face downloads
+# by name (OPSA / Art models of the zero stage, ...) are cached there and survive a container rebuild
+[ -d "$(dirname "$OPD_ROOT")/opd-env/hf" ] && export HF_HOME=${HF_HOME:-$(dirname "$OPD_ROOT")/opd-env/hf}
 mkdir -p $OPD_ROOT/logs $OPD_ROOT/runs $OPD_ROOT/data
 # HF weights present in a folder: model.safetensors or shards model-0000k-of-0000n.safetensors (every 1.7B checkpoint is
 # sharded; v2.3: run_e12/run_eval/run_sft used to look for model.safetensors only and failed on every 1.7B start)

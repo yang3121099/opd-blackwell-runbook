@@ -1516,6 +1516,33 @@ def do_dr_keep(seq, t):
     event(t, "dr_kept" if rc == 0 else "dr_keep_failed", f"{step} {gb} GB")
 
 
+def _script_verb(name, script, out_json):
+    """v2.5.7a: a verb that runs one script in the background (nice 19) and writes the receipt from its JSON result."""
+    def v(a, seq, flags=None, entry=None):
+        if subprocess.run(["pgrep", "-f", f"scripts/{script}"], capture_output=True).returncode == 0:
+            return "rejected", f"{script} is already running", {}
+        subprocess.Popen(["setsid", sys.executable, os.path.abspath(__file__), "do_script", str(seq), script, out_json],
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return "accepted", f"{name} started (no GPU, nice 19); the receipt follows when it ends", {}
+    return v
+
+
+def do_script(seq, script, out_json):
+    t0 = time.time(); log = os.path.join(ROOT, "logs", script.replace(".sh", ".out"))
+    with open(log, "a") as out:
+        rc = subprocess.run(["nice", "-n", "19", "bash", os.path.join(RUNBOOK, "scripts", script)], stdin=subprocess.DEVNULL,
+                            stdout=out, stderr=subprocess.STDOUT).returncode
+    r = json.loads(_read(os.path.join(ROOT, "logs", out_json), "{}") or "{}")
+    ok = rc == 0 and (r.get("result") == "PASS" or r.get("pass") in (True, "true"))
+    detail = r.get("reason") or (f"{r.get('seconds_total')} s, steps {json.dumps(r.get('steps'))}" if "steps" in r else f"exit {rc}")
+    receipt(seq, None, "ok" if ok else "failed", f"{script}: {detail}"[:900], seconds=round(time.time() - t0), result=r)
+    event("node", script.replace(".sh", ""), ("pass " if ok else "fail ") + str(detail)[:300])
+
+
+v_persist_env = _script_verb("persist-env", "persist_env.sh", "persist_env.json")
+v_rebuild_drill = _script_verb("rebuild-drill", "rebuild_drill.sh", "rebuild_drill.json")
+
+
 def v_cancel(a, seq, flags=None, entry=None):
     target = int(a[0]); os.makedirs(_p("cancelled"), exist_ok=True)
     open(_p("cancelled", str(target)), "w").write(f"by seq {seq} {utc()}\n")
@@ -1702,7 +1729,7 @@ def _v24(fn):
 VERBS = {"pause": _v24(v_pause), "resume": _v24(v_resume), "kill": _v24(v_kill), "prio": _v24(v_prio),
          "restore": _v24(v_restore), "rerun_verify": _v24(v_rerun_verify), "setenv": v_set, "set": v_set,
          "snapshot": lambda a, seq, flags=None, entry=None: v_snapshot0(seq) if not a else v_snapshot(a, seq),
-         "ps": v_ps, "logs": v_logs, "run": v_run, "rerun": v_rerun, "republish": v_republish, "publish": v_publish, "leakscan": v_leakscan, "fa-build": v_fa_build, "scrubdiff": v_scrubdiff, "du": v_du, "rm-ours": v_rm_ours, "dr-keep": v_dr_keep, "eval": v_eval, "update": v_update, "upload": v_upload,
+         "ps": v_ps, "logs": v_logs, "run": v_run, "rerun": v_rerun, "republish": v_republish, "publish": v_publish, "leakscan": v_leakscan, "fa-build": v_fa_build, "scrubdiff": v_scrubdiff, "du": v_du, "rm-ours": v_rm_ours, "dr-keep": v_dr_keep, "persist-env": v_persist_env, "rebuild-drill": v_rebuild_drill, "eval": v_eval, "update": v_update, "upload": v_upload,
          "signal": v_signal, "kill-pgid": v_killpgid, "cancel": v_cancel, "heartbeat": v_heartbeat, "move-ckpt": v_move_ckpt, "reap": v_reap}
 assert set(VERBS) == set(R.VERBS), set(VERBS) ^ set(R.VERBS)
 TASK_VERBS = R.TASK_VERBS
@@ -1857,6 +1884,8 @@ if __name__ == "__main__":
         do_rm_ours(int(sys.argv[2]), sys.argv[3], sys.argv[4])
     elif cmd == "do_dr_keep":
         do_dr_keep(int(sys.argv[2]), sys.argv[3])
+    elif cmd == "do_script":
+        do_script(int(sys.argv[2]), sys.argv[3], sys.argv[4])
     elif cmd == "dr":
         print(json.dumps(dr_report(), indent=1))
     elif cmd == "do_republish":
