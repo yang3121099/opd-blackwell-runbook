@@ -56,3 +56,4 @@ commands:
   - {"seq": 54, "cmd": "logs SFT-P1 60", "reason": "reviewer 20:14: SFT-P1 shows step 7 since 19:53 in the pulse; check the real step", "utc": "2026-10-17T20:14:37Z"}
   - {"seq": 55, "cmd": "republish E10b-P4lowlr", "reason": "reviewer A1 01:3x UTC: runs/E10b-P4lowlr/train.log carried the node's internal address; v2.5.6g scrubs addresses", "utc": "2026-10-18T01:27:44Z"}
   - {"seq": 56, "cmd": "set HF_REPO_PUBLIC=yang31210999/opd-lab-b300-pub", "reason": "Runming created opd-lab-b300-pub (public) for the clean public results: opd-lab-b300 stays private because squashed old revisions are still readable by sha", "utc": "2026-10-18T01:41:00Z"}
+  - {"seq": 57, "cmd": "leakscan", "reason": "reviewer A1 11:0x: baseline scan of opd-lab-b300-pub before the migration (node side, counts only)", "utc": "2026-10-18T03:02:50Z"}
