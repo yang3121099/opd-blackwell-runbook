@@ -79,3 +79,4 @@ commands:
   - {"seq": 77, "cmd": "publish EVAL-p5s43-s20", "reason": "reviewer A1 11:0x: migrate EVAL-p5s43-s20 from the old (private) public repository to opd-lab-b300-pub from this node's copies, scrubbed", "utc": "2026-10-18T03:05:22Z"}
   - {"seq": 78, "cmd": "publish EVAL-p5s43-s40", "reason": "reviewer A1 11:0x: migrate EVAL-p5s43-s40 from the old (private) public repository to opd-lab-b300-pub from this node's copies, scrubbed", "utc": "2026-10-18T03:05:29Z"}
   - {"seq": 79, "cmd": "leakscan", "reason": "reviewer A1 11:0x: scan of opd-lab-b300-pub after the migration of 21 task folders (node side, counts only)", "utc": "2026-10-18T03:08:11Z"}
+  - {"seq": 80, "cmd": "republish E12b-P0", "reason": "v2.5.6k: restore the model directory tokenizer/config files the public scrub broke (reviewer A1 12:5x Beijing)", "utc": "2026-10-18T04:58:12Z"}
