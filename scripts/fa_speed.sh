@@ -20,6 +20,7 @@ case $T in
   FA-SPEED-17)  VARS="sdpa_fix4 fa_tok fa_fix4";;
   FA-SPEED-4B)  VARS="sdpa_fix4 fa_tok";;
   FA-SPEED-E12) VARS="sdpa_gc1 sdpa_gc0 fa_gc0";;
+  FA-SPEED-TWIN) VARS="twin_sdpa twin_fa";;   # v2.5.7f (reviewer 10:1x UTC): 20 steps of E10b-P2, same seed, validation at s10 / s20
   *) echo "unknown probe $T"; exit 2;;
 esac
 finish() {
@@ -59,12 +60,14 @@ for V in $VARS; do
     sdpa_fix4) E="VENV= FIXED_MICRO_BSZ=4 GC=0";;   fa_tok) E="VENV=fa E10D_FA=1 FIXED_MICRO_BSZ= GC=0";;  fa_fix4) E="VENV=fa E10D_FA=1 FIXED_MICRO_BSZ=4 GC=0";;
     sdpa_gc1) E="VENV= E12B_FA=0 FIXED_MICRO_BSZ=4 GC=1 E12B_GC=0";;   sdpa_gc0) E="VENV= E12B_FA=0 FIXED_MICRO_BSZ=4 GC=0 E12B_GC=1";;
     fa_gc0) E="VENV=fa E12B_FA=1 FIXED_MICRO_BSZ= GC=0 E12B_GC=1";;
+    twin_sdpa) E="VENV= FIXED_MICRO_BSZ=4 GC=0 SMOKE_TEST=10";;   twin_fa) E="VENV=fa FIXED_MICRO_BSZ=4 GC=0 SMOKE_TEST=10";;
   esac
-  case $T in FA-SPEED-17) S="run_arm.sh $G E10b-P5";; FA-SPEED-4B) S="run_arm.sh $G E10d-P5";; FA-SPEED-E12) S="run_e12.sh $G E12b-P0";; esac
+  case $T in FA-SPEED-TWIN) S="run_arm.sh $G E10b-P2";; FA-SPEED-17) S="run_arm.sh $G E10b-P5";; FA-SPEED-4B) S="run_arm.sh $G E10d-P5";; FA-SPEED-E12) S="run_e12.sh $G E12b-P0";; esac
   ( while true; do echo "$(date -u +%s),$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $G | tr -d ' ')" >> $D/$V.mem.csv; sleep 5; done ) &
   MP=$!
   rm -rf $OPD_ROOT/runs/$T-$V $D/$V
-  env $E SMOKE=1 SMOKE_STEPS=${FS_STEPS:-3} PROBE_TASK=$T-$V bash $RUNBOOK/scripts/$S > $D/$V.out 2>&1; echo $? > $D/$V.rc
+  ST=${FS_STEPS:-3}; [ $T = FA-SPEED-TWIN ] && ST=${FS_TWIN_STEPS:-20}
+  env $E SMOKE=1 SMOKE_STEPS=$ST PROBE_TASK=$T-$V bash $RUNBOOK/scripts/$S > $D/$V.out 2>&1; echo $? > $D/$V.rc
   kill $MP 2> /dev/null
   mkdir -p $D/$V; cp $OPD_ROOT/runs/$T-$V/train.log $OPD_ROOT/runs/$T-$V/config.yaml $D/$V/ 2> /dev/null
   step "smoke $V ($E) exit $(cat $D/$V.rc), peak $(cut -d, -f2 $D/$V.mem.csv 2> /dev/null | sort -n | tail -1) MiB"

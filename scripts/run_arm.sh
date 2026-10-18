@@ -69,7 +69,7 @@ STEPS=150; TEST=10; VALB=True
 if [ "${SPOT:-0}" = 1 ]; then SAVE=${SAVE:-25}; CONTENTS="['model','optimizer','extra','hf_model']"
 elif dr_on; then SAVE=${SAVE:-${DR_EVERY:-25}}; CONTENTS="['model','optimizer','extra','hf_model']"   # v2.5.7: resume state for dr_sync.sh
 else SAVE=${SAVE:-$STEPS}; CONTENTS="['hf_model']"; fi
-[ "${SMOKE:-0}" = 1 ] && { STEPS=${SMOKE_STEPS:-3}; SAVE=-1; TEST=-1; VALB=False; }   # v2.5.7b: SMOKE_STEPS (PROBE-4B: 10)
+[ "${SMOKE:-0}" = 1 ] && { STEPS=${SMOKE_STEPS:-3}; SAVE=-1; TEST=${SMOKE_TEST:--1}; VALB=False; }   # v2.5.7b: SMOKE_STEPS (PROBE-4B: 10); v2.5.7f: SMOKE_TEST (FA-SPEED-TWIN: validation every 10)
 [ -f $OUT/config.yaml ] && echo "resumed: $(date -u +%FT%TZ)" >> $OUT/config.yaml || cat > $OUT/config.yaml <<CFG
 task: $TASK
 arm: $ARM

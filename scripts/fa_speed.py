@@ -59,6 +59,42 @@ def last_json(path):
     return None
 
 
+def val_by_step(text):
+    """{step: {val-core metric: value}} from train.log (verl prints validation in the step line it ran after)."""
+    import re
+    out = {}
+    for st, body in re.findall(r"(?:^|[ )])step:(\d+) - (.*?)(?=(?:^|[ )])step:\d+ - |\Z)", text, re.S):
+        v = {k: float(x) for k, x in re.findall(r"(val-core/[^:\s]+):([-0-9.e]+)", body)}
+        if v:
+            out[int(st)] = v
+    return out
+
+
+def twin(d):
+    """Same-seed twins: validation at s10 / s20 (points), response length (mean of the last 5 steps, %), pg_loss curve;
+    pass = every validation difference <= 2 points and the length difference <= 10%."""
+    res = {}
+    for v in ("twin_sdpa", "twin_fa"):
+        try:
+            text = open(os.path.join(d, v, "train.log"), errors="ignore").read()
+        except OSError:
+            text = ""
+        st = steps_of(text)
+        res[v] = {"val": val_by_step(text), "pg_loss": [s.get("actor/pg_loss") for s in st], "len": [s.get("response_length/mean") for s in st]}
+    a, b = res["twin_sdpa"], res["twin_fa"]
+    vd = {}
+    for step in sorted(set(a["val"]) & set(b["val"])):
+        for k in set(a["val"][step]) & set(b["val"][step]):
+            x, y = a["val"][step][k], b["val"][step][k]
+            scale = 100 if max(abs(x), abs(y)) <= 1 else 1
+            vd[f"s{step} {k}"] = round(scale * (y - x), 2)
+    la = [x for x in a["len"][-5:] if x]; lb = [x for x in b["len"][-5:] if x]
+    ld = round(100 * (sum(lb) / len(lb) - sum(la) / len(la)) / (sum(la) / len(la)), 1) if la and lb else None
+    res["val_diff_points"] = vd; res["len_diff_pct"] = ld
+    res["pass"] = bool(vd) and all(abs(x) <= 2 for x in vd.values()) and ld is not None and abs(ld) <= 10
+    return res
+
+
 def report(d, variants):
     out = {"lp": {k: last_json(os.path.join(d, f"lp_{k}.json")) for k in ("student", "teacher")}, "variants": {}}
     for v in variants:
@@ -89,6 +125,8 @@ def report(d, variants):
     for v in variants:
         m = out["variants"][v]["mean_s2plus"]
         out["variants"][v]["speedup_vs_" + variants[0]] = {k: (round(base[k] / m[k], 3) if base.get(k) and m.get(k) else None) for k in m}
+    if variants == ["twin_sdpa", "twin_fa"]:   # v2.5.7f: the twin control (reviewer 10:1x UTC)
+        out["twin"] = twin(d)
     lps = [x for x in out["lp"].values() if x is not None]
     out["lp_pass"] = bool(lps) and all(x.get("pass") for x in lps)
     out["smokes_ok"] = all(out["variants"][v]["rc"] == 0 and not out["variants"][v]["oom"] for v in variants)

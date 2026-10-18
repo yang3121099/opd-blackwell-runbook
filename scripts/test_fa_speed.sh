@@ -19,7 +19,8 @@ SH
   for s in run_arm.sh run_e12.sh; do cat > $T/rb/scripts/$s <<'SH'
 echo "$(basename $0) $* VENV=${VENV:-}${E10D_FA:+ E10D_FA=$E10D_FA} FIXED=${FIXED_MICRO_BSZ:-} GC=${GC:-} E12B_GC=${E12B_GC:-} E12B_FA=${E12B_FA:-} STEPS=$SMOKE_STEPS TASK=$PROBE_TASK" >> $CALLS
 d=$OPD_ROOT/runs/$PROBE_TASK; mkdir -p $d; : > $d/config.yaml; st=$([ "${VENV:-}" = fa ] && echo 100 || echo 130)
-for i in 1 2 3; do echo "(TaskRunner pid=1) step:$i - timing_s/gen:30 - timing_s/update_actor:40 - timing_s/step:$st - response_length/mean:2000" >> $d/train.log; done
+for i in $(seq 1 ${SMOKE_STEPS:-3}); do v=""; [ -n "${SMOKE_TEST:-}" ] && [ $((i % SMOKE_TEST)) = 0 ] && v=" - val-core/math/acc/mean@2:0.7$([ "${VENV:-}" = fa ] && echo 1 || echo 0)"
+  echo "(TaskRunner pid=1) step:$i - timing_s/gen:30 - timing_s/update_actor:40 - timing_s/step:$st - actor/pg_loss:0.004 - response_length/mean:2000$v" >> $d/train.log; done
 SH
   done
   printf '#!/usr/bin/env bash\necho 0\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi
@@ -44,5 +45,11 @@ setup
 printf 'import sys, os; open(os.environ["CALLS"], "a").write("fetch " + " ".join(sys.argv[1:]) + "\\n"); os.makedirs(sys.argv[3], exist_ok=True)\n' > $T/rb/scripts/fetch_model.py
 bash $T/rb/scripts/fa_speed.sh 6 FA-SPEED-4B > /dev/null 2>&1
 ok "4B fetched, two smokes of E10d-P5" 'grep -q "^fetch Qwen/Qwen3-4B  $T/root/models/Qwen3-4B --task FA-SPEED-4B" $CALLS && [ "$(grep -c "^run_arm.sh 6 E10d-P5" $CALLS)" = 2 ]'
+rm -rf $T
+# 4. v2.5.7f FA-SPEED-TWIN: 20 steps of E10b-P2 twice (SDPA, flash-attn), validation every 10, the twin verdict
+setup
+bash $T/rb/scripts/fa_speed.sh 2 FA-SPEED-TWIN > /dev/null 2>&1
+ok "twins: 20 steps, val every 10, same arm" 'grep -q "^run_arm.sh 2 E10b-P2 VENV= FIXED=4 GC=0 .*STEPS=20 TASK=FA-SPEED-TWIN-twin_sdpa" $CALLS && grep -q "^run_arm.sh 2 E10b-P2 VENV=fa FIXED=4 GC=0 .*STEPS=20 TASK=FA-SPEED-TWIN-twin_fa" $CALLS'
+ok "twin verdict: +1 point at s10 / s20, length 0%, pass" '[ "$(rep FA-SPEED-TWIN "r[\"twin\"][\"pass\"]")" = True ] && [ "$(rep FA-SPEED-TWIN "r[\"twin\"][\"val_diff_points\"][\"s20 val-core/math/acc/mean@2\"]")" = 1.0 ] && [ "$(rep FA-SPEED-TWIN "r[\"twin\"][\"len_diff_pct\"]")" = 0.0 ]'
 rm -rf $T
 [ $fails = 0 ] && echo "FA_SPEED_TEST PASS ($n checks)" || echo "FA_SPEED_TEST FAIL ($fails of $n)"
