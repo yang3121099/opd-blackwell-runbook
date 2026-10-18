@@ -101,11 +101,11 @@ while true; do
       setsid nohup bash $RUNBOOK/scripts/heartbeat.sh >> $OPD_ROOT/logs/heartbeat.log 2>&1 < /dev/null &
       python $RUNBOOK/scripts/control.py event node heartbeat_restarted > /dev/null 2>&1 &
     fi
-    for p in $(pgrep -f "task.sh [0-9]+ E1[02]b-[A-Za-z0-9._-]+\$"); do
-      t=$(tr '\0' ' ' < /proc/$p/cmdline | grep -oE "E1[02]b-[A-Za-z0-9._-]+" | tail -1); [ -n "$t" ] || continue
+    for p in $(pgrep -f "task.sh [0-9]+ E1(0[bc]|2b)-[A-Za-z0-9._-]+\$"); do
+      t=$(tr '\0' ' ' < /proc/$p/cmdline | grep -oE "E1(0[bc]|2b)-[A-Za-z0-9._-]+" | tail -1); [ -n "$t" ] || continue
       pgrep -f "upload_syn[c].sh $OPD_ROOT/runs/$t\$" > /dev/null && continue
       case $t in
-        E10b-*) env UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-150} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;
+        E10b-*|E10c-*) env UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-150} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;
         E12b-*) case ${t#E12b-} in P0|P1|P2|P3|P5) s=100;; *) s=60;; esac
                 env KEEP_BF16=0 UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-$s} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;
       esac

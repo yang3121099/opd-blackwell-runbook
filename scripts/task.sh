@@ -11,6 +11,7 @@ source "$(dirname "$0")/env.sh"; G=$1; T=$2
 ARMS="P2|P3|P4lowlr|P5|P6|P6r|P2noEOS|Pstop|P6rand|P6top5|P4EOSpen"
 case $T in
   E10b-*)  [[ $T =~ ^E10b-($ARMS)(-s(43|44))?$ ]] || exit 2; bash $RUNBOOK/scripts/run_arm.sh $G $T;;
+  E10c-*)  [[ $T =~ ^E10c-($ARMS)-(fix4|dyn16k)$ ]] || exit 2; bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # v2.5.6f: 0.6B, V3-c1
   E11b-*)  [[ $T =~ ^E11b-(P0|($ARMS)(-s(43|44))?)$ ]] || exit 2; bash $RUNBOOK/scripts/run_eval.sh $G $T;;   # v2.5.6c: seed arms too
   SFT-P1)  bash $RUNBOOK/scripts/run_sft.sh $G $T;;
   E12b-*)  [[ $T =~ ^E12b-(P0|P1|$ARMS)$ ]] || exit 2; bash $RUNBOOK/scripts/run_e12.sh $G $T;;

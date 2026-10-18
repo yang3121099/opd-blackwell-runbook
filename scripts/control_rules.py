@@ -6,7 +6,7 @@ import calendar
 import re
 import time
 
-RULES_VERSION = "2.5.7"   # 2.5.1: HF_REPO_PUBLIC / HF_REPO_PRIVATE / HEARTBEAT_SEC; 2.5.2: FIXED_MICRO_BSZ; 2.5.3: VENV=fa; 2.5.4: reap; 2.5.5: rerun; 2.5.6: republish; 2.5.7: rerun failed / skipped tasks
+RULES_VERSION = "2.5.8"   # 2.5.1: HF_REPO_PUBLIC / HF_REPO_PRIVATE / HEARTBEAT_SEC; 2.5.2: FIXED_MICRO_BSZ; 2.5.3: VENV=fa; 2.5.4: reap; 2.5.5: rerun; 2.5.6: republish; 2.5.7: rerun failed / skipped tasks; 2.5.8: E10c
 
 META = set(";&|`$<>\\\"'(){}*?!#~\n\r")
 TASK_RE = re.compile(r"^[A-Za-z0-9._-]+$")
@@ -116,7 +116,7 @@ def parse(entry):
         raise Reject("reap <gpu index 0-7>")
     if verb == "republish" and not re.fullmatch(r"[A-Za-z0-9._-]+", args[0]):
         raise Reject("republish <task>")
-    if verb == "rerun" and not re.fullmatch(r"FA-PROBE|EVAL-[A-Za-z0-9._-]+|SFT-[A-Za-z0-9]+|E1[012]b-[A-Za-z0-9._-]+|E0[23]-[A-Za-z0-9._-]+", args[0]):
+    if verb == "rerun" and not re.fullmatch(r"FA-PROBE|EVAL-[A-Za-z0-9._-]+|SFT-[A-Za-z0-9]+|E1[012]b-[A-Za-z0-9._-]+|E10c-[A-Za-z0-9._-]+|E0[23]-[A-Za-z0-9._-]+", args[0]):
         raise Reject("rerun <FA-PROBE | EVAL-name | SFT-* | E10b/E11b/E12b-* | E02/E03-*>")
     if verb == "cancel" and not (args[0].isdigit() and int(args[0]) > 0):
         raise Reject("cancel <seq>")

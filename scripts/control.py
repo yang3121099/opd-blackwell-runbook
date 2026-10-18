@@ -726,7 +726,7 @@ def v_reap(a, seq, flags=None, entry=None):
     if n and g >= n:
         return "rejected", f"gpu {g} does not exist (this node has {n})", {}
     live = sorted({r.get("task") for r in proc_table() if r.get("gpu") == g and r.get("ours")
-                   and re.match(r"(E10b-|E12b-|SFT-|E03-|E02-)", str(r.get("task") or ""))})
+                   and re.match(r"(E10b-|E10c-|E12b-|SFT-|E03-|E02-)", str(r.get("task") or ""))})
     if live:   # Ray workers are reaped only after their task ended (the design of reap); never next to a live training
         return "rejected", f"a training task is running on gpu {g} ({', '.join(live)}); reap runs after it ends", {}
     pids = reap(g, f"gpu{g}", wait_s=60)
@@ -927,7 +927,7 @@ def _request(kind, seq, body):
 def v_run(a, seq, flags=None, entry=None):
     t = a[0]
     r = subprocess.run(["bash", "-c", f'T={t}; ARMS="P2|P3|P4lowlr|P5|P6|P6r|P2noEOS|Pstop|P6rand|P6top5|P4EOSpen"; '
-                        'case $T in E10b-*) [[ $T =~ ^E10b-($ARMS)(-s(43|44))?$ ]];; E11b-*) [[ $T =~ ^E11b-(P0|($ARMS)(-s(43|44))?)$ ]];; '
+                        'case $T in E10b-*) [[ $T =~ ^E10b-($ARMS)(-s(43|44))?$ ]];; E10c-*) [[ $T =~ ^E10c-($ARMS)-(fix4|dyn16k)$ ]];; E11b-*) [[ $T =~ ^E11b-(P0|($ARMS)(-s(43|44))?)$ ]];; '
                         'E12b-*) [[ $T =~ ^E12b-(P0|P1|$ARMS)$ ]];; EVAL-*) [[ $T =~ ^EVAL-[A-Za-z0-9._-]+$ ]];; SFT-P1|FA-PROBE|E03-MI-l0.[0357]|E03-MI-l1.0|E02-opsa17-c0.5|E02-opsa17-c1.5|E02-opsa4-c-1|'
                         'E02-opsa4-c0.5|E02-opsa4-c1.5) true;; *) false;; esac'])
     if r.returncode != 0:

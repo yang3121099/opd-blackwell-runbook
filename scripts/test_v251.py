@@ -333,7 +333,7 @@ def test_v_reap_calls_reap(env, monkeypatch):
     assert "no orphaned" in env.c.v_reap(["5"], 42)[1]
 
 
-@pytest.mark.parametrize("cmd,ok", [("rerun FA-PROBE", True), ("rerun EVAL-bridge", True), ("rerun E10b-P2", True), ("rerun SFT-P1", True), ("rerun /etc", False),
+@pytest.mark.parametrize("cmd,ok", [("rerun FA-PROBE", True), ("rerun EVAL-bridge", True), ("rerun E10b-P2", True), ("rerun SFT-P1", True), ("rerun E10c-P4lowlr-fix4", True), ("rerun /etc", False),
                                     ("rerun EVAL-a;b", False), ("rerun", False), ("rerun FA-PROBE x", False)])
 def test_rules_rerun(cmd, ok):
     if ok:
