@@ -109,3 +109,4 @@ commands:
   - {"seq": 107, "cmd": "du opd_root", "reason": "read-only sizes of OPD_ROOT for Runming's disk table (reviewer A1 07:0x UTC)", "utc": "2026-10-18T07:06:41Z"}
   - {"seq": 108, "cmd": "dr-keep SFT-P1", "reason": "keep SFT-P1's final HF weights on the share (start of E12b-P1; reviewer A1 07:0x UTC, final weights only)", "utc": "2026-10-18T07:06:47Z"}
   - {"seq": 109, "cmd": "snapshot venv-fa/pyvenv.cfg", "reason": "read-only: where the venvs' base python lives (container disk or share), for v2.5.7a", "utc": "2026-10-18T07:07:01Z"}
+  - {"seq": 110, "cmd": "snapshot models.env", "reason": "read-only: where the model paths point (container disk or share), for v2.5.7a", "utc": "2026-10-18T07:07:06Z"}
