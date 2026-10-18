@@ -9,7 +9,8 @@ source "$(dirname "$0")/env.sh"; G=$1; T=$2; A=${T#E11b-}; OUT=$OPD_ROOT/runs/$T
 [ -f $OUT/.done ] && exit 0
 source $OPD_ROOT/venv/bin/activate; export CUDA_VISIBLE_DEVICES=$G
 M=$STUDENT_17B   # v2.4: E10b keeps its step-150 weights locally as bf16 only (upload_sync); fp32 if an older run kept it
-if [ $A != P0 ]; then M=$OPD_ROOT/runs/E10b-$A/ckpt/global_step_150/actor/huggingface_bf16; has_weights $M || M=${M%_bf16}; fi
+ST=150; case ${A%-s4[34]} in P5top10|P5rand10m) ST=50;; esac   # v2.5.7h: the 50-step token-selective arms (Q-014)
+if [ $A != P0 ]; then M=$OPD_ROOT/runs/E10b-$A/ckpt/global_step_$ST/actor/huggingface_bf16; has_weights $M || M=${M%_bf16}; fi
 [ $A = P0 ] || has_weights $M || { echo "missing checkpoint $M"; exit 1; }
 cd $RUNBOOK
 for t in "T0.6 --temperature 0.6 --top_p 0.95 --top_k 0" "T1.0 --temperature 1.0 --top_p 1.0 --top_k 0"; do

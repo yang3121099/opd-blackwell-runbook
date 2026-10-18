@@ -12,6 +12,10 @@ between the two), and the smallest B where the CI excludes 0 from below.
 Usage: python budget_curve.py --out <out.json> [--budgets 2048,4096,8192,16384,32768] --tokenizer <model dir>
            <base.jsonl> <reading.jsonl> [<reading.jsonl> ...]
 A reading is complete when its <stem>.metrics.json exists next to it; a missing or incomplete one is listed, not used.
+v2.5.7h (budget readings B, lab Q-013): per budget also the share of samples finished within B and their accuracy
+(acc_finished), and with --forced_dir <dir> holding <stem>.forced.jsonl (forced_stop.py --force_preset budB --samples)
+the forced-answer accuracy acc_forced (a finished sample counts as graded, an unfinished one by its forced answer; one
+with no forced answer counts wrong and is counted in forced_missing), paired against the base as well.
 """
 import argparse
 import json
@@ -31,29 +35,54 @@ def metrics_of(path):
 
 
 def at_budget(recs, B, decode, grade):
-    """[(pid, correct, truncated, tokens)] of the samples as generated at budget B."""
+    """[(pid, correct, truncated, tokens, sample)] of the samples as generated at budget B (truncated = not finished
+    within B)."""
     out, regraded = [], 0
     for r in recs:
         n = r["n_tokens"]
         if n <= B:
-            out.append((r["pid"], bool(r["correct"]), r["finish_reason"] == "length", n))
+            out.append((r["pid"], bool(r["correct"]), r["finish_reason"] == "length", n, r.get("sample")))
         else:
             ok, _ = grade(decode(r["token_ids"][:B]), r["gold"]); regraded += 1
-            out.append((r["pid"], bool(ok), True, B))
+            out.append((r["pid"], bool(ok), True, B, r.get("sample")))
     return out, regraded
 
 
 def summarise(rows):
     n = len(rows)
-    return {"acc": round(100 * sum(c for _, c, _, _ in rows) / n, 2), "trunc_rate": round(sum(t for _, _, t, _ in rows) / n, 4),
-            "mean_tokens": round(sum(k for _, _, _, k in rows) / n, 1), "samples": n}
+    fin = [c for _, c, t, _, _ in rows if not t]
+    return {"acc": round(100 * sum(c for _, c, _, _, _ in rows) / n, 2), "trunc_rate": round(sum(t for _, _, t, _, _ in rows) / n, 4),
+            "mean_tokens": round(sum(k for _, _, _, k, _ in rows) / n, 1), "samples": n,
+            "finished_rate": round(len(fin) / n, 4), "acc_finished": round(100 * sum(fin) / len(fin), 2) if fin else None}
 
 
 def per_problem(rows):
     s = {}
-    for pid, c, _, _ in rows:
+    for pid, c, _, _, _ in rows:
         x = s.setdefault(pid, [0, 0]); x[0] += int(c); x[1] += 1
     return s
+
+
+def with_forced(rows, forced, B):
+    """rows with an unfinished sample's correctness replaced by its forced answer at B; (rows, missing)."""
+    out, miss = [], 0
+    for pid, c, t, k, smp in rows:
+        if t:
+            f = forced.get((pid, smp, B))
+            miss += f is None
+            c = bool(f)
+        out.append((pid, c, t, k, smp))
+    return out, miss
+
+
+def load_forced(d, name):
+    p = os.path.join(d, name + ".forced.jsonl") if d else ""
+    if not p or not os.path.isfile(p):
+        return None
+    f = {}
+    for line in open(p):
+        x = json.loads(line); f[(x["pid"], x["sample"], int(x["budget"]))] = bool(x["forced_correct"])
+    return f
 
 
 def crossing(budgets, diffs, lows):
@@ -78,6 +107,7 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--budgets", default="2048,4096,8192,16384,32768")
     ap.add_argument("--tokenizer", required=True)
+    ap.add_argument("--forced_dir", default=None)
     ap.add_argument("readings", nargs="+")
     a = ap.parse_args()
     budgets = sorted(int(x) for x in a.budgets.split(","))
@@ -86,7 +116,8 @@ def main():
     tok = AutoTokenizer.from_pretrained(a.tokenizer)
     decode = lambda ids: tok.decode(ids, skip_special_tokens=True)   # as vLLM's text (special tokens skipped)
     res = {"method": __doc__.split("\n")[1].strip() + " One long generation, cut at each budget and graded again (EVAL-v1 grader).",
-           "budgets": budgets, "base": None, "readings": {}, "missing": [], "pairs_vs_base": {}, "crossing": {}}
+           "budgets": budgets, "base": None, "readings": {}, "missing": [], "pairs_vs_base": {}, "crossing": {},
+           "pairs_forced_vs_base": {}, "crossing_forced": {}}
     loaded = []
     for p in a.readings:
         name = os.path.basename(p)[:-len(".jsonl")] if p.endswith(".jsonl") else os.path.basename(p)
@@ -98,17 +129,22 @@ def main():
         loaded.append((name, recs, mt))
     base = loaded[0]
     res["base"] = base[0]
-    tables = {}
+    tables, ftables = {}, {}
     for name, recs, mt in loaded:
         if recs is None:
             continue
         r = {"max_tokens": mt, "by_budget": {}}
-        tables[name] = {}
+        tables[name], ftables[name] = {}, {}
+        forced = load_forced(a.forced_dir, name)
+        r["forced"] = forced is not None
         for B in budgets:
             if B > mt:
                 continue
             rows, k = at_budget(recs, B, decode, grade)
             r["by_budget"][str(B)] = dict(summarise(rows), regraded=k); tables[name][B] = per_problem(rows)
+            if forced is not None:
+                fr, miss = with_forced(rows, forced, B)
+                r["by_budget"][str(B)].update(acc_forced=summarise(fr)["acc"], forced_missing=miss); ftables[name][B] = per_problem(fr)
         res["readings"][name] = r
     if base[1] is not None:
         for name, recs, _ in loaded[1:]:
@@ -123,6 +159,15 @@ def main():
                     diffs.append(None); lows.append(None)
             res["pairs_vs_base"][name] = pr
             res["crossing"][name] = crossing(budgets, diffs, lows)
+            fp, fd, fl = {}, [], []
+            for B in budgets:
+                if B in ftables.get(name, {}) and B in ftables.get(base[0], {}):
+                    p = paired(ftables[name][B], ftables[base[0]][B], f"{name} - {base[0]} @ {B}, forced")
+                    fp[str(B)] = p; fd.append(p["diff"]); fl.append(p["ci95"][0])
+                else:
+                    fd.append(None); fl.append(None)
+            if fp:
+                res["pairs_forced_vs_base"][name] = fp; res["crossing_forced"][name] = crossing(budgets, fd, fl)
     json.dump(res, open(a.out, "w"), indent=1)
     # a compact table on stdout: accuracy / truncation rate per budget, then reading - base [CI]
     print("budget".ljust(40) + "".join(str(B).rjust(22) for B in budgets))

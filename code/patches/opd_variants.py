@@ -171,9 +171,60 @@ def fixed_negative_termpen(old_log_prob, response_mask, responses, frac=0.2, val
     return adv, sel
 
 
+# v2.5.7h (reviewer 2026-10-18 19:3x UTC, lab Q-014): token-selective OPD with the P5 teacher prompt. The installed
+# dp_actor patch hands only the variants of its list to compute(); a new arm is routed through the listed hook P6 with
+# OPD_VARIANT=P6 and OPD_VARIANT_OVERRIDE=<arm> (run_arm.sh sets both, and clears the override for every other arm), so
+# the node's G-OPD checkout need not be patched again while arms run. The override applies only with its own hook.
+OVERRIDE_VIA = {"P5top10": "P6", "P5rand10m": "P6"}
+_LAST = {}   # the last call's selection, for adv_stats (same process, called right after compute)
+
+
+def resolve_variant(variant):
+    ov = os.environ.get("OPD_VARIANT_OVERRIDE", "")
+    return ov if ov and OVERRIDE_VIA.get(ov) == variant else variant
+
+
+def top_frac(adv, response_mask, frac=0.10):
+    """P5top10: the OPD advantage only on the top-`frac` |A_t| tokens of each response, the rest 0 (sparse_topk)."""
+    return sparse_topk(adv, response_mask, frac, "top")
+
+
+RAND_CAP = 100.0
+
+
+def rand_matched(adv, response_mask, frac=0.10, generator=None, cap=RAND_CAP):
+    """P5rand10m: a uniformly random `frac` of each response's tokens keeps its advantage, scaled per response so that
+    the sum of |A| over the random set equals the sum of |A| over that response's top-`frac` |A| set (scale capped at
+    `cap`; returns the advantages and the per-response scales)."""
+    out, scales = torch.zeros_like(adv), []
+    for b in range(adv.shape[0]):
+        idx = torch.nonzero(response_mask[b] > 0, as_tuple=False).squeeze(-1)
+        if idx.numel() == 0:
+            continue
+        k = max(1, int(round(frac * idx.numel())))
+        a = adv[b, idx]
+        s_top = a.abs().sort(descending=True).values[:k].sum()
+        pick = torch.randperm(idx.numel(), generator=generator, device=idx.device)[:k]
+        s_rand = a[pick].abs().sum()
+        sc = torch.clamp(s_top / s_rand.clamp(min=1e-12), max=cap) if s_rand > 0 else adv.new_tensor(1.0)
+        out[b, idx[pick]] = a[pick] * sc
+        scales.append(float(sc))
+    return out, scales
+
+
 def compute(variant, old_log_prob, ref_log_prob, response_mask, generator=None, responses=None):
     """Returns (advantages, loss_mask). P5 uses opd_k1; its difference is the teacher prompt
     (think template + '<think>\\n'), handled in ref input preparation, not here."""
+    variant = resolve_variant(variant)
+    if variant == "P5top10":
+        a = top_frac(opd_k1(old_log_prob, ref_log_prob, response_mask), response_mask, 0.10)
+        _LAST.update(variant=variant, sel=(a != 0) & (response_mask > 0), scales=None)
+        return a, response_mask
+    if variant == "P5rand10m":
+        g = generator if generator is not None else _gen(old_log_prob.device)
+        a, sc = rand_matched(opd_k1(old_log_prob, ref_log_prob, response_mask), response_mask, 0.10, g)
+        _LAST.update(variant=variant, sel=(a != 0) & (response_mask > 0), scales=sc)
+        return a, response_mask
     if variant in ("P2", "P5"):
         return opd_k1(old_log_prob, ref_log_prob, response_mask), response_mask
     if variant == "P2noEOS":
@@ -217,6 +268,93 @@ def _topk_overlap(score_a, score_b, response_mask, frac=0.2):
 
 
 _SHADOW_GEN = {}
+
+# v2.5.7h (Q-014): token classes of the selected set. EOS = <|im_end|> / <|endoftext|>; discourse = re-check, hedging and
+# connective words (DISC, the token's text stripped and lower-cased); math = a digit, an operator / bracket / LaTeX
+# character, or a LaTeX command name (MATH_WORDS); other = the rest (prose, whitespace, single letters). Built once per
+# process from the student's tokenizer (OPD_TOKENIZER) when OPD_TOKCAT=1; no effect on training.
+DISC = {"wait", "alternatively", "however", "hmm", "actually", "but", "let", "check", "verify", "double", "recheck", "re",
+        "confirm", "maybe", "perhaps", "okay", "ok", "so", "therefore", "thus", "hence", "now", "first", "next", "then",
+        "again", "mistake", "sure", "think", "seems", "hold", "oh", "ah", "right", "yes", "no", "well"}
+MATH_WORDS = {"frac", "dfrac", "sqrt", "cdot", "times", "pi", "boxed", "sin", "cos", "tan", "log", "ln", "le", "ge", "leq",
+              "geq", "neq", "infty", "sum", "prod", "int", "left", "right", "text", "mod", "pmod", "binom", "circ", "angle",
+              "triangle", "equiv", "approx"}
+CATS = ("eos", "disc", "math", "other")
+_CATS = {}
+
+
+def _bytes_to_unicode():
+    bs = list(range(ord("!"), ord("~") + 1)) + list(range(ord("\xa1"), ord("\xac") + 1)) + list(range(ord("\xae"), ord("\xff") + 1))
+    cs, n = bs[:], 0
+    for x in range(256):
+        if x not in bs:
+            bs.append(x); cs.append(256 + n); n += 1
+    return dict(zip(bs, map(chr, cs)))
+
+
+def token_class(tid, piece):
+    """0 eos, 1 discourse, 2 math, 3 other for one token (piece: its text)."""
+    import re as _re
+    if tid in EOS_IDS:
+        return 0
+    t = piece.strip().lower()
+    if t in DISC:
+        return 1
+    if _re.search(r"[0-9=+\-*/^_{}\\|<>$()\[\]]", t) or t.lstrip("\\") in MATH_WORDS:
+        return 2
+    return 3
+
+
+def token_categories():
+    """Class per vocabulary id (a CPU LongTensor), or None when OPD_TOKCAT is not 1 or the tokenizer cannot be read."""
+    if "v" in _CATS:
+        return _CATS["v"]
+    _CATS["v"] = None
+    if os.environ.get("OPD_TOKCAT") != "1" or not os.environ.get("OPD_TOKENIZER"):
+        return None
+    try:
+        from transformers import AutoTokenizer
+        tok = AutoTokenizer.from_pretrained(os.environ["OPD_TOKENIZER"])
+        u2b = {v: k for k, v in _bytes_to_unicode().items()}
+        toks = tok.convert_ids_to_tokens(list(range(len(tok))))
+        cls = []
+        for i, t in enumerate(toks):
+            t = t or ""
+            piece = bytes(u2b[c] for c in t).decode("utf-8", "replace") if all(c in u2b for c in t) else t
+            cls.append(token_class(i, piece))
+        _CATS["v"] = torch.tensor(cls, dtype=torch.long)
+    except Exception:
+        pass
+    return _CATS["v"]
+
+
+def selection_stats(variant, response_mask, responses):
+    """Diagnostics of the token-selective arms (Q-014): kept share, the matched scale of P5rand10m, the share of
+    terminated responses whose EOS is selected, and the token classes of the selected set and of all tokens."""
+    out = {}
+    if not _LAST.get("variant") or resolve_variant(variant) != _LAST["variant"]:
+        return out
+    rm = response_mask > 0
+    sel = _LAST["sel"] & rm
+    n, k = max(rm.sum().item(), 1), max(sel.sum().item(), 1)
+    out["opd/sel_kept_frac"] = sel.sum().item() / n
+    if _LAST.get("scales"):   # P5rand10m: the matched scale per response (reviewer A1 19:4x UTC: its distribution and the cap)
+        sc = sorted(_LAST["scales"]); q = lambda f: sc[min(len(sc) - 1, int(f * len(sc)))]
+        out.update({"opd/rand_scale_mean": sum(sc) / len(sc), "opd/rand_scale_max": sc[-1], "opd/rand_scale_p10": q(0.1),
+                    "opd/rand_scale_p50": q(0.5), "opd/rand_scale_p90": q(0.9),
+                    "opd/rand_scale_cap_frac": sum(x >= RAND_CAP for x in sc) / len(sc)})
+    if responses is not None:
+        rows = [b for b in range(responses.shape[0]) if final_eos_pos(responses, response_mask, b) is not None]
+        if rows:
+            out["opd/sel_eos_kept_frac"] = sum(bool(sel[b, final_eos_pos(responses, response_mask, b)]) for b in rows) / len(rows)
+        cats = token_categories()
+        if cats is not None:
+            c = cats.to(responses.device)[responses.clamp(min=0, max=len(cats) - 1)]
+            for j, name in enumerate(CATS):
+                out[f"opd/sel_{name}_frac"] = ((c == j) & sel).sum().item() / k
+                out[f"opd/all_{name}_frac"] = ((c == j) & rm).sum().item() / n
+    _LAST.clear()
+    return out
 
 
 @torch.no_grad()
@@ -301,4 +439,5 @@ def adv_stats(variant, adv_orig, adv_used, response_mask, loss_mask, entropy=Non
         out["opd/think_close_frac"] = n_close / max(responses.shape[0], 1)
         if term_low:
             out["opd/term_in_low20_frac"] = sum(term_low) / len(term_low)
+    out.update(selection_stats(variant, response_mask, responses))   # v2.5.7h: P5top10 / P5rand10m only
     return out

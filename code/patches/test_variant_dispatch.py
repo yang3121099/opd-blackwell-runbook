@@ -12,7 +12,7 @@ import re
 
 import torch
 
-from opd_variants import compute, opd_k1
+from opd_variants import OVERRIDE_VIA, compute, opd_k1
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 RUNBOOK = os.path.dirname(os.path.dirname(HERE))
@@ -49,8 +49,13 @@ def test_launched_variants_are_known():
 
 
 def test_every_nondefault_variant_is_dispatched():
-    missing = (launched_variants() | compute_branches()) - DEFAULT - dispatched()
+    # v2.5.7h: an override arm reaches compute() through its hook (OPD_VARIANT=<hook>, OPD_VARIANT_OVERRIDE=<arm>)
+    routed = {v for v, hook in OVERRIDE_VIA.items() if hook in dispatched()}
+    missing = (launched_variants() | compute_branches()) - DEFAULT - dispatched() - routed
     assert not missing, f"not in the dp_actor dispatch list (would train as plain OPD): {sorted(missing)}"
+    arm = open(os.path.join(RUNBOOK, "scripts/run_arm.sh")).read()
+    for v, hook in OVERRIDE_VIA.items():
+        assert f"OPD_VARIANT={hook} OPD_VARIANT_OVERRIDE=$ARM" in arm and v in arm, f"{v}: run_arm.sh does not route it through {hook}"
     stray = dispatched() - compute_branches()
     assert not stray, f"dispatched but unknown to opd_variants.compute: {sorted(stray)}"
 

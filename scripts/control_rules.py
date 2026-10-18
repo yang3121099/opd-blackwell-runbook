@@ -6,7 +6,7 @@ import calendar
 import re
 import time
 
-RULES_VERSION = "2.5.19"   # 2.5.1: HF_REPO_PUBLIC / HF_REPO_PRIVATE / HEARTBEAT_SEC; 2.5.2: FIXED_MICRO_BSZ; 2.5.3: VENV=fa; 2.5.4: reap; 2.5.5: rerun; 2.5.6: republish; 2.5.7: rerun failed / skipped tasks; 2.5.8: E10c; 2.5.9: publish, leakscan; 2.5.10: fa-build; 2.5.11: scrubdiff; 2.5.12: SPEED-PROBE, setenv FUSED / GC; 2.5.13: du, rm-ours, dr-keep, setenv DR / DR_EVERY / DR_MBPS / E12B_GC; 2.5.14: persist-env, rebuild-drill; 2.5.15: E10d (4B), PROBE-4B; 2.5.16: FA-SPEED probes, setenv E12B_FA; 2.5.17: setenv E10D_FA; 2.5.18: FA-SPEED-TWIN; 2.5.19: #eval max_tokens, E10c dyn6144 / -s43, PROBE-TERM
+RULES_VERSION = "2.5.20"   # 2.5.1: HF_REPO_PUBLIC / HF_REPO_PRIVATE / HEARTBEAT_SEC; 2.5.2: FIXED_MICRO_BSZ; 2.5.3: VENV=fa; 2.5.4: reap; 2.5.5: rerun; 2.5.6: republish; 2.5.7: rerun failed / skipped tasks; 2.5.8: E10c; 2.5.9: publish, leakscan; 2.5.10: fa-build; 2.5.11: scrubdiff; 2.5.12: SPEED-PROBE, setenv FUSED / GC; 2.5.13: du, rm-ours, dr-keep, setenv DR / DR_EVERY / DR_MBPS / E12B_GC; 2.5.14: persist-env, rebuild-drill; 2.5.15: E10d (4B), PROBE-4B; 2.5.16: FA-SPEED probes, setenv E12B_FA; 2.5.17: setenv E10D_FA; 2.5.18: FA-SPEED-TWIN; 2.5.19: #eval max_tokens, E10c dyn6144 / -s43, PROBE-TERM; 2.5.20: #eval mode, #forced, E10b-P5top10 / P5rand10m, PROBE-TOP10
 
 META = set(";&|`$<>\\\"'(){}*?!#~\n\r")
 TASK_RE = re.compile(r"^[A-Za-z0-9._-]+$")
@@ -136,7 +136,7 @@ def parse(entry):
             raise Reject("relative path of [A-Za-z0-9._/-], no leading / and no ..")
     if verb == "dr-keep" and not TASK_RE.match(args[0]):
         raise Reject("dr-keep <task>")
-    if verb == "rerun" and not re.fullmatch(r"FA-PROBE|SPEED-PROBE|PROBE-4B|PROBE-TERM|FA-SPEED-(?:17|4B|E12|TWIN)|EVAL-[A-Za-z0-9._-]+|SFT-[A-Za-z0-9]+|E1[012]b-[A-Za-z0-9._-]+|E10[cd]-[A-Za-z0-9._-]+|E0[23]-[A-Za-z0-9._-]+", args[0]):
+    if verb == "rerun" and not re.fullmatch(r"FA-PROBE|SPEED-PROBE|PROBE-4B|PROBE-TERM|PROBE-TOP10|FA-SPEED-(?:17|4B|E12|TWIN)|EVAL-[A-Za-z0-9._-]+|SFT-[A-Za-z0-9]+|E1[012]b-[A-Za-z0-9._-]+|E10[cd]-[A-Za-z0-9._-]+|E0[23]-[A-Za-z0-9._-]+", args[0]):
         raise Reject("rerun <FA-PROBE | SPEED-PROBE | EVAL-name | SFT-* | E10b/E11b/E12b-* | E02/E03-*>")
     if verb == "cancel" and not (args[0].isdigit() and int(args[0]) > 0):
         raise Reject("cancel <seq>")
@@ -163,6 +163,8 @@ def check_eval_args(args):
         raise Reject("temperature must be 0.6 or 1.0")
     if len(args) > 4 and args[4] not in MAX_TOKENS:   # v2.5.7g: the generation budget of a queue #eval line (7th field)
         raise Reject(f"max_tokens must be one of {', '.join(MAX_TOKENS)}")
+    if len(args) > 5 and args[5] not in ("think", "no_think"):   # v2.5.7h: the mode of a queue #eval line (8th field)
+        raise Reject("mode must be think or no_think")
 
 
 def expiry(entry, verb):

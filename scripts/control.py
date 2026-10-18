@@ -876,7 +876,7 @@ def build_pulse(st, gpu_csv):
         for r in json.loads(_read(_p("procs.json"), "{}") or "{}").get("rows", []):
             if r.get("gpu") is None:
                 continue
-            if re.match(r"(E11b-|EVAL-|adhoc_eval_|FA-PROBE|SPEED-PROBE|PROBE-4B|PROBE-TERM|FA-SPEED-)", str(r.get("task") or "")):
+            if re.match(r"(E11b-|EVAL-|adhoc_eval_|FA-PROBE|SPEED-PROBE|PROBE-4B|PROBE-TERM|PROBE-TOP10|FA-SPEED-)", str(r.get("task") or "")):
                 evals.add(r["gpu"])
             if not r.get("ours") and (r.get("gpu_mem_mb") or 0) > 2048:   # a process outside our trees holding memory
                 orphans.add(r["gpu"])
@@ -926,9 +926,9 @@ def _request(kind, seq, body):
 
 def v_run(a, seq, flags=None, entry=None):
     t = a[0]
-    r = subprocess.run(["bash", "-c", f'T={t}; ARMS="P2|P3|P4lowlr|P5|P6|P6r|P2noEOS|Pstop|P6rand|P6top5|P4EOSpen"; '
+    r = subprocess.run(["bash", "-c", f'T={t}; ARMS="P2|P3|P4lowlr|P5|P6|P6r|P2noEOS|Pstop|P6rand|P6top5|P4EOSpen|P5top10|P5rand10m"; '
                         'case $T in E10b-*) [[ $T =~ ^E10b-($ARMS)(-s(43|44))?$ ]];; E10c-*) [[ $T =~ ^E10c-($ARMS)-(fix4|dyn16k|dyn6144)(-s43)?$ ]];; E10d-*) [[ $T =~ ^E10d-(P2|P5)$ ]];; E11b-*) [[ $T =~ ^E11b-(P0|($ARMS)(-s(43|44))?)$ ]];; '
-                        'E12b-*) [[ $T =~ ^E12b-(P0|P1|$ARMS|P5-s43)$ ]];; EVAL-*) [[ $T =~ ^EVAL-[A-Za-z0-9._-]+$ ]];; SFT-P1|FA-PROBE|SPEED-PROBE|PROBE-4B|PROBE-TERM|FA-SPEED-17|FA-SPEED-4B|FA-SPEED-E12|FA-SPEED-TWIN|E03-MI-l0.[0357]|E03-MI-l1.0|E02-opsa17-c0.5|E02-opsa17-c1.5|E02-opsa4-c-1|'
+                        'E12b-*) [[ $T =~ ^E12b-(P0|P1|$ARMS|P5-s43)$ ]];; EVAL-*) [[ $T =~ ^EVAL-[A-Za-z0-9._-]+$ ]];; SFT-P1|FA-PROBE|SPEED-PROBE|PROBE-4B|PROBE-TERM|PROBE-TOP10|FA-SPEED-17|FA-SPEED-4B|FA-SPEED-E12|FA-SPEED-TWIN|E03-MI-l0.[0357]|E03-MI-l1.0|E02-opsa17-c0.5|E02-opsa17-c1.5|E02-opsa4-c-1|'
                         'E02-opsa4-c0.5|E02-opsa4-c1.5) true;; *) false;; esac'])
     if r.returncode != 0:
         return "rejected", f"{t} is not accepted by task.sh", {}
@@ -951,7 +951,7 @@ def v_rerun(a, seq, flags=None, entry=None):
     d = os.path.join(ROOT, "runs", t)
     done, failed = os.path.exists(os.path.join(d, ".done")), os.path.exists(os.path.join(d, ".failed"))
     skipped = os.path.exists(os.path.join(d, ".skipped"))
-    if done and not re.fullmatch(r"FA-PROBE|SPEED-PROBE|PROBE-4B|PROBE-TERM|FA-SPEED-(17|4B|E12|TWIN)|EVAL-[A-Za-z0-9._-]+", t):
+    if done and not re.fullmatch(r"FA-PROBE|SPEED-PROBE|PROBE-4B|PROBE-TERM|PROBE-TOP10|FA-SPEED-(17|4B|E12|TWIN)|EVAL-[A-Za-z0-9._-]+", t):
         return "rejected", f"{t} is done (only FA-PROBE, SPEED-PROBE and EVAL tasks are rerun after finishing)", {}
     if not (done or failed or skipped):
         return "rejected", f"{t} is neither done, failed nor skipped", {}

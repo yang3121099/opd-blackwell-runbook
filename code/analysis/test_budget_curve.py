@@ -27,9 +27,9 @@ def rec(pid, s, text, gold, ended=True):
 def test_at_budget_cuts_and_regrades():
     r = [rec(0, 0, "ab[7]", "7"), rec(1, 0, "xxxxxxxx[3]", "3"), rec(2, 0, "[5]yyyyyyy", "5", ended=False)]
     rows, k = BC.at_budget(r, 5, decode, stub_grade)
-    assert rows == [(0, True, False, 5), (1, False, True, 5), (2, True, True, 5)] and k == 2   # [5] survives the cut
+    assert rows == [(0, True, False, 5, 0), (1, False, True, 5, 0), (2, True, True, 5, 0)] and k == 2   # [5] survives the cut
     rows, k = BC.at_budget(r, 100, decode, stub_grade)
-    assert [c for _, c, _, _ in rows] == [True, True, False] and [t for _, _, t, _ in rows] == [False, False, True] and k == 0
+    assert [c for _, c, _, _, _ in rows] == [True, True, False] and [t for _, _, t, _, _ in rows] == [False, False, True] and k == 0
 
 
 def test_crossing():
@@ -61,3 +61,28 @@ def test_main_end_to_end(tmp_path, monkeypatch):
     pr = r["pairs_vs_base"]["p5"]
     assert pr["8"]["diff"] == 50.0 and pr["16"]["diff"] == -50.0
     assert r["crossing"]["p5"]["first_positive"] is None and r["crossing"]["p5"]["first_ci_positive"] == 4
+
+
+def test_forced_and_finished(tmp_path, monkeypatch):   # v2.5.7h (Q-013)
+    fake_tf = types.ModuleType("transformers")
+    fake_tf.AutoTokenizer = types.SimpleNamespace(from_pretrained=lambda p: types.SimpleNamespace(decode=lambda ids, skip_special_tokens=True: decode(ids)))
+    fake_ge = types.ModuleType("gen_eval"); fake_ge.grade = stub_grade
+    monkeypatch.setitem(sys.modules, "transformers", fake_tf); monkeypatch.setitem(sys.modules, "gen_eval", fake_ge)
+    def write(name, recs):
+        p = tmp_path / f"{name}.jsonl"; p.write_text("".join(json.dumps(x) + "\n" for x in recs))
+        (tmp_path / f"{name}.metrics.json").write_text(json.dumps({"max_tokens": 16})); return str(p)
+    # base: right but long (12 chars) everywhere; p5: short and right on even problems
+    base = write("base", [rec(p, s, "z" * 9 + f"[{p % 10}]", str(p % 10)) for p in range(10) for s in range(2)])
+    rd = write("p5", [rec(p, s, (f"[{p % 10}]" if p % 2 == 0 else "[x]") + "q", str(p % 10)) for p in range(10) for s in range(2)])
+    # forced answers at 8 tokens: the base recovers on every problem but 0 (sample 1 of problem 1 has none -> wrong, missing)
+    (tmp_path / "base.forced.jsonl").write_text("".join(json.dumps({"pid": p, "sample": s, "budget": 8, "forced_correct": p != 0})
+                                                       + "\n" for p in range(10) for s in range(2) if (p, s) != (1, 1)))
+    out = tmp_path / "o.json"
+    monkeypatch.setattr(sys, "argv", ["budget_curve.py", "--out", str(out), "--budgets", "8,16", "--tokenizer", "t", "--forced_dir", str(tmp_path), base, rd])
+    BC.main()
+    r = json.load(open(out))
+    b8 = r["readings"]["base"]["by_budget"]["8"]
+    assert b8["acc"] == 0.0 and b8["finished_rate"] == 0.0 and b8["acc_finished"] is None and b8["acc_forced"] == 85.0 and b8["forced_missing"] == 1
+    p8 = r["readings"]["p5"]["by_budget"]["8"]
+    assert p8["finished_rate"] == 1.0 and p8["acc_finished"] == 50.0 and "acc_forced" not in p8 and r["readings"]["p5"]["forced"] is False
+    assert r["pairs_forced_vs_base"] == {}                   # p5 has no forced answers: no forced pair

@@ -214,3 +214,72 @@ def test_termination_marker_diagnostics():
     s = adv_stats("P2", a2, a2, mask, lm, old_log_prob=old, ref_log_prob=ref, responses=resp)
     assert abs(s["opd/think_close_frac"] - 1 / 3) < 1e-6
     assert 0 <= s["opd/term_in_low20_frac"] <= 1
+
+
+# v2.5.7h (Q-014): token-selective OPD with the P5 teacher prompt
+def test_p5top10_keeps_the_largest_tenth():
+    old, ref, mask, _ = _toy()
+    a2, _ = compute("P2", old, ref, mask)
+    at, lm = compute("P5top10", old, ref, mask)
+    assert torch.equal(lm, mask)
+    for b, n in [(0, 200), (1, 150), (2, 200)]:
+        k = (at[b] != 0).sum().item(); assert k == round(0.1 * n)
+        assert torch.equal(at[b][at[b] != 0], a2[b][at[b] != 0])
+        thr = a2[b, :n].abs().sort(descending=True).values[k - 1]
+        assert torch.all(at[b][at[b] != 0].abs() >= thr - 1e-6)
+
+
+def test_p5rand10m_matches_the_top10_mass():
+    from opd_variants import rand_matched
+    old, ref, mask, _ = _toy()
+    a2, _ = compute("P2", old, ref, mask)
+    ar, _ = compute("P5rand10m", old, ref, mask, generator=torch.Generator().manual_seed(7))
+    ar2, _ = compute("P5rand10m", old, ref, mask, generator=torch.Generator().manual_seed(7))
+    at, _ = compute("P5top10", old, ref, mask)
+    assert torch.equal(ar, ar2)                                         # fixed seed, same selection
+    for b, n in [(0, 200), (1, 150), (2, 200)]:
+        sel = ar[b] != 0
+        assert sel.sum().item() == round(0.1 * n) and not torch.equal(sel, at[b] != 0)
+        assert torch.allclose(ar[b].abs().sum(), at[b].abs().sum(), rtol=1e-4)   # same sum of |A| as the top 10%
+        sc = ar[b][sel] / a2[b][sel]
+        assert torch.allclose(sc, sc[0].expand_as(sc), rtol=1e-4) and sc[0] >= 1   # one scale per response
+    z = torch.zeros(1, 10); m = torch.ones(1, 10)
+    out, scales = rand_matched(z, m, 0.1, torch.Generator().manual_seed(0))
+    assert torch.all(out == 0) and scales == [1.0]                      # nothing to scale: no division by zero
+
+
+def test_override_only_through_its_hook():
+    import os
+    old, ref, mask, _ = _toy()
+    p6, _ = compute("P6", old, ref, mask); p6r, _ = compute("P6r", old, ref, mask); top, _ = compute("P5top10", old, ref, mask)
+    os.environ["OPD_VARIANT_OVERRIDE"] = "P5top10"
+    try:
+        a, _ = compute("P6", old, ref, mask); b, _ = compute("P6r", old, ref, mask)
+        assert torch.equal(a, top) and torch.equal(b, p6r)              # P6 is the hook; P6r is not touched
+    finally:
+        del os.environ["OPD_VARIANT_OVERRIDE"]
+    assert torch.equal(compute("P6", old, ref, mask)[0], p6)          # no override: P6 as before (20%)
+
+
+def test_selection_stats_and_token_classes():
+    import os
+    from opd_variants import token_class
+    assert [token_class(151645, ""), token_class(5, "Wait"), token_class(5, " however"), token_class(5, " 3"),
+            token_class(5, "\\frac"), token_class(5, "^{"), token_class(5, " the"), token_class(5, " x")] == [0, 1, 1, 2, 2, 2, 3, 3]
+    old, ref, mask, _ = _toy()
+    resp = _toy_resp(old, mask)
+    a2, _ = compute("P2", old, ref, mask)
+    os.environ["OPD_VARIANT_OVERRIDE"] = "P5top10"
+    try:
+        at, lm = compute("P6", old, ref, mask, responses=resp)
+        s = adv_stats("P6", a2, at, mask, lm, old_log_prob=old, ref_log_prob=ref, responses=resp)
+        assert abs(s["opd/sel_kept_frac"] - 55 / 550) < 1e-6 and 0 <= s["opd/sel_eos_kept_frac"] <= 1
+        assert "opd/rand_scale_mean" not in s
+        ar, lm = compute("P5rand10m", old, ref, mask, generator=torch.Generator().manual_seed(1), responses=resp)   # not P6's override
+    finally:
+        del os.environ["OPD_VARIANT_OVERRIDE"]
+    s = adv_stats("P5rand10m", a2, ar, mask, lm, old_log_prob=old, ref_log_prob=ref, responses=resp)
+    assert s["opd/rand_scale_mean"] >= 1 and abs(s["opd/sel_kept_frac"] - 55 / 550) < 1e-6
+    assert s["opd/rand_scale_p10"] <= s["opd/rand_scale_p50"] <= s["opd/rand_scale_p90"] <= s["opd/rand_scale_max"] and s["opd/rand_scale_cap_frac"] == 0
+    s = adv_stats("P6", a2, at, mask, lm, old_log_prob=old, ref_log_prob=ref, responses=resp)
+    assert "opd/sel_kept_frac" not in s                                 # nothing pending: a real P6 arm logs none of it

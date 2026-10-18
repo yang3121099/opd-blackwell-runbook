@@ -24,3 +24,10 @@ def test_summarize():
     s = F.summarize(R, 16384, {("b", 0): True, ("b", 1): False})
     assert s == {"budget": 16384, "n": 4, "acc_no_force": 50.0, "acc_forced": 75.0, "n_forced": 2, "forced_correct": 1}
     assert F.FORCE == "\n</think>\n\n**Final Answer**\n\\boxed{"
+
+
+def test_budb_stop_strings():   # v2.5.7h (Q-013); E05 keeps FORCE whatever the mode
+    assert F.force_text("e05", "no_think") == F.FORCE and F.force_text("e05", "think", "a</think>b") == F.FORCE
+    assert F.force_text("budB", "no_think") == "\n\n**Final Answer**\n\\boxed{"
+    assert F.force_text("budB", "think", "still thinking") == "\n</think>\n\n\\boxed{"
+    assert F.force_text("budB", "think", "done</think>answer") == "\n\n**Final Answer**\n\\boxed{"   # think already closed

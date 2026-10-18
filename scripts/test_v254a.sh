@@ -110,7 +110,31 @@ EOF
 bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-bud > $T/out5 2>&1
 ok "max_tokens 32768 / default 16384 / 12000 refused" 'grep -q "^gen_eval .*--max_tokens 32768 .*--tag bud_base17_32k " $CALLS && grep -q "^gen_eval .*--max_tokens 16384 .*--tag bud_x " $CALLS && ! grep -q "tag bud_y" $CALLS && grep -q "REFUSED bud_y: .* 12000" $T/out5'
 O=$T/root/runs/EVAL-bud
-ok "#budget: tags, runs/ reference, missing tag listed, bad reference refused" 'grep -q "^budget --out $O/budget_curve.json --tokenizer $T/m17 $O/bud_base17_32k_math500_no_think_t0.6.jsonl $O/bud_x_math500_no_think_t0.6.jsonl $T/root/runs/E11b-P0/base.jsonl $O/nosuch.missing.jsonl$" $CALLS && grep -q "BUDGET_REF_REFUSED ../etc/x.jsonl" $T/out5 && grep -q "BUDGET_DONE budget_curve" $T/out5'
+ok "#budget: tags, runs/ reference, missing tag listed, bad reference refused" 'grep -q "^budget --out $O/budget_curve.json --tokenizer $T/m17 --forced_dir $O $O/bud_base17_32k_math500_no_think_t0.6.jsonl $O/bud_x_math500_no_think_t0.6.jsonl $T/root/runs/E11b-P0/base.jsonl $O/nosuch.missing.jsonl$" $CALLS && grep -q "BUDGET_REF_REFUSED ../etc/x.jsonl" $T/out5 && grep -q "BUDGET_DONE budget_curve" $T/out5'
+rm -rf $T
+# 3d. v2.5.7h: the 8th field mode (think / no_think, checked) and "#forced" (forced_stop.py budB on a tag of this task and
+#     on a reading under runs/, with the model that wrote it; a missing reading blocks .done; done ones are skipped)
+setup
+mkdir -p $T/m17 $T/root/runs/EVAL-e12b-P5; touch $T/m17/model.safetensors
+printf 'import sys, os; open(os.environ["CALLS"], "a").write("forced " + " ".join(sys.argv[1:]) + "\\n"); a = sys.argv; open(a[a.index("--out") + 1], "w").write("{}")\n' > $T/rb/code/eval/forced_stop.py
+: > $T/root/runs/EVAL-e12b-P5/e12b_P5.jsonl; : > $T/root/runs/EVAL-e12b-P5/e12b_P5.metrics.json
+cat > $T/rb/tasks/queue.txt <<'EOF'
+version: 2
+#eval EVAL-bb bb_think Qwen/Qwen3-1.7B math500 4 0.6 32768 think
+#eval EVAL-bb bb_bad Qwen/Qwen3-1.7B math500 4 0.6 32768 deep
+#forced EVAL-bb bb_think Qwen/Qwen3-1.7B think
+#forced EVAL-bb EVAL-e12b-P5/e12b_P5.jsonl Qwen/Qwen3-1.7B no_think
+#forced EVAL-bb EVAL-e12b-P0/gone.jsonl Qwen/Qwen3-1.7B no_think
+#forced EVAL-bb bb_think Qwen/Qwen3-1.7B sideways
+EOF
+bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-bb > $T/out6 2>&1
+O=$T/root/runs/EVAL-bb
+ok "mode think passed to gen_eval, a bad mode refused" 'grep -q "^gen_eval .*--mode think .*--max_tokens 32768 .*--tag bb_think " $CALLS && ! grep -q "tag bb_bad" $CALLS && grep -q "REFUSED bb_bad" $T/out6'
+ok "#forced: own tag (think) and a runs/ reading (no_think), budB, 32 tokens; missing reading and bad mode refused, no .done" 'grep -q "^forced --model $T/m17 --jsonl $O/bb_think_math500_no_think_t0.6.jsonl --bench math500 --mode think --force_preset budB --max_new 32 --budgets 2048,4096,8192,16384,32768 --out $O/bb_think_math500_no_think_t0.6.forced.json --samples $O/bb_think_math500_no_think_t0.6.forced.jsonl" $CALLS && grep -q "^forced --model $T/m17 --jsonl $T/root/runs/EVAL-e12b-P5/e12b_P5.jsonl .*--mode no_think .*--out $O/e12b_P5.forced.json" $CALLS && grep -q "FORCED_SKIPPED EVAL-e12b-P0/gone.jsonl" $T/out6 && grep -q "FORCED_REFUSED bb_think: Qwen/Qwen3-1.7B sideways" $T/out6 && [ ! -f $O/.done ]'
+mkdir -p $T/rb/code/analysis; printf 'import sys, os; open(os.environ["CALLS"], "a").write("budget " + " ".join(sys.argv[1:]) + "\\n")\n' > $T/rb/code/analysis/budget_curve.py
+: > $O/bb_think_math500_no_think_t0.6.forced.jsonl; echo "#budget EVAL-bb bc bb_think" >> $T/rb/tasks/queue.txt
+: > $CALLS; bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-bb > $T/out7 2>&1
+ok "finished forced answers are not redone; a tag never resolves to its forced-answer file" '! grep -q "^forced" $CALLS && grep -q "FORCED_DONE_ALREADY e12b_P5" $T/out7 && grep -q "^budget .* $O/bb_think_math500_no_think_t0.6.jsonl$" $CALLS'
 rm -rf $T
 # 5. v2.5.4e prefetch: every opd-lab-ckpts model through fetch_model.py, .inputs_ok = hash of the #eval lines (run_tasks'
 #    inputs_ok agrees), a changed spec list invalidates it, a failed fetch writes none; an eval whose fetch fails is not run
@@ -159,6 +183,11 @@ ok "VENV=fa: E10c pinned, E10b on venv-fa" '[[ "$d6" == *"venv=venv "* && "$d7" 
 d8=$(VENV=fa DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10d-P2 | tail -1); d9=$(VENV=fa E10D_FA=1 DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10d-P2 | tail -1)
 mkdir -p $T/root/runs/PROBE-4B; ( bash $T/rb/scripts/run_arm.sh 0 E10d-P2 > $T/g1 2>&1 ); r1=$?; echo '{"result": "PASS"}' > $T/root/runs/PROBE-4B/report.json
 ok "E10d gated on PROBE-4B PASS" '[ $r1 = 3 ] && grep -q "PROBE-4B has not passed" $T/g1'
+t1=$(DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10b-P5top10 | tail -1); t2=$(DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10b-P5rand10m | tail -1)
+t3=$(DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10b-P6 | tail -1); t4=$(DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10b-P5 | tail -1)
+ok "v2.5.7h P5top10 / P5rand10m: through the P6 hook, P5 teacher prompt, 50 steps; P6 / P5 unchanged" '[[ "$t1" == *"arm=P5top10 lr=3e-6 "*"variant=P6 override=P5top10 refthink=1 steps=50" && "$t2" == *"variant=P6 override=P5rand10m refthink=1 steps=50" && "$t3" == *"variant=P6 override= refthink=0 steps=150" && "$t4" == *"variant=P5 override= refthink=1 steps=150" ]]'
+( bash $T/rb/scripts/run_arm.sh 0 E10b-P5top10 > $T/g2 2>&1 ); r2=$?
+ok "v2.5.7h token-selective arms gated on PROBE-TOP10 PASS" '[ $r2 = 3 ] && grep -q "PROBE-TOP10 has not passed" $T/g2'
 ok "E10d on SDPA unless E10D_FA=1" '[[ "$d8" == *"venv=venv "* && "$d9" == *"venv=venv-fa "* ]]'
 ok "E10d-P5: 4B student, P5, GC on" '[[ "$d5" == *"arm=P5 lr=3e-6 seed=42 student=$T/m4 "* && "$d5" == *"gc=True"* ]] && ! bash $T/rb/scripts/task.sh 0 E10d-P3 > /dev/null 2>&1'
 ok "FUSED=1 GC=0" '[[ "$d4" == *"kern=[actor_rollout_ref.model.use_fused_kernels=True actor_rollout_ref.model.fused_kernel_options.impl_backend=torch] gc=False"* && "$d3" == *"kern=[] gc=True"* ]]'
@@ -187,4 +216,4 @@ got=$( PATH=$T/bin:$PATH NGPU=14; eval "$(sed -n '/^free_gpus() {/,/; }$/p' $SRC
 kill $P1 $P2 2> /dev/null
 ok "running tasks keep their GPUs" '[[ " $got" == *" 1 "* && " $got" == *" 6 "* && " $got" != *" 5 "* && " $got" != *" 13 "* ]]'   # 13 must not hide 1
 rm -rf $T
-[ $fails = 0 ] && echo "V254A_TEST PASS (42 checks)" || echo "V254A_TEST FAIL ($fails)"
+[ $fails = 0 ] && echo "V254A_TEST PASS (47 checks)" || echo "V254A_TEST FAIL ($fails)"
