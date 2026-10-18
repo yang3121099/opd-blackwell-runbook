@@ -68,3 +68,4 @@ commands:
   - {"seq": 66, "cmd": "publish SFT-P1", "reason": "reviewer A1 11:0x: migrate SFT-P1 from the old (private) public repository to opd-lab-b300-pub from this node's copies, scrubbed", "utc": "2026-10-18T03:03:59Z"}
   - {"seq": 67, "cmd": "publish E11b-P0", "reason": "reviewer A1 11:0x: migrate E11b-P0 from the old (private) public repository to opd-lab-b300-pub from this node's copies, scrubbed", "utc": "2026-10-18T03:04:07Z"}
   - {"seq": 68, "cmd": "publish E11b-P2", "reason": "reviewer A1 11:0x: migrate E11b-P2 from the old (private) public repository to opd-lab-b300-pub from this node's copies, scrubbed", "utc": "2026-10-18T03:04:15Z"}
+  - {"seq": 69, "cmd": "publish E11b-P2noEOS", "reason": "reviewer A1 11:0x: migrate E11b-P2noEOS from the old (private) public repository to opd-lab-b300-pub from this node's copies, scrubbed", "utc": "2026-10-18T03:04:22Z"}
