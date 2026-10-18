@@ -6,7 +6,7 @@ import calendar
 import re
 import time
 
-RULES_VERSION = "2.5.10"   # 2.5.1: HF_REPO_PUBLIC / HF_REPO_PRIVATE / HEARTBEAT_SEC; 2.5.2: FIXED_MICRO_BSZ; 2.5.3: VENV=fa; 2.5.4: reap; 2.5.5: rerun; 2.5.6: republish; 2.5.7: rerun failed / skipped tasks; 2.5.8: E10c; 2.5.9: publish, leakscan; 2.5.10: fa-build
+RULES_VERSION = "2.5.11"   # 2.5.1: HF_REPO_PUBLIC / HF_REPO_PRIVATE / HEARTBEAT_SEC; 2.5.2: FIXED_MICRO_BSZ; 2.5.3: VENV=fa; 2.5.4: reap; 2.5.5: rerun; 2.5.6: republish; 2.5.7: rerun failed / skipped tasks; 2.5.8: E10c; 2.5.9: publish, leakscan; 2.5.10: fa-build; 2.5.11: scrubdiff
 
 META = set(";&|`$<>\\\"'(){}*?!#~\n\r")
 TASK_RE = re.compile(r"^[A-Za-z0-9._-]+$")
@@ -28,7 +28,7 @@ VERBS = {
     "pause": (1, 1, H24), "resume": (1, 1, H24), "prio": (2, 2, H24), "set": (1, 1, H24), "setenv": (1, 1, H24),
     "kill": (1, 1, H2), "run": (1, 1, H2), "eval": (2, 4, H2), "update": (0, 0, H2), "upload": (1, 1, H2),
     "restore": (2, 2, H2), "rerun_verify": (0, 0, H2),
-    "signal": (2, 3, H2), "kill-pgid": (1, 2, H2), "cancel": (1, 1, H24), "heartbeat": (0, 0, H2), "move-ckpt": (2, 2, H2), "reap": (1, 1, H2), "rerun": (1, 1, H2), "republish": (1, 1, H2), "publish": (1, 1, H2), "leakscan": (0, 0, H2), "fa-build": (0, 0, H2),
+    "signal": (2, 3, H2), "kill-pgid": (1, 2, H2), "cancel": (1, 1, H24), "heartbeat": (0, 0, H2), "move-ckpt": (2, 2, H2), "reap": (1, 1, H2), "rerun": (1, 1, H2), "republish": (1, 1, H2), "publish": (1, 1, H2), "leakscan": (0, 0, H2), "fa-build": (0, 0, H2), "scrubdiff": (0, 1, H2),
 }
 TASK_VERBS = {"pause", "resume", "kill", "prio", "restore", "logs", "run", "move-ckpt"}
 
@@ -118,6 +118,8 @@ def parse(entry):
         raise Reject("publish <task>")
     if verb == "republish" and not re.fullmatch(r"[A-Za-z0-9._-]+", args[0]):
         raise Reject("republish <task>")
+    if verb == "scrubdiff" and args and args[0] != "fix":
+        raise Reject("scrubdiff [fix]")
     if verb == "rerun" and not re.fullmatch(r"FA-PROBE|EVAL-[A-Za-z0-9._-]+|SFT-[A-Za-z0-9]+|E1[012]b-[A-Za-z0-9._-]+|E10c-[A-Za-z0-9._-]+|E0[23]-[A-Za-z0-9._-]+", args[0]):
         raise Reject("rerun <FA-PROBE | EVAL-name | SFT-* | E10b/E11b/E12b-* | E02/E03-*>")
     if verb == "cancel" and not (args[0].isdigit() and int(args[0]) > 0):

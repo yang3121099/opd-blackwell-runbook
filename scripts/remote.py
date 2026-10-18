@@ -187,9 +187,11 @@ def own_ips():
     return {a for a in out if not a.startswith("127.")}
 
 
-def scrub_text(t, roots, toks, ips=None):
+def scrub_text(t, roots, toks, ips=None, gen=False):
     """ips: addresses to replace by <ip> in addition to private / internal ranges; None = no address scrub (generation
-    outputs: model text, where a string like 1.2.1.2 is content)."""
+    outputs: model text, where a string like 1.2.1.2 is content). gen (v2.5.6n): generation outputs, where a root is
+    replaced only as the start of a path under it ("<root>/..."): $HOME alone is a short string that model text can
+    contain, and its "~" replacement altered generations."""
     if ips is not None:
         for a in sorted(ips, key=len, reverse=True):
             t = re.sub(r"(?<![0-9.])" + re.escape(a) + r"(?![0-9])", "<ip>", t)
@@ -197,7 +199,7 @@ def scrub_text(t, roots, toks, ips=None):
     """v2.5.5c: text for the public repository without this machine's paths, user or host names (B300 2026-10-18 02:1x
     Beijing: train.log, metrics.json, twr.json and gen_eval.log in the public repository carried them)."""
     for p, name in roots:
-        t = t.replace(p, name)
+        t = t.replace(p + "/", name + "/") if gen else t.replace(p, name)
 
     def fix(m):
         words = {w.lower() for w in re.split(r"[^A-Za-z0-9_]+", m.group(0)) if w}
@@ -256,6 +258,15 @@ def scrub_model_file(name, data, roots, toks):
     return json.dumps(out, indent=2, ensure_ascii=False) + "\n" if hit else None
 
 
+def put_public_unchanged(pairs, message):
+    """v2.5.6n (scrubdiff fix): [(local file, path in the public repository)] uploaded byte for byte in one commit; the
+    caller has checked every file (no forbidden token, no path of this machine)."""
+    from huggingface_hub import CommitOperationAdd
+    api, repo = hf("public")
+    api.create_commit(repo_id=repo, repo_type="model", commit_message=message,
+                      operations=[CommitOperationAdd(path_in_repo=d, path_or_fileobj=l) for l, d in pairs])
+
+
 def _public_files(src, dst):
     if not os.path.isdir(src):
         return [(src, dst)]
@@ -283,7 +294,7 @@ def _put_public(api, repo, src, dst):
         elif is_text(name, os.path.getsize(local)):
             data = open(local, "rb").read().decode("utf-8", "replace")
             gen = name.lower().endswith((".jsonl", ".part"))   # generation outputs: no address scrub
-            ops.append(CommitOperationAdd(path_in_repo=pin, path_or_fileobj=scrub_text(data, roots, toks, None if gen else ips).encode()))
+            ops.append(CommitOperationAdd(path_in_repo=pin, path_or_fileobj=scrub_text(data, roots, toks, None if gen else ips, gen=gen).encode()))
         else:
             ops.append(CommitOperationAdd(path_in_repo=pin, path_or_fileobj=local))
     if ops:

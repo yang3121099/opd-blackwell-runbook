@@ -106,7 +106,7 @@ json.dump({"host": os.uname().nodename, "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ
            "ckpt_disk_free_gb": (lambda c: round(c.f_bavail * c.f_frsize / 1e9, 1))(os.statvfs(os.environ["CKPT_ROOT"])) if os.path.isdir(os.environ.get("CKPT_ROOT", "")) else None,
            "ckpt_disk_alert": (lambda c: c.f_bavail * c.f_frsize / 1e9 < float(os.environ.get("CKPT_ALERT_GB", "100")))(os.statvfs(os.environ["CKPT_ROOT"])) if os.path.isdir(os.environ.get("CKPT_ROOT", "")) else None,
            "disk_used_pct": round(100 * (1 - st.f_bavail / st.f_blocks), 1) if st.f_blocks else None,
-           "runbook_head": git("rev-parse", "--short", "HEAD"), "runbook_version": "v2.5.6m",
+           "runbook_head": git("rev-parse", "--short", "HEAD"), "runbook_version": "v2.5.6n",
            "run_tasks_sha": open(os.path.join(root, "control", "run_tasks.sha")).read().strip() if os.path.exists(os.path.join(root, "control", "run_tasks.sha")) else None,
            "ckpt_roots": roots_report(),   # v2.5: every candidate root: mount, free GB, writable, alert, task dirs and sizes
            "control": control_status(),
@@ -119,7 +119,7 @@ PY
   UP=$F
   if ! python -c "import json, sys; json.load(open(sys.argv[1]))" $F 2> /dev/null; then
     UP=/dev/shm/status_$H.json; [ -d /dev/shm ] || UP=/tmp/status_$H.json
-    printf '{"host": "%s", "utc": "%s", "error": "status JSON not written (disk full?)", "disk_free_gb": %s, "ckpt_disk_free_gb": %s, "runbook_version": "v2.5.6m"}\n' \
+    printf '{"host": "%s", "utc": "%s", "error": "status JSON not written (disk full?)", "disk_free_gb": %s, "ckpt_disk_free_gb": %s, "runbook_version": "v2.5.6n"}\n' \
       "$H" "$(date -u +%FT%TZ)" "$(df -Pk $OPD_ROOT | awk 'NR==2{printf "%.1f", $4/1e6}')" "$(df -Pk ${CKPT_ROOT:-$OPD_ROOT} | awk 'NR==2{printf "%.1f", $4/1e6}')" > $UP
   fi
   N=$(python $RUNBOOK/scripts/control.py node)

@@ -50,14 +50,51 @@ for c in ${FA_CUDA_CANDIDATES:-${CUDA_HOME:-} /usr/local/cuda-12.9 /usr/local/cu
   case $v in 12.8|12.9|12.1[0-9]) CH=$c; break;; esac
 done
 put cuda_seen "${SEEN# }"
-[ -n "$CH" ] || finish FAIL "no nvcc >= 12.8 found (CUDA_HOME, /usr/local/cuda-12.9, -12.8, /usr/local/cuda, PATH):${SEEN:- none}"
-put cuda_home "$CH"; step "nvcc: $CH ($v)"
-
-# 3. build tools in venv-fa
 inst() {   # pip if present, else uv (the uv-built venv has no pip; FA-PROBE used uv), always --no-deps
   if $VF/bin/python -m pip --version > /dev/null 2>&1; then $VF/bin/python -m pip install --no-deps "$@" >> $LOG 2>&1
   elif command -v uv > /dev/null 2>&1; then uv pip install --python $VF/bin/python --no-deps "$@" >> $LOG 2>&1
   else return 1; fi; }
+# 2b. v2.5.6n: no system nvcc >= 12.8 (B300 2026-10-18 05:15 UTC: /usr/local/cuda is 12.1, fa-build seq 96): NVIDIA's CUDA
+# 12.8 pip wheels (nvcc, cccl) unpacked under $D/cuda_pkgs and laid out as a CUDA_HOME in $D/cuda, with the runtime /
+# cuBLAS / cuSPARSE / cuSOLVER / cuRAND headers and libcudart of the nvidia-* packages torch already installed in venv-fa
+# (the CUDA 12.8 that torch 2.8.0+cu128 was built with); nothing outside $D changes. A test kernel (bf16, cuda::std) is
+# compiled for sm_100 before the long build, so a toolchain that cannot work fails in seconds.
+if [ -z "$CH" ] && [ "${FA_PIP_CUDA:-1}" = 1 ]; then
+  P=$D/cuda_pkgs; C=$D/cuda; step "no system nvcc >= 12.8:${SEEN:- none}; CUDA 12.8 from pip wheels into $P"
+  if [ ! -x $P/nvidia/cuda_nvcc/bin/nvcc ]; then
+    rm -rf $P; mkdir -p $P
+    inst --target $P nvidia-cuda-nvcc-cu12==12.8.93 nvidia-cuda-cccl-cu12==12.8.90 || finish FAIL "CUDA 12.8 pip wheels not installed into $P"
+  fi
+  SP=$($VF/bin/python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])")/nvidia
+  [ -d $SP/cuda_runtime/include ] || finish FAIL "venv-fa has no nvidia/cuda_runtime headers (torch's CUDA runtime package)"
+  rm -rf $C; mkdir -p $C/lib64
+  cp -r $P/nvidia/cuda_nvcc/bin $C/bin || finish FAIL "nvcc copy failed"   # a copy, so nvcc.profile's TOP is $C
+  ln -s $P/nvidia/cuda_nvcc/nvvm $C/nvvm
+  python3 - $C/include $P/nvidia/cuda_nvcc/include $P/nvidia/cuda_cccl/include $SP/*/include <<'PY' || finish FAIL "CUDA_HOME include layout failed"
+import os, sys
+dst, srcs = sys.argv[1], sys.argv[2:]
+for s in srcs:                       # one include tree of symlinks; the first package that has a file wins
+    for r, ds, fs in os.walk(s):
+        rel = os.path.relpath(r, s)
+        os.makedirs(os.path.join(dst, rel), exist_ok=True)
+        for f in fs:
+            t = os.path.join(dst, rel, f)
+            if not os.path.lexists(t):
+                os.symlink(os.path.join(r, f), t)
+PY
+  R=$(ls $SP/cuda_runtime/lib/libcudart.so.12* 2> /dev/null | head -1)
+  [ -n "$R" ] || finish FAIL "no libcudart.so.12 in venv-fa's nvidia/cuda_runtime"
+  ln -s $R $C/lib64/libcudart.so; ln -s $R $C/lib64/libcudart.so.12
+  v=$($C/bin/nvcc --version 2> /dev/null | sed -n 's/.*release \([0-9]*\)\.\([0-9]*\).*/\1.\2/p' | head -1)
+  [ "$v" = 12.8 ] || finish FAIL "pip nvcc does not run or is not 12.8 (got '${v}')"
+  printf '#include <cuda_runtime.h>\n#include <cuda_bf16.h>\n#include <cuda/std/cstdint>\n__global__ void k(__nv_bfloat16 *x, cuda::std::int32_t n) { if (threadIdx.x < n) x[threadIdx.x] = __float2bfloat16(1.0f); }\nint main() { return 0; }\n' > $D/t.cu
+  $C/bin/nvcc -arch=sm_100 -I$C/include -L$C/lib64 -lcudart -o $D/t $D/t.cu >> $LOG 2>&1 || finish FAIL "pip CUDA 12.8 cannot compile a test kernel for sm_100: $(tail -c 300 $LOG | tr '\n' ' ')"
+  CH=$C; put cuda_from pip
+fi
+[ -n "$CH" ] || finish FAIL "no nvcc >= 12.8 found (CUDA_HOME, /usr/local/cuda-12.9, -12.8, /usr/local/cuda, PATH):${SEEN:- none}"
+put cuda_home "$CH"; step "nvcc: $CH (${v:-})"
+
+# 3. build tools in venv-fa
 MISS=$($VF/bin/python -c "import importlib.util as u; print(' '.join(m for m in ('ninja', 'packaging', 'wheel', 'setuptools', 'psutil', 'einops') if u.find_spec(m) is None))")
 if [ -n "$MISS" ]; then
   step "installing build tools into venv-fa: $MISS"; inst $MISS || finish FAIL "build tools not installed: $MISS"

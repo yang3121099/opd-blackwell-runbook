@@ -1230,6 +1230,97 @@ def do_fa_build(seq):
             seconds=round(time.time() - t0), **{k: r.get(k) for k in ("cuda_home", "wheel", "build_seconds", "after") if k in r})
 
 
+def v_scrubdiff(a, seq, flags=None, entry=None):
+    """scrubdiff [fix] (v2.5.6n, rules 2.5.11): every generation output in the public repository (runs/**/*.jsonl, .part)
+    is compared line by line with this node's original; the receipt gives, per changed file, the changed lines, the
+    replacements (<path> / <redacted> / <ip> / "~"), the sample ids and how many changed lines are sensitive (the
+    original has a forbidden token, a path of this machine, or a path under $HOME), never any content. fix: files whose
+    changed lines are all non-sensitive go up again unchanged, in one commit (reviewer 2026-10-18 05:2x UTC)."""
+    if a and a[0] != "fix":
+        return "rejected", "scrubdiff [fix]", {}
+    subprocess.Popen(["setsid", sys.executable, os.path.abspath(__file__), "do_scrubdiff", str(seq)] + (["fix"] if a else []),
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return "accepted", "generation outputs of the public repository are compared with this node's originals" + ("; clean ones re-uploaded" if a else ""), {}
+
+
+MARKS = ("<path>", "<redacted>", "<ip>", "~")
+
+
+def scrub_changes(orig, pub, toks, roots):
+    """Per-file comparison of an original text with its public copy: changed lines, replacement counts, sample ids,
+    sensitive lines (see v_scrubdiff). No content is returned."""
+    tokre = re.compile(r"(?i)(?<![A-Za-z0-9_])(" + "|".join(map(re.escape, sorted(toks, key=len, reverse=True))) + r")(?![A-Za-z0-9_])") if toks else None
+
+    def sensitive(line):
+        if tokre and tokre.search(line):
+            return True
+        return any((p + "/") in line if name == "~" else p in line for p, name in roots)
+    a, b = orig.splitlines(), pub.splitlines()
+    out = {"lines": len(a), "changed": 0, "sensitive": 0, "kinds": {}, "ids": []}
+    if len(a) != len(b):
+        out["line_count_differs"] = [len(a), len(b)]
+    for i, (x, y) in enumerate(zip(a, b)):
+        if x == y:
+            continue
+        out["changed"] += 1; out["sensitive"] += sensitive(x)
+        for m in MARKS:
+            d = y.count(m) - x.count(m)
+            if d > 0:
+                out["kinds"][m] = out["kinds"].get(m, 0) + d
+        try:
+            r = json.loads(x)
+            sid = [r[k] for k in ("pid", "sample") if k in r] or [r[k] for k in ("uid", "index", "idx") if k in r] or [f"line {i + 1}"]
+        except (ValueError, TypeError, AttributeError):
+            sid = [f"line {i + 1}"]
+        if len(out["ids"]) < 20:
+            out["ids"].append(sid[0] if len(sid) == 1 else sid)
+    return out
+
+
+def do_scrubdiff(seq, fix=False):
+    sys.path.insert(0, os.path.join(RUNBOOK, "scripts"))
+    import tempfile
+    import remote
+    from huggingface_hub import HfApi, hf_hub_download
+    pub = remote.repos()[0]
+    try:
+        info = HfApi().repo_info(pub)
+        names = [s.rfilename for s in info.siblings if s.rfilename.startswith("runs/") and s.rfilename.endswith((".jsonl", ".part"))]
+    except Exception as e:
+        receipt(seq, None, "failed", f"listing failed: {type(e).__name__}"); return
+    toks, roots = _forbidden_tokens(), remote.scrub_roots()
+    changed, missing, errors, clean = {}, [], [], []
+    with tempfile.TemporaryDirectory() as tmp:
+        for f in names:
+            local = os.path.join(ROOT, f)
+            if not os.path.isfile(local):
+                missing.append(f); continue
+            try:
+                p = open(hf_hub_download(pub, f, revision=info.sha, cache_dir=tmp), encoding="utf-8", errors="replace").read()
+            except Exception:
+                errors.append(f); continue
+            o = open(local, encoding="utf-8", errors="replace").read()
+            if p == o:
+                continue
+            c = scrub_changes(o, p, toks, roots); changed[f] = c
+            if c["changed"] and not c["sensitive"] and "line_count_differs" not in c and not leak_counts(o, toks, set(), True):
+                clean.append(f)
+    up = False
+    if fix and clean:
+        try:
+            remote.put_public_unchanged([(os.path.join(ROOT, f), f) for f in clean], f"scrubdiff fix seq {seq}: {len(clean)} generation files unchanged")
+            up = True
+        except Exception as e:
+            errors.append(f"upload {type(e).__name__}")
+    tot = {m: sum(c["kinds"].get(m, 0) for c in changed.values()) for m in MARKS}
+    receipt(seq, None, "ok" if not errors else "failed",
+            f"{pub} @ {info.sha[:12]}: {len(names)} generation files, {len(changed)} differ from this node's originals "
+            f"({sum(c['changed'] for c in changed.values())} lines, {sum(c['sensitive'] for c in changed.values())} sensitive); "
+            f"{len(clean)} clean" + (f", re-uploaded unchanged" if up else "") + (f"; {len(missing)} not on this node" if missing else ""),
+            revision=info.sha, totals=tot, files=dict(list(changed.items())[:60]), clean=clean[:100], missing=missing[:50], errors=errors[:20])
+    event("node", "scrubdiff", f"{len(changed)} differ, {len(clean)} clean" + (" re-uploaded" if up else ""))
+
+
 def v_cancel(a, seq, flags=None, entry=None):
     target = int(a[0]); os.makedirs(_p("cancelled"), exist_ok=True)
     open(_p("cancelled", str(target)), "w").write(f"by seq {seq} {utc()}\n")
@@ -1416,7 +1507,7 @@ def _v24(fn):
 VERBS = {"pause": _v24(v_pause), "resume": _v24(v_resume), "kill": _v24(v_kill), "prio": _v24(v_prio),
          "restore": _v24(v_restore), "rerun_verify": _v24(v_rerun_verify), "setenv": v_set, "set": v_set,
          "snapshot": lambda a, seq, flags=None, entry=None: v_snapshot0(seq) if not a else v_snapshot(a, seq),
-         "ps": v_ps, "logs": v_logs, "run": v_run, "rerun": v_rerun, "republish": v_republish, "publish": v_publish, "leakscan": v_leakscan, "fa-build": v_fa_build, "eval": v_eval, "update": v_update, "upload": v_upload,
+         "ps": v_ps, "logs": v_logs, "run": v_run, "rerun": v_rerun, "republish": v_republish, "publish": v_publish, "leakscan": v_leakscan, "fa-build": v_fa_build, "scrubdiff": v_scrubdiff, "eval": v_eval, "update": v_update, "upload": v_upload,
          "signal": v_signal, "kill-pgid": v_killpgid, "cancel": v_cancel, "heartbeat": v_heartbeat, "move-ckpt": v_move_ckpt, "reap": v_reap}
 assert set(VERBS) == set(R.VERBS), set(VERBS) ^ set(R.VERBS)
 TASK_VERBS = R.TASK_VERBS
@@ -1563,6 +1654,8 @@ if __name__ == "__main__":
         do_leakscan(int(sys.argv[2]))
     elif cmd == "do_fa_build":
         do_fa_build(int(sys.argv[2]))
+    elif cmd == "do_scrubdiff":
+        do_scrubdiff(int(sys.argv[2]), fix=sys.argv[3:4] == ["fix"])
     elif cmd == "do_republish":
         do_republish(int(sys.argv[2]), sys.argv[3])
     elif cmd == "do_move":

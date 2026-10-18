@@ -543,6 +543,61 @@ def test_v_fa_build_needs_venv_fa(env, monkeypatch):
     assert c.v_fa_build([], 92)[0] == "accepted" and started[0][-2:] == ["do_fa_build", "92"]
 
 
+@pytest.mark.parametrize("cmd,ok", [("scrubdiff", True), ("scrubdiff fix", True), ("scrubdiff now", False), ("scrubdiff fix x", False)])
+def test_rules_scrubdiff(cmd, ok):
+    if ok:
+        R.parse({"cmd": cmd, "reason": "t"})
+    else:
+        with pytest.raises(R.Reject):
+            R.parse({"cmd": cmd, "reason": "t"})
+
+
+def test_gen_scrub_keeps_bare_home(rem):
+    """v2.5.6n: in generation outputs a root is replaced only as a path prefix; logs keep the full replacement."""
+    roots = [("/home/u1", "~"), ("/data/x/opd", "$OPD_ROOT")]
+    t = '{"text": "so a/home/u1 = 3, see /home/u1/notes and /data/x/opd/runs"}'
+    assert rem.r.scrub_text(t, roots, set(), None, gen=True) == '{"text": "so a/home/u1 = 3, see ~/notes and $OPD_ROOT/runs"}'
+    assert rem.r.scrub_text("cd /home/u1", roots, set()) == "cd ~"
+
+
+def test_scrub_changes_counts_without_content(env):
+    c = env.c; roots = [("/home/u1", "~")]
+    orig = "\n".join([json.dumps({"pid": 3, "sample": 1, "text": "x /home/u1 y"}), json.dumps({"pid": 4, "sample": 0, "text": "ok"}),
+                      json.dumps({"pid": 5, "sample": 2, "text": "path /home/u1/a and someuser"})])
+    pub = "\n".join([json.dumps({"pid": 3, "sample": 1, "text": "x ~ y"}), json.dumps({"pid": 4, "sample": 0, "text": "ok"}),
+                     json.dumps({"pid": 5, "sample": 2, "text": "path ~/a and <redacted>"})])
+    r = c.scrub_changes(orig, pub, {"someuser"}, roots)
+    assert r["lines"] == 3 and r["changed"] == 2 and r["sensitive"] == 1 and r["kinds"] == {"~": 2, "<redacted>": 1}
+    assert r["ids"] == [[3, 1], [5, 2]] and "someuser" not in json.dumps(r) and "/home/u1" not in json.dumps(r)
+
+
+def test_do_scrubdiff_fix_only_clean_files(env, monkeypatch, tmp_path):
+    c = env.c; d = os.path.join(c.ROOT, "runs", "EVAL-x"); os.makedirs(d)
+    files = {"a.jsonl": ('{"pid": 1, "sample": 0, "t": "a/home/u1 b"}\n', '{"pid": 1, "sample": 0, "t": "a~ b"}\n'),       # artifact
+             "b.jsonl": ('{"pid": 2, "sample": 0, "t": "someuser"}\n', '{"pid": 2, "sample": 0, "t": "<redacted>"}\n'),   # sensitive
+             "c.jsonl": ('{"pid": 3}\n', '{"pid": 3}\n')}                                                                   # unchanged
+    pubdir = tmp_path / "pub"; pubdir.mkdir()
+    for f, (o, p) in files.items():
+        open(os.path.join(d, f), "w").write(o); (pubdir / f).write_text(p)
+    names = [f"runs/EVAL-x/{f}" for f in files] + ["runs/EVAL-y/gone.jsonl", "runs/EVAL-x/train.log"]
+    hub = types.SimpleNamespace(HfApi=lambda token=None: types.SimpleNamespace(repo_info=lambda repo: types.SimpleNamespace(
+        sha="abc123def4567", siblings=[types.SimpleNamespace(rfilename=n) for n in names])),
+        hf_hub_download=lambda repo, f, revision=None, cache_dir=None: str(pubdir / os.path.basename(f)))
+    monkeypatch.setitem(sys.modules, "huggingface_hub", hub)
+    monkeypatch.setenv("HF_REPO", "me/pub"); monkeypatch.setenv("HOME", "/home/u1")
+    monkeypatch.setattr(c, "_forbidden_tokens", lambda: {"someuser"})
+    sys.path.insert(0, os.path.join(c.RUNBOOK, "scripts")); import remote
+    ups, got = [], {}
+    monkeypatch.setattr(remote, "put_public_unchanged", lambda pairs, msg: ups.extend(pairs))
+    monkeypatch.setattr(c, "receipt", lambda seq, e, st, detail, **k: got.update(st=st, detail=detail, **k))
+    monkeypatch.setattr(c, "event", lambda *a, **k: None)
+    c.do_scrubdiff(97)
+    assert got["st"] == "ok" and set(got["files"]) == {"runs/EVAL-x/a.jsonl", "runs/EVAL-x/b.jsonl"} and got["clean"] == ["runs/EVAL-x/a.jsonl"]
+    assert got["missing"] == ["runs/EVAL-y/gone.jsonl"] and not ups and got["totals"]["~"] == 1 and got["totals"]["<redacted>"] == 1
+    c.do_scrubdiff(98, fix=True)
+    assert ups == [(os.path.join(c.ROOT, "runs/EVAL-x/a.jsonl"), "runs/EVAL-x/a.jsonl")] and "re-uploaded unchanged" in got["detail"]
+
+
 def test_do_publish_maps_weights_to_local_bf16(env, monkeypatch):
     c = env.c; d = os.path.join(c.ROOT, "runs", "E10b-P2"); bf = os.path.join(d, "ckpt", "global_step_150", "actor", "huggingface_bf16")
     os.makedirs(bf)
