@@ -120,3 +120,4 @@ commands:
   - {"seq": 118, "cmd": "rerun FA-PROBE", "reason": "fa-build seq 103 PASS (flash-attn built from source, CUDA 12.8 redist): the probe's varlen + 3-step smoke with venv-fa (reviewer: next free GPU, no need to wait for readings)", "utc": "2026-10-18T08:47:12Z"}
   - {"seq": 119, "cmd": "logs EVAL-e12b-P3 25", "reason": "EVAL-e12b-P3 running 1 h 40 min (P0 took 25 min): progress check", "utc": "2026-10-18T08:47:22Z"}
   - {"seq": 120, "cmd": "ps", "reason": "GPU3 idle after E03-MI-l0.5: is FA-SPEED-17 starting", "utc": "2026-10-18T09:03:34Z"}
+  - {"seq": 121, "cmd": "setenv VENV=fa", "reason": "reviewer ruling 10:1x UTC (Runming's go-ahead 08:5x): flash-attn + remove-padding for new, unregistered training arms; E10c / E12b / E10d stay on SDPA by their pins; FIXED_MICRO_BSZ=4 unchanged (fa_fix4)", "utc": "2026-10-18T10:06:03Z"}
