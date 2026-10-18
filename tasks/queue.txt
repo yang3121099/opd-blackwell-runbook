@@ -19,6 +19,7 @@ budAe12b open   EVAL-budA-e12b
 term2    open   PROBE-TERM2
 v3c1b    open   E10c-P4lowlr-dyn6144 E10c-P4lowlr-fix4-s43 EVAL-e10c-fix4-s43:E10c-P4lowlr-fix4-s43
 # v3c1b: E10c-P4lowlr-dyn6144 ran out of memory at step 105 (2026-10-18 23:4x UTC; paused, not retried: a feasibility probe, reviewer 23:3x UTC), so its reading EVAL-e10c-dyn6144 is not queued
+e12bs43  open   EVAL-e12b-P5-s43:E12b-P5-s43
 top10    open   PROBE-TOP10 E10b-P5top10:PROBE-TOP10 E10b-P5rand10m:PROBE-TOP10 E11b-P5top10:E10b-P5top10+E11b-P0 E11b-P5rand10m:E10b-P5rand10m+E11b-P0
 evals    open   EVAL-bridge E11b-P5-s43:E10b-P5-s43+E11b-P0 EVAL-p5s43-s20 EVAL-p5s43-s40
 #eval EVAL-bridge e12_P5c05_s40_math500_T0.6 yang31210999/opd-lab-ckpts/runs/E12-P5c05/global_step_40/actor/huggingface math500 4 0.6
@@ -32,7 +33,7 @@ E12bRestRead open   EVAL-e12b-P4lowlr:E12b-P4lowlr EVAL-e12b-P6:E12b-P6 EVAL-e12
 E10b2    open   E10b-P2-s43 E10b-P2-s44 E10b-P6r-s43 E10b-P6r-s44 E10b-Pstop E10b-P6rand E10b-P6top5 E10b-P4EOSpen
 v3c5     open   PROBE-4B EVAL-e10d-P0
 zero     open   E03-MI-l0.0 E03-MI-l0.3 E03-MI-l0.5 E03-MI-l0.7 E03-MI-l1.0 E02-opsa17-c0.5 E02-opsa17-c1.5 E02-opsa4-c-1 E02-opsa4-c0.5 E02-opsa4-c1.5
-v3c23    open   E12b-P5-s43:E10b-P5-s43 EVAL-e12b-P5-s43:E12b-P5-s43 E02-opsa17-c-1 E02-opsa17-c2 E02-opsa4-c2 E01-opsa17-think E01-opsa17-nothink E01-base17-think E05-fstop-base06 E05-fstop-art06
+v3c23    open   E12b-P5-s43:E10b-P5-s43 E02-opsa17-c-1 E02-opsa17-c2 E02-opsa4-c2 E01-opsa17-think E01-opsa17-nothink E01-base17-think E05-fstop-base06 E05-fstop-art06
 v3c5arms open   E10d-P2:PROBE-4B E10d-P5:PROBE-4B EVAL-e10d-P2:E10d-P2+EVAL-e10d-P0 EVAL-e10d-P5:E10d-P5+EVAL-e10d-P2+EVAL-e10d-P0
 ext      open   EVAL-ext-base17 EVAL-ext-E12b-P5:E12b-P5 EVAL-ext-E12b-P0:E12b-P0 EVAL-ext-E12b-P2:E12b-P2 EVAL-ext-E10b-P5:E10b-P5 EVAL-ext-E10b-P2:E10b-P2 EVAL-ext-E12b-P3:E12b-P3 EVAL-ext-E12b-P1:E12b-P1 EVAL-ext-E10b-P4lowlr:E10b-P4lowlr EVAL-ext32k
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T0.6 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
