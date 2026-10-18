@@ -102,3 +102,4 @@ commands:
   - {"seq": 100, "cmd": "ps", "reason": "is EVAL-e12b-P0 on GPU1 after E12b-P3 finished (heartbeat shows queued)", "utc": "2026-10-18T05:51:21Z"}
   - {"seq": 101, "cmd": "snapshot", "reason": "read-only disk report for Runming: df -h and checkpoint roots (no deletion)", "utc": "2026-10-18T05:54:49Z"}
   - {"seq": 102, "cmd": "snapshot", "reason": "read-only disk report for Runming (retry of seq 101, whose upload failed): df -h and checkpoint roots", "utc": "2026-10-18T06:10:05Z"}
+  - {"seq": 103, "cmd": "fa-build", "reason": "v2.5.6q: CUDA 12.8.1 from NVIDIA redistributable archives (sha256 pinned), sm_100 test kernel first; reviewer A1 06:1x UTC (4th attempt)", "utc": "2026-10-18T06:20:42Z"}
