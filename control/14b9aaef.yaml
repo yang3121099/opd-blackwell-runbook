@@ -208,3 +208,4 @@ commands:
   - {"seq": 206, "cmd": "logs control 60", "reason": "incident 2026-10-19 evidence (reviewer 13:5x UTC)", "utc": "2026-10-19T13:59:25Z"}
   - {"seq": 207, "cmd": "logs heartbeat 40", "reason": "incident 2026-10-19 evidence (reviewer 13:5x UTC)", "utc": "2026-10-19T14:00:21Z"}
   - {"seq": 208, "cmd": "snapshot logs/heartbeat.err", "reason": "incident 2026-10-19 evidence: heartbeat errors", "utc": "2026-10-19T14:03:08Z"}
+  - {"seq": 209, "cmd": "logs watchdog 5", "reason": "v2.5.7zb: watchdog started?", "utc": "2026-10-19T14:33:19Z"}
