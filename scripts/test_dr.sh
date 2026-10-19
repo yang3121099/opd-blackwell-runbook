@@ -63,14 +63,14 @@ d6=$(VENV=fa DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P0 2>&1 | tail -1); d
 d8=$(SMOKE=1 PROBE_TASK=FA-SPEED-E12-fa_gc0 DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P0 2>&1 | tail -1)   # v2.5.7c
 mkdir -p $T/base/root/runs/E10b-P5-s44/ckpt/global_step_150/actor/huggingface_bf16; : > $T/base/root/runs/E10b-P5-s44/ckpt/global_step_150/actor/huggingface_bf16/model.safetensors
 d9=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P5-s44 2>&1 | tail -1)   # v2.5.7n
-ok "v2.5.7n E12b-P5-s44: 100 steps from E10b-P5-s44" '[[ "$d9" == "DRYRUN E12b-P5-s44 "*"E10b-P5-s44"*"steps=100 "* ]]'
+ok "v2.5.7n E12b-P5-s44: 100 steps from E10b-P5-s44; v2.5.7u: uploads s25 / s50 / s75 / s100, others the last step" '[[ "$d9" == "DRYRUN E12b-P5-s44 "*"E10b-P5-s44"*"steps=100 "*"upload=25,50,75,100 "* && "$d1" == *"upload=100 "* ]]'
 # v2.5.7o: E12d from the 4B student / E10d-P5, E12b-P2-s43; both on venv-fa (without VENV / E12B_FA), E12d at vLLM 0.5
 mkdir -p $T/base/root/runs/E10d-P5/ckpt/global_step_150/actor/huggingface_bf16 $T/base/root/runs/E10b-P2-s43/ckpt/global_step_150/actor/huggingface_bf16
 : > $T/base/root/runs/E10d-P5/ckpt/global_step_150/actor/huggingface_bf16/model.safetensors; : > $T/base/root/runs/E10b-P2-s43/ckpt/global_step_150/actor/huggingface_bf16/model.safetensors
 o1=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12d-P0 2>&1 | tail -1); o2=$(VLLM_UTIL=0.7 DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12d-P5 2>&1 | tail -1)
 o3=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P2-s43 2>&1 | tail -1); o4=$(E12D_VLLM_UTIL=0.45 DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12d-P0 2>&1 | tail -1)
 ok "v2.5.7o E12d-P0: base 4B, 100 steps, GC on, venv-fa, vLLM 0.5" '[[ "$o1" == "DRYRUN E12d-P0 start=$T/m4 steps=100 "*"gc=True venv=venv-fa "*"vllm=0.5" ]]'
-ok "v2.5.7o E12d-P5: from E10d-P5 s150, vLLM 0.5 whatever the node VLLM_UTIL; E12D_VLLM_UTIL sets it" '[[ "$o2" == "DRYRUN E12d-P5 start=$T/base/root/runs/E10d-P5/ckpt/global_step_150/actor/huggingface_bf16 steps=100 "*"venv=venv-fa "*"vllm=0.5" && "$o4" == *"vllm=0.45" ]]'
+ok "v2.5.7o E12d-P5: from E10d-P5 s150, vLLM 0.5 whatever the node VLLM_UTIL; E12D_VLLM_UTIL sets it; v2.5.7u: mid-RL uploads (E12d-P0 last step only)" '[[ "$o2" == "DRYRUN E12d-P5 start=$T/base/root/runs/E10d-P5/ckpt/global_step_150/actor/huggingface_bf16 steps=100 "*"venv=venv-fa "*"upload=25,50,75,100 vllm=0.5" && "$o4" == *"upload=100 vllm=0.45" ]]'
 ok "v2.5.7o E12b-P2-s43: from E10b-P2-s43, 100 steps, venv-fa, vLLM as E12b" '[[ "$o3" == "DRYRUN E12b-P2-s43 start=$T/base/root/runs/E10b-P2-s43/ckpt/global_step_150/actor/huggingface_bf16 steps=100 "*"venv=venv-fa "*"vllm=0.6" ]] && [[ "$d9" == *"venv=venv "* ]]'
 rm -rf $T/base/root/runs/E10d-P5; bash $T/rb/scripts/run_e12.sh 0 E12d-P5 > $T/e5 2>&1
 ok "v2.5.7o E12d-P5 start fetched from the result repository (runs/E10d-P5)" 'grep -q "^fetch me/pub runs/E10d-P5/global_step_150/actor/huggingface $T/ck/adhoc_models/result --task E12d-P5" $CALLS'

@@ -70,11 +70,15 @@ if [ "${SPOT:-0}" = 1 ]; then CONTENTS="['model','optimizer','extra','hf_model']
 elif dr_on; then CONTENTS="['model','optimizer','extra','hf_model']"; SAVE=${SAVE:-${DR_EVERY:-25}}   # v2.5.7: resume state for dr_sync.sh
 else CONTENTS="['hf_model']"; SAVE=${SAVE:-$STEPS}; fi
 VALB=True; TESTF=25; [ $SM = 1 ] && { STEPS=${SMOKE_STEPS:-3}; SAVE=-1; VALB=False; TESTF=-1; }
-[ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $NAME start=$START steps=$STEPS save=$SAVE contents=$CONTENTS kern=[$KERN] gc=$GCK venv=$(basename $V) rmpad=$RMPAD vllm=${VLLM_UTIL:-0.6}"; exit 0; }   # tests
+# v2.5.7u (reviewer ruling 07:5x UTC, readings budA-p5s44rl): E12b-P5-s44's mid-RL steps 25 / 50 / 75 are registered
+# readings (where does P5 -> RL lose the 32K ceiling), so they are uploaded as bf16 like the last step; until now
+# upload_sync deleted every step not uploaded (E12b-P5-s43 lost s25 / s50 / s75 that way)
+UW=$STEPS; case $T in E12b-P5-s44|E12d-P5) UW=25,50,75,$STEPS;; esac   # E12d-P5: the same across sizes (reviewer A1 08:0x UTC)
+[ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $NAME start=$START steps=$STEPS save=$SAVE contents=$CONTENTS kern=[$KERN] gc=$GCK venv=$(basename $V) rmpad=$RMPAD upload=${UPLOAD_WEIGHTS:-$UW} vllm=${VLLM_UTIL:-0.6}"; exit 0; }   # tests
 if [ $SM = 0 ]; then
   ckpt_link $OUT
   dr_restore $OUT || echo "DR_RESTORE_FAILED $T"; dr_start_sync $OUT   # v2.5.7
-  pgrep -f "upload_syn[c].sh $OUT\$" >/dev/null || KEEP_BF16=0 UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-$STEPS} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OUT > $OUT/upload.log 2>&1 < /dev/null &
+  pgrep -f "upload_syn[c].sh $OUT\$" >/dev/null || KEEP_BF16=0 UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-$UW} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OUT > $OUT/upload.log 2>&1 < /dev/null &
 fi
 cd $OPD_ROOT/G-OPD/verl
 python3 -m verl.trainer.main_ppo \

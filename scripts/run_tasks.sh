@@ -111,7 +111,7 @@ while true; do
       case $t in
         E10b-P5top10|E10b-P5rand10m|E10b-P5think) env UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-50} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;   # v2.5.7r: the 50-step arms
         E10b-*|E10c-*|E10d-*) env UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-150} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;
-        E12b-*|E12d-*) case $t in E12d-*|E12b-P0|E12b-P1|E12b-P2|E12b-P3|E12b-P5|E12b-P5-s43|E12b-P5-s44|E12b-P2-s43) s=100;; *) s=60;; esac
+        E12b-*|E12d-*) case $t in E12b-P5-s44|E12d-P5) s=25,50,75,100;; E12d-*|E12b-P0|E12b-P1|E12b-P2|E12b-P3|E12b-P5|E12b-P5-s43|E12b-P2-s43) s=100;; *) s=60;; esac   # v2.5.7u: s44's mid-RL steps
                 env KEEP_BF16=0 UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-$s} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;
       esac
       python $RUNBOOK/scripts/control.py event $t upload_sync_restarted > /dev/null 2>&1 &
