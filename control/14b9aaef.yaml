@@ -181,3 +181,4 @@ commands:
   - {"seq": 179, "cmd": "du dr keep", "reason": "reviewer 08:2x UTC (DR plan): share usage before raising the DR cap to 1.5 TB", "utc": "2026-10-19T08:15:17Z"}
   - {"seq": 180, "cmd": "du opd_root", "reason": "reviewer 08:2x UTC (DR plan): our whole footprint on the share vs Runming's 2 TB", "utc": "2026-10-19T08:18:34Z"}
   - {"seq": 181, "cmd": "rerun STRICT-C1", "reason": "reviewer A1 08:3x UTC (v2.5.7v): rejudge with answer_ready positions for lab/results/term/answer_ready.md", "utc": "2026-10-19T08:26:50Z"}
+  - {"seq": 182, "cmd": "setenv KEEP_LOCAL_HF=1", "reason": "reviewer 08:5x UTC item 4 (Runming: B300 local disk up to 5 TB): keep every step's local HF weights after upload; upload_sync processes restarted next", "utc": "2026-10-19T08:47:24Z"}
