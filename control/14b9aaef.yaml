@@ -273,3 +273,4 @@ commands:
   - {"seq": 271, "cmd": "setenv FETCH_ENDPOINT=https://hf-mirror.com", "reason": "reviewer 18:1x (pre-approved 7zi): the 32B through hf-mirror.com; stopped again if it does not grow within 15 min", "utc": "2026-10-19T17:58:30Z"}
   - {"seq": 272, "cmd": "du opd_root models/Qwen3-32B", "reason": "32B fetch via hf-mirror (7zi): growth check 1/4", "utc": "2026-10-19T18:04:23Z"}
   - {"seq": 273, "cmd": "du opd_root models/Qwen3-32B", "reason": "32B fetch via hf-mirror (7zi): growth check 2/4", "utc": "2026-10-19T18:10:07Z"}
+  - {"seq": 274, "cmd": "ps", "reason": "is the 32B mirror fetch running, or held by the 30-min .fetch_fail cool-down", "utc": "2026-10-19T18:11:55Z"}
