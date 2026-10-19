@@ -237,6 +237,15 @@ bash $T/rb/scripts/task.sh 0 E05-fstop-base06 > $T/z3 2>&1
 ok "E05-p3 forced stop" 'grep -q -- "--model $T/m06 --bench aime25 --mode think --n 8 --temperature 0.6 --top_p 0.95 --top_k 20 --max_tokens 32768 --tag e05_base06_aime25_think" $CALLS && ! bash $T/rb/scripts/task.sh 0 E05-fstop-x > /dev/null 2>&1'
 ok "E01 remainder" 'grep -q -- "--model Tuwhy/Qwen3-1.7B-OPSA --bench aime24 --mode think --n 32 --temperature 0.7 --top_p 0.8 --top_k 20 --max_tokens 32768 --tag e01_opsa17_think_aime24" $CALLS && ! bash $T/rb/scripts/task.sh 0 E01-opsa9-think > /dev/null 2>&1'
 rm -rf $T
+# 3c. v2.5.7w fetch_pass(): "#fetch Qwen/Qwen3-<n>B" fetched to $OPD_ROOT/models/<name> in the background (no GPU); others refused
+T=$(mktemp -d); mkdir -p $T/rb/scripts $T/root/logs
+printf 'import sys, os, time; open(os.environ["CALLS"], "a").write("fetch " + " ".join(sys.argv[1:]) + "\\n"); os.makedirs(sys.argv[3], exist_ok=True); open(os.path.join(sys.argv[3], ".fetch_ok"), "w").write("ok")\n' > $T/rb/scripts/fetch_model.py
+printf 'version: 2\n#fetch Qwen/Qwen3-32B\n#fetch evil/model\n' > $T/q.txt
+export CALLS=$T/calls; : > $CALLS
+mkdir -p $T/bin; printf '#!/usr/bin/env bash\nexec "$@"\n' > $T/bin/setsid; printf '#!/usr/bin/env bash\nexec python3 "$@"\n' > $T/bin/python; chmod +x $T/bin/setsid $T/bin/python   # macOS has no setsid
+( PATH=$T/bin:$PATH OPD_ROOT=$T/root RUNBOOK=$T/rb Q=$T/q.txt; eval "$(sed -n '/^fetch_pass() {/,/^  done; }$/p' $SRC/scripts/run_tasks.sh)"; fetch_pass; sleep 2; fetch_pass; sleep 1 )
+ok "v2.5.7w #fetch: Qwen3-32B fetched once to models/, evil/model ignored" '[ "$(grep -c "^fetch Qwen/Qwen3-32B  $T/root/models/Qwen3-32B --task FETCH-Qwen3-32B" $CALLS)" = 1 ] && [ -f $T/root/models/Qwen3-32B/.fetch_ok ] && ! grep -q evil $CALLS'
+rm -rf $T
 # 4. v2.5.4d free_gpus(): a GPU whose task.sh (or ad-hoc evaluation) runs is not free, even with nothing on it yet
 T=$(mktemp -d); mkdir -p $T/bin $T/x/scripts
 printf '#!/usr/bin/env bash\ncase "$*" in *compute-apps*) ;; *) echo 0;; esac\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi

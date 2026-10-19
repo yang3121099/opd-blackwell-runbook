@@ -24,6 +24,16 @@ def test_ready():
     assert SC.q([5, 1, 3, 2, 4], .5) == 3 and SC.q([], .5) is None
 
 
+def test_first_box(monkeypatch):
+    monkeypatch.setattr(SC, "_GRADE", lambda text, gold: (text.endswith("{" + gold + "}"), None))   # v2.5.7w: stub grader
+    r = {"text": "\\boxed{2} no \\boxed{1}", "correct": True, "gold": "1"}
+    assert SC.first_box(r) == (False, len("\\boxed{2}"))                 # graded again: the first box says 2
+    r = {"text": "\\boxed{1} so \\boxed{ 1 }", "correct": True, "gold": "1"}
+    assert SC.first_box(r) == (True, len("\\boxed{1}"))                  # same content: the last box's grade
+    assert SC.first_box({"text": "none", "correct": False}) == (False, None)
+    assert SC.hist([0, 255, 256, 99999]) [:2] == [2, 1] and SC.hist([99999])[-1] == 1 and len(SC.hist([])) == 128
+
+
 def test_answer_part():
     assert SC.answer_part("a \\boxed{1}", False) == "a \\boxed{1}"
     assert SC.answer_part("<think>try \\boxed{2}</think>\n\\boxed{1}", True) == "\n\\boxed{1}"
@@ -58,6 +68,7 @@ def write_reading(d, task, stem, recs, bench="math500", mode="no_think", sub="")
 
 
 def test_scan_and_main(tmp_path, monkeypatch):
+    monkeypatch.setattr(SC, "_GRADE", lambda text, gold: (text.endswith("{" + gold + "}"), None))
     runs = str(tmp_path / "runs")
     # A: 4 problems x 2 samples, all correct; half of them with two different boxes or cut at the limit
     A = [rec(f"p{i}", "\\boxed{1}", True, sample=0) for i in range(4)] + \
@@ -89,6 +100,8 @@ def test_scan_and_main(tmp_path, monkeypatch):
     assert round(sum(a["same_loss_points_exclusive"].values()), 2) == round(a["acc"] - a["acc_same"], 2)
     assert "model" not in a and "/node/" not in open(out).read()                             # path-free report
     assert a["answer_ready"]["correct_with_answer_box"] == 8 and a["answer_ready"]["after_gt_500_share"] == 0.0   # v2.5.7v
+    ar = a["answer_ready"]   # v2.5.7w: p0 s1's first box (2) is wrong; the rest open with the final answer
+    assert ar["first_box_acc"] == 87.5 and sum(ar["ready_tok_hist"]) == 8 and len(ar["after_tok_hist"]) == 128 and ar["bin_tokens"] == 256
     p = r["pairs"][0]
     assert p["lenient"]["diff"] == 50.0 and p["contract"]["diff"] == 12.5 and p["diff_change"] == -37.5
     assert r["pairs"][1]["error"] == "reading missing"

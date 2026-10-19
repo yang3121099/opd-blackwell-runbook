@@ -13,6 +13,11 @@ v2.5.7v (reviewer 08:2x UTC, "when does the student have the answer, when does i
 answer_ready: of the correct samples, the token position where the first box holding the final (graded) answer ends, and
 how many tokens the sample still writes after it (median, p90, share > 500), plus the first box of any content over all
 samples. Positions in the whole text (thinking included); tokens estimated as n_tokens x char position / text length.
+v2.5.7w (reviewer 08:5x UTC): answer_ready also holds (a) histograms in 256-token bins up to 32768 (the last bin takes
+the rest) of the ready position and of the tokens after it (correct samples), for cumulative plots; (b) first_box: the
+share of all samples whose FIRST box is correct under the EVAL-v1 grader (gen_eval.grade on the text up to that box;
+graded again only when its content differs from the last box's), next to acc (the last box), the first box's end
+position (p50, samples with a box) and the mean tokens written after it (what stopping at the first box would save).
 Per reading: lenient accuracy (avg over samples, as gen_eval), contract accuracy, their difference, `same` accuracy, and
 the shares of samples that ended at EOS / hold one box / several boxes / no box / an unclosed box, and of the correct
 samples, the share each contract clause rejects. No generation, no GPU, no grading again: the text and `correct` of each
@@ -51,6 +56,39 @@ def boxes(text):
     """(contents of the complete \\boxed{...} in text, number of unclosed ones)."""
     bl, unclosed = boxes_at(text)
     return [c for _, _, c in bl], unclosed
+
+
+BIN, NBIN = 256, 128   # v2.5.7w: histogram bins (256 tokens, up to 32768; the last bin takes the rest)
+_GRADE = None
+
+
+def grade(text, gold):
+    """EVAL-v1's grader (gen_eval.grade: the last \\boxed{} of text against gold), imported on first use."""
+    global _GRADE
+    if _GRADE is None:
+        sys.path.insert(0, os.path.join(os.path.dirname(HERE), "eval"))
+        from gen_eval import grade as g
+        _GRADE = g
+    return bool(_GRADE(text, gold)[0])
+
+
+def hist(xs):
+    h = [0] * NBIN
+    for x in xs:
+        h[min(int(x) // BIN, NBIN - 1)] += 1
+    return h
+
+
+def first_box(r):
+    """(first box correct under EVAL-v1, char end of the first box) or (False, None) without a box."""
+    text = r.get("text") or ""
+    allb, _ = boxes_at(text)
+    if not allb:
+        return False, None
+    s, e, c = allb[0]
+    if "".join(c.split()) == "".join(allb[-1][2].split()):
+        return bool(r.get("correct")), e      # the same content as the graded last box
+    return grade(text[:e], str(r.get("gold", ""))), e
 
 
 def ready(text, ans_boxes, correct):
@@ -109,7 +147,7 @@ def rejudge(path, name):
     n = 0; c = {k: 0 for k in ("correct", "strict", "same", "eos", "one", "multi", "none", "unclosed", "no_answer",
                                 "c_not_eos", "c_multi", "c_none", "c_unclosed", "c_inconsistent",
                                 "x_not_eos", "x_unclosed", "x_no_box", "x_inconsistent")}
-    probs, gv = {}, set(); ft, at, fbt, ntk = [], [], [], []
+    probs, gv = {}, set(); ft, at, fbt, ntk = [], [], [], []; fb_ok, fb_end, fb_save = 0, [], []
     for line in open(path):
         line = line.strip()
         if not line:
@@ -128,6 +166,10 @@ def rejudge(path, name):
             fbt.append(tok(j["fb_char"]))
         if j["correct"] and j["fc_char"] is not None:
             ft.append(tok(j["fc_char"])); at.append(max(nt - tok(j["fc_char"]), 0))
+        ok1, e1 = first_box(r)   # v2.5.7w
+        fb_ok += ok1
+        if e1 is not None:
+            fb_end.append(tok(e1)); fb_save.append(max(nt - tok(e1), 0))
         p = probs.setdefault(r["pid"], [0, 0, 0, 0]); p[0] += j["correct"]; p[1] += j["strict"]; p[2] += j["same"]; p[3] += 1
     if not n:
         return {"name": name, "error": "empty"}, None
@@ -143,7 +185,10 @@ def rejudge(path, name):
            "answer_ready": {"correct_with_answer_box": len(ft), "first_correct_box_tok_p50": q(ft, .5), "first_correct_box_tok_p90": q(ft, .9),
                             "after_tok_p50": q(at, .5), "after_tok_p90": q(at, .9),
                             "after_gt_500_share": round(100 * sum(a > 500 for a in at) / len(at), 2) if at else None,
-                            "first_box_tok_p50": q(fbt, .5), "n_tokens_p50": q(ntk, .5)}}
+                            "first_box_tok_p50": q(fbt, .5), "n_tokens_p50": q(ntk, .5),
+                            "bin_tokens": BIN, "ready_tok_hist": hist(ft), "after_tok_hist": hist(at),
+                            "first_box_acc": round(100 * fb_ok / n, 2), "first_box_end_tok_p50": q(fb_end, .5),
+                            "first_box_save_tok_mean": round(sum(fb_save) / len(fb_save), 1) if fb_save else None}}
     return res, probs
 
 
@@ -175,14 +220,15 @@ def table(rows):
                    f"{f(o['inconsistent'], 7)} {f(x['not_eos'], 9)} {f(x['unclosed'], 8)} {f(x['no_box'], 8)} {f(x['inconsistent'], 8)}")
     out += ["", "answer ready (v2.5.7v): correct samples, token position where the first box holding the final answer ends and the",
             "tokens written after it (p50 / p90; % after > 500), the first box of any content (p50, all samples), length p50",
-            f"{'reading':58} {'n':>5} {'ready50':>8} {'ready90':>8} {'after50':>8} {'after90':>8} {'>500%':>6} {'1stbox50':>9} {'len50':>7}"]
+            f"{'reading':58} {'n':>5} {'ready50':>8} {'ready90':>8} {'after50':>8} {'after90':>8} {'>500%':>6} {'1stbox50':>9} {'len50':>7} {'acc':>7} {'acc1st':>7} {'save1st':>8}"]
     for r in rows:
         a = r.get("answer_ready")
         if "error" in r or not a:
             continue
         g = lambda v, w: f"{v:>{w}}" if v is not None else f"{'-':>{w}}"
         out.append(f"{r['name'][:58]:58} {a['correct_with_answer_box']:>5} {g(a['first_correct_box_tok_p50'], 8)} {g(a['first_correct_box_tok_p90'], 8)} "
-                   f"{g(a['after_tok_p50'], 8)} {g(a['after_tok_p90'], 8)} {g(a['after_gt_500_share'], 6)} {g(a['first_box_tok_p50'], 9)} {g(a['n_tokens_p50'], 7)}")
+                   f"{g(a['after_tok_p50'], 8)} {g(a['after_tok_p90'], 8)} {g(a['after_gt_500_share'], 6)} {g(a['first_box_tok_p50'], 9)} {g(a['n_tokens_p50'], 7)} "
+                   f"{g(r['acc'], 7)} {g(a.get('first_box_acc'), 7)} {g(a.get('first_box_save_tok_mean'), 8)}")
     return "\n".join(out)
 
 

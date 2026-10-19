@@ -5,6 +5,7 @@ SRC=$(cd "$(dirname "$0")/.." && pwd); fails=0; n=0
 ok() { n=$((n + 1)); if eval "$2"; then :; else echo "  FAIL [$1]"; fails=$((fails + 1)); fi; }
 T=$(mktemp -d); mkdir -p $T/rb/scripts $T/rb/code/analysis $T/rb/tasks $T/root/runs/EVAL-x $T/root/venv/bin
 cp $SRC/scripts/strict_c1.sh $T/rb/scripts/; cp $SRC/code/analysis/strict_contract.py $SRC/code/analysis/paired_bootstrap.py $T/rb/code/analysis/
+mkdir -p $T/rb/code/eval; printf 'def grade(text, gold):\n    return text.endswith("{" + gold + "}"), None\n' > $T/rb/code/eval/gen_eval.py   # v2.5.7w: stub grader
 : > $T/root/venv/bin/activate
 printf 'export OPD_ROOT=%s RUNBOOK=%s CKPT_ROOT=%s\n' $T/root $T/rb $T/root > $T/rb/scripts/env.sh
 printf 'import sys, os; open(os.environ["CALLS"], "a").write("remote " + " ".join(sys.argv[1:]) + "\\n")\n' > $T/rb/scripts/remote.py

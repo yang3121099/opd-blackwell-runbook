@@ -76,6 +76,20 @@ prefetch_pass() {
     setsid nohup bash -c "bash $RUNBOOK/scripts/run_queue_eval.sh prefetch $t >> $OPD_ROOT/logs/prefetch_$t.log 2>&1 || touch $OPD_ROOT/runs/$t/.prefetch_fail" < /dev/null > /dev/null 2>&1 &
     return
   done; }
+# v2.5.7w (reviewer 08:5x UTC): "#fetch Qwen/Qwen3-<n>B" lines of the queue = a model fetched to $OPD_ROOT/models/<name> in the
+# background, without a GPU (fetch_model.py: every file by size and sha256, .fetch_ok, events fetch_done / fetch_failed);
+# one model at a time, a failure retried after 30 min
+fetch_pass() {
+  pgrep -f "fetch_model\.py Qwen/" > /dev/null && return
+  local m d
+  for m in $(awk '$1 == "#fetch" {print $2}' "$Q"); do
+    [[ $m =~ ^Qwen/Qwen3-[0-9.]+B$ ]] || continue
+    d=$OPD_ROOT/models/${m#Qwen/}; [ -f $d/.fetch_ok ] && continue
+    [ -n "$(find $d.fetch_fail -mmin -30 2>/dev/null)" ] && continue
+    mkdir -p $OPD_ROOT/models $OPD_ROOT/logs
+    setsid nohup bash -c "python $RUNBOOK/scripts/fetch_model.py $m '' $d --task FETCH-${m#Qwen/} >> $OPD_ROOT/logs/fetch_${m#Qwen/}.log 2>&1 && rm -f $d.fetch_fail || touch $d.fetch_fail" < /dev/null > /dev/null 2>&1 &
+    return
+  done; }
 launch() { # gpu task   (v2.5: start / done / killed / failed also go to status/<node>/events/ as receipts)
   mkdir -p $OPD_ROOT/runs/$2
   python $RUNBOOK/scripts/control.py event $2 start "gpu=$1 attempt=$(( $(attempts $2) + 1 ))" > /dev/null 2>&1 &
@@ -118,6 +132,7 @@ while true; do
     done
   fi
   [ "${DRY:-0}" != 1 ] && prefetch_pass
+  [ "${DRY:-0}" != 1 ] && fetch_pass   # v2.5.7w
   FREE=($(free_gpus)); earlier_finished=1
   verify_busy && FREE=()   # a remote rerun_verify owns the GPUs
   while read -r stage status rest; do
