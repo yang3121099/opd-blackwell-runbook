@@ -159,3 +159,4 @@ commands:
   - {"seq": 157, "cmd": "logs E11b-P5-s44 400", "reason": "reviewer 01:0x UTC: is E11b-P5-s44's T1.0 done, is TWR running", "utc": "2026-10-19T01:05:47Z"}
   - {"seq": 158, "cmd": "snapshot runs/EVAL-e10d-P2/.failed", "reason": "EVAL-e10d-P2 attempt count and cause (local bf16 race)", "utc": "2026-10-19T03:04:35Z"}
   - {"seq": 159, "cmd": "snapshot runs/EVAL-e10c-fix4-s43/.failed", "reason": "reviewer 04:1x UTC: EVAL-e10c-fix4-s43 attempt-1 cause", "utc": "2026-10-19T04:11:06Z"}
+  - {"seq": 160, "cmd": "snapshot runs/E11b-P5rand10m/.failed", "reason": "reviewer 04:2x UTC: E11b-P5rand10m attempt-1 cause", "utc": "2026-10-19T04:17:49Z"}
