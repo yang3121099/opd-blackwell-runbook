@@ -219,3 +219,4 @@ commands:
   - {"seq": 217, "cmd": "heartbeat", "reason": "drill B: restart the heartbeat so it reads the fault", "utc": "2026-10-19T14:50:21Z"}
   - {"seq": 218, "cmd": "setenv REMOTE_FAULT=", "reason": "drill A+B done (A: timeout 14:45:38; B: watchdog_restart 15:02:59): clear the fault", "utc": "2026-10-19T15:06:55Z"}
   - {"seq": 219, "cmd": "setenv DRILL=", "reason": "drill done: clear DRILL", "utc": "2026-10-19T15:07:13Z"}
+  - {"seq": 220, "cmd": "logs EVAL-e12d-P0 80", "reason": "reviewer 15:1x UTC: GPU0 EVAL-e12d-P0 0%/0G since 14:54; is it waiting for the s100 upload or stuck on a fetch?", "utc": "2026-10-19T15:15:41Z"}
