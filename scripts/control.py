@@ -396,7 +396,12 @@ def _git_head():
 
 
 # ---------- v2.5: process table ----------
-OUR_ROOTS = re.compile(r"scripts/(run_tasks|task|upload_sync|heartbeat|run_adhoc_eval)\.sh|scripts/control\.py|code/eval/gen_eval\.py|/tmp/ray_gpu")
+# v2.5.7zf (from v2.5.8 item 9): also remote.py / fetch_model.py / watchdog.sh / run_queue_eval.sh: an upload or fetch left
+# behind by a killed loop or wrapper (drill B; the prefetch of EVAL-e12d-P0 whose wrapper was TERMed at 16:01 UTC, 10-19:
+# their parent is init, and the orphaned prefetch still holds back every other prefetch) is listed in procs.json and
+# can be signalled
+OUR_ROOTS = re.compile(r"scripts/(run_tasks|task|upload_sync|heartbeat|run_adhoc_eval|watchdog|run_queue_eval)\.sh|scripts/(control|remote|fetch_model)\.py"
+                       r"|code/eval/gen_eval\.py|/tmp/ray_gpu")
 
 
 def _proc(pid):
