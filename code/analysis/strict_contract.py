@@ -18,6 +18,10 @@ the rest) of the ready position and of the tokens after it (correct samples), fo
 share of all samples whose FIRST box is correct under the EVAL-v1 grader (gen_eval.grade on the text up to that box;
 graded again only when its content differs from the last box's), next to acc (the last box), the first box's end
 position (p50, samples with a box) and the mean tokens written after it (what stopping at the first box would save).
+v2.5.7x (reviewer 09:3x UTC, "does P5 copy the thinking mode's two-part structure?"): answer_ready also gives, over the
+correct samples, the share with two or more boxes in the whole text all holding the same content (and with any
+content), and, for samples that close </think>, the share whose first final-answer box ends before the last </think>
+and the tokens after the last </think> (p50 / p90: the summary part).
 Per reading: lenient accuracy (avg over samples, as gen_eval), contract accuracy, their difference, `same` accuracy, and
 the shares of samples that ended at EOS / hold one box / several boxes / no box / an unclosed box, and of the correct
 samples, the share each contract clause rejects. No generation, no GPU, no grading again: the text and `correct` of each
@@ -148,6 +152,7 @@ def rejudge(path, name):
                                 "c_not_eos", "c_multi", "c_none", "c_unclosed", "c_inconsistent",
                                 "x_not_eos", "x_unclosed", "x_no_box", "x_inconsistent")}
     probs, gv = {}, set(); ft, at, fbt, ntk = [], [], [], []; fb_ok, fb_end, fb_save = 0, [], []
+    nc, m_same, m_any, th_n, th_before, post = 0, 0, 0, 0, 0, []   # v2.5.7x
     for line in open(path):
         line = line.strip()
         if not line:
@@ -166,6 +171,13 @@ def rejudge(path, name):
             fbt.append(tok(j["fb_char"]))
         if j["correct"] and j["fc_char"] is not None:
             ft.append(tok(j["fc_char"])); at.append(max(nt - tok(j["fc_char"]), 0))
+        if j["correct"]:   # v2.5.7x: the whole text's boxes, and the part after the last </think>
+            text = r.get("text") or ""; allc = ["".join(c.split()) for _, _, c in boxes_at(text)[0]]; nc += 1
+            m_any += len(allc) > 1; m_same += len(allc) > 1 and len(set(allc)) == 1
+            k = text.rfind("</think>")
+            if k >= 0:
+                th_n += 1; post.append(max(nt - tok(k + len("</think>")), 0))
+                th_before += j["fc_char"] is not None and j["fc_char"] <= k
         ok1, e1 = first_box(r)   # v2.5.7w
         fb_ok += ok1
         if e1 is not None:
@@ -188,7 +200,12 @@ def rejudge(path, name):
                             "first_box_tok_p50": q(fbt, .5), "n_tokens_p50": q(ntk, .5),
                             "bin_tokens": BIN, "ready_tok_hist": hist(ft), "after_tok_hist": hist(at),
                             "first_box_acc": round(100 * fb_ok / n, 2), "first_box_end_tok_p50": q(fb_end, .5),
-                            "first_box_save_tok_mean": round(sum(fb_save) / len(fb_save), 1) if fb_save else None}}
+                            "first_box_save_tok_mean": round(sum(fb_save) / len(fb_save), 1) if fb_save else None,
+                            "correct_multi_box_same_share": round(100 * m_same / nc, 2) if nc else None,
+                            "correct_multi_box_any_share": round(100 * m_any / nc, 2) if nc else None,
+                            "correct_closing_think": th_n,
+                            "answer_box_before_think_close_share": round(100 * th_before / th_n, 2) if th_n else None,
+                            "post_think_tok_p50": q(post, .5), "post_think_tok_p90": q(post, .9)}}
     return res, probs
 
 

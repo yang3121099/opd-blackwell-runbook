@@ -24,6 +24,19 @@ def test_ready():
     assert SC.q([5, 1, 3, 2, 4], .5) == 3 and SC.q([], .5) is None
 
 
+def test_think_structure(tmp_path, monkeypatch):
+    # v2.5.7x: a thinking reading whose answer is boxed inside the thought and again in the summary
+    monkeypatch.setattr(SC, "_GRADE", lambda text, gold: (text.endswith("{" + gold + "}"), None))
+    recs = [{"pid": "p0", "sample": 0, "text": "<think>so \\boxed{4}</think> answer \\boxed{4}", "correct": True, "finish_reason": "stop", "n_tokens": 40, "gold": "4"},
+            {"pid": "p1", "sample": 0, "text": "<think>hmm</think> \\boxed{7}", "correct": True, "finish_reason": "stop", "n_tokens": 30, "gold": "7"}]
+    runs = str(tmp_path / "runs")
+    write_reading(runs, "EVAL-t", "t_math500_think_t0.6", recs, mode="think")
+    r, _ = SC.rejudge(os.path.join(runs, "EVAL-t", "t_math500_think_t0.6.jsonl"), "t")
+    a = r["answer_ready"]
+    assert a["correct_multi_box_same_share"] == 50.0 and a["correct_closing_think"] == 2 and a["answer_box_before_think_close_share"] == 50.0
+    assert a["post_think_tok_p50"] is not None
+
+
 def test_first_box(monkeypatch):
     monkeypatch.setattr(SC, "_GRADE", lambda text, gold: (text.endswith("{" + gold + "}"), None))   # v2.5.7w: stub grader
     r = {"text": "\\boxed{2} no \\boxed{1}", "correct": True, "gold": "1"}
