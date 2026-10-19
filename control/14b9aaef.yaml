@@ -150,3 +150,4 @@ commands:
   - {"seq": 148, "cmd": "logs E10c-P4lowlr-dyn6144 300", "reason": "GPU2 idle: did E10c-dyn6144 run out of memory (step, peak) — reviewer 23:3x ruling", "utc": "2026-10-18T23:48:55Z"}
   - {"seq": 149, "cmd": "pause E10b-P5top10", "reason": "PROBE-TOP10 reported FAIL (P5rand10m kept-share diagnostic 0.07, see below); keep the two arms from burning their three attempts on run_arm's PASS gate until the gate is rerun", "utc": "2026-10-19T00:07:27Z"}
   - {"seq": 150, "cmd": "pause E10b-P5rand10m", "reason": "PROBE-TOP10 reported FAIL (P5rand10m kept-share diagnostic 0.07, see below); keep the two arms from burning their three attempts on run_arm's PASS gate until the gate is rerun", "utc": "2026-10-19T00:10:25Z"}
+  - {"seq": 151, "cmd": "rerun PROBE-TOP10", "reason": "reviewer A1 00:2x UTC: rerun the gate with v2.5.7l (kept share counted on the picked positions)", "utc": "2026-10-19T00:18:28Z"}
