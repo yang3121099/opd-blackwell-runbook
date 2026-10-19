@@ -38,7 +38,7 @@ v3c5arms open   E10d-P2:PROBE-4B E10d-P5:PROBE-4B EVAL-e10d-P2:E10d-P2+EVAL-e10d
 late     open   EVAL-e10d-P2-s43:E10d-P2-s43 EVAL-e12d-P5:E12d-P5+EVAL-e12d-P0 EVAL-budA-e12dP5rl-b:E12d-P5 EVAL-e10d-P5-s43:E10d-P5-s43 EVAL-ext-E12d-P5:E12d-P5 EVAL-ext-E12d-P0:E12d-P0 EVAL-budA-4Bs43:E10d-P5-s43 EVAL-ext32k-4Brl:E12d-P5 EVAL-budA-e12d-P0:E12d-P0 EVAL-ext32k-4B:E12d-P0 PROBE-P2SELF E10b-P2self:PROBE-P2SELF EVAL-e10b-P2self:E10b-P2self EVAL-budA-P2self:E10b-P2self E12b-P5-s44:E10b-P5-s44 E12d-P0 E12d-P5 PROBE-P5THINK E10b-P5think:PROBE-P5THINK PROBE-P5SELF E10b-P5self:PROBE-P5SELF STRICT-C1 EVAL-budA-p5s43rl-b EVAL-budA-4B:E10d-P5 EVAL-budA-4Bthink EVAL-e10b-P5think:E10b-P5think EVAL-budA-P5think:E10b-P5think EVAL-e10b-P5self:E10b-P5self EVAL-budA-P5self:E10b-P5self EVAL-budA-top10 EVAL-budA-top10b EVAL-ext-E10d-P0 EVAL-ext-E10d-P2 EVAL-ext-E10d-P5 EVAL-budA17c EVAL-ext-E12b-P5s43 EVAL-e12b-P5-s44:E12b-P5-s44
 midrl    open   EVAL-budA-p5s44rl-a:E12b-P5-s44 EVAL-budA-p5s44rl-b:E12b-P5-s44 EVAL-budA-e12dP5rl-a:E12d-P5
 v3o      open   PROBE-T14 E12b-P2-s43:E10b-P2-s43 E10d-P5-s43 E10d-P2-s43 EVAL-e12d-P0:E12d-P0 EVAL-e12b-P2-s43:E12b-P2-s43
-t14      open   E10b-P5-t14:PROBE-T14 E10b-P2-t14:PROBE-T14 E11b-P5-t14:E10b-P5-t14+E11b-P0 E11b-P2-t14:E10b-P2-t14+E11b-P0 EVAL-budA-t14:E10b-P5-t14+E10b-P2-t14 EVAL-budA-top10c
+t14      open   E10b-P5-t14:PROBE-T14 E10b-P2-t14:PROBE-T14 E11b-P5-t14:E10b-P5-t14+E11b-P0 E11b-P2-t14:E10b-P2-t14+E11b-P0 EVAL-budA-t14p2:E10b-P2-t14 EVAL-budA-t14:E10b-P5-t14+EVAL-budA-t14p2 EVAL-budA-top10c
 ext      open   PROBE-TERM3 EVAL-ext-base17 EVAL-ext-E12b-P5:E12b-P5 EVAL-ext-E12b-P0:E12b-P0 EVAL-ext-E12b-P2:E12b-P2 EVAL-ext-E10b-P5:E10b-P5 EVAL-ext-E10b-P2:E10b-P2 EVAL-ext-E12b-P3:E12b-P3 EVAL-ext-E12b-P1:E12b-P1 EVAL-ext-E10b-P4lowlr:E10b-P4lowlr EVAL-ext32k
 term4    open   PROBE-TERM4
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T0.6 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
@@ -355,10 +355,11 @@ term4    open   PROBE-TERM4
 # t14 (v2.5.7p, Q-015; reviewer A1 07:5x UTC): PROBE-T14 first in v3o (fetch the 14B early, gate early); the arms after the seed-2
 # arms (a -t14 arm exits 3 at once while PROBE-T14 has not passed); readings E11b-P5-t14 / P2-t14 (16K) and the 32K curves
 #eval EVAL-budA-t14 budAt14_E10bP5t14_s150_math500_T0.6_32k result:runs/E10b-P5-t14/global_step_150/actor/huggingface math500 4 0.6 32768
-#eval EVAL-budA-t14 budAt14_E10bP2t14_s150_math500_T0.6_32k result:runs/E10b-P2-t14/global_step_150/actor/huggingface math500 4 0.6 32768
-#budget EVAL-budA-t14 budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAt14_E10bP5t14_s150_math500_T0.6_32k budAt14_E10bP2t14_s150_math500_T0.6_32k
+# 10-19 20:4x UTC (reviewer): the P2-t14 half of budA-t14 starts as soon as E10b-P2-t14 has finished (EVAL-budA-t14p2)
+#eval EVAL-budA-t14p2 budAt14_E10bP2t14_s150_math500_T0.6_32k result:runs/E10b-P2-t14/global_step_150/actor/huggingface math500 4 0.6 32768
+#budget EVAL-budA-t14 budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAt14_E10bP5t14_s150_math500_T0.6_32k EVAL-budA-t14p2/budAt14_E10bP2t14_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl
 #budget EVAL-budA-t14 budget_curve_vsP5 EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAt14_E10bP5t14_s150_math500_T0.6_32k
-#budget EVAL-budA-t14 budget_curve_vsP2 EVAL-budA17b/budA_E10bP2_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAt14_E10bP2t14_s150_math500_T0.6_32k
+#budget EVAL-budA-t14p2 budget_curve_vsP2 EVAL-budA17b/budA_E10bP2_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAt14_E10bP2t14_s150_math500_T0.6_32k
 #strict STRICT-C1 E11b-P5-t14/e11b_P5-t14_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl
 #strict STRICT-C1 E11b-P2-t14/e11b_P2-t14_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P2/e11b_P2_math500_T0.6_math500_no_think_t0.6.jsonl
 #strict STRICT-C1 E11b-P5-t14/e11b_P5-t14_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P5-s44/e11b_P5-s44_math500_T0.6_math500_no_think_t0.6.jsonl
@@ -419,7 +420,7 @@ term4    open   PROBE-TERM4
 # 10-19 18:0x UTC (reviewer 18:1x): the 32B once more through hf-mirror.com (setenv FETCH_ENDPOINT, v2.5.7zi); stopped again if it does not grow in 15 min
 # #fetch Qwen/Qwen3-32B   (10-19 18:3x UTC: off; hf-mirror.com failed too, LocalEntryNotFoundError x3 in 55 s at 18:25; the colleague places it on the share)
 # TWR of 4B P5 -> RL (reviewer 08:5x UTC; judge = the base 1.7B, reference = E11b-P0, the same instrument as every other TWR)
-#twr EVAL-e12d-P5 e12d_P5_s100_math500_T0.6
+# (10-19 20:4x UTC: the 1.7B-default #twr of EVAL-e12d-P5 commented out; the first #twr line wins, so its TWR judged a 4B model with the 1.7B base and failed) #twr EVAL-e12d-P5 e12d_P5_s100_math500_T0.6
 # term4 (v2.5.7z, Q-018; reviewer A1 11:3x UTC): does P5 stop once its thought is closed? p(</think>) after the first final-answer
 # box, p(<|im_end|>) after the summary's last box; 1.7B P5, P5 -> RL, the base in thinking mode (think) and non-thinking; last stage
 #term PROBE-TERM4 17_P5 result:runs/E10b-P5/global_step_150/actor/huggingface E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl
@@ -507,3 +508,12 @@ term4    open   PROBE-TERM4
 #     done tasks (readings skipped, only the TWR) when a GPU would otherwise idle, after the t14 readings and budA-t14
 #twr EVAL-e12d-P5 e12d_P5_s100_math500_T0.6 Qwen/Qwen3-4B EVAL-e10d-P0/e10d_P0_math500_T0.6_math500_no_think_t0.6.jsonl
 #twr EVAL-e12d-P0 e12d_P0_s100_math500_T0.6 Qwen/Qwen3-4B EVAL-e10d-P0/e10d_P0_math500_T0.6_math500_no_think_t0.6.jsonl
+# 4B alpha set (reviewer 20:4x UTC; v2.5.7zj): TWR / alpha of the 4B readings, judged by the 4B base against EVAL-e10d-P0, by reruns (TWR only)
+#twr EVAL-e10d-P5 e10d_P5_s150_math500_T0.6 Qwen/Qwen3-4B EVAL-e10d-P0/e10d_P0_math500_T0.6_math500_no_think_t0.6.jsonl
+#twr EVAL-e10d-P2 e10d_P2_s150_math500_T0.6 Qwen/Qwen3-4B EVAL-e10d-P0/e10d_P0_math500_T0.6_math500_no_think_t0.6.jsonl
+#twr EVAL-e10d-P5-s43 e10d_P5-s43_s150_math500_T0.6 Qwen/Qwen3-4B EVAL-e10d-P0/e10d_P0_math500_T0.6_math500_no_think_t0.6.jsonl
+#twr EVAL-e10d-P2-s43 e10d_P2-s43_s150_math500_T0.6 Qwen/Qwen3-4B EVAL-e10d-P0/e10d_P0_math500_T0.6_math500_no_think_t0.6.jsonl
+# the 4B RL pair under the C1 contract (reviewer 20:4x UTC): P5 -> RL vs P0 -> RL, each vs its start
+#strict STRICT-C1 EVAL-e12d-P5/e12d_P5_s100_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e12d-P0/e12d_P0_s100_math500_T0.6_math500_no_think_t0.6.jsonl
+#strict STRICT-C1 EVAL-e12d-P5/e12d_P5_s100_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e10d-P5/e10d_P5_s150_math500_T0.6_math500_no_think_t0.6.jsonl
+#strict STRICT-C1 EVAL-e12d-P0/e12d_P0_s100_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e10d-P0/e10d_P0_math500_T0.6_math500_no_think_t0.6.jsonl
