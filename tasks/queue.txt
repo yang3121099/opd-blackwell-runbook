@@ -315,12 +315,13 @@ term4    open   PROBE-TERM4
 # first two GPUs the late evaluations free; STRICT-C1 (CPU) next; the seed-2 arms E12b-P2-s43, E10d-P5-s43 / P2-s43 (FA) after them.
 # CONFOUND (register with every reading): the seed-2 arms differ from their seed-1 twins in seed AND attention (FA vs SDPA:
 # E12b-P2, E10d-P2 / P5 ran on SDPA); a seed-2 minus seed-1 difference cannot be split into the two; no valid FA noise floor yet.
-#eval EVAL-e12d-P0 e12d_P0_s100_math500_T0.6 result:runs/E12d-P0/global_step_100/actor/huggingface math500 4 0.6
-#eval EVAL-e12d-P0 e12d_P0_s100_math500_T1.0 result:runs/E12d-P0/global_step_100/actor/huggingface math500 4 1.0
+# 10-19 15:3x UTC (reviewer 15:2x UTC): EVAL-e12d-P0 / EVAL-e12b-P2-s43 read the trainings' own fp32 HF saves (local:, in bf16) after their result: downloads stalled 30 / 10 min with the GPU idle; readings of weights trained on this node use local: first, result: only as a fallback
+#eval EVAL-e12d-P0 e12d_P0_s100_math500_T0.6 local:runs/E12d-P0/ckpt/global_step_100/actor/huggingface math500 4 0.6
+#eval EVAL-e12d-P0 e12d_P0_s100_math500_T1.0 local:runs/E12d-P0/ckpt/global_step_100/actor/huggingface math500 4 1.0
 #eval EVAL-e12d-P5 e12d_P5_s100_math500_T0.6 result:runs/E12d-P5/global_step_100/actor/huggingface math500 4 0.6
 #eval EVAL-e12d-P5 e12d_P5_s100_math500_T1.0 result:runs/E12d-P5/global_step_100/actor/huggingface math500 4 1.0
-#eval EVAL-e12b-P2-s43 e12b_P2-s43_s100_math500_T0.6 result:runs/E12b-P2-s43/global_step_100/actor/huggingface math500 4 0.6
-#eval EVAL-e12b-P2-s43 e12b_P2-s43_s100_math500_T1.0 result:runs/E12b-P2-s43/global_step_100/actor/huggingface math500 4 1.0
+#eval EVAL-e12b-P2-s43 e12b_P2-s43_s100_math500_T0.6 local:runs/E12b-P2-s43/ckpt/global_step_100/actor/huggingface math500 4 0.6
+#eval EVAL-e12b-P2-s43 e12b_P2-s43_s100_math500_T1.0 local:runs/E12b-P2-s43/ckpt/global_step_100/actor/huggingface math500 4 1.0
 #eval EVAL-e10d-P2-s43 e10d_P2-s43_s150_math500_T0.6 result:runs/E10d-P2-s43/global_step_150/actor/huggingface math500 4 0.6
 #eval EVAL-e10d-P2-s43 e10d_P2-s43_s150_math500_T1.0 result:runs/E10d-P2-s43/global_step_150/actor/huggingface math500 4 1.0
 #eval EVAL-e10d-P5-s43 e10d_P5-s43_s150_math500_T0.6 result:runs/E10d-P5-s43/global_step_150/actor/huggingface math500 4 0.6
