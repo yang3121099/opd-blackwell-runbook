@@ -236,3 +236,4 @@ commands:
   - {"seq": 234, "cmd": "kill E10b-P2-t14", "reason": "reviewer 15:4x: same state since 15:33:30; EVAL-e12d-P0 / EVAL-e12b-P2-s43 before the t14 arms; stays paused", "utc": "2026-10-19T15:50:53Z"}
   - {"seq": 235, "cmd": "logs E10b-P2-t14 400", "reason": "cause: which teacher path the t14 arm resolved (local dir or hub id) and where loading stopped", "utc": "2026-10-19T15:51:02Z"}
   - {"seq": 236, "cmd": "du opd_root models/Qwen3-14B", "reason": "cause of the t14 hang: the arms resolved TEACHER_14B to the hub id (env.sh uses the local dir only with .fetch_ok); is the local 14B complete", "utc": "2026-10-19T15:56:33Z"}
+  - {"seq": 237, "cmd": "signal 3507742 TERM", "reason": "stuck prefetch of EVAL-e12d-P0 since 14:31:55 (result: download, 0 bytes) blocks every prefetch; its reading is local: now (b905e24); wrapper first so no .prefetch_fail", "utc": "2026-10-19T16:00:47Z"}
