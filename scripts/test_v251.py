@@ -670,6 +670,7 @@ def test_leak_counts(env):
 
 # ---------- v2.5.7: disaster recovery, du / rm-ours / dr-keep ----------
 @pytest.mark.parametrize("cmd,ok", [("du opd_root", True), ("du old_base runs", True), ("du /etc", False), ("du dr ../x", False),
+                                    ("du ckpt", True), ("du ckpt E12d-P0", True), ("rm-ours ckpt E12d-P0", False),
                                     ("rm-ours old_base runs/E10b-P2", True), ("rm-ours opd_root runs", False), ("rm-ours dr", False),
                                     ("rm-ours old_base /abs", False), ("dr-keep SFT-P1", True), ("dr-keep a/b", False),
                                     ("setenv DR=0", True), ("setenv DR=2", False), ("setenv DR_EVERY=25", True), ("setenv DR_EVERY=5", False),
@@ -706,6 +707,9 @@ def test_our_prefixes_and_protection(env, tmp_path, monkeypatch):
     os.symlink(tmp_path, old / "escape")
     assert "leaves" in c.resolve_ours("old_base", "escape", deleting=True)[1]
     assert c.resolve_ours("old_base", "")[0] == os.path.realpath(old)            # du may size the whole prefix
+    ck = tmp_path / "ck"; (ck / "E12d-P0").mkdir(parents=True); monkeypatch.setenv("CKPT_ROOT", str(ck))   # v2.5.7y
+    assert c.our_prefixes()["ckpt"] == os.path.realpath(ck) and c.resolve_ours("ckpt", "E12d-P0")[0] == os.path.realpath(ck / "E12d-P0")
+    assert "dr or old_base" in c.resolve_ours("ckpt", "E12d-P0", deleting=True)[1]
 
 
 def test_do_du_and_rm_ours(env, tmp_path, monkeypatch):

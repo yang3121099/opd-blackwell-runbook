@@ -1361,6 +1361,8 @@ def our_prefixes():
     """The roots du / rm-ours name symbolically (never as paths: control files are public): opd_root, dr, and old_base,
     the directory the venv in use really lives in when that is outside $OPD_ROOT (the base before the 10-17 move)."""
     root = os.path.realpath(ROOT); out = {"opd_root": root, "dr": os.path.realpath(dr_root())}
+    if os.environ.get("CKPT_ROOT") and os.path.isdir(os.environ["CKPT_ROOT"]):   # v2.5.7y: du ckpt (rules allow it for du only)
+        out["ckpt"] = os.path.realpath(os.environ["CKPT_ROOT"])
     v = os.path.realpath(os.path.join(ROOT, "venv"))
     if not (v + "/").startswith(root + "/") and os.path.isdir(v):
         out["old_base"] = os.path.dirname(v)

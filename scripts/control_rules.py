@@ -6,7 +6,7 @@ import calendar
 import re
 import time
 
-RULES_VERSION = "2.5.26"   # 2.5.1: HF_REPO_PUBLIC / HF_REPO_PRIVATE / HEARTBEAT_SEC; 2.5.2: FIXED_MICRO_BSZ; 2.5.3: VENV=fa; 2.5.4: reap; 2.5.5: rerun; 2.5.6: republish; 2.5.7: rerun failed / skipped tasks; 2.5.8: E10c; 2.5.9: publish, leakscan; 2.5.10: fa-build; 2.5.11: scrubdiff; 2.5.12: SPEED-PROBE, setenv FUSED / GC; 2.5.13: du, rm-ours, dr-keep, setenv DR / DR_EVERY / DR_MBPS / E12B_GC; 2.5.14: persist-env, rebuild-drill; 2.5.15: E10d (4B), PROBE-4B; 2.5.16: FA-SPEED probes, setenv E12B_FA; 2.5.17: setenv E10D_FA; 2.5.18: FA-SPEED-TWIN; 2.5.19: #eval max_tokens, E10c dyn6144 / -s43, PROBE-TERM; 2.5.20: #eval mode, #forced, E10b-P5top10 / P5rand10m, PROBE-TOP10; 2.5.21: PROBE-TERM2; 2.5.22: PROBE-TERM3; 2.5.23: E12d, E12b-P2-s43, E10d -s43, STRICT-C1; 2.5.24: E10b / E11b -t14, PROBE-T14; 2.5.25: E10b-P5think, PROBE-P5THINK; 2.5.26: E10b-P5self, PROBE-P5SELF
+RULES_VERSION = "2.5.27"   # 2.5.1: HF_REPO_PUBLIC / HF_REPO_PRIVATE / HEARTBEAT_SEC; 2.5.2: FIXED_MICRO_BSZ; 2.5.3: VENV=fa; 2.5.4: reap; 2.5.5: rerun; 2.5.6: republish; 2.5.7: rerun failed / skipped tasks; 2.5.8: E10c; 2.5.9: publish, leakscan; 2.5.10: fa-build; 2.5.11: scrubdiff; 2.5.12: SPEED-PROBE, setenv FUSED / GC; 2.5.13: du, rm-ours, dr-keep, setenv DR / DR_EVERY / DR_MBPS / E12B_GC; 2.5.14: persist-env, rebuild-drill; 2.5.15: E10d (4B), PROBE-4B; 2.5.16: FA-SPEED probes, setenv E12B_FA; 2.5.17: setenv E10D_FA; 2.5.18: FA-SPEED-TWIN; 2.5.19: #eval max_tokens, E10c dyn6144 / -s43, PROBE-TERM; 2.5.20: #eval mode, #forced, E10b-P5top10 / P5rand10m, PROBE-TOP10; 2.5.21: PROBE-TERM2; 2.5.22: PROBE-TERM3; 2.5.23: E12d, E12b-P2-s43, E10d -s43, STRICT-C1; 2.5.24: E10b / E11b -t14, PROBE-T14; 2.5.25: E10b-P5think, PROBE-P5THINK; 2.5.26: E10b-P5self, PROBE-P5SELF; 2.5.27: du ckpt
 
 META = set(";&|`$<>\\\"'(){}*?!#~\n\r")
 TASK_RE = re.compile(r"^[A-Za-z0-9._-]+$")
@@ -129,7 +129,7 @@ def parse(entry):
     if verb == "scrubdiff" and args and args[0] != "fix":
         raise Reject("scrubdiff [fix]")
     if verb in ("du", "rm-ours"):   # v2.5.7: symbolic prefixes only (control files are public: no paths in them)
-        allowed = ("opd_root", "dr", "old_base") if verb == "du" else ("dr", "old_base")
+        allowed = ("opd_root", "dr", "old_base", "ckpt") if verb == "du" else ("dr", "old_base")   # 2.5.27: du ckpt (read-only)
         if args[0] not in allowed:
             raise Reject(f"{verb} <{'|'.join(allowed)}> {'[' if verb == 'du' else '<'}relative path{']' if verb == 'du' else '>'}")
         if len(args) > 1 and (not re.fullmatch(r"[A-Za-z0-9._/-]+", args[1]) or args[1].startswith("/") or ".." in args[1].split("/")):
