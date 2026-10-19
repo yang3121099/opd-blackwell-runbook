@@ -203,3 +203,4 @@ commands:
   - {"seq": 201, "cmd": "snapshot runs/EVAL-budA-top10/gen_eval.log", "reason": "reviewer 12:0x UTC: top10 first reading progress (retry after an upload failure)", "utc": "2026-10-19T12:07:54Z"}
   - {"seq": 202, "cmd": "kill EVAL-budA-top10", "reason": "reviewer 11:2x UTC: P5top10 (reading 1) is written; top10 had moved on to P5rand10m, which top10b runs; GPU3 to EVAL-e10b-P5think", "utc": "2026-10-19T12:15:43Z"}
   - {"seq": 203, "cmd": "resume EVAL-budA-top10", "reason": "relaunch with its one finished reading (P5top10) to upload it; queued after the P5think / P5self readings", "utc": "2026-10-19T12:26:07Z"}
+  - {"seq": 204, "cmd": "logs EVAL-e10b-P5think 30", "reason": "reviewer 13:5x UTC: is EVAL-e10b-P5think (GPU3, since 12:16) alive?", "utc": "2026-10-19T13:56:49Z"}
