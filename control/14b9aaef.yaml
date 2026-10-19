@@ -243,3 +243,4 @@ commands:
   - {"seq": 241, "cmd": "signal 2878925 TERM", "reason": "FETCH-Qwen3-32B hung since 09:03 UTC at 4.0 GB (1 of 17 shards); reviewer 16:1x: end it, pull in daytime; its #fetch line is off", "utc": "2026-10-19T16:06:02Z"}
   - {"seq": 242, "cmd": "resume E10b-P5-t14", "reason": "reviewer A1 16:1x: v2.5.7zd pushed (local 14B teacher instead of the inherited hub id)", "utc": "2026-10-19T16:09:29Z"}
   - {"seq": 243, "cmd": "resume E10b-P2-t14", "reason": "reviewer A1 16:1x: v2.5.7zd pushed; second arm after EVAL-e12d-P0 (already running)", "utc": "2026-10-19T16:09:40Z"}
+  - {"seq": 244, "cmd": "rerun STRICT-C1", "reason": "reviewer A1 16:3x: v2.5.7ze stop-position statistics (Q-018 follow-up)", "utc": "2026-10-19T16:16:35Z"}
