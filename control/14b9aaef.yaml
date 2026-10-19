@@ -206,3 +206,4 @@ commands:
   - {"seq": 204, "cmd": "logs EVAL-e10b-P5think 30", "reason": "reviewer 13:5x UTC: is EVAL-e10b-P5think (GPU3, since 12:16) alive?", "utc": "2026-10-19T13:56:49Z"}
   - {"seq": 205, "cmd": "logs run_tasks 120", "reason": "incident 2026-10-19 evidence (reviewer 13:5x UTC)", "utc": "2026-10-19T13:58:35Z"}
   - {"seq": 206, "cmd": "logs control 60", "reason": "incident 2026-10-19 evidence (reviewer 13:5x UTC)", "utc": "2026-10-19T13:59:25Z"}
+  - {"seq": 207, "cmd": "logs heartbeat 40", "reason": "incident 2026-10-19 evidence (reviewer 13:5x UTC)", "utc": "2026-10-19T14:00:21Z"}
