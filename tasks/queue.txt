@@ -40,10 +40,6 @@ ext      open   EVAL-ext-base17 EVAL-ext-E12b-P5:E12b-P5 EVAL-ext-E12b-P0:E12b-P
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T1.0 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 1.0
 #eval EVAL-e10c-dyn16k e10c_P4lowlr-dyn16k_s150_math500_T0.6 local:runs/E10c-P4lowlr-dyn16k/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
 #eval EVAL-e10c-dyn16k e10c_P4lowlr-dyn16k_s150_math500_T1.0 local:runs/E10c-P4lowlr-dyn16k/ckpt/global_step_150/actor/huggingface_bf16 math500 4 1.0
-#eval EVAL-e10c-dyn6144 e10c_P4lowlr-dyn6144_s150_math500_T0.6 local:runs/E10c-P4lowlr-dyn6144/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
-#eval EVAL-e10c-dyn6144 e10c_P4lowlr-dyn6144_s150_math500_T1.0 local:runs/E10c-P4lowlr-dyn6144/ckpt/global_step_150/actor/huggingface_bf16 math500 4 1.0
-#pair EVAL-e10c-dyn6144 e10c_P4lowlr-dyn6144_s150_math500_T0.6 EVAL-e10c-fix4/e10c_P4lowlr-fix4_s150_math500_T0.6_math500_no_think_t0.6.jsonl
-#pair EVAL-e10c-dyn6144 e10c_P4lowlr-dyn6144_s150_math500_T1.0 EVAL-e10c-fix4/e10c_P4lowlr-fix4_s150_math500_T1.0_math500_no_think_t1.0.jsonl
 #eval EVAL-e10c-fix4-s43 e10c_P4lowlr-fix4-s43_s150_math500_T0.6 local:runs/E10c-P4lowlr-fix4-s43/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
 #eval EVAL-e10c-fix4-s43 e10c_P4lowlr-fix4-s43_s150_math500_T1.0 local:runs/E10c-P4lowlr-fix4-s43/ckpt/global_step_150/actor/huggingface_bf16 math500 4 1.0
 #pair EVAL-e10c-fix4-s43 e10c_P4lowlr-fix4-s43_s150_math500_T0.6 EVAL-e10c-fix4/e10c_P4lowlr-fix4_s150_math500_T0.6_math500_no_think_t0.6.jsonl
