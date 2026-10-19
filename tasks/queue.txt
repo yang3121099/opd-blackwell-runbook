@@ -414,3 +414,7 @@ ext      open   PROBE-TERM3 EVAL-ext-base17 EVAL-ext-E12b-P5:E12b-P5 EVAL-ext-E1
 #eval EVAL-budA-P5self budAP5self_s50_math500_T0.6_32k result:runs/E10b-P5self/global_step_50/actor/huggingface math500 4 0.6 32768
 #budget EVAL-budA-P5self budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5self_s50_math500_T0.6_32k
 #budget EVAL-budA-P5self budget_curve_vsP5s150 EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5self_s50_math500_T0.6_32k
+# v2.5.7w (reviewer A1 09:0x UTC): Qwen3-32B fetched to the share without a GPU, for tomorrow's 8B probe / a larger teacher
+#fetch Qwen/Qwen3-32B
+# TWR of 4B P5 -> RL (reviewer 08:5x UTC; judge = the base 1.7B, reference = E11b-P0, the same instrument as every other TWR)
+#twr EVAL-e12d-P5 e12d_P5_s100_math500_T0.6
