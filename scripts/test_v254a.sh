@@ -257,6 +257,27 @@ export CALLS=$T/calls; : > $CALLS
   hb_to python $RUNBOOK/scripts/remote.py hang a; echo "rc2 $?" >> $CALLS )
 ok "v2.5.7za hb_to: normal upload passes, a timeout is logged + evented and returns 124" 'grep -q "^py put a status/x.json" $CALLS && grep -q "^rc1 0" $CALLS && grep -q "^rc2 124" $CALLS && grep -q "UPLOAD_TIMEOUT .* remote.py hang" $T/root/logs/heartbeat.err && grep -q "^py event node heartbeat_upload_timeout remote.py hang" $CALLS'
 rm -rf $T
+# 3e. v2.5.7zb run_tasks bounded(): a hung command (git pull, control.py apply) is cut at its timeout (124), logged, and
+#     the loop goes on; a normal command passes through (a GNU-timeout stub, since macOS has none)
+T=$(mktemp -d); mkdir -p $T/root/logs $T/rb/scripts $T/bin
+cat > $T/bin/timeout <<'PY'
+#!/usr/bin/env python3
+import os, signal, subprocess, sys
+p = subprocess.Popen(sys.argv[2:], start_new_session=True)
+try:
+    sys.exit(p.wait(timeout=float(sys.argv[1])))
+except subprocess.TimeoutExpired:
+    os.killpg(p.pid, signal.SIGTERM); sys.exit(124)
+PY
+chmod +x $T/bin/timeout; printf 'import sys, os; open(os.environ["CALLS"], "a").write("py " + " ".join(sys.argv[1:]) + "\\n")\n' > $T/rb/scripts/control.py
+export CALLS=$T/calls; : > $CALLS
+( PATH=$T/bin:$PATH OPD_ROOT=$T/root RUNBOOK=$T/rb; python() { python3 "$@"; }; export -f python
+  eval "$(sed -n '/^bounded() {/,/^  return \$rc; }$/p' $SRC/scripts/run_tasks.sh)"
+  t0=$(date +%s); bounded 2 sleep 30; echo "rc_hang $? $(( $(date +%s) - t0 ))" >> $CALLS
+  bounded 5 true; echo "rc_ok $?" >> $CALLS; sleep 1 )
+ok "v2.5.7zb bounded: a hung call returns 124 at its timeout and is logged + evented; a normal one passes" 'grep -qE "^rc_hang 124 [23]$" $CALLS && grep -q "^rc_ok 0" $CALLS && grep -q "LOOP_TIMEOUT .* 2s sleep 30" $T/root/logs/control.log && grep -q "^py event node loop_timeout sleep 30" $CALLS'
+ok "v2.5.7zb run_tasks bounds its git pull and apply; the loop writes its liveness file and starts the watchdog" 'grep -q "bounded \${PULL_TIMEOUT:-120} git -C" $SRC/scripts/run_tasks.sh && grep -q "bounded \${APPLY_TIMEOUT:-300} python \$RUNBOOK/scripts/control.py apply" $SRC/scripts/run_tasks.sh && grep -q "loop_run_tasks" $SRC/scripts/run_tasks.sh && grep -q "ensure_watchdog" $SRC/scripts/run_tasks.sh'
+rm -rf $T
 # 4. v2.5.4d free_gpus(): a GPU whose task.sh (or ad-hoc evaluation) runs is not free, even with nothing on it yet
 T=$(mktemp -d); mkdir -p $T/bin $T/x/scripts
 printf '#!/usr/bin/env bash\ncase "$*" in *compute-apps*) ;; *) echo 0;; esac\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi

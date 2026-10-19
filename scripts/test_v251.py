@@ -669,6 +669,28 @@ def test_leak_counts(env):
 
 
 # ---------- v2.5.7: disaster recovery, du / rm-ours / dr-keep ----------
+@pytest.mark.parametrize("cmd,ok", [("setenv DRILL=1", True), ("setenv DRILL=2", False), ("setenv REMOTE_FAULT=hang_once", True),
+                                    ("setenv REMOTE_FAULT=hang_once_hard", True), ("setenv REMOTE_FAULT=", True), ("setenv REMOTE_FAULT=rm", False)])
+def test_rules_drill(cmd, ok):   # v2.5.7zb (rules 2.5.29)
+    if ok:
+        R.parse({"cmd": cmd, "reason": "t"})
+    else:
+        with pytest.raises(R.Reject):
+            R.parse({"cmd": cmd, "reason": "t"})
+
+
+def test_drill_fault_once(tmp_path, monkeypatch):   # v2.5.7zb: only with DRILL=1, once (marker), read from control.env
+    import importlib.util, threading
+    spec = importlib.util.spec_from_file_location("remote_t", os.path.join(os.path.dirname(os.path.abspath(__file__)), "remote.py"))
+    rm = importlib.util.module_from_spec(spec); spec.loader.exec_module(rm)
+    monkeypatch.setenv("OPD_ROOT", str(tmp_path)); slept = []
+    monkeypatch.setattr(rm.time, "sleep", lambda s: slept.append(s))
+    rm._drill_fault(); assert slept == []                                  # no drill: nothing
+    (tmp_path / "control.env").write_text("export DRILL=1\nexport REMOTE_FAULT=hang_once\n")
+    rm._drill_fault(); assert slept == [7200] and (tmp_path / "control" / "drill_hang_once.done").exists()
+    rm._drill_fault(); assert slept == [7200]                              # once only
+
+
 @pytest.mark.parametrize("cmd,ok", [("du opd_root", True), ("du old_base runs", True), ("du /etc", False), ("du dr ../x", False),
                                     ("du ckpt", True), ("du ckpt E12d-P0", True), ("rm-ours ckpt E12d-P0", False),
                                     ("rm-ours old_base runs/E10b-P2", True), ("rm-ours opd_root runs", False), ("rm-ours dr", False),

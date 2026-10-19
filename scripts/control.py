@@ -341,15 +341,28 @@ def v_snapshot(a, seq):
 
 # ---------- v2.5: result repository, receipts, events ----------
 def remote_put(src, dst):
-    r = subprocess.run([sys.executable, os.path.join(RUNBOOK, "scripts", "remote.py"), "put", src, dst], capture_output=True, text=True)
+    """v2.5.7zb: bounded (REMOTE_PUT_TIMEOUT, 180 s): a hung upload inside `apply` froze run_tasks for 94 min on
+    2026-10-19 (12:17-13:50 UTC); on a timeout the child is killed, the call returns False and is logged."""
+    try:
+        r = subprocess.run([sys.executable, os.path.join(RUNBOOK, "scripts", "remote.py"), "put", src, dst], capture_output=True, text=True,
+                           timeout=int(os.environ.get("REMOTE_PUT_TIMEOUT", "180")))
+    except subprocess.TimeoutExpired:
+        try:
+            with open(os.path.join(ROOT, "logs", "control_timeouts.log"), "a") as f:
+                f.write(f"{utc()} remote_put timeout {dst}\n")
+        except OSError:
+            pass
+        return False
     return r.returncode == 0
 
 
 STATUS_NAME = {"ok": "done", "rejected": "refused"}   # receipts use D-004's names; log.jsonl keeps v2.4's
 
 
-def receipt(seq, entry, status, detail, **extra):
-    """status/<node>/replies/<seq>.json; written locally first, uploaded (the heartbeat re-uploads replies/ each round)."""
+def receipt(seq, entry, status, detail, upload=True, **extra):
+    """status/<node>/replies/<seq>.json; written locally first, uploaded (the heartbeat re-uploads replies/ each round).
+    v2.5.7zb: apply writes it with upload=False, advances applied_seq, and only then uploads (bounded), so a command
+    is never run twice because its receipt's upload hung or timed out."""
     os.makedirs(_p("replies"), exist_ok=True)
     path = _p("replies", f"{seq}.json")
     old = json.loads(_read(path, "{}") or "{}")
@@ -360,7 +373,8 @@ def receipt(seq, entry, status, detail, **extra):
          "detail": detail, "rules_version": R.RULES_VERSION}
     r.update({k: v for k, v in old.items() if k not in r and k != "status"}); r.update(extra)
     json.dump(r, open(path + ".tmp", "w"), indent=1); os.replace(path + ".tmp", path)
-    remote_put(path, f"status/{node_id()}/replies/{seq}.json")
+    if upload:
+        remote_put(path, f"status/{node_id()}/replies/{seq}.json")
     return r
 
 
@@ -1813,9 +1827,10 @@ def apply():
         n_cmd += 1
         extra = json.loads(json.dumps(extra, default=str))
         log({"seq": seq, "cmd": c.get("cmd"), "status": status, "message": msg, "utc": utc(), **extra})
-        receipt(seq, c, status, msg, **extra)
-        print(f"CONTROL seq {seq} {c.get('cmd')!r}: {status}: {msg}")
+        receipt(seq, c, status, msg, upload=False, **extra)   # v2.5.7zb: local first ...
+        print(f"CONTROL seq {seq} {c.get('cmd')!r}: {status}: {msg}", flush=True)
         applied = seq; open(_p("applied_seq.tmp"), "w").write(str(seq)); os.replace(_p("applied_seq.tmp"), _p("applied_seq"))
+        remote_put(_p("replies", f"{seq}.json"), f"status/{node_id()}/replies/{seq}.json")   # ... then the bounded upload
     pending = sum(1 for c in cmds if isinstance(c, dict) and isinstance(c.get("seq"), int) and c["seq"] > applied)
     state(last_apply_utc=utc(), pending=pending)
 

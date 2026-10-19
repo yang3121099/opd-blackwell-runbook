@@ -130,7 +130,35 @@ def record_transfer(rec):
         pass
 
 
+def _drill_fault():
+    """v2.5.7zb fault injection for the control-plane drill, only with DRILL=1 and REMOTE_FAULT set (setenv; read from
+    the environment or, so the running heartbeat sees it without a restart, from $OPD_ROOT/control.env): the next put
+    hangs once (marker control/drill_<fault>.done). hang_once can be cut by the caller's timeout; hang_once_hard also
+    ignores SIGTERM, so only the watchdog (process-group KILL) ends it."""
+    env = dict(os.environ)
+    try:
+        for line in open(os.path.join(os.environ.get("OPD_ROOT", ""), "control.env")):
+            k, _, v = line.strip().removeprefix("export ").partition("=")
+            if k in ("DRILL", "REMOTE_FAULT"):
+                env[k] = v.strip().strip('"')
+    except OSError:
+        pass
+    fault = env.get("REMOTE_FAULT", "")
+    if env.get("DRILL") != "1" or fault not in ("hang_once", "hang_once_hard"):
+        return
+    marker = os.path.join(os.environ.get("OPD_ROOT", "."), "control", f"drill_{fault}.done")
+    if os.path.exists(marker):
+        return
+    os.makedirs(os.path.dirname(marker), exist_ok=True)
+    open(marker, "w").write(time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()) + "\n")
+    if fault == "hang_once_hard":
+        import signal
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    time.sleep(7200)
+
+
 def put(src, dst):
+    _drill_fault()   # v2.5.7zb: a no-op unless DRILL=1 and REMOTE_FAULT are set
     t0, ok = time.time(), False
     try:
         _put(src, dst); ok = True

@@ -16,8 +16,9 @@ H=$(hostname -s); F=$OPD_ROOT/logs/status_$H.json
 # froze the loop: no status, pulse, events or receipts, while run_tasks kept working. A timeout (HB_PUT_TIMEOUT, 180 s) is
 # logged, sent as an event (itself bounded) and the loop goes on.
 TO=""; command -v timeout > /dev/null && TO="timeout ${HB_PUT_TIMEOUT:-180}"
+hb_alive() { date -u +%s > $OPD_ROOT/control/loop_heartbeat 2> /dev/null; }   # v2.5.7zb: liveness for the watchdog (local)
 hb_to() {
-  $TO "$@"; local rc=$?
+  $TO "$@"; local rc=$?; hb_alive
   if [ $rc = 124 ]; then
     echo "UPLOAD_TIMEOUT $(date -u +%T) $(basename $2) $3" >> $OPD_ROOT/logs/heartbeat.err
     $TO python $RUNBOOK/scripts/control.py event node heartbeat_upload_timeout "$(basename $2) $3" > /dev/null 2>&1
@@ -28,6 +29,7 @@ python -c "import json, torch, vllm; json.dump({'torch': torch.__version__, 'tor
 # v2.5: run_tasks.sh restarts this loop when heartbeat.sh changes (it compares this sha with the current file)
 mkdir -p $OPD_ROOT/control; sha1sum $RUNBOOK/scripts/heartbeat.sh | cut -c1-12 > $OPD_ROOT/control/heartbeat.sha; echo $$ > $OPD_ROOT/control/heartbeat.pid
 while true; do
+  hb_alive
   python - "$F" <<'PY'
 import glob, json, os, re, subprocess, sys, time
 root = os.environ["OPD_ROOT"]; runbook = os.environ["RUNBOOK"]
@@ -156,7 +158,7 @@ PY
   HB=$(cat $OPD_ROOT/control/heartbeat_sec 2>/dev/null | tr -cd 0-9); HB=${HB:-600}; [ $HB -lt 60 ] && HB=60; [ $HB -gt 3600 ] && HB=3600
   for _i in $(seq $((HB / 10))); do
     [ -f $OPD_ROOT/control/heartbeat_now ] && { rm -f $OPD_ROOT/control/heartbeat_now; break; }
-    sleep 10
+    sleep 10; hb_alive
     [ $((_i % 6)) = 0 ] && [ $_i -lt $((HB / 10)) ] && hb_to python $RUNBOOK/scripts/control.py pulse $UP > /dev/null 2>> $OPD_ROOT/logs/heartbeat.err
   done
 done

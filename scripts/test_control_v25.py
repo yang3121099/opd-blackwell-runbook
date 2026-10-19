@@ -77,6 +77,35 @@ def test_receipts_and_status_names(env):
     assert s["control_version"] == R.RULES_VERSION and s["applied_seq"] == 4 and s["pending"] == 0 and s["last_apply_utc"]
 
 
+def test_applied_seq_before_receipt_upload(env, monkeypatch):
+    """v2.5.7zb: a command's applied_seq is recorded before its receipt is uploaded, so a hung or timed-out upload
+    (2026-10-19 12:17-13:50 UTC) can never make the next pull run the command again; the receipt is local first."""
+    seen = []
+    def put(src, dst):
+        if "/replies/" in dst:
+            seen.append((dst, int(open(os.path.join(env.c.CDIR, "applied_seq")).read()), os.path.exists(src)))
+            return False   # as a timed-out upload returns
+        return True
+    monkeypatch.setattr(env.c, "remote_put", put)
+    write(env, [{"seq": 1, "cmd": "pause T", "reason": "r", "utc": iso(0)}, {"seq": 2, "cmd": "pause U", "reason": "r", "utc": iso(0)}])
+    env.c.apply()
+    assert [x[1] for x in seen] == [1, 2] and all(x[2] for x in seen)   # applied_seq already advanced, receipt on disk
+    env.c.apply()                                                        # nothing runs twice
+    assert len(seen) == 2 and json.load(open(os.path.join(env.c.CDIR, "replies", "1.json")))["status"] == "done"
+
+
+def test_remote_put_timeout(env, monkeypatch):
+    """v2.5.7zb: remote_put returns False (and logs) when the upload outlives REMOTE_PUT_TIMEOUT."""
+    import subprocess as sp
+    def hang(*a, **k):
+        raise sp.TimeoutExpired(a[0], k.get("timeout"))
+    monkeypatch.setattr(env.c.subprocess, "run", hang)
+    monkeypatch.setenv("REMOTE_PUT_TIMEOUT", "1")
+    os.makedirs(os.path.join(env.c.ROOT, "logs"), exist_ok=True)
+    assert env.c.remote_put("/x", "status/n/replies/1.json") is False
+    assert "remote_put timeout status/n/replies/1.json" in open(os.path.join(env.c.ROOT, "logs", "control_timeouts.log")).read()
+
+
 def test_cancel_before_run(env):
     write(env, [{"seq": 1, "cmd": "cancel 2", "reason": "x", "utc": iso(0)}, {"seq": 2, "cmd": "pause T", "reason": "x", "utc": iso(0)}])
     env.c.apply()

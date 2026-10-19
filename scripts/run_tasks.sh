@@ -25,14 +25,36 @@ echo "RUN_TASKS_START $(date -u +%T) sha $SELF_SHA"; echo $SELF_SHA > $CDIR/run_
 paused() { [ -f $OPD_ROOT/runs/$1/.paused ]; }
 prio() { cat $OPD_ROOT/runs/$1/.prio 2>/dev/null | tr -cd '0-9' | grep . || echo 100; }
 verify_busy() { [ -f $CDIR/verify.running ] && kill -0 "$(cat $CDIR/verify.running 2>/dev/null)" 2>/dev/null; }
+# v2.5.7zb: the loop's network calls are bounded. On 2026-10-19 one of them hung 12:17-13:50 UTC with no timeout and
+# nothing was dispatched for 94 min. bounded <seconds> <command...>: the command under `timeout` (when present); a
+# timeout is logged and sent as a (bounded) event, and the loop goes on.
+bounded() {
+  local s=$1; shift
+  if command -v timeout > /dev/null; then timeout $s "$@"; else "$@"; fi
+  local rc=$?
+  if [ $rc = 124 ]; then
+    echo "LOOP_TIMEOUT $(date -u +%T) ${s}s $*" >> $OPD_ROOT/logs/control.log
+    if command -v timeout > /dev/null; then timeout 60 python $RUNBOOK/scripts/control.py event node loop_timeout "$(basename $1) $2" > /dev/null 2>&1 & fi
+  fi
+  return $rc; }
+# v2.5.7zb: the watchdog (watchdog.sh) restarts this loop or the heartbeat when their liveness files go stale; it is
+# started here when it is not running (pgrep + its own flock against a second copy)
+nap() {   # v2.5.7zb: sleep in 10-s steps, refreshing the liveness file (90 s between launches must not look stale)
+  local t=$1
+  while [ $t -gt 0 ]; do sleep $(( t < 10 ? t : 10 )); t=$(( t - 10 )); date -u +%s > $CDIR/loop_run_tasks; done; }
+ensure_watchdog() {
+  [ "${DRY:-0}" = 1 ] && return
+  pgrep -f "scripts/watchdog.s[h]" > /dev/null && return
+  setsid nohup bash $RUNBOOK/scripts/watchdog.sh >> $OPD_ROOT/logs/watchdog.log 2>&1 < /dev/null &
+}
 pull_and_control() {   # git pull, record it, apply new control commands, restart this loop if it changed
   local before=$(git -C "$RUNBOOK" rev-parse --short HEAD 2>/dev/null) ok=false
-  git -C "$RUNBOOK" pull -q --ff-only 2>/dev/null && ok=true
+  bounded ${PULL_TIMEOUT:-120} git -C "$RUNBOOK" pull -q --ff-only 2>/dev/null && ok=true   # v2.5.7zb
   local after=$(git -C "$RUNBOOK" rev-parse --short HEAD 2>/dev/null)   # v2.5: changed control rules need a sign-off line
   [ -n "$before" ] && [ "$before" != "$after" ] && { python $RUNBOOK/scripts/control.py check_pull $before $after >> $OPD_ROOT/logs/control.log 2>&1 || ok=false; }
   printf '{"utc": "%s", "ok": %s, "head_before": "%s", "head": "%s"}\n' "$(date -u +%FT%TZ)" $ok "$before" \
     "$(git -C "$RUNBOOK" rev-parse --short HEAD 2>/dev/null)" > $CDIR/last_pull.json
-  python $RUNBOOK/scripts/control.py apply >> $OPD_ROOT/logs/control.log 2>&1
+  bounded ${APPLY_TIMEOUT:-300} python $RUNBOOK/scripts/control.py apply >> $OPD_ROOT/logs/control.log 2>&1   # v2.5.7zb
   local now=$(cat "$RUNBOOK/scripts/run_tasks.sh" "$RUNBOOK/scripts/env.sh" | sha1sum | cut -c1-12)
   if [ "$now" != "$SELF_SHA" ]; then
     if bash -n "$RUNBOOK/scripts/run_tasks.sh" && bash -n "$RUNBOOK/scripts/env.sh"; then
@@ -106,6 +128,8 @@ launch() { # gpu task   (v2.5: start / done / killed / failed also go to status/
 # deps of a task id as written in the queue (task:dep+dep), for `run` requests (v2.5)
 deps_of() { local s=$(grep -v '^#' "$Q" | tr ' ' '\n' | grep -E "^$1(:|\$)" | head -1); [ "$s" != "${s#*:}" ] && echo ${s#*:} | tr '+' ' '; }
 while true; do
+  date -u +%s > $CDIR/loop_run_tasks   # v2.5.7zb: liveness for the watchdog (local, every round)
+  ensure_watchdog
   if [ "${PULL:-1}" = 1 ] && [ $(( $(date +%s) - last_pull )) -ge ${PULL_EVERY:-60} ]; then last_pull=$(date +%s); pull_and_control; fi
   # v2.5 self-heal: the heartbeat loop runs the current heartbeat.sh (restarted when it died or the file changed), and every
   # running E10b/E12b task has its upload_sync (restarted with the settings run_arm.sh / run_e12.sh use); one event each
@@ -158,7 +182,7 @@ while true; do
       g=${FREE[0]}; FREE=("${FREE[@]:1}")
       if [ "${DRY:-0}" = 1 ]; then echo "WOULD_START gpu=$g $t (stage $stage, attempt $(( $(attempts $t) + 1 )))"; continue; fi
       echo "START $(date -u +%T) gpu=$g $t (stage $stage, queue v$(sed -n 's/^version:[[:space:]]*//p' "$Q"), attempt $(( $(attempts $t) + 1 )))"
-      launch $g $t; sleep 90
+      launch $g $t; nap 90
     done
     [ "$status" = locked ] && stage_finished=0
     [ $stage_finished = 1 ] || earlier_finished=0
@@ -171,15 +195,15 @@ while true; do
       if [ "$1" = run ]; then
         ok=1; for d in $(deps_of $2); do done_ $d || ok=0; done
         if [ $ok = 1 ] && ! running $2 && ! done_ $2; then
-          echo "START $(date -u +%T) gpu=$g $2 (control seq $3)"; launch $g $2; python $RUNBOOK/scripts/control.py rcpt $3 accepted "started on gpu $g"; sleep 90
+          echo "START $(date -u +%T) gpu=$g $2 (control seq $3)"; launch $g $2; python $RUNBOOK/scripts/control.py rcpt $3 accepted "started on gpu $g"; nap 90
         else python $RUNBOOK/scripts/control.py rcpt $3 rejected "deps not done, already running or done"; FREE=($g "${FREE[@]}"); fi
       else
         echo "START $(date -u +%T) gpu=$g adhoc_eval_$2 (control seq $2)"
         setsid nohup bash $RUNBOOK/scripts/run_adhoc_eval.sh $g $2 > $OPD_ROOT/logs/adhoc_eval_$2.log 2>&1 < /dev/null &
-        python $RUNBOOK/scripts/control.py rcpt $2 accepted "started on gpu $g"; sleep 30
+        python $RUNBOOK/scripts/control.py rcpt $2 accepted "started on gpu $g"; nap 30
       fi
     done
   fi
   [ "${DRY:-0}" = 1 ] && break
-  sleep ${POLL:-60}
+  nap ${POLL:-60}
 done
