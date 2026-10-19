@@ -10,7 +10,7 @@ setup() {
   mkdir -p $T/rb/code/leakage; printf 'import sys, os; open(os.environ["CALLS"], "a").write("twr " + " ".join(sys.argv[1:]) + "\\n")\n' > $T/rb/code/leakage/twr_alpha.py
   : > $T/root/venv/bin/activate
   cat > $T/rb/scripts/env.sh <<EOF
-export OPD_ROOT=$T/root RUNBOOK=$T/rb CKPT_ROOT=$T/root STUDENT_06B=$T/m06 STUDENT_17B=$T/m17 TEACHER=$T/m8 STUDENT_4B=$T/m4
+export OPD_ROOT=$T/root RUNBOOK=$T/rb CKPT_ROOT=$T/root STUDENT_06B=$T/m06 STUDENT_17B=$T/m17 TEACHER=$T/m8 STUDENT_4B=$T/m4 TEACHER_14B=$T/m14
 has_weights() { [ -f "\$1/model.safetensors" ]; }
 EOF
   printf 'echo "run_arm FIXED=${FIXED_MICRO_BSZ:-unset}"\n' > $T/rb/scripts/run_arm.sh
@@ -191,6 +191,14 @@ ok "v2.5.7h token-selective arms gated on PROBE-TOP10 PASS" '[ $r2 = 3 ] && grep
 ok "E10d on SDPA unless E10D_FA=1" '[[ "$d8" == *"venv=venv "* && "$d9" == *"venv=venv-fa "* ]]'
 s1=$(VENV= DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10d-P5-s43 | tail -1); s2=$(VENV=fa DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10d-P2-s43 | tail -1)
 ok "v2.5.7o E10d-P5-s43 / P2-s43: 4B, data seed 43, venv-fa whatever VENV; -s44 refused" '[[ "$s1" == *"arm=P5 lr=3e-6 seed=43 student=$T/m4 "*"venv=venv-fa "* && "$s2" == *"arm=P2 lr=3e-6 seed=43 student=$T/m4 "*"venv=venv-fa "* ]] && [[ "$(DRYRUN=1 bash $T/rb/scripts/task.sh 0 E10d-P5-s43 | tail -1)" == DRYRUN* ]] && ! bash $T/rb/scripts/task.sh 0 E10d-P5-s44 > /dev/null 2>&1'
+# v2.5.7p (Q-015): the -t14 arms = E10b-P5 / P2 with the 14B teacher, not offloaded (a node-wide TEACHER_OFFLOAD does not
+# reach them), gated on PROBE-T14; E10b-P5 keeps the 8B teacher
+u1=$(TEACHER_OFFLOAD=1 DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10b-P5-t14 | tail -1); u2=$(DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10b-P2-t14 | tail -1)
+u3=$(DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10b-P5 | tail -1)
+ok "v2.5.7p E10b-P5-t14 / P2-t14: 14B teacher, offload 0, seed 42, 150 steps; E10b-P5 keeps the 8B (offloaded)" '[[ "$u1" == *"arm=P5 lr=3e-6 seed=42 student=$T/m17 "*"teacher=$T/m14 offload=0 variant=P5 "*"refthink=1 steps=150" && "$u2" == *"arm=P2 lr=3e-6 seed=42 "*"teacher=$T/m14 offload=0 variant=P2 "*"refthink=0 steps=150" && "$u3" == *"teacher=$T/m8 offload=1 variant=P5 "* ]]'
+( bash $T/rb/scripts/run_arm.sh 0 E10b-P5-t14 > $T/g3 2>&1 ); r3=$?
+ok "v2.5.7p -t14 arms gated on PROBE-T14 PASS" '[ $r3 = 3 ] && grep -q "PROBE-T14 has not passed" $T/g3'
+ok "v2.5.7p task ids: E10b / E11b -t14 for P2 and P5 only" '[[ "$(DRYRUN=1 bash $T/rb/scripts/task.sh 0 E10b-P2-t14 | tail -1)" == DRYRUN* ]] && ! bash $T/rb/scripts/task.sh 0 E10b-P3-t14 > /dev/null 2>&1 && ! bash $T/rb/scripts/task.sh 0 E10b-P5-t14-s43 > /dev/null 2>&1'
 ok "E10d-P5: 4B student, P5, GC on" '[[ "$d5" == *"arm=P5 lr=3e-6 seed=42 student=$T/m4 "* && "$d5" == *"gc=True"* ]] && ! bash $T/rb/scripts/task.sh 0 E10d-P3 > /dev/null 2>&1'
 ok "FUSED=1 GC=0" '[[ "$d4" == *"kern=[actor_rollout_ref.model.use_fused_kernels=True actor_rollout_ref.model.fused_kernel_options.impl_backend=torch] gc=False"* && "$d3" == *"kern=[] gc=True"* ]]'
 printf 'echo "speed_probe $*"\n' > $T/rb/scripts/speed_probe.sh
