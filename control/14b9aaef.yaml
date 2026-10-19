@@ -168,3 +168,4 @@ commands:
   - {"seq": 166, "cmd": "logs EVAL-ext-E12b-P5s43 400", "reason": "timeline v24 for Runming: progress of EVAL-ext-E12b-P5s43", "utc": "2026-10-19T06:10:12Z"}
   - {"seq": 167, "cmd": "logs EVAL-budA-4B 400", "reason": "timeline v24 for Runming: progress of EVAL-budA-4B", "utc": "2026-10-19T06:11:07Z"}
   - {"seq": 168, "cmd": "logs E12b-P5-s44 400", "reason": "timeline v24 for Runming: progress of E12b-P5-s44", "utc": "2026-10-19T06:12:20Z"}
+  - {"seq": 169, "cmd": "snapshot G-OPD/verl/verl/trainer/ppo/core_algos.py", "reason": "executor feasibility note for the reviewer (FKL arm): which policy-loss / KL options G-OPD already has", "utc": "2026-10-19T06:18:50Z"}
