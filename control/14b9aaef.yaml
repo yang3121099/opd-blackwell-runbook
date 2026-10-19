@@ -268,3 +268,4 @@ commands:
   - {"seq": 266, "cmd": "du opd_root models/Qwen3-32B", "reason": "reviewer 17:4x: 32B fetch progress over plain HTTP (7zh)", "utc": "2026-10-19T17:43:52Z"}
   - {"seq": 267, "cmd": "du opd_root models/Qwen3-32B", "reason": "32B fetch progress (7zh)", "utc": "2026-10-19T17:48:24Z"}
   - {"seq": 268, "cmd": "ps", "reason": "is a 32B fetch running (7zh) or does the old one still block fetch_pass", "utc": "2026-10-19T17:51:41Z"}
+  - {"seq": 269, "cmd": "logs fetch_Qwen3-32B 40", "reason": "32B fetch (7zh) at 4.0 GB for 13 min: errors?", "utc": "2026-10-19T17:52:37Z"}
