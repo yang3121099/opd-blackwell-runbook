@@ -37,6 +37,19 @@ def test_think_structure(tmp_path, monkeypatch):
     assert a["post_think_tok_p50"] is not None
 
 
+def test_stop_position_and_tail(tmp_path):
+    # v2.5.7ze: correct + EOS samples only; tokens after the last box; endings with the answer and digits masked
+    recs = [{"pid": "p0", "sample": 0, "text": "a long derivation \\boxed{12} then \\boxed{12}.", "correct": True, "finish_reason": "stop", "n_tokens": 30},
+            {"pid": "p1", "sample": 0, "text": "b long derivation \\boxed{34} then \\boxed{34}.", "correct": True, "finish_reason": "stop", "n_tokens": 30},
+            {"pid": "p2", "sample": 0, "text": "\\boxed{3} and more text 1", "correct": True, "finish_reason": "length", "n_tokens": 50},
+            {"pid": "p3", "sample": 0, "text": "\\boxed{9}", "correct": False, "finish_reason": "stop", "n_tokens": 5}]
+    f = tmp_path / "x.jsonl"; f.write_text("\n".join(json.dumps(r) for r in recs) + "\n")
+    a = SC.rejudge(str(f), "x")[0]["answer_ready"]
+    assert a["stop_n"] == 2 and a["stop_after_last_box_tok_p50"] in (1, 2) and a["stop_tail_top5"][0][1] == 2
+    assert a["stop_tail_top5"][0][0] == "n \\boxed{99} then \\boxed{<A>}." and a["stop_tail_top5"][0][2] == 100.0
+    assert SC.tail_pattern("x \\boxed{42} 2024 end", SC.boxes_at("x \\boxed{42} 2024 end")[0]) == "x \\boxed{<A>} 9999 end"
+
+
 def test_first_box(monkeypatch):
     monkeypatch.setattr(SC, "_GRADE", lambda text, gold: (text.endswith("{" + gold + "}"), None))   # v2.5.7w: stub grader
     r = {"text": "\\boxed{2} no \\boxed{1}", "correct": True, "gold": "1"}

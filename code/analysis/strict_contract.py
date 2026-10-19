@@ -35,7 +35,9 @@ import argparse
 import glob
 import json
 import os
+import re
 import sys
+from collections import Counter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -106,6 +108,15 @@ def ready(text, ans_boxes, correct):
     return end, first, len(text)
 
 
+def tail_pattern(text, allb, nbytes=30):
+    """v2.5.7ze (reviewer 16:2x UTC, Q-018: where does a correct sample stop?): the last nbytes bytes of text, with the
+    last box's content replaced by <A> and every digit by 9, so the same ending of different problems counts once."""
+    if allb:
+        s, e, _ = allb[-1]
+        text = text[:s] + "\\boxed{<A>}" + text[e:]
+    return re.sub(r"[0-9]", "9", text.encode("utf-8")[-nbytes:].decode("utf-8", "ignore"))
+
+
 def answer_part(text, think):
     if not think:
         return text
@@ -153,6 +164,7 @@ def rejudge(path, name):
                                 "x_not_eos", "x_unclosed", "x_no_box", "x_inconsistent")}
     probs, gv = {}, set(); ft, at, fbt, ntk = [], [], [], []; fb_ok, fb_end, fb_save = 0, [], []
     nc, m_same, m_any, th_n, th_before, post = 0, 0, 0, 0, 0, []   # v2.5.7x
+    stop_after, tails = [], Counter()   # v2.5.7ze
     for line in open(path):
         line = line.strip()
         if not line:
@@ -178,6 +190,11 @@ def rejudge(path, name):
             if k >= 0:
                 th_n += 1; post.append(max(nt - tok(k + len("</think>")), 0))
                 th_before += j["fc_char"] is not None and j["fc_char"] <= k
+        if j["correct"] and j["eos"]:   # v2.5.7ze: correct and ended by itself: tokens from the last box's end to EOS, and the ending
+            text = r.get("text") or ""; allb = boxes_at(text)[0]
+            if allb:
+                stop_after.append(max(nt - tok(allb[-1][1]), 0))
+            tails[tail_pattern(text, allb)] += 1
         ok1, e1 = first_box(r)   # v2.5.7w
         fb_ok += ok1
         if e1 is not None:
@@ -205,7 +222,11 @@ def rejudge(path, name):
                             "correct_multi_box_any_share": round(100 * m_any / nc, 2) if nc else None,
                             "correct_closing_think": th_n,
                             "answer_box_before_think_close_share": round(100 * th_before / th_n, 2) if th_n else None,
-                            "post_think_tok_p50": q(post, .5), "post_think_tok_p90": q(post, .9)}}
+                            "post_think_tok_p50": q(post, .5), "post_think_tok_p90": q(post, .9),
+                            "stop_n": sum(tails.values()), "stop_after_last_box_tok_p50": q(stop_after, .5),
+                            "stop_after_last_box_tok_p90": q(stop_after, .9),
+                            "stop_after_last_box_tok_mean": round(sum(stop_after) / len(stop_after), 1) if stop_after else None,
+                            "stop_tail_top5": [[t, k, round(100 * k / sum(tails.values()), 2)] for t, k in tails.most_common(5)]}}
     return res, probs
 
 
