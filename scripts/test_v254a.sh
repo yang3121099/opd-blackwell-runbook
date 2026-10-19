@@ -244,6 +244,11 @@ w1=$(DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10b-P5self | tail -1)
 ok "v2.5.7v E10b-P5self: teacher = the 1.7B base, refthink 1, variant P5, 4K, 50 steps" '[[ "$w1" == *"arm=P5 lr=3e-6 seed=42 student=$T/m17 "*"sthink=0 maxresp=4096 teacher=$T/m17 offload=1 variant=P5 override= refthink=1 steps=50" ]]'
 ( bash $T/rb/scripts/run_arm.sh 0 E10b-P5self > $T/g5 2>&1 ); r5=$?
 ok "v2.5.7v P5self gated on PROBE-P5SELF PASS; E11b / E12b-P5self refused" '[ $r5 = 3 ] && grep -q "PROBE-P5SELF has not passed" $T/g5 && ! bash $T/rb/scripts/task.sh 0 E11b-P5self > /dev/null 2>&1 && ! bash $T/rb/scripts/task.sh 0 E12b-P5self > /dev/null 2>&1'
+# v2.5.7zg (Q-019): E10b-P2self = P2 with the student's base as the teacher (non-thinking), 50 steps, venv-fa, gated on PROBE-P2SELF
+w2=$(DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10b-P2self | tail -1)
+ok "v2.5.7zg E10b-P2self: teacher = the 1.7B base, refthink 0, variant P2, 4K, 50 steps, venv-fa" '[[ "$w2" == *"arm=P2 lr=3e-6 seed=42 student=$T/m17 "*"venv=venv-fa "*"sthink=0 maxresp=4096 teacher=$T/m17 offload=1 variant=P2 override= refthink=0 steps=50" ]]'
+( bash $T/rb/scripts/run_arm.sh 0 E10b-P2self > $T/g6 2>&1 ); r6=$?
+ok "v2.5.7zg P2self gated on PROBE-P2SELF PASS; E11b / E12b-P2self refused" '[ $r6 = 3 ] && grep -q "PROBE-P2SELF has not passed" $T/g6 && ! bash $T/rb/scripts/task.sh 0 E11b-P2self > /dev/null 2>&1 && ! bash $T/rb/scripts/task.sh 0 E12b-P2self > /dev/null 2>&1'
 ok "E10d-P5: 4B student, P5, GC on" '[[ "$d5" == *"arm=P5 lr=3e-6 seed=42 student=$T/m4 "* && "$d5" == *"gc=True"* ]] && ! bash $T/rb/scripts/task.sh 0 E10d-P3 > /dev/null 2>&1'
 ok "FUSED=1 GC=0" '[[ "$d4" == *"kern=[actor_rollout_ref.model.use_fused_kernels=True actor_rollout_ref.model.fused_kernel_options.impl_backend=torch] gc=False"* && "$d3" == *"kern=[] gc=True"* ]]'
 printf 'echo "speed_probe $*"\n' > $T/rb/scripts/speed_probe.sh
@@ -315,4 +320,4 @@ ok "running tasks keep their GPUs" '[[ " $got" == *" 1 "* && " $got" == *" 6 "* 
 rm -rf $T
 # v2.5.7j: no task script deletes a final bf16 copy (Runming: final weights keep a local copy after upload)
 ok "final bf16 copies are never deleted by run_e12.sh / run_arm.sh / run_eval.sh" '! grep -nE "rm -rf[^#]*huggingface_bf16" $SRC/scripts/run_e12.sh $SRC/scripts/run_arm.sh $SRC/scripts/run_eval.sh'
-[ $fails = 0 ] && echo "V254A_TEST PASS (51 checks)" || echo "V254A_TEST FAIL ($fails)"
+[ $fails = 0 ] && echo "V254A_TEST PASS (53 checks)" || echo "V254A_TEST FAIL ($fails)"
