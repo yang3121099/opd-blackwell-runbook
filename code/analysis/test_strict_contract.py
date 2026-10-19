@@ -59,10 +59,11 @@ def test_scan_and_main(tmp_path, monkeypatch):
     write_reading(runs, "EVAL-x", "b_math500_no_think_t0.6", B)
     write_reading(runs, "PROBE-TERM", "term_c_math500_no_think_t0.6", B, sub="gen")
     write_reading(runs, "EVAL-y", "d_aime24_no_think_t0.6", B, bench="aime24")                # not MATH500
+    write_reading(runs, "EVAL-w", "w_math500_no_think_t0.6", [rec("p0", "no", False)])        # v2.5.7t: no correct sample
     open(os.path.join(runs, "EVAL-x", "a_math500_no_think_t0.6.forced.jsonl"), "w").write("{}\n")   # never a reading
     os.makedirs(os.path.join(runs, "EVAL-z")); open(os.path.join(runs, "EVAL-z", "e_math500.jsonl"), "w").write("{}\n")  # no metrics
     names = [os.path.relpath(p, runs) for p in SC.scan(runs)]
-    assert names == ["EVAL-x/a_math500_no_think_t0.6.jsonl", "EVAL-x/b_math500_no_think_t0.6.jsonl",
+    assert names == ["EVAL-w/w_math500_no_think_t0.6.jsonl", "EVAL-x/a_math500_no_think_t0.6.jsonl", "EVAL-x/b_math500_no_think_t0.6.jsonl",
                      "PROBE-TERM/gen/term_c_math500_no_think_t0.6.jsonl"]
     out, tab = tmp_path / "r.json", tmp_path / "t.txt"
     monkeypatch.setattr(sys, "argv", ["strict_contract.py", "--scan", runs, "--out", str(out), "--table", str(tab),
@@ -83,3 +84,5 @@ def test_scan_and_main(tmp_path, monkeypatch):
     assert r["pairs"][1]["error"] == "reading missing"
     t = open(tab).read()
     assert "EVAL-x/a_math500_no_think_t0.6.jsonl" in t and "-37.50" in t and "reading missing" in t
+    w = {x["name"]: x for x in r["readings"]}["EVAL-w/w_math500_no_think_t0.6.jsonl"]
+    assert w["acc"] == 0.0 and w["of_correct_rejected"]["not_eos"] is None and "EVAL-w/w_math500" in t.split("same (the C1")[1]

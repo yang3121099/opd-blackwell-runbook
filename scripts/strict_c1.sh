@@ -14,6 +14,7 @@ G=$1; T=$2; source "$(dirname "$0")/env.sh"; source ${VENV_EVAL:-$OPD_ROOT/venv}
 D=$OPD_ROOT/runs/$T; LOG=$D/strict.log; Q=${QUEUE_FILE:-$RUNBOOK/tasks/queue.txt}; mkdir -p $D/up
 [ -f $D/.done ] && { echo "TASK_ALREADY_DONE $T"; exit 0; }
 step() { echo "STRICT_C1 $(date -u +%T) $*" | tee -a $LOG; }
+rm -f $D/report.json $D/table.txt $D/up/report.json $D/up/table.txt   # v2.5.7t: a failed run never uploads an older table
 step "start $T (CPU only, gpu $G not used)"
 PAIRS=()
 while read -r A B; do

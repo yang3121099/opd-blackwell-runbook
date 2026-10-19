@@ -133,8 +133,9 @@ def table(rows):
         if "error" in r:
             continue
         o, x = r["of_correct_rejected"], r["same_loss_points_exclusive"]
-        out.append(f"{r['name'][:58]:58} {r['acc']:>7.2f} {r['acc_same']:>7.2f} {o['not_eos']:>8.2f} {o['unclosed']:>7.2f} {o['none']:>7.2f} "
-                   f"{o['inconsistent']:>7.2f} {x['not_eos']:>9.2f} {x['unclosed']:>8.2f} {x['no_box']:>8.2f} {x['inconsistent']:>8.2f}")
+        f = lambda v, w: f"{v:>{w}.2f}" if v is not None else f"{'-':>{w}}"   # v2.5.7t: no correct sample -> no share
+        out.append(f"{r['name'][:58]:58} {f(r['acc'], 7)} {f(r['acc_same'], 7)} {f(o['not_eos'], 8)} {f(o['unclosed'], 7)} {f(o['none'], 7)} "
+                   f"{f(o['inconsistent'], 7)} {f(x['not_eos'], 9)} {f(x['unclosed'], 8)} {f(x['no_box'], 8)} {f(x['inconsistent'], 8)}")
     return "\n".join(out)
 
 
