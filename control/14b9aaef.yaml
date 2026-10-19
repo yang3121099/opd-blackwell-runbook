@@ -272,3 +272,4 @@ commands:
   - {"seq": 270, "cmd": "signal 3907744 TERM", "reason": "32B fetch (7zh, plain HTTP) asleep with 0 bytes since 17:38 UTC; reviewer: if it hangs again, leave it to the colleague's script", "utc": "2026-10-19T17:54:25Z"}
   - {"seq": 271, "cmd": "setenv FETCH_ENDPOINT=https://hf-mirror.com", "reason": "reviewer 18:1x (pre-approved 7zi): the 32B through hf-mirror.com; stopped again if it does not grow within 15 min", "utc": "2026-10-19T17:58:30Z"}
   - {"seq": 272, "cmd": "du opd_root models/Qwen3-32B", "reason": "32B fetch via hf-mirror (7zi): growth check 1/4", "utc": "2026-10-19T18:04:23Z"}
+  - {"seq": 273, "cmd": "du opd_root models/Qwen3-32B", "reason": "32B fetch via hf-mirror (7zi): growth check 2/4", "utc": "2026-10-19T18:10:07Z"}
