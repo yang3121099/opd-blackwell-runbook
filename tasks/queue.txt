@@ -384,8 +384,9 @@ term4    open   PROBE-TERM4
 # s25 / s50 / s75 / s100, uploaded as bf16 (result:), 32K T0.6 avg@4, two tasks per chain in parallel after the training;
 # curves vs the base and vs the start (E10b-P5-s44 s150 from budA17c; E10d-P5 s150 from budA-4B); both tasks of a chain carry the
 # same #budget lines, the one that ends last holds the complete curve
-#eval EVAL-budA-p5s44rl-a budAp5s44rl_s25_math500_T0.6_32k result:runs/E12b-P5-s44/global_step_25/actor/huggingface math500 4 0.6 32768
-#eval EVAL-budA-p5s44rl-a budAp5s44rl_s50_math500_T0.6_32k result:runs/E12b-P5-s44/global_step_50/actor/huggingface math500 4 0.6 32768
+# 10-19 17:3x UTC (reviewer): EVAL-budA-p5s44rl-a held: its s25 is not on the node and the result-repository download through the node proxy hangs
+#hold EVAL-budA-p5s44rl-a budAp5s44rl_s25_math500_T0.6_32k result:runs/E12b-P5-s44/global_step_25/actor/huggingface math500 4 0.6 32768
+#hold EVAL-budA-p5s44rl-a budAp5s44rl_s50_math500_T0.6_32k result:runs/E12b-P5-s44/global_step_50/actor/huggingface math500 4 0.6 32768
 #eval EVAL-budA-p5s44rl-b budAp5s44rl_s75_math500_T0.6_32k result:runs/E12b-P5-s44/global_step_75/actor/huggingface math500 4 0.6 32768
 #eval EVAL-budA-p5s44rl-b budAp5s44rl_s100_math500_T0.6_32k result:runs/E12b-P5-s44/global_step_100/actor/huggingface math500 4 0.6 32768
 #budget EVAL-budA-p5s44rl-a budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA17c/budA17c_E10bP5s44_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAp5s44rl_s25_math500_T0.6_32k budAp5s44rl_s50_math500_T0.6_32k EVAL-budA-p5s44rl-b/budAp5s44rl_s75_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-p5s44rl-b/budAp5s44rl_s100_math500_T0.6_32k_math500_no_think_t0.6.jsonl
