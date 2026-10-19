@@ -42,6 +42,7 @@ midrl    open   EVAL-budA-p5s44rl-a:E12b-P5-s44 EVAL-budA-p5s44rl-b:E12b-P5-s44 
 v3o      open   PROBE-T14 E12b-P2-s43:E10b-P2-s43 E10d-P5-s43 E10d-P2-s43 EVAL-e12d-P0:E12d-P0 EVAL-e12d-P5:E12d-P5+EVAL-e12d-P0 EVAL-e12b-P2-s43:E12b-P2-s43 EVAL-e10d-P2-s43:E10d-P2-s43 EVAL-e10d-P5-s43:E10d-P5-s43+EVAL-e10d-P2-s43
 t14      open   E10b-P5-t14:PROBE-T14 E10b-P2-t14:PROBE-T14 E11b-P5-t14:E10b-P5-t14+E11b-P0 E11b-P2-t14:E10b-P2-t14+E11b-P0 EVAL-budA-t14:E10b-P5-t14+E10b-P2-t14
 ext      open   PROBE-TERM3 EVAL-ext-base17 EVAL-ext-E12b-P5:E12b-P5 EVAL-ext-E12b-P0:E12b-P0 EVAL-ext-E12b-P2:E12b-P2 EVAL-ext-E10b-P5:E10b-P5 EVAL-ext-E10b-P2:E10b-P2 EVAL-ext-E12b-P3:E12b-P3 EVAL-ext-E12b-P1:E12b-P1 EVAL-ext-E10b-P4lowlr:E10b-P4lowlr EVAL-ext32k
+term4    open   PROBE-TERM4
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T0.6 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T1.0 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 1.0
 #eval EVAL-e10c-dyn16k e10c_P4lowlr-dyn16k_s150_math500_T0.6 local:runs/E10c-P4lowlr-dyn16k/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
@@ -418,3 +419,9 @@ ext      open   PROBE-TERM3 EVAL-ext-base17 EVAL-ext-E12b-P5:E12b-P5 EVAL-ext-E1
 #fetch Qwen/Qwen3-32B
 # TWR of 4B P5 -> RL (reviewer 08:5x UTC; judge = the base 1.7B, reference = E11b-P0, the same instrument as every other TWR)
 #twr EVAL-e12d-P5 e12d_P5_s100_math500_T0.6
+# term4 (v2.5.7z, Q-018; reviewer A1 11:3x UTC): does P5 stop once its thought is closed? p(</think>) after the first final-answer
+# box, p(<|im_end|>) after the summary's last box; 1.7B P5, P5 -> RL, the base in thinking mode (think) and non-thinking; last stage
+#term PROBE-TERM4 17_P5 result:runs/E10b-P5/global_step_150/actor/huggingface E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl
+#term PROBE-TERM4 17_P5RL result:runs/E12b-P5/global_step_100/actor/huggingface EVAL-e12b-P5/e12b_P5_s100_math500_T0.6_math500_no_think_t0.6.jsonl
+#term PROBE-TERM4 17_P0think Qwen/Qwen3-1.7B EVAL-budB/budB_P0think_math500_T0.6_32k_math500_think_t0.6.jsonl think
+#term PROBE-TERM4 17_P0 Qwen/Qwen3-1.7B E11b-P0/e11b_P0_math500_T0.6_math500_no_think_t0.6.jsonl
