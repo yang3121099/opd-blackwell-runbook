@@ -542,3 +542,14 @@ term4    open   PROBE-TERM4
 #eval EVAL-ext32k-17 ext32k17_P0think_aime25_T0.6 local:models/Qwen3-1.7B aime25 16 0.6 32768 think
 #pair EVAL-ext32k-17 ext32k17_E10bP5_s150_aime24_T0.6 EVAL-ext32k-17/ext32k17_P0think_aime24_T0.6_aime24_think_t0.6.jsonl EVAL-ext32k/ext32k_E12bP5_s100_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #pair EVAL-ext32k-17 ext32k17_E10bP5_s150_aime25_T0.6 EVAL-ext32k-17/ext32k17_P0think_aime25_T0.6_aime25_think_t0.6.jsonl EVAL-ext32k/ext32k_E12bP5_s100_aime25_T0.6_aime25_no_think_t0.6.jsonl
+# 4B RL pair under the C1 contract beyond MATH500 (reviewer 21:3x UTC; v2.5.7zm judges these readings too): five external sets
+# at 16K (P5 -> RL vs P0 -> RL), AIME 32K (P5 -> RL vs P0 -> RL and vs its start P5 s150); AIME has 30 problems x 16, wide CIs
+#strict STRICT-C1 EVAL-ext-E12d-P5/ext_E12dP5_s100_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext-E12d-P0/ext_E12dP0_s100_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#strict STRICT-C1 EVAL-ext-E12d-P5/ext_E12dP5_s100_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext-E12d-P0/ext_E12dP0_s100_aime25_T0.6_aime25_no_think_t0.6.jsonl
+#strict STRICT-C1 EVAL-ext-E12d-P5/ext_E12dP5_s100_amc23_T0.6_amc23_no_think_t0.6.jsonl EVAL-ext-E12d-P0/ext_E12dP0_s100_amc23_T0.6_amc23_no_think_t0.6.jsonl
+#strict STRICT-C1 EVAL-ext-E12d-P5/ext_E12dP5_s100_minervamath_T0.6_minervamath_no_think_t0.6.jsonl EVAL-ext-E12d-P0/ext_E12dP0_s100_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
+#strict STRICT-C1 EVAL-ext-E12d-P5/ext_E12dP5_s100_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl EVAL-ext-E12d-P0/ext_E12dP0_s100_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
+#strict STRICT-C1 EVAL-ext32k-4Brl/ext32k4B_E12dP5_s100_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4B/ext32k4B_E12dP0_s100_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#strict STRICT-C1 EVAL-ext32k-4Brl/ext32k4B_E12dP5_s100_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#strict STRICT-C1 EVAL-ext32k-4Brl/ext32k4B_E12dP5_s100_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4B/ext32k4B_E12dP0_s100_aime25_T0.6_aime25_no_think_t0.6.jsonl
+#strict STRICT-C1 EVAL-ext32k-4Brl/ext32k4B_E12dP5_s100_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl

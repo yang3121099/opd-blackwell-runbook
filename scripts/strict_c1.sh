@@ -22,8 +22,12 @@ while read -r A B; do
   if [[ $A =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+\.jsonl$ && $B =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+\.jsonl$ ]]; then PAIRS+=(--pair "$A" "$B")
   else step "PAIR_REFUSED $A $B"; fi
 done <<< "$(awk -v t="$T" '$1 == "#strict" && $2 == t {print $3, $4}' "$Q")"
+# v2.5.7zm (reviewer 21:3x UTC): the readings of every #strict pair are judged too, whatever their bench (the scan takes
+# MATH500 only, so a pair of AIME / AMC / external-set readings came back "reading missing"); each one once
+READ=()   # (no associative array: older bash)
+for x in ${PAIRS[@]+"${PAIRS[@]}"}; do [ "$x" = --pair ] && continue; case " ${READ[*]-} " in *" $OPD_ROOT/runs/$x "*) continue;; esac; READ+=("$OPD_ROOT/runs/$x"); done
 CUDA_VISIBLE_DEVICES= python $RUNBOOK/code/analysis/strict_contract.py --scan $OPD_ROOT/runs --out $D/report.json --table $D/table.txt \
-  ${PAIRS[@]+"${PAIRS[@]}"} >> $LOG 2>&1; rc=$?
+  ${PAIRS[@]+"${PAIRS[@]}"} ${READ[@]+"${READ[@]}"} >> $LOG 2>&1; rc=$?
 cp $D/report.json $D/table.txt $D/up/ 2> /dev/null
 python $RUNBOOK/scripts/remote.py put $D/up runs/$T >> $LOG 2>&1 || { step "report upload failed (kept in $D)"; rc=1; }
 mkdir -p $D/logs; cp $LOG $D/logs/ 2> /dev/null

@@ -294,6 +294,8 @@ def main():
     for A, B in a.pair:
         if A not in per or B not in per:
             res["pairs"].append({"a": A, "b": B, "error": "reading missing"}); continue
+        if not set(per[A]) & set(per[B]):   # v2.5.7zm: e.g. readings of two benches; it crashed the whole run (ZeroDivisionError)
+            res["pairs"].append({"a": A, "b": B, "error": "no common problems"}); continue
         pr = {"a": A, "b": B}
         for k, i in (("lenient", 0), ("contract", 1), ("same", 2)):
             pr[k] = paired({p: [v[i], v[3]] for p, v in per[A].items()}, {p: [v[i], v[3]] for p, v in per[B].items()}, f"{A} - {B} ({k})")
