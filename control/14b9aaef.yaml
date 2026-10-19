@@ -190,3 +190,4 @@ commands:
   - {"seq": 188, "cmd": "du ckpt", "reason": "reviewer A1 10:5x UTC: local checkpoint disk use per task", "utc": "2026-10-19T10:41:52Z"}
   - {"seq": 189, "cmd": "logs EVAL-budA-top10 40", "reason": "reviewer 11:1x UTC: progress of EVAL-budA-top10 (5 h so far)", "utc": "2026-10-19T11:04:52Z"}
   - {"seq": 190, "cmd": "snapshot runs/EVAL-budA-top10/gen_eval.log", "reason": "reviewer 11:1x UTC: block progress of EVAL-budA-top10", "utc": "2026-10-19T11:06:20Z"}
+  - {"seq": 191, "cmd": "snapshot runs/EVAL-e10b-P5self", "reason": "patrol URGENT 11:13 UTC: GPU4 idle 30 min under EVAL-e10b-P5self (fetch of the s50 weights?)", "utc": "2026-10-19T11:14:36Z"}
