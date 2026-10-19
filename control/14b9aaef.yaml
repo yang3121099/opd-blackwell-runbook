@@ -221,3 +221,4 @@ commands:
   - {"seq": 219, "cmd": "setenv DRILL=", "reason": "drill done: clear DRILL", "utc": "2026-10-19T15:07:13Z"}
   - {"seq": 220, "cmd": "logs EVAL-e12d-P0 80", "reason": "reviewer 15:1x UTC: GPU0 EVAL-e12d-P0 0%/0G since 14:54; is it waiting for the s100 upload or stuck on a fetch?", "utc": "2026-10-19T15:15:41Z"}
   - {"seq": 221, "cmd": "logs prefetch_EVAL-e12d-P0 40", "reason": "reviewer 15:1x: EVAL-e12d-P0 idle on GPU0; was a prefetch of the same result: path running at the same time?", "utc": "2026-10-19T15:21:45Z"}
+  - {"seq": 222, "cmd": "du ckpt adhoc_models/result/runs/E12d-P0/global_step_100/actor/huggingface", "reason": "reviewer 15:1x: how much of E12d-P0 s100 (8.8 GB) is local for EVAL-e12d-P0", "utc": "2026-10-19T15:21:57Z"}
