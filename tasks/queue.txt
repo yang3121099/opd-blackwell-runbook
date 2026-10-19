@@ -415,7 +415,8 @@ term4    open   PROBE-TERM4
 #budget EVAL-budA-P5self budget_curve_vsP5s150 EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5self_s50_math500_T0.6_32k
 # v2.5.7w (reviewer A1 09:0x UTC): Qwen3-32B fetched to the share without a GPU, for tomorrow's 8B probe / a larger teacher
 # 10-19 17:5x UTC (reviewer 17:4x): the 32B again, over plain HTTP without Xet / hf_transfer (v2.5.7zh), continuing the 4.0 GB already there
-# #fetch Qwen/Qwen3-32B   (10-19 17:5x UTC: off again; plain HTTP through the node proxy hung too (0 bytes in 14 min); the colleague places it on the share with the reviewer's script)
+# 10-19 18:0x UTC (reviewer 18:1x): the 32B once more through hf-mirror.com (setenv FETCH_ENDPOINT, v2.5.7zi); stopped again if it does not grow in 15 min
+#fetch Qwen/Qwen3-32B
 # TWR of 4B P5 -> RL (reviewer 08:5x UTC; judge = the base 1.7B, reference = E11b-P0, the same instrument as every other TWR)
 #twr EVAL-e12d-P5 e12d_P5_s100_math500_T0.6
 # term4 (v2.5.7z, Q-018; reviewer A1 11:3x UTC): does P5 stop once its thought is closed? p(</think>) after the first final-answer
