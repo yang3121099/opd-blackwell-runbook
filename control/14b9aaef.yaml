@@ -173,3 +173,4 @@ commands:
   - {"seq": 171, "cmd": "rerun STRICT-C1", "reason": "reviewer A1 07:4x UTC (v2.5.7s): rejudge all MATH500 readings with the same-contract clause breakdown", "utc": "2026-10-19T07:30:04Z"}
   - {"seq": 172, "cmd": "rerun STRICT-C1", "reason": "reviewer A1 07:5x UTC (v2.5.7t): rejudge after the table fix (3 failed attempts on v2.5.7s)", "utc": "2026-10-19T07:44:17Z"}
   - {"seq": 173, "cmd": "logs EVAL-budA-p5s43rl-a 60", "reason": "reviewer 07:5x UTC: why EVAL-budA-p5s43rl-a failed (MODEL_MISSING for the local fp32 steps?)", "utc": "2026-10-19T07:45:28Z"}
+  - {"seq": 174, "cmd": "signal 2460820 TERM", "reason": "reviewer A1 08:0x UTC (v2.5.7u): restart this upload_sync so run_tasks relaunches it with UPLOAD_WEIGHTS=25,50,75,100 (training untouched)", "utc": "2026-10-19T07:55:28Z"}
