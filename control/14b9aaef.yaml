@@ -216,3 +216,4 @@ commands:
   - {"seq": 214, "cmd": "setenv REMOTE_FAULT=hang_once", "reason": "drill A (reviewer A1 14:4x UTC): one-shot hang of the heartbeat's status upload; expect the 180 s timeout and recovery in <= 4 min", "utc": "2026-10-19T14:41:24Z"}
   - {"seq": 215, "cmd": "heartbeat", "reason": "drill A (reviewer A1 14:4x UTC): one-shot hang of the heartbeat's status upload; expect the 180 s timeout and recovery in <= 4 min", "utc": "2026-10-19T14:41:33Z"}
   - {"seq": 216, "cmd": "setenv REMOTE_FAULT=hang_once_hard", "reason": "drill B (reviewer A1 14:4x UTC): status put hangs, ignores TERM; watchdog must restart the heartbeat", "utc": "2026-10-19T14:50:11Z"}
+  - {"seq": 217, "cmd": "heartbeat", "reason": "drill B: restart the heartbeat so it reads the fault", "utc": "2026-10-19T14:50:21Z"}
