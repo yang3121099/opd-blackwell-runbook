@@ -247,3 +247,4 @@ commands:
   - {"seq": 245, "cmd": "ps", "reason": "v2.5.7zf (A1 17:1x): the orphaned EVAL-e12d-P0 prefetch is now listed; refresh procs.json before TERM", "utc": "2026-10-19T17:09:02Z"}
   - {"seq": 246, "cmd": "signal 3507773 TERM", "reason": "reviewer A1 17:1x: orphaned fetch / prefetch (parent init, stuck since 10:40-14:31 UTC) holding back the prefetch queue; visible since v2.5.7zf", "utc": "2026-10-19T17:09:42Z"}
   - {"seq": 247, "cmd": "signal 3507744 TERM", "reason": "reviewer A1 17:1x: orphaned fetch / prefetch (parent init, stuck since 10:40-14:31 UTC) holding back the prefetch queue; visible since v2.5.7zf", "utc": "2026-10-19T17:09:53Z"}
+  - {"seq": 248, "cmd": "signal 3113281 TERM", "reason": "reviewer A1 17:1x: orphaned fetch / prefetch (parent init, stuck since 10:40-14:31 UTC) holding back the prefetch queue; visible since v2.5.7zf", "utc": "2026-10-19T17:10:05Z"}
