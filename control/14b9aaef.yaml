@@ -255,3 +255,4 @@ commands:
   - {"seq": 253, "cmd": "kill EVAL-budA-p5s44rl-a", "reason": "reviewer A1 17:4x: stuck since 17:10 downloading s25 through the node proxy, GPU2 idle; held (#hold), stays paused", "utc": "2026-10-19T17:26:01Z"}
   - {"seq": 254, "cmd": "signal 3850656 TERM", "reason": "reviewer A1 17:4x: the stuck prefetch of EVAL-budA-p5s44rl-a (s25 download) holding back the prefetch queue", "utc": "2026-10-19T17:26:10Z"}
   - {"seq": 255, "cmd": "signal 3850620 TERM", "reason": "reviewer A1 17:4x: the stuck prefetch of EVAL-budA-p5s44rl-a (s25 download) holding back the prefetch queue", "utc": "2026-10-19T17:26:22Z"}
+  - {"seq": 256, "cmd": "signal 3850618 TERM", "reason": "reviewer A1 17:4x: the stuck prefetch of EVAL-budA-p5s44rl-a (s25 download) holding back the prefetch queue", "utc": "2026-10-19T17:26:32Z"}
