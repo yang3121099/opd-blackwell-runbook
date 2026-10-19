@@ -130,11 +130,14 @@ def record_transfer(rec):
         pass
 
 
-def _drill_fault():
+def _drill_fault(dst=""):
     """v2.5.7zb fault injection for the control-plane drill, only with DRILL=1 and REMOTE_FAULT set (setenv; read from
     the environment or, so the running heartbeat sees it without a restart, from $OPD_ROOT/control.env): the next put
     hangs once (marker control/drill_<fault>.done). hang_once can be cut by the caller's timeout; hang_once_hard also
-    ignores SIGTERM, so only the watchdog (process-group KILL) ends it."""
+    ignores SIGTERM, so only the watchdog (process-group KILL) ends it. v2.5.7zc: only the heartbeat's own status upload
+    (dst status/<node>.json) is hit, never a receipt, an event or a weight upload."""
+    if not re.fullmatch(r"status/[^/]+\.json", dst or ""):
+        return
     env = dict(os.environ)
     try:
         for line in open(os.path.join(os.environ.get("OPD_ROOT", ""), "control.env")):
@@ -158,7 +161,7 @@ def _drill_fault():
 
 
 def put(src, dst):
-    _drill_fault()   # v2.5.7zb: a no-op unless DRILL=1 and REMOTE_FAULT are set
+    _drill_fault(dst)   # v2.5.7zb: a no-op unless DRILL=1 and REMOTE_FAULT are set (zc: the status upload only)
     t0, ok = time.time(), False
     try:
         _put(src, dst); ok = True
