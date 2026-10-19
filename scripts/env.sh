@@ -49,9 +49,12 @@ ckpt_link() {   # <task dir>: its ckpt becomes a symlink into $CKPT_ROOT; a real
   local t=$(basename "$1"); mkdir -p "$CKPT_ROOT/$t/ckpt"
   [ -e "$1/ckpt" ] || [ -L "$1/ckpt" ] || ln -s "$CKPT_ROOT/$t/ckpt" "$1/ckpt"; }
 # v2.5.7b: the 4B student (V3-c5) from $OPD_ROOT/models/Qwen3-4B once PROBE-4B has fetched it, else its HF id
-[ -z "${STUDENT_4B:-}" ] && [ -f "$OPD_ROOT/models/Qwen3-4B/.fetch_ok" ] && STUDENT_4B=$OPD_ROOT/models/Qwen3-4B
 # v2.5.7p (Q-015): the 14B teacher of the -t14 arms from $OPD_ROOT/models/Qwen3-14B once PROBE-T14 has fetched it
-[ -z "${TEACHER_14B:-}" ] && [ -f "$OPD_ROOT/models/Qwen3-14B/.fetch_ok" ] && TEACHER_14B=$OPD_ROOT/models/Qwen3-14B
+# v2.5.7zd (10-19 15:5x UTC): also when the HF id was inherited. run_tasks, started before PROBE-T14 wrote .fetch_ok,
+# exported TEACHER_14B=Qwen/Qwen3-14B; its tasks kept that id, and the -t14 arms of 15:17 / 15:33 UTC hung on a hub
+# download (ProxyError) with the complete 29.6 GB local copy unused
+case "${STUDENT_4B:-Qwen/Qwen3-4B}" in Qwen/Qwen3-4B) [ -f "$OPD_ROOT/models/Qwen3-4B/.fetch_ok" ] && STUDENT_4B=$OPD_ROOT/models/Qwen3-4B;; esac
+case "${TEACHER_14B:-Qwen/Qwen3-14B}" in Qwen/Qwen3-14B) [ -f "$OPD_ROOT/models/Qwen3-14B/.fetch_ok" ] && TEACHER_14B=$OPD_ROOT/models/Qwen3-14B;; esac
 export TEACHER_14B=${TEACHER_14B:-Qwen/Qwen3-14B}
 export STUDENT_06B=${STUDENT_06B:-Qwen/Qwen3-0.6B} STUDENT_17B=${STUDENT_17B:-Qwen/Qwen3-1.7B} TEACHER=${TEACHER:-Qwen/Qwen3-8B} STUDENT_4B=${STUDENT_4B:-Qwen/Qwen3-4B}
 export GOPD_COMMIT=37371a4c31ad7947746200d234161769191f4748

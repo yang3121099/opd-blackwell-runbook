@@ -28,12 +28,25 @@ fetch_result() {   # v2.5.6h: $1 = path inside this node's public result reposit
   local i; for i in $(seq 1 ${RESULT_WAIT_MIN:-20}); do
     python $RUNBOOK/scripts/fetch_model.py "$(python $RUNBOOK/scripts/remote.py repo public)" "$1" "$CKPT_ROOT/adhoc_models/result" --task $T >> $OUT/fetch.log 2>&1 && return 0
     [ "$G" = prefetch ] && return 1; sleep ${RESULT_WAIT_STEP:-60}; done; return 1; }
+local_save() {   # v2.5.7zd (reviewer 15:2x UTC, 10-19) $1 = runs/<task>/global_step_N/actor/huggingface (a result: path) -> the
+  # training's own save on this node, if it has weights: its bf16 copy, else its fp32 HF save (read in bf16); "" if none.
+  # result: downloads stalled three times on 10-19 (P5self 10:39, EVAL-e12d-P0 14:49, EVAL-e12b-P2-s43 15:04) with
+  # the GPU idle; the local save is the same weights (upload_sync's bf16 copy is this save cast to bf16)
+  [[ $1 =~ ^runs/([A-Za-z0-9._-]+)/global_step_([0-9]+)/actor/huggingface$ ]] || return 0
+  local r b
+  for r in $OPD_ROOT $CKPT_ROOT; do
+    b=$r/runs/${BASH_REMATCH[1]}/ckpt/global_step_${BASH_REMATCH[2]}/actor
+    has_weights $b/huggingface_bf16 && { echo "$b/huggingface_bf16 auto"; return 0; }
+    has_weights $b/huggingface && { echo "$b/huggingface bfloat16"; return 0; }
+  done; }
 resolve_model() {   # $1 = a model as on an #eval line -> M (fetched if needed); 1 = the fetch failed, 2 = no weights
   DT=auto   # v2.5.7q: local: = a training's own HF save (fp32 for E12b / E10b steps), read in bf16 as its upload would be
   case $1 in
     Qwen/Qwen3-0.6B) M=$STUDENT_06B;; Qwen/Qwen3-1.7B) M=$STUDENT_17B;; Qwen/Qwen3-8B) M=$TEACHER;; Qwen/*) M=$1;;
     yang31210999/opd-lab-ckpts/*) M=$CKPT_ROOT/adhoc_models/${1#yang31210999/opd-lab-ckpts/}; fetch_ckpt "${1#yang31210999/opd-lab-ckpts/}" || return 1;;
-    result:*) M=$CKPT_ROOT/adhoc_models/result/${1#result:}; fetch_result "${1#result:}" || return 1;;
+    result:*) L=$(local_save "${1#result:}")   # v2.5.7zd: local first, the result repository as the fallback
+      if [ -n "$L" ]; then M=${L% *}; DT=${L##* }; echo "LOCAL_FIRST $1 -> $M ($DT)"
+      else M=$CKPT_ROOT/adhoc_models/result/${1#result:}; fetch_result "${1#result:}" || return 1; fi;;
     *) M=$OPD_ROOT/${1#local:}; has_weights $M || M=$CKPT_ROOT/${1#local:}; DT=bfloat16;;
   esac
   has_weights $M || [ "${M#Qwen/}" != "$M" ] || [ -f $M/config.json ] || return 2
@@ -46,7 +59,8 @@ if [ "$G" = prefetch ]; then
   pok=1
   while read -r TAG MODEL BENCH N TEMP MAXT MODE; do
     case $MODEL in yang31210999/opd-lab-ckpts/*) fetch_ckpt "${MODEL#yang31210999/opd-lab-ckpts/}" || { echo "PREFETCH_FAILED $TAG $MODEL"; pok=0; };;
-      result:*) fetch_result "${MODEL#result:}" || { echo "PREFETCH_FAILED $TAG $MODEL"; pok=0; };; esac
+      result:*) [ -n "$(local_save "${MODEL#result:}")" ] && { echo "PREFETCH_LOCAL $TAG $MODEL"; continue; }   # v2.5.7zd
+        fetch_result "${MODEL#result:}" || { echo "PREFETCH_FAILED $TAG $MODEL"; pok=0; };; esac
   done <<< "$SPECS"
   [ $pok = 1 ] && { echo $HASH > $OUT/.inputs_ok; rm -f $OUT/.prefetch_fail; echo "PREFETCH_DONE $T"; exit 0; }
   rm -f $OUT/.inputs_ok; exit 1

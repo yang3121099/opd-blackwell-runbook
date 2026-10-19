@@ -170,6 +170,32 @@ ok "result-only EVAL ready without inputs_ok" '[ "$R1" = yes ] && [ "$R2" = no ]
 ok "result: model from the public repository" '[ $rc4 = 0 ] && grep -q "^fetch me/pub runs/E12b-P0/global_step_100/actor/huggingface $T/root/adhoc_models/result" $CALLS'
 ok "eval with failed fetch not run" '! grep -q "^gen_eval" $CALLS && grep -q MODEL_FETCH_FAILED $T/p3 && [ ! -f $T/root/runs/EVAL-gone/.done ]'
 rm -rf $T
+# 5b. v2.5.7zd: result: reads the training's own save on this node first (bf16 copy, else fp32 read in bf16); the
+#     result repository only when there is none; the prefetch fetches nothing for a local save
+setup
+mkdir -p $T/root/runs/E12d-P0/ckpt/global_step_100/actor/huggingface $T/root/runs/E12b-X/ckpt/global_step_50/actor/huggingface_bf16
+touch $T/root/runs/E12d-P0/ckpt/global_step_100/actor/huggingface/model.safetensors $T/root/runs/E12b-X/ckpt/global_step_50/actor/huggingface_bf16/model.safetensors
+mkdir -p $T/root/adhoc_models/result/runs/E12b-Y/global_step_50/actor/huggingface; touch $T/root/adhoc_models/result/runs/E12b-Y/global_step_50/actor/huggingface/model.safetensors   # as fetched
+cat > $T/rb/tasks/queue.txt <<'EOF2'
+version: 2
+#eval EVAL-lf e12d_P0_s100_math500_T0.6 result:runs/E12d-P0/global_step_100/actor/huggingface math500 4 0.6
+#eval EVAL-lf e12b_X_s50_math500_T0.6 result:runs/E12b-X/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-lf e12b_Y_s50_math500_T0.6 result:runs/E12b-Y/global_step_50/actor/huggingface math500 4 0.6
+EOF2
+bash $T/rb/scripts/run_queue_eval.sh prefetch EVAL-lf > $T/p5 2>&1
+ok "v2.5.7zd prefetch: local saves fetch nothing, the third is fetched" '[ "$(grep -c PREFETCH_LOCAL $T/p5)" = 2 ] && [ "$(grep -c "^fetch " $CALLS)" = 1 ] && grep -q "^fetch me/pub runs/E12b-Y/" $CALLS'
+: > $CALLS; bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-lf > $T/p6 2>&1
+ok "v2.5.7zd result: -> local fp32 (bfloat16) / local bf16 (auto) / fetched" 'grep -q "^gen_eval .*--model $T/root/runs/E12d-P0/ckpt/global_step_100/actor/huggingface .*--dtype bfloat16" $CALLS && grep -q "^gen_eval .*--model $T/root/runs/E12b-X/ckpt/global_step_50/actor/huggingface_bf16 .*--dtype auto" $CALLS && grep -q "^gen_eval .*--model $T/root/adhoc_models/result/runs/E12b-Y/global_step_50/actor/huggingface " $CALLS && [ "$(grep -c "^fetch " $CALLS)" = 1 ]'
+rm -rf $T
+# 5c. v2.5.7zd env.sh: an inherited HF id (a loop started before the fetch) gives way to the fetched local copy; an
+#     explicit local path is kept; no .fetch_ok keeps the HF id
+T=$(mktemp -d); mkdir -p $T/models/Qwen3-14B; touch $T/models/Qwen3-14B/.fetch_ok
+got=$( OPD_ROOT=$T; eval "$(grep -E '^case "\$\{(STUDENT_4B|TEACHER_14B):-' $SRC/scripts/env.sh)"
+  a=$TEACHER_14B; TEACHER_14B=Qwen/Qwen3-14B; eval "$(grep -E '^case "\$\{TEACHER_14B:-' $SRC/scripts/env.sh)"; b=$TEACHER_14B
+  TEACHER_14B=/x/own; eval "$(grep -E '^case "\$\{TEACHER_14B:-' $SRC/scripts/env.sh)"; c=$TEACHER_14B
+  STUDENT_4B=Qwen/Qwen3-4B; eval "$(grep -E '^case "\$\{STUDENT_4B:-' $SRC/scripts/env.sh)"; echo "$a|$b|$c|$STUDENT_4B" )
+ok "v2.5.7zd env.sh: local 14B wins over an unset or inherited HF id, an own path stays, no .fetch_ok keeps the id" '[ "$got" = "$T/models/Qwen3-14B|$T/models/Qwen3-14B|/x/own|Qwen/Qwen3-4B" ]'
+rm -rf $T
 # 6. v2.5.6f E10c (0.6B, V3-c1): task.sh names; run_arm.sh resolves student / arm / seed / batching (DRYRUN), and a
 #    dyn16k task stays dynamic even when an out-of-memory retry has set FIXED_MICRO_BSZ=4
 setup
@@ -289,4 +315,4 @@ ok "running tasks keep their GPUs" '[[ " $got" == *" 1 "* && " $got" == *" 6 "* 
 rm -rf $T
 # v2.5.7j: no task script deletes a final bf16 copy (Runming: final weights keep a local copy after upload)
 ok "final bf16 copies are never deleted by run_e12.sh / run_arm.sh / run_eval.sh" '! grep -nE "rm -rf[^#]*huggingface_bf16" $SRC/scripts/run_e12.sh $SRC/scripts/run_arm.sh $SRC/scripts/run_eval.sh'
-[ $fails = 0 ] && echo "V254A_TEST PASS (48 checks)" || echo "V254A_TEST FAIL ($fails)"
+[ $fails = 0 ] && echo "V254A_TEST PASS (51 checks)" || echo "V254A_TEST FAIL ($fails)"
