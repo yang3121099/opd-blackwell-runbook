@@ -172,3 +172,4 @@ commands:
   - {"seq": 170, "cmd": "snapshot G-OPD/verl/verl/workers/config/actor.py", "reason": "executor feasibility note for the reviewer (FKL arm): which policy-loss / KL options G-OPD already has", "utc": "2026-10-19T06:19:48Z"}
   - {"seq": 171, "cmd": "rerun STRICT-C1", "reason": "reviewer A1 07:4x UTC (v2.5.7s): rejudge all MATH500 readings with the same-contract clause breakdown", "utc": "2026-10-19T07:30:04Z"}
   - {"seq": 172, "cmd": "rerun STRICT-C1", "reason": "reviewer A1 07:5x UTC (v2.5.7t): rejudge after the table fix (3 failed attempts on v2.5.7s)", "utc": "2026-10-19T07:44:17Z"}
+  - {"seq": 173, "cmd": "logs EVAL-budA-p5s43rl-a 60", "reason": "reviewer 07:5x UTC: why EVAL-budA-p5s43rl-a failed (MODEL_MISSING for the local fp32 steps?)", "utc": "2026-10-19T07:45:28Z"}
