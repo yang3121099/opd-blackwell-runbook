@@ -19,11 +19,18 @@ Per generation, with the response tokens as generated (token_ids):
   if the answer ends first): p_stop_env_nl, teacher_stop_env_nl, teacher_nothink_stop_env_nl; and p_stop_max16 /
   teacher_stop_max16 = the largest p(<|im_end|>) over the 16 tokens after the token that closes the box. The nl measures
   are kept for comparison; ctx_env in samples.jsonl shows 12 bytes either side of the environment's close.
+  v2.5.7z (PROBE-TERM4; reviewer 11:1x UTC, closing TERM2 / TERM3): does P5 stop once its thought is closed? With
+  --term4, per generation also: k_close = the first </think> the model wrote (token 151668; the non-thinking template's
+  own empty think block is in the prompt, not here); the first box holding the final answer (the last box's content);
+  p_close_think_max16 = the largest p(</think>) over the 16 tokens after that box's closing brace (box_before_close
+  marks it inside the thought); the last box (the summary's) and p_stop_last_env_nl = p(<|im_end|>) at the first newline
+  after its math environment closes (or the end token), p_stop_last_max16 = the largest p(<|im_end|>) over the 16 tokens
+  after it. A fifth tsv field `think` renders the model's prompt in the thinking template (the base in thinking mode).
 Per model: generations, truncation rate, anchor rate, mean / median / 10 25 75 90th percentiles of every measure and a
 95% CI of the mean (bootstrap over problems, 10000 resamples, seed 0); within each size group (tag prefix before the
 first "_"), every pair of models on (1), (2), (3) (problem-level paired bootstrap of the per-problem means).
 Usage: python term_probe.py --teacher <8B dir> --inputs <tsv: tag, model dir, generations jsonl, model id, source>
-           --out <report.json> [--samples <per-sample.jsonl>] [--max_per_model N] [--no_teacher_nothink]
+           --out <report.json> [--samples <per-sample.jsonl>] [--max_per_model N] [--no_teacher_nothink] [--term4]
 """
 import argparse
 import bisect
@@ -39,6 +46,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(HERE), "eval"))
 MARKERS = rb"(?i)\b(?:wait|let me (?:check|verify|double[- ]?check|re-?check|re-?examine|reconsider|confirm|re-?evaluate|make sure)" \
           rb"|double[- ]?check|verify|re-?check|alternatively|however|hmm+|actually|on second thought|but let me)\b"
 EOS_IDS = (151645, 151643)   # <|im_end|>, <|endoftext|> (Qwen3); p_stop = p(<|im_end|>), p_stop_any = both
+THINK_CLOSE = 151668          # </think> (Qwen3, an added token: its byte piece is empty here)
 
 
 def bytes_to_unicode():
@@ -139,6 +147,46 @@ def env_positions(pieces, ids):
     return (k_box, eos, "env_eos", ctx) if eos is not None else (k_box, None, "env_none", ctx)
 
 
+def box_spans(b):
+    """[(start, end, content)] of the complete \\boxed{...} in b (bytes)."""
+    out, i = [], b.find(b"\\boxed{")
+    while i >= 0:
+        depth, j = 1, i + 7
+        while j < len(b) and depth:
+            depth += {123: 1, 125: -1}.get(b[j], 0); j += 1
+        if depth:
+            break
+        out.append((i, j, b[i + 7: j - 1]))
+        i = b.find(b"\\boxed{", j)
+    return out
+
+
+def term4_positions(pieces, ids):
+    """v2.5.7z: dict(k_close, k_fb, box_before_close, k_last, k_last_env, case_last) or None without a box: k_close = the
+    first </think> token, k_fb = the token holding the closing brace of the first box with the final (last box's)
+    content, k_last = the same for the last box, k_last_env = the first token after the last box's math environment
+    closes that holds a newline, or the end token if that comes first."""
+    b = b"".join(pieces)
+    sp = box_spans(b)
+    if not sp:
+        return None
+    starts = starts_of(pieces)
+    tok_of = lambda byte: bisect.bisect_right(starts, byte) - 1
+    final = b"".join(sp[-1][2].split())
+    fb = next(s for s in sp if b"".join(s[2].split()) == final)
+    k_close = next((k for k, t in enumerate(ids) if t == THINK_CLOSE), None)
+    k_fb, k_last = tok_of(fb[1] - 1), tok_of(sp[-1][1] - 1)
+    ec = env_close(b, sp[-1][0], sp[-1][1])
+    nl = b.find(b"\n", ec)
+    eos = next((k for k in range(k_last + 1, len(ids)) if ids[k] in EOS_IDS and (starts[k] >= ec or k == len(ids) - 1)), None)
+    if nl >= 0 and (eos is None or tok_of(nl) < eos):
+        k_env, case = tok_of(nl), "env_nl"
+    else:
+        k_env, case = eos, ("env_eos" if eos is not None else "env_none")
+    return {"k_close": k_close, "k_fb": k_fb, "box_before_close": k_close is not None and k_fb < k_close,
+            "k_last": k_last, "k_last_env": k_env, "case_last": case, "last_after_close": k_close is not None and k_last > k_close}
+
+
 def starts_of(pieces):
     starts, pos = [], 0
     for p in pieces:
@@ -178,6 +226,19 @@ def markers(pieces, k_box_end_byte):
         lo, hi = k_box_end_byte + m.start(), k_box_end_byte + m.end()
         hit.update(k for k in cont if starts[k] < hi and starts[k] + len(pieces[k]) > lo)
     return len(cont), len(hit)
+
+
+def token_probs(model, prompt_ids, resp_ids, ks, tid):
+    """v2.5.7z: {k: p(tid)} of the distributions that chose resp_ids[k], one forward up to max(ks)."""
+    import torch
+    ks = [k for k in ks if k is not None]
+    if not ks:
+        return {}
+    ids = torch.tensor([prompt_ids + resp_ids[:max(ks)]], device="cuda")
+    with torch.no_grad():
+        h = model.model(input_ids=ids).last_hidden_state[0]
+        p = torch.softmax(model.lm_head(h[[len(prompt_ids) + k - 1 for k in ks]]).float(), -1)
+    return {k: round(p[i, tid].item(), 6) for i, k in enumerate(ks)}
 
 
 def stop_probs(model, prompt_ids, resp_ids, ks):
@@ -242,6 +303,7 @@ def main():
     ap.add_argument("--max_per_model", type=int, default=0)
     ap.add_argument("--no_teacher_nothink", action="store_true")
     ap.add_argument("--no_teacher", action="store_true")   # v2.5.7m (PROBE-TERM3): the teacher's values depend on the text only
+    ap.add_argument("--term4", action="store_true")        # v2.5.7z (PROBE-TERM4)
     a = ap.parse_args()
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -264,7 +326,9 @@ def main():
         if mdir == "-" or not os.path.isfile(gens):
             info["error"] = src if mdir == "-" else "generations missing"; report["models"][tag] = info; continue
         tok = AutoTokenizer.from_pretrained(mdir); student = load(mdir)
-        sp = prompts(tok, rows, False, PROMPT_SUFFIX)
+        think = len(f) > 5 and f[5] == "think"   # v2.5.7z: the model's own generation template
+        info["template"] = "thinking" if think else "non-thinking"
+        sp = prompts(tok, rows, think, PROMPT_SUFFIX)
         recs = [json.loads(x) for x in open(gens)]
         if a.max_per_model:
             recs = recs[:a.max_per_model]
@@ -291,6 +355,18 @@ def main():
                 vals["p_stop_nl"] = s.get(k_nl, (None,))[0]; vals["p_stop_any_nl"] = s.get(k_nl, (None, None))[1]
                 vals["p_stop_after_box"] = s.get(k_after, (None,))[0]
                 vals["p_stop_env_nl"] = s.get(k_env, (None,))[0]; vals["p_stop_max16"] = mx(s)
+                if a.term4:   # v2.5.7z
+                    t4 = term4_positions(pieces, ids)
+                    kf16 = list(range(t4["k_fb"] + 1, min(t4["k_fb"] + 17, len(ids))))
+                    kl16 = list(range(t4["k_last"] + 1, min(t4["k_last"] + 17, len(ids))))
+                    pc = token_probs(student, sp[r["pid"]], ids, kf16, THINK_CLOSE)
+                    sl = stop_probs(student, sp[r["pid"]], ids, [t4["k_last_env"]] + kl16)
+                    vals["p_close_think_max16"] = max((pc[k] for k in kf16 if k in pc), default=None)
+                    vals["p_stop_last_env_nl"] = sl.get(t4["k_last_env"], (None,))[0]
+                    vals["p_stop_last_max16"] = max((sl[k][0] for k in kl16 if k in sl), default=None)
+                    vals["box_before_close"] = float(t4["box_before_close"]); vals["writes_close"] = float(t4["k_close"] is not None)
+                    vals["last_after_close"] = float(t4["last_after_close"])
+                    cnt["last_" + t4["case_last"]] += 1
                 t = stop_probs(teacher, tp_think[r["pid"]], ids, [k_nl, k_env] + k16) if teacher is not None else {}
                 vals["teacher_stop_nl"] = t.get(k_nl, (None,))[0]
                 vals["teacher_stop_env_nl"] = t.get(k_env, (None,))[0]; vals["teacher_stop_max16"] = mx(t)
@@ -309,7 +385,7 @@ def main():
                 sf.write(json.dumps(row) + "\n")
         n = max(cnt["generations"], 1)
         info.update(generations=cnt["generations"], trunc_rate=round(cnt["truncated"] / n, 4), anchor_rate=round(1 - cnt["no_anchor"] / n, 4),
-                    cases={c: cnt[c] for c in ("nl", "eos_first", "none", "no_anchor", "env_nl", "env_eos", "env_none")},
+                    cases={c: cnt[c] for c in ("nl", "eos_first", "none", "no_anchor", "env_nl", "env_eos", "env_none", "last_env_nl", "last_env_eos", "last_env_none")},
                     marker_frac_pooled=round(pooled[0] / pooled[1], 5) if pooled[1] else None,
                     measures={k: describe(v, m.get(k, {})) for k, v in allv.items()})
         report["models"][tag] = info; per[tag] = m
@@ -324,7 +400,8 @@ def main():
             for y in tags[i + 1:]:
                 report["pairs"][f"{x} - {y}"] = {k: paired_metric(per[x].get(k, {}), per[y].get(k, {}))
                                                  for k in ("p_stop_nl", "p_stop_env_nl", "p_stop_max16", "marker_frac", "teacher_stop_nl",
-                                                           "teacher_stop_env_nl", "teacher_stop_max16", "cont_tokens")}
+                                                           "teacher_stop_env_nl", "teacher_stop_max16", "cont_tokens",
+                                                           "p_close_think_max16", "p_stop_last_env_nl", "p_stop_last_max16")}
     json.dump(report, open(a.out, "w"), indent=1)
     if sf:
         sf.close()

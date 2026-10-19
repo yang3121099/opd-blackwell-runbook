@@ -85,3 +85,21 @@ def test_env_positions_past_the_display_math():
     pieces, ids = P("$$", "\n", "\\boxed{", "4", "}", "\n", "$$", "\n\n", "Wait", None)
     assert TP.env_positions(pieces, ids)[1:3] == (7, "env_nl")
     assert TP.env_positions(*P("no box", "\n")) is None
+
+
+def test_term4_positions():   # v2.5.7z (PROBE-TERM4)
+    # P5-like: the answer boxed in the thought, the model's own </think> (an empty piece), a summary boxing it again, EOS
+    pieces = [b"so ", b"\\boxed{4}", b" ok", b"", b"\n\nAnswer: $\\boxed{ 4 }$", b"\n", b""]
+    ids = [1000, 1001, 1002, TP.THINK_CLOSE, 1004, 1005, EOS]
+    t = TP.term4_positions(pieces, ids)
+    assert t["k_close"] == 3 and t["k_fb"] == 1 and t["box_before_close"] and t["k_last"] == 4 and t["last_after_close"]
+    assert t["k_last_env"] == 5 and t["case_last"] == "env_nl"
+    # base-like: one box, no </think>, ends at EOS before any newline
+    pieces, ids = P("x \\boxed{7}", " done", None)
+    t = TP.term4_positions(pieces, ids)
+    assert t["k_close"] is None and not t["box_before_close"] and t["k_fb"] == t["k_last"] == 0 and t["case_last"] == "env_eos" and t["k_last_env"] == 2
+    # the first box with the final content, not the first box: 3 then 4 then 4
+    pieces, ids = P("\\boxed{3} no ", "\\boxed{4}", " so \\boxed{4}", None)
+    t = TP.term4_positions(pieces, ids)
+    assert t["k_fb"] == 1 and t["k_last"] == 2
+    assert TP.term4_positions(*P("no box", None)) is None

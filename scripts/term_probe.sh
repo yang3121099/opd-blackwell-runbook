@@ -16,7 +16,10 @@
 # are reused, not drawn again) with the environment-close anchor and the 16-token maximum (term_probe.py, reviewer 23:35 UTC)
 # v2.5.7m: PROBE-TERM3 (reviewer 01:0x UTC) = cross prefixes: a model on another model's generations, its own #term
 # PROBE-TERM3 lines, no teacher (its values depend on the text only, and the texts are those PROBE-TERM2 measured)
-# Usage: bash term_probe.sh <gpu> PROBE-TERM|PROBE-TERM2|PROBE-TERM3
+# v2.5.7z: PROBE-TERM4 (reviewer 11:1x UTC) = its own #term PROBE-TERM4 lines with an optional 4th field `think` (the
+# model's prompt in the thinking template), no teacher, term_probe.py --term4: p(</think>) after the first final-answer
+# box, p(<|im_end|>) after the last box (the summary's)
+# Usage: bash term_probe.sh <gpu> PROBE-TERM|PROBE-TERM2|PROBE-TERM3|PROBE-TERM4
 set -uo pipefail
 G=$1; T=$2; source "$(dirname "$0")/env.sh"; source ${VENV_EVAL:-$OPD_ROOT/venv}/bin/activate
 D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; Q=${QUEUE_FILE:-$RUNBOOK/tasks/queue.txt}; mkdir -p $D/gen $D/up/gen
@@ -27,7 +30,7 @@ fetch_result() { python $RUNBOOK/scripts/fetch_model.py "$(python $RUNBOOK/scrip
 step "start $T gpu=$G"
 : > $D/inputs.tsv
 QT=$T; [ $T = PROBE-TERM2 ] && QT=PROBE-TERM   # v2.5.7m: only PROBE-TERM2 reuses PROBE-TERM's lines
-while read -r TAG MODEL GENS; do
+while read -r TAG MODEL GENS MODE; do
   [ -n "$TAG" ] || continue
   [[ $TAG =~ ^[A-Za-z0-9.-]+_[A-Za-z0-9._-]+$ ]] || { step "REFUSED bad tag $TAG"; continue; }
   python -c "import sys; sys.path.insert(0, sys.argv[1]); import control_rules as R; R.check_eval_args([sys.argv[2], 'math500'])" \
@@ -56,13 +59,14 @@ while read -r TAG MODEL GENS; do
     *) F=""; SRC="refused $GENS";;
   esac
   [ -n "$F" ] && [ -f "$F" ] || { step "GENERATIONS_MISSING $TAG: $GENS"; F=-; }
-  printf '%s\t%s\t%s\t%s\t%s\n' "$TAG" "$M" "$F" "$MODEL" "$SRC" >> $D/inputs.tsv
+  [ "${MODE:-}" = think ] || MODE=nothink
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$TAG" "$M" "$F" "$MODEL" "$SRC" "$MODE" >> $D/inputs.tsv
   step "input $TAG: $MODEL, $SRC"
-done <<< "$(awk -v t="$QT" '$1 == "#term" && $2 == t {print $3, $4, $5}' "$Q")"
+done <<< "$(awk -v t="$QT" '$1 == "#term" && $2 == t {print $3, $4, $5, $6}' "$Q")"
 [ -s $D/inputs.tsv ] || { step "no #term lines for $T"; exit 1; }
 step "measure $(wc -l < $D/inputs.tsv) models"
 CUDA_VISIBLE_DEVICES=$G python $RUNBOOK/code/analysis/term_probe.py --teacher $TEACHER --inputs $D/inputs.tsv --out $D/report.json \
-  --samples $D/samples.jsonl $([ $T = PROBE-TERM3 ] && echo --no_teacher) >> $LOG 2>&1; rc=$?
+  --samples $D/samples.jsonl $([ $T = PROBE-TERM3 ] && echo --no_teacher) $([ $T = PROBE-TERM4 ] && echo --no_teacher --term4) >> $LOG 2>&1; rc=$?
 python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true
 cp $D/report.json $D/samples.jsonl $D/up/ 2> /dev/null
 python $RUNBOOK/scripts/remote.py put $D/up runs/$T >> $LOG 2>&1 || { step "report upload failed (kept in $D)"; rc=1; }
