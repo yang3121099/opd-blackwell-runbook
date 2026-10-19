@@ -199,8 +199,8 @@ setup
 printf 'echo "run_e12 $*"\n' > $T/rb/scripts/run_e12.sh
 cp $SRC/scripts/run_zero.sh $T/rb/scripts/run_zero.sh; mkdir -p $T/rb/code/weights
 printf 'import sys, os; open(os.environ["CALLS"], "a").write("wops " + " ".join(sys.argv[1:]) + "\\n")\n' > $T/rb/code/weights/wops.py
-ok "E12b-P5-s43 accepted" '[[ "$(bash $T/rb/scripts/task.sh 0 E12b-P5-s43 | tail -1)" == "run_e12 0 E12b-P5-s43" ]] && ! bash $T/rb/scripts/task.sh 0 E12b-P5-s45 > /dev/null 2>&1'
-ok "run_e12 gives P5-s43 100 steps" 'grep -q "P0|P1|P2|P3|P5|P5-s43) STEPS=100" $SRC/scripts/run_e12.sh'
+ok "E12b-P5-s43 / -s44 accepted" '[[ "$(bash $T/rb/scripts/task.sh 0 E12b-P5-s43 | tail -1)" == "run_e12 0 E12b-P5-s43" ]] && [[ "$(bash $T/rb/scripts/task.sh 0 E12b-P5-s44 | tail -1)" == "run_e12 0 E12b-P5-s44" ]] && ! bash $T/rb/scripts/task.sh 0 E12b-P5-s45 > /dev/null 2>&1'
+ok "run_e12 gives P5-s43 / P5-s44 100 steps" 'grep -q "P0|P1|P2|P3|P5|P5-s43|P5-s44) STEPS=100" $SRC/scripts/run_e12.sh'
 bash $T/rb/scripts/task.sh 0 E02-opsa17-c2 > $T/z1 2>&1; bash $T/rb/scripts/task.sh 0 E01-opsa17-think > $T/z2 2>&1
 ok "E02 OPSA name from the HF id" 'grep -q "^wops scale --base $T/m17 --ft Tuwhy/Qwen3-1.7B-OPSA --c 2 " $CALLS && grep -q "e02_opsa17_c2_aime24_nothink" $CALLS'
 bash $T/rb/scripts/task.sh 0 E05-fstop-base06 > $T/z3 2>&1

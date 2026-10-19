@@ -61,6 +61,9 @@ mkdir -p $T/base/root/runs/SFT-P1 $T/base/opd-dr/keep/SFT-P1/ckpt/global_step_28
 d4=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P1 2>&1 | tail -1)
 d6=$(VENV=fa DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P0 2>&1 | tail -1); d7=$(VENV=fa E12B_FA=1 DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P0 2>&1 | tail -1)
 d8=$(SMOKE=1 PROBE_TASK=FA-SPEED-E12-fa_gc0 DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P0 2>&1 | tail -1)   # v2.5.7c
+mkdir -p $T/base/root/runs/E10b-P5-s44/ckpt/global_step_150/actor/huggingface_bf16; : > $T/base/root/runs/E10b-P5-s44/ckpt/global_step_150/actor/huggingface_bf16/model.safetensors
+d9=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P5-s44 2>&1 | tail -1)   # v2.5.7n
+ok "v2.5.7n E12b-P5-s44: 100 steps from E10b-P5-s44" '[[ "$d9" == "DRYRUN E12b-P5-s44 "*"E10b-P5-s44"*"steps=100 "* ]]'
 ok "E12b: venv-fa only with E12B_FA=1" '[[ "$d6" == *"venv=venv "* && "$d7" == *"venv=venv-fa "* ]]'
 ok "E12b smoke: own dir, 3 steps, no save" '[[ "$d8" == "DRYRUN FA-SPEED-E12-fa_gc0 "*"steps=3 save=-1 "* ]] && [ ! -e $T/ck/FA-SPEED-E12-fa_gc0 ]'
 ok "P1 start from the share when the container disk lost it" '[[ "$d4" == *"start=$T/base/opd-dr/keep/SFT-P1/ckpt/global_step_283/huggingface "* ]]'
