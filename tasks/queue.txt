@@ -35,9 +35,7 @@ v3c5     open   PROBE-4B EVAL-e10d-P0
 zero     open   E03-MI-l0.0 E03-MI-l0.3 E03-MI-l0.5 E03-MI-l0.7 E03-MI-l1.0 E02-opsa17-c0.5 E02-opsa17-c1.5 E02-opsa4-c-1 E02-opsa4-c0.5 E02-opsa4-c1.5
 v3c23    open   E12b-P5-s43:E10b-P5-s43 E02-opsa17-c-1 E02-opsa17-c2 E02-opsa4-c2 E01-opsa17-think E01-opsa17-nothink E01-base17-think E05-fstop-base06 E05-fstop-art06
 v3c5arms open   E10d-P2:PROBE-4B E10d-P5:PROBE-4B EVAL-e10d-P2:E10d-P2+EVAL-e10d-P0 EVAL-e10d-P5:E10d-P5+EVAL-e10d-P2+EVAL-e10d-P0
-late     open   E12b-P5-s44:E10b-P5-s44 E12d-P0 E12d-P5 PROBE-P5THINK E10b-P5think:PROBE-P5THINK PROBE-P5SELF E10b-P5self:PROBE-P5SELF STRICT-C1 EVAL-budA-p5s43rl-b EVAL-budA-4B:E10d-P5 EVAL-budA-4Bthink EVAL-budA-top10 EVAL-budA-top10b EVAL-budA-top10c EVAL-ext-E10d-P0 EVAL-ext-E10d-P2 EVAL-ext-E10d-P5 EVAL-budA17c EVAL-ext-E12b-P5s43 EVAL-e12b-P5-s44:E12b-P5-s44
-p5think  open   EVAL-e10b-P5think:E10b-P5think EVAL-budA-P5think:E10b-P5think
-p5self   open   EVAL-e10b-P5self:E10b-P5self EVAL-budA-P5self:E10b-P5self
+late     open   E12b-P5-s44:E10b-P5-s44 E12d-P0 E12d-P5 PROBE-P5THINK E10b-P5think:PROBE-P5THINK PROBE-P5SELF E10b-P5self:PROBE-P5SELF STRICT-C1 EVAL-budA-p5s43rl-b EVAL-budA-4B:E10d-P5 EVAL-budA-4Bthink EVAL-e10b-P5think:E10b-P5think EVAL-budA-P5think:E10b-P5think EVAL-e10b-P5self:E10b-P5self EVAL-budA-P5self:E10b-P5self EVAL-budA-top10 EVAL-budA-top10b EVAL-budA-top10c EVAL-ext-E10d-P0 EVAL-ext-E10d-P2 EVAL-ext-E10d-P5 EVAL-budA17c EVAL-ext-E12b-P5s43 EVAL-e12b-P5-s44:E12b-P5-s44
 midrl    open   EVAL-budA-p5s44rl-a:E12b-P5-s44 EVAL-budA-p5s44rl-b:E12b-P5-s44 EVAL-budA-e12dP5rl-a:E12d-P5 EVAL-budA-e12dP5rl-b:E12d-P5
 v3o      open   PROBE-T14 E12b-P2-s43:E10b-P2-s43 E10d-P5-s43 E10d-P2-s43 EVAL-e12d-P0:E12d-P0 EVAL-e12d-P5:E12d-P5+EVAL-e12d-P0 EVAL-e12b-P2-s43:E12b-P2-s43 EVAL-e10d-P2-s43:E10d-P2-s43 EVAL-e10d-P5-s43:E10d-P5-s43+EVAL-e10d-P2-s43
 t14      open   E10b-P5-t14:PROBE-T14 E10b-P2-t14:PROBE-T14 E11b-P5-t14:E10b-P5-t14+E11b-P0 E11b-P2-t14:E10b-P2-t14+E11b-P0 EVAL-budA-t14:E10b-P5-t14+E10b-P2-t14
@@ -373,10 +371,10 @@ term4    open   PROBE-TERM4
 # p5think (v2.5.7r, Q-016; reviewer A1 08:3x UTC; Runming: a fast answer): E10b-P5think = thinking teacher + thinking student, 8K, 50
 # steps, FA; PROBE-P5THINK and the arm take the next free GPU (the one jump ahead of STRICT-C1, p5s43rl and the seed-2 arms).
 # Not comparable with E10b's 4K arms (8K is the symmetric setting's own budget); the pairs compare what each recipe delivers.
-#eval EVAL-e10b-P5think e10b_P5think_s50_math500_T0.6 result:runs/E10b-P5think/global_step_50/actor/huggingface math500 4 0.6 16384 think
-#eval EVAL-e10b-P5think e10b_P5think_s50_math500_T1.0 result:runs/E10b-P5think/global_step_50/actor/huggingface math500 4 1.0 16384 think
+#eval EVAL-e10b-P5think e10b_P5think_s50_math500_T0.6 local:runs/E10b-P5think/ckpt/global_step_50/actor/huggingface math500 4 0.6 16384 think
+#eval EVAL-e10b-P5think e10b_P5think_s50_math500_T1.0 local:runs/E10b-P5think/ckpt/global_step_50/actor/huggingface math500 4 1.0 16384 think
 #pair EVAL-e10b-P5think e10b_P5think_s50_math500_T0.6 archive:runs/e10/e10_P5_1.7B_s50_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P0/e11b_P0_math500_T0.6_math500_no_think_t0.6.jsonl
-#eval EVAL-budA-P5think budAP5think_s50_math500_T0.6_32k result:runs/E10b-P5think/global_step_50/actor/huggingface math500 4 0.6 32768 think
+#eval EVAL-budA-P5think budAP5think_s50_math500_T0.6_32k local:runs/E10b-P5think/ckpt/global_step_50/actor/huggingface math500 4 0.6 32768 think
 #budget EVAL-budA-P5think budget_curve_vsP0think EVAL-budB/budB_P0think_math500_T0.6_32k_math500_think_t0.6.jsonl budAP5think_s50_math500_T0.6_32k
 #budget EVAL-budA-P5think budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5think_s50_math500_T0.6_32k
 #budget EVAL-budA-P5think budget_curve_vsP5s150 EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5think_s50_math500_T0.6_32k
@@ -405,11 +403,11 @@ term4    open   PROBE-TERM4
 # p5self (v2.5.7v, Q-017; reviewer A1 08:3x UTC): E10b-P5self = P5 with the student's own base as the thinking-template teacher,
 # 50 steps, FA, after E10b-P5think and before the t14 arms. Readings: EVAL lines (as E11b + TWR; pairs vs the lab's P5 s50 from the
 # archive, P5 s150, base) and the 32K curve. Confound (Q-017): the lab's P5 s50 ran on SDPA with the lab's batching, P5self on FA.
-#eval EVAL-e10b-P5self e10b_P5self_s50_math500_T0.6 result:runs/E10b-P5self/global_step_50/actor/huggingface math500 4 0.6
-#eval EVAL-e10b-P5self e10b_P5self_s50_math500_T1.0 result:runs/E10b-P5self/global_step_50/actor/huggingface math500 4 1.0
+#eval EVAL-e10b-P5self e10b_P5self_s50_math500_T0.6 local:runs/E10b-P5self/ckpt/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-e10b-P5self e10b_P5self_s50_math500_T1.0 local:runs/E10b-P5self/ckpt/global_step_50/actor/huggingface math500 4 1.0
 #twr EVAL-e10b-P5self e10b_P5self_s50_math500_T0.6
 #pair EVAL-e10b-P5self e10b_P5self_s50_math500_T0.6 archive:runs/e10/e10_P5_1.7B_s50_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P0/e11b_P0_math500_T0.6_math500_no_think_t0.6.jsonl
-#eval EVAL-budA-P5self budAP5self_s50_math500_T0.6_32k result:runs/E10b-P5self/global_step_50/actor/huggingface math500 4 0.6 32768
+#eval EVAL-budA-P5self budAP5self_s50_math500_T0.6_32k local:runs/E10b-P5self/ckpt/global_step_50/actor/huggingface math500 4 0.6 32768
 #budget EVAL-budA-P5self budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5self_s50_math500_T0.6_32k
 #budget EVAL-budA-P5self budget_curve_vsP5s150 EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5self_s50_math500_T0.6_32k
 # v2.5.7w (reviewer A1 09:0x UTC): Qwen3-32B fetched to the share without a GPU, for tomorrow's 8B probe / a larger teacher
@@ -430,3 +428,7 @@ term4    open   PROBE-TERM4
 #budget EVAL-budA-top10c budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-top10/budAtop10_E10bP5top10_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-top10b/budAtop10_E10bP5rand10m_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAtop10_E10P5_17B_s50_math500_T0.6_32k
 #budget EVAL-budA-top10c budget_curve_top10_vs_rand EVAL-budA-top10b/budAtop10_E10bP5rand10m_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-top10/budAtop10_E10bP5top10_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl
 #budget EVAL-budA-top10c budget_curve_vsP5s50 budAtop10_E10P5_17B_s50_math500_T0.6_32k EVAL-budA-top10/budAtop10_E10bP5top10_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-top10b/budAtop10_E10bP5rand10m_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+# 11:1x UTC (patrol / reviewer URGENT): EVAL-e10b-P5self and EVAL-budA-P5self sat 35 min on GPU4 / GPU7 in two concurrent fetch_model
+# runs of the same result: path into the same directory (stuck on the download lock). The P5think / P5self readings now read the
+# training's own fp32 HF save of step 50 (kept: KEEP_LOCAL_HF=1; local: = bf16, v2.5.7q, the same values as the bf16 upload), no
+# fetch; and they moved into late ahead of the top10 32K readings (reviewer: higher priority). The two stuck tasks are killed and rerun.
