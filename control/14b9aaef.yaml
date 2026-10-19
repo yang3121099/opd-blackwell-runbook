@@ -283,3 +283,4 @@ commands:
   - {"seq": 281, "cmd": "du ckpt adhoc_models/runs/E10-P5-1.7B-lr3e-6-s50/global_step_50/actor/huggingface", "reason": "budA-top10c: is the lab P5 s50 already local (cached .fetch_ok), so no proxy download", "utc": "2026-10-19T20:20:30Z"}
   - {"seq": 282, "cmd": "logs EVAL-e12d-P5 25", "reason": "reviewer 20:4x: EVAL-e12d-P5 rerun done 20:38 but no twr.json on HF: TWR_DONE / FAIL / SKIPPED?", "utc": "2026-10-19T20:46:20Z"}
   - {"seq": 283, "cmd": "rerun EVAL-e12d-P5", "reason": "reviewer 20:4x UTC: TWR only (4B base judge vs EVAL-e10d-P0, v2.5.7zj) - readings and pairs exist and are skipped", "utc": "2026-10-19T20:48:57Z"}
+  - {"seq": 284, "cmd": "rerun EVAL-e10d-P2", "reason": "reviewer 20:4x UTC: TWR only (4B base judge vs EVAL-e10d-P0, v2.5.7zj) - readings and pairs exist and are skipped", "utc": "2026-10-19T20:49:05Z"}
