@@ -250,3 +250,4 @@ commands:
   - {"seq": 248, "cmd": "signal 3113281 TERM", "reason": "reviewer A1 17:1x: orphaned fetch / prefetch (parent init, stuck since 10:40-14:31 UTC) holding back the prefetch queue; visible since v2.5.7zf", "utc": "2026-10-19T17:10:05Z"}
   - {"seq": 249, "cmd": "signal 3114965 TERM", "reason": "reviewer A1 17:1x: orphaned fetch / prefetch (parent init, stuck since 10:40-14:31 UTC) holding back the prefetch queue; visible since v2.5.7zf", "utc": "2026-10-19T17:10:16Z"}
   - {"seq": 250, "cmd": "signal 3256709 TERM", "reason": "reviewer A1 17:1x: orphaned fetch / prefetch (parent init, stuck since 10:40-14:31 UTC) holding back the prefetch queue; visible since v2.5.7zf", "utc": "2026-10-19T17:10:27Z"}
+  - {"seq": 251, "cmd": "ps", "reason": "ext32k-4B has had no prefetch since the orphans were cleared at 17:13: which prefetch holds the queue", "utc": "2026-10-19T17:22:52Z"}
