@@ -232,3 +232,4 @@ commands:
   - {"seq": 230, "cmd": "resume PROBE-TERM4", "reason": "back in its free-GPUs-only place (last stage)", "utc": "2026-10-19T15:47:15Z"}
   - {"seq": 231, "cmd": "logs E10b-P5-t14 60", "reason": "reviewer 15:4x: t14 arms at step 0 / 1 GB for 20+ min: 14B teacher loading or stuck?", "utc": "2026-10-19T15:47:40Z"}
   - {"seq": 232, "cmd": "logs E10b-P2-t14 40", "reason": "reviewer 15:4x: same for the second t14 arm", "utc": "2026-10-19T15:47:49Z"}
+  - {"seq": 233, "cmd": "kill E10b-P5-t14", "reason": "reviewer 15:4x: 20+ min no progress -> reap; ref_init_model (14B teacher) asleep since 15:20:55, cpu ~0.7%, rss 1.6 GB flat; stays paused until the cause is known", "utc": "2026-10-19T15:50:42Z"}
