@@ -156,3 +156,4 @@ commands:
   - {"seq": 154, "cmd": "logs E11b-P5-s44 60", "reason": "reviewer 00:3x UTC: why E11b-P5-s44 attempt 1 failed (the flash-attn acceptance reading)", "utc": "2026-10-19T00:30:14Z"}
   - {"seq": 155, "cmd": "snapshot runs/E11b-P5-s44/.failed", "reason": "reviewer 00:3x UTC: attempt-1 failure of E11b-P5-s44", "utc": "2026-10-19T00:31:36Z"}
   - {"seq": 156, "cmd": "snapshot runs/E11b-P5-s44/e11b_P5-s44_math500_T0.6_math500_no_think_t0.6.metrics.json", "reason": "reviewer 00:3x UTC: the T0.6 metrics of E11b-P5-s44 (flash-attn acceptance) if attempt 1 finished them", "utc": "2026-10-19T00:32:54Z"}
+  - {"seq": 157, "cmd": "logs E11b-P5-s44 400", "reason": "reviewer 01:0x UTC: is E11b-P5-s44's T1.0 done, is TWR running", "utc": "2026-10-19T01:05:47Z"}
