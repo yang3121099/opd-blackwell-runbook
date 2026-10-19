@@ -25,12 +25,20 @@ import time
 os.environ.setdefault("HF_HUB_ETAG_TIMEOUT", "60")       # read by huggingface_hub at import
 os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "120")
 os.environ.pop("HF_HUB_OFFLINE", None)
-if os.environ.get("HF_HUB_ENABLE_HF_TRANSFER") is None:   # v2.5.5: multi-connection downloads (install_uv.sh installs hf-transfer;
-    try:                                                    # B300 17:56: 7.9 MB/s single-connection from huggingface.co)
+# v2.5.7zh (reviewer 17:4x UTC, 10-19): Xet downloads through the node's proxy fail (the xet-read-token call: ProxyError;
+# the t14 arms, three result: readings and the 32B fetch hung or failed on it), so fetches go over plain HTTP by default
+# (HF_HUB_DISABLE_XET=1) and without hf_transfer, whose downloads do not resume (a partial file under
+# .cache/huggingface/download is continued by the plain download). FETCH_XET=1 / FETCH_HF_TRANSFER=1 bring them back.
+if os.environ.get("FETCH_XET") != "1":
+    os.environ["HF_HUB_DISABLE_XET"] = "1"
+if os.environ.get("HF_HUB_ENABLE_HF_TRANSFER") is None and os.environ.get("FETCH_HF_TRANSFER") == "1":   # v2.5.5: multi-connection
+    try:                                                    # downloads (B300 17:56: 7.9 MB/s single-connection from huggingface.co)
         import hf_transfer  # noqa: F401
         os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
     except ImportError:
         pass
+elif os.environ.get("FETCH_HF_TRANSFER") != "1":
+    os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
 
 ENDPOINTS = [e.strip() for e in os.environ.get("HF_DOWNLOAD_ENDPOINTS", "https://huggingface.co,https://hf-mirror.com").split(",") if e.strip()]
 TRIES = int(os.environ.get("FETCH_TRIES", "3"))
