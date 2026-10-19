@@ -186,3 +186,4 @@ commands:
   - {"seq": 184, "cmd": "signal 2692428 TERM", "reason": "reviewer 08:5x UTC item 4: restart upload_sync so it keeps local HF weights (setenv KEEP_LOCAL_HF=1, seq 182); training untouched", "utc": "2026-10-19T08:50:23Z"}
   - {"seq": 185, "cmd": "signal 2719028 TERM", "reason": "reviewer 08:5x UTC item 4: restart upload_sync so it keeps local HF weights (setenv KEEP_LOCAL_HF=1, seq 182); training untouched", "utc": "2026-10-19T08:51:45Z"}
   - {"seq": 186, "cmd": "signal 2721534 TERM", "reason": "reviewer 08:5x UTC item 4: restart upload_sync so it keeps local HF weights (setenv KEEP_LOCAL_HF=1, seq 182); training untouched", "utc": "2026-10-19T08:52:45Z"}
+  - {"seq": 187, "cmd": "rerun STRICT-C1", "reason": "reviewer A1 09:5x UTC (v2.5.7x): think-structure stats for answer_ready.md", "utc": "2026-10-19T09:23:01Z"}
