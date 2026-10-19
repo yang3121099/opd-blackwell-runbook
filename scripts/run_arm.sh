@@ -6,7 +6,8 @@
 # (the verification smoke sets STUDENT=$STUDENT_06B). Models: STUDENT_17B / TEACHER from env.sh (models.env).
 # Usage: bash run_arm.sh <gpu> <task id>      task ids: E10b-{P2,P3,P4lowlr,P5,P6,P6r,P2noEOS,Pstop,P6rand,P6top5,P4EOSpen}
 #        and the seed replicates E10b-P2-s43/-s44, E10b-P6r-s43/-s44; v2.5.7h: E10b-P5top10 / E10b-P5rand10m (50 steps);
-#        v2.5.7o: E10d-P2-s43 / E10d-P5-s43 (4B, data.seed 43, flash-attn); v2.5.7p: E10b-P2-t14 / E10b-P5-t14 (14B teacher)
+#        v2.5.7o: E10d-P2-s43 / E10d-P5-s43 (4B, data.seed 43, flash-attn); v2.5.7p: E10b-P2-t14 / E10b-P5-t14 (14B teacher);
+#        v2.5.7r: E10b-P5think (the student in thinking mode too, 8K rollouts)
 set -euo pipefail
 source "$(dirname "$0")/env.sh"; source "$(dirname "$0")/dr.sh"; GPU=$1; TASK=$2
 # task id E10b-<arm>[-s<seed>]: the seed changes only the data order (data.seed); the default seed is 42
@@ -14,6 +15,14 @@ SEED=42; BASE=$TASK; [[ $TASK =~ -s(43|44)$ ]] && { SEED=${BASH_REMATCH[1]}; BAS
 # v2.5.7p (Q-015, reviewer A1 07:1x UTC): E10b-<P2|P5>-t14 = the E10b arm with Qwen3-14B as the teacher ($TEACHER_14B),
 # not offloaded (it fits next to the 1.7B student and vLLM); everything else as E10b-<arm> under the node's settings
 T14=0; [[ $TASK =~ ^E10b-(P2|P5)-t14$ ]] && { T14=1; BASE=${TASK%-t14}; }
+# v2.5.7r (Q-016, reviewer A1 07:5x UTC; 08:2x UTC: 50 steps first, Runming wants a fast answer, against P5 s50; 150 later
+# as an optional extension): E10b-P5think = P5 with the student in thinking mode as well (the symmetric setting):
+# the rollouts (and validation) use the thinking template, 8K responses (4K would cut most thinking rollouts before
+# </think>; not comparable with E10b's 4K), and the teacher scores with the same thinking template. G-OPD renders the
+# teacher prompt with data.apply_chat_template_kwargs (ray_trainer -> prepare_ref_model_inputs), so OPD_REF_THINK stays 0:
+# the student's response opens with its own <think>, and the patch's extra '<think>\n' (P5's non-thinking student) would
+# double it. No change to the installed patch.
+STHINK=0; MAXRESP=4096; [ $TASK = E10b-P5think ] && { STHINK=1; MAXRESP=8192; BASE=E10b-P5; }
 # v2.5.6f (queue v3 V3-c1): E10c-<arm>-fix4 / -dyn16k = the lab's 0.6B E10 arm on this node (student Qwen3-0.6B; data,
 # seeds and hyper-parameters as the lab's run_e10_arm.sh), with a fixed 4 sequences per micro-batch or the lab's dynamic
 # token budget of 16384. The batching mode is the experiment: an out-of-memory retry does not change it.
@@ -38,6 +47,10 @@ STUDENT=${STUDENT:-$STUDENT_17B}   # the verification smoke uses $STUDENT_06B
 [ -n "$MODE" ] && STUDENT=$STUDENT_06B
 [ "$SIZE" = 4B ] && { STUDENT=$STUDENT_4B; GC=1; }
 [ $T14 = 1 ] && { TEACHER=$TEACHER_14B; TEACHER_OFFLOAD=0; }   # v2.5.7p: a node-wide TEACHER_OFFLOAD does not reach it
+# v2.5.7r: E10b-P5think starts only after PROBE-P5THINK passed (templates + a 3-step smoke whose rollouts open with <think>)
+if [ $STHINK = 1 ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
+  grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-P5THINK/report.json 2> /dev/null || { echo "PROBE-P5THINK has not passed: $TASK not started"; exit 3; }
+fi
 # v2.5.7p: a -t14 arm starts only after PROBE-T14 passed (the 14B fetched to the share + a 3-step smoke under 260 GB)
 if [ $T14 = 1 ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
   grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-T14/report.json 2> /dev/null || { echo "PROBE-T14 has not passed: $TASK not started"; exit 3; }
@@ -67,7 +80,8 @@ export OPD_VARIANT=$ARM OPD_SEED=${OPD_SEED:-1234} OPD_VARIANT_OVERRIDE= OPD_TOK
 # teacher prompt
 NSTEPS=150
 case $ARM in P5top10|P5rand10m) export OPD_VARIANT=P6 OPD_VARIANT_OVERRIDE=$ARM OPD_TOKCAT=1 OPD_TOKENIZER=$STUDENT; NSTEPS=50;; esac
-OPD_REF_THINK=0; [[ $ARM =~ ^P5(top10|rand10m)?$ ]] && OPD_REF_THINK=1; export OPD_REF_THINK
+[ $STHINK = 1 ] && NSTEPS=${P5THINK_STEPS:-50}   # v2.5.7r: constant lr, so step 50 is the same point as in a 150-step run
+OPD_REF_THINK=0; [[ $ARM =~ ^P5(top10|rand10m)?$ ]] && OPD_REF_THINK=1; [ $STHINK = 1 ] && OPD_REF_THINK=0; export OPD_REF_THINK
 if python -c "import flash_attn" 2>/dev/null; then RMPAD=True; ATTN=flash_attention_2; TOK_DEFAULT=16384
 else RMPAD=False; ATTN=sdpa; TOK_DEFAULT=6144; fi
 # without remove-padding every micro-batch is padded to its longest sequence, so the fp32 logits grow with the token
@@ -85,7 +99,7 @@ ENT=""; [ "$RMPAD" = False ] && ENT="actor_rollout_ref.actor.entropy_from_logits
 # GC=0 (setenv) = no gradient checkpointing in the actor. SPEED-PROBE measures both; unset, the ladder runs as before.
 KERN=""; [ "${FUSED:-0}" = 1 ] && KERN="actor_rollout_ref.model.use_fused_kernels=True actor_rollout_ref.model.fused_kernel_options.impl_backend=torch"
 GCK=True; [ "${GC:-1}" = 0 ] && GCK=False
-[ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $TASK arm=$ARM lr=$LR seed=$SEED student=$STUDENT batch=[$BATCH] kern=[$KERN] gc=$GCK venv=$(basename ${VENV:-$OPD_ROOT/venv}) rmpad=$RMPAD teacher=$TEACHER offload=${TEACHER_OFFLOAD:-1} variant=$OPD_VARIANT override=$OPD_VARIANT_OVERRIDE refthink=$OPD_REF_THINK steps=$NSTEPS"; exit 0; }   # tests
+[ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $TASK arm=$ARM lr=$LR seed=$SEED student=$STUDENT batch=[$BATCH] kern=[$KERN] gc=$GCK venv=$(basename ${VENV:-$OPD_ROOT/venv}) rmpad=$RMPAD sthink=$STHINK maxresp=$MAXRESP teacher=$TEACHER offload=${TEACHER_OFFLOAD:-1} variant=$OPD_VARIANT override=$OPD_VARIANT_OVERRIDE refthink=$OPD_REF_THINK steps=$NSTEPS"; exit 0; }   # tests
 STEPS=$NSTEPS; TEST=10; VALB=True
 # save rule (v2.4, Runming 2026-10-17): no archive of resume states. A dedicated node saves only the HF weights at the
 # pre-registered reading steps (E10b: step 150, the one checkpoint E11b and E12b read; SAVE=<n> for others), which
@@ -103,6 +117,7 @@ data_seed: $SEED
 steps: $STEPS
 student: $STUDENT (no_think)
 teacher: $TEACHER (ref; think-template=$OPD_REF_THINK; param_offload=${TEACHER_OFFLOAD:-1})
+student_template: $([ $STHINK = 1 ] && echo "thinking (the teacher prompt uses the same template)" || echo non-thinking), max_response_length $MAXRESP
 attention: $ATTN (use_remove_padding=$RMPAD)
 batching: ${MODE:-default} [$BATCH]
 kernels: fused=${FUSED:-0} gradient_checkpointing=$GCK
@@ -123,9 +138,9 @@ python3 -m verl.trainer.main_ppo \
   algorithm.use_kl_in_reward=False \
   actor_rollout_ref.rollout.calculate_log_probs=true \
   data.train_files=$OPD_ROOT/data/dapo_train.parquet data.val_files=$OPD_ROOT/data/math500_100.parquet \
-  data.train_batch_size=128 data.max_prompt_length=1024 data.max_response_length=4096 \
+  data.train_batch_size=128 data.max_prompt_length=1024 data.max_response_length=$MAXRESP \
   data.filter_overlong_prompts=True data.truncation=error data.shuffle=True data.seed=$SEED data.return_raw_chat=True \
-  +data.apply_chat_template_kwargs.enable_thinking=False \
+  +data.apply_chat_template_kwargs.enable_thinking=$([ $STHINK = 1 ] && echo True || echo False) \
   actor_rollout_ref.model.path=$STUDENT +actor_rollout_ref.ref.model.path=$TEACHER \
   +actor_rollout_ref.model.override_config.attn_implementation=$ATTN \
   actor_rollout_ref.actor.optim.lr=$LR actor_rollout_ref.actor.optim.lr_warmup_steps_ratio=0.0 \
@@ -150,7 +165,7 @@ python3 -m verl.trainer.main_ppo \
   trainer.logger='["console"]' trainer.project_name=opd-e10b trainer.experiment_name=$TASK \
   trainer.n_gpus_per_node=1 trainer.nnodes=1 trainer.save_freq=$SAVE trainer.test_freq=$TEST \
   trainer.resume_mode=auto trainer.total_training_steps=$STEPS trainer.total_epochs=2 \
-  trainer.default_local_dir=$OUT/ckpt \
+  trainer.default_local_dir=$OUT/ckpt $([ -n "${ROLLOUT_DUMP:-}" ] && echo trainer.rollout_data_dir=$ROLLOUT_DUMP) \
   2>&1 | tee -a $OUT/train.log
 LAST=$(grep -oE "(^|[ )])step:[0-9]+ - " $OUT/train.log | tail -1 | grep -oE "[0-9]+")
 echo "completed_steps: ${LAST:-unknown}" >> $OUT/config.yaml

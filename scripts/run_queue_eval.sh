@@ -108,7 +108,11 @@ while read -r PTAG PREFS; do
   [ -n "$PTAG" ] || continue
   SC=$(ls $OUT/${PTAG}_*.jsonl 2>/dev/null | grep -v '\.forced\.jsonl$' | head -1)   # v2.5.7h: never a forced-answer file
   [ -n "$SC" ] || { echo "PAIR_SKIPPED $PTAG (no reading)"; continue; }
-  RP=(); for R in $PREFS; do [[ $R =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+\.jsonl$ ]] && RP+=("$OPD_ROOT/runs/$R") || echo "PAIR_REF_REFUSED $R"; done
+  RP=(); for R in $PREFS; do
+    if [[ $R =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+\.jsonl$ ]]; then RP+=("$OPD_ROOT/runs/$R")
+    # v2.5.7r: archive:<path>.jsonl = a lab reading in yang31210999/opd-lab-ckpts (fetch_model.py: size + sha256), e.g. P5 s50
+    elif [[ $R =~ ^archive:[A-Za-z0-9._/-]+\.jsonl$ && $R != *..* ]]; then P=${R#archive:}; fetch_ckpt "$P" && RP+=("$CKPT_ROOT/adhoc_models/$P") || echo "PAIR_REF_MISSING $R"
+    else echo "PAIR_REF_REFUSED $R"; fi; done
   python3 $RUNBOOK/code/analysis/paired_bootstrap.py --pairs $OUT/${PTAG}.paired.json "$SC" "${RP[@]}" > /dev/null 2>> $OUT/pair.log \
     && echo "PAIR_DONE $PTAG (${#RP[@]} refs)" || echo "PAIR_FAIL $PTAG (see pair.log)"
 done <<< "$(awk -v t="$T" '$1 == "#pair" && $2 == t {$1 = ""; $2 = ""; sub(/^  /, ""); print}' "$Q")"

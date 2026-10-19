@@ -86,7 +86,7 @@ mkdir -p $T/rb/code/analysis $T/root/runs/EVAL-pp $T/root/runs/E11b-P0; cp $SRC/
 cat > $T/rb/tasks/queue.txt <<'EOF'
 version: 2
 #eval EVAL-pp pp_s100_math500_T0.6 result:runs/E12b-PP/global_step_100/actor/huggingface math500 4 0.6
-#pair EVAL-pp pp_s100_math500_T0.6 E11b-P0/base.jsonl E11b-P9/missing.jsonl ../etc/passwd.jsonl
+#pair EVAL-pp pp_s100_math500_T0.6 E11b-P0/base.jsonl E11b-P9/missing.jsonl ../etc/passwd.jsonl archive:runs/e10/e10_P5_s50.jsonl archive:../x.jsonl
 EOF
 echo '{"avg_acc": 1}' > $T/root/runs/EVAL-pp/pp_s100_math500_T0.6_math500_no_think_t0.6.metrics.json
 python3 -c "
@@ -96,10 +96,12 @@ for p in range(20):
     for s in range(4):
         a.write(json.dumps({'pid': p, 'sample': s, 'correct': p % 2 == 0 or s == 0}) + chr(10)); b.write(json.dumps({'pid': p, 'sample': s, 'correct': p % 2 == 0}) + chr(10))
 " $T/root/runs/EVAL-pp/pp_s100_math500_T0.6_math500_no_think_t0.6.jsonl $T/root/runs/E11b-P0/base.jsonl
+mkdir -p $T/root/adhoc_models/runs/e10; cp $T/root/runs/E11b-P0/base.jsonl $T/root/adhoc_models/runs/e10/e10_P5_s50.jsonl
 bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-pp > $T/out4 2>&1
 PJ=$T/root/runs/EVAL-pp/pp_s100_math500_T0.6.paired.json
-ok "paired CI written" 'python3 -c "import json, sys; r = json.load(open(sys.argv[1]))[\"pairs\"]; sys.exit(0 if r[0][\"diff\"] == 12.5 and r[0][\"problems\"] == 20 and r[0][\"wins\"] == 10 and r[0][\"ref\"] == \"E11b-P0/base.jsonl\" and r[1][\"error\"] == \"missing\" and len(r) == 2 else 1)" $PJ'
+ok "paired CI written" 'python3 -c "import json, sys; r = json.load(open(sys.argv[1]))[\"pairs\"]; sys.exit(0 if r[0][\"diff\"] == 12.5 and r[0][\"problems\"] == 20 and r[0][\"wins\"] == 10 and r[0][\"ref\"] == \"E11b-P0/base.jsonl\" and r[1][\"error\"] == \"missing\" and r[2][\"ref\"] == \"e10/e10_P5_s50.jsonl\" and len(r) == 3 else 1)" $PJ'
 ok "bad pair ref refused, no absolute path in the result" 'grep -q "PAIR_REF_REFUSED ../etc/passwd.jsonl" $T/out4 && ! grep -q "$T" $PJ && grep -q "PAIR_DONE pp_s100_math500_T0.6" $T/out4'
+ok "v2.5.7r archive: pair ref fetched from the lab archive and paired; archive:.. refused" 'grep -q "^fetch yang31210999/opd-lab-ckpts runs/e10/e10_P5_s50.jsonl $T/root/adhoc_models --task EVAL-pp" $CALLS && grep -q "PAIR_REF_REFUSED archive:../x.jsonl" $T/out4 && [ "$(python3 -c "import json, sys; print(sum(1 for p in json.load(open(sys.argv[1]))[\"pairs\"] if \"diff\" in p))" $PJ)" = 2 ]'
 rm -rf $T
 # 3c. v2.5.7g: the 7th field max_tokens (checked; default 16384) and "#budget" (budget_curve.py on this task's tags and
 #     references under runs/; a bad reference refused, a missing tag listed)
@@ -205,6 +207,12 @@ ok "v2.5.7p E10b-P5-t14 / P2-t14: 14B teacher, offload 0, seed 42, 150 steps; E1
 ( bash $T/rb/scripts/run_arm.sh 0 E10b-P5-t14 > $T/g3 2>&1 ); r3=$?
 ok "v2.5.7p -t14 arms gated on PROBE-T14 PASS" '[ $r3 = 3 ] && grep -q "PROBE-T14 has not passed" $T/g3'
 ok "v2.5.7p task ids: E10b / E11b -t14 for P2 and P5 only" '[[ "$(DRYRUN=1 bash $T/rb/scripts/task.sh 0 E10b-P2-t14 | tail -1)" == DRYRUN* ]] && ! bash $T/rb/scripts/task.sh 0 E10b-P3-t14 > /dev/null 2>&1 && ! bash $T/rb/scripts/task.sh 0 E10b-P5-t14-s43 > /dev/null 2>&1'
+# v2.5.7r (Q-016): E10b-P5think = P5 with a thinking student: 8K responses, the teacher on the shared template (OPD_REF_THINK 0),
+# variant P5, 150 steps, gated on PROBE-P5THINK; P5 itself unchanged (non-thinking, 4K, refthink 1)
+v1=$(DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10b-P5think | tail -1)
+ok "v2.5.7r E10b-P5think: thinking student, 8K, refthink 0, variant P5, 50 steps; E10b-P5 unchanged" '[[ "$v1" == *"arm=P5 lr=3e-6 seed=42 student=$T/m17 "*"sthink=1 maxresp=8192 teacher=$T/m8 offload=1 variant=P5 override= refthink=0 steps=50" && "$u3" == *"sthink=0 maxresp=4096 teacher=$T/m8 offload=1 variant=P5 override= refthink=1 steps=150" ]]'
+( bash $T/rb/scripts/run_arm.sh 0 E10b-P5think > $T/g4 2>&1 ); r4=$?
+ok "v2.5.7r P5think gated on PROBE-P5THINK PASS; E11b / E12b-P5think refused" '[ $r4 = 3 ] && grep -q "PROBE-P5THINK has not passed" $T/g4 && ! bash $T/rb/scripts/task.sh 0 E11b-P5think > /dev/null 2>&1 && ! bash $T/rb/scripts/task.sh 0 E12b-P5think > /dev/null 2>&1 && ! bash $T/rb/scripts/task.sh 0 E10b-P2think > /dev/null 2>&1'
 ok "E10d-P5: 4B student, P5, GC on" '[[ "$d5" == *"arm=P5 lr=3e-6 seed=42 student=$T/m4 "* && "$d5" == *"gc=True"* ]] && ! bash $T/rb/scripts/task.sh 0 E10d-P3 > /dev/null 2>&1'
 ok "FUSED=1 GC=0" '[[ "$d4" == *"kern=[actor_rollout_ref.model.use_fused_kernels=True actor_rollout_ref.model.fused_kernel_options.impl_backend=torch] gc=False"* && "$d3" == *"kern=[] gc=True"* ]]'
 printf 'echo "speed_probe $*"\n' > $T/rb/scripts/speed_probe.sh
