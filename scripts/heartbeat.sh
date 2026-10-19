@@ -56,8 +56,8 @@ def live_tasks():
                     out[name] = (int(a[i + 1]), start)
     return out
 def kind(name):
-    return ("train" if re.match(r"E1(0[bcd]|2b)-", name) else "sft" if name.startswith("SFT-") else
-            "eval" if re.match(r"E11b-|EVAL-|adhoc_eval_|E0[1-5]-", name) else "probe" if name in ("FA-PROBE", "SPEED-PROBE", "PROBE-4B", "PROBE-TERM", "PROBE-TERM2", "PROBE-TERM3", "PROBE-TOP10") or name.startswith("FA-SPEED-") else "other")
+    return ("train" if re.match(r"E1(0[bcd]|2[bd])-", name) else "sft" if name.startswith("SFT-") else
+            "eval" if re.match(r"E11b-|EVAL-|adhoc_eval_|E0[1-5]-", name) else "probe" if name in ("FA-PROBE", "SPEED-PROBE", "PROBE-4B", "PROBE-TERM", "PROBE-TERM2", "PROBE-TERM3", "PROBE-TOP10", "STRICT-C1") or name.startswith("FA-SPEED-") else "other")
 live = live_tasks()
 tasks = {}
 for d in sorted(x for x in glob.glob(os.path.join(root, "runs", "*")) if os.path.isdir(x) and not os.path.basename(x).startswith("smoke")):

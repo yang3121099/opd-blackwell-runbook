@@ -11,7 +11,7 @@ setup() {
   T=$(mktemp -d); mkdir -p $T/rb/scripts $T/rb/code/patches $T/base/root/runs $T/base/root/venv/bin $T/ck; : > $T/base/root/venv/bin/activate
   cp $SRC/scripts/dr.sh $SRC/scripts/dr_sync.sh $SRC/scripts/run_e12.sh $T/rb/scripts/
   cat > $T/rb/scripts/env.sh <<EOF
-export OPD_ROOT=$T/base/root RUNBOOK=$T/rb CKPT_ROOT=$T/ck STUDENT_17B=$T/m17
+export OPD_ROOT=$T/base/root RUNBOOK=$T/rb CKPT_ROOT=$T/ck STUDENT_17B=$T/m17 STUDENT_4B=$T/m4
 has_weights() { ls "\$1"/*.safetensors > /dev/null 2>&1; }
 ckpt_link() { local t=\$(basename "\$1"); mkdir -p "\$CKPT_ROOT/\$t/ckpt"; [ -e "\$1/ckpt" ] || ln -s "\$CKPT_ROOT/\$t/ckpt" "\$1/ckpt"; }
 EOF
@@ -64,6 +64,16 @@ d8=$(SMOKE=1 PROBE_TASK=FA-SPEED-E12-fa_gc0 DRYRUN=1 bash $T/rb/scripts/run_e12.
 mkdir -p $T/base/root/runs/E10b-P5-s44/ckpt/global_step_150/actor/huggingface_bf16; : > $T/base/root/runs/E10b-P5-s44/ckpt/global_step_150/actor/huggingface_bf16/model.safetensors
 d9=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P5-s44 2>&1 | tail -1)   # v2.5.7n
 ok "v2.5.7n E12b-P5-s44: 100 steps from E10b-P5-s44" '[[ "$d9" == "DRYRUN E12b-P5-s44 "*"E10b-P5-s44"*"steps=100 "* ]]'
+# v2.5.7o: E12d from the 4B student / E10d-P5, E12b-P2-s43; both on venv-fa (without VENV / E12B_FA), E12d at vLLM 0.5
+mkdir -p $T/base/root/runs/E10d-P5/ckpt/global_step_150/actor/huggingface_bf16 $T/base/root/runs/E10b-P2-s43/ckpt/global_step_150/actor/huggingface_bf16
+: > $T/base/root/runs/E10d-P5/ckpt/global_step_150/actor/huggingface_bf16/model.safetensors; : > $T/base/root/runs/E10b-P2-s43/ckpt/global_step_150/actor/huggingface_bf16/model.safetensors
+o1=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12d-P0 2>&1 | tail -1); o2=$(VLLM_UTIL=0.7 DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12d-P5 2>&1 | tail -1)
+o3=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P2-s43 2>&1 | tail -1); o4=$(E12D_VLLM_UTIL=0.45 DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12d-P0 2>&1 | tail -1)
+ok "v2.5.7o E12d-P0: base 4B, 100 steps, GC on, venv-fa, vLLM 0.5" '[[ "$o1" == "DRYRUN E12d-P0 start=$T/m4 steps=100 "*"gc=True venv=venv-fa "*"vllm=0.5" ]]'
+ok "v2.5.7o E12d-P5: from E10d-P5 s150, vLLM 0.5 whatever the node VLLM_UTIL; E12D_VLLM_UTIL sets it" '[[ "$o2" == "DRYRUN E12d-P5 start=$T/base/root/runs/E10d-P5/ckpt/global_step_150/actor/huggingface_bf16 steps=100 "*"venv=venv-fa "*"vllm=0.5" && "$o4" == *"vllm=0.45" ]]'
+ok "v2.5.7o E12b-P2-s43: from E10b-P2-s43, 100 steps, venv-fa, vLLM as E12b" '[[ "$o3" == "DRYRUN E12b-P2-s43 start=$T/base/root/runs/E10b-P2-s43/ckpt/global_step_150/actor/huggingface_bf16 steps=100 "*"venv=venv-fa "*"vllm=0.6" ]] && [[ "$d9" == *"venv=venv "* ]]'
+rm -rf $T/base/root/runs/E10d-P5; bash $T/rb/scripts/run_e12.sh 0 E12d-P5 > $T/e5 2>&1
+ok "v2.5.7o E12d-P5 start fetched from the result repository (runs/E10d-P5)" 'grep -q "^fetch me/pub runs/E10d-P5/global_step_150/actor/huggingface $T/ck/adhoc_models/result --task E12d-P5" $CALLS'
 ok "E12b: venv-fa only with E12B_FA=1" '[[ "$d6" == *"venv=venv "* && "$d7" == *"venv=venv-fa "* ]]'
 ok "E12b smoke: own dir, 3 steps, no save" '[[ "$d8" == "DRYRUN FA-SPEED-E12-fa_gc0 "*"steps=3 save=-1 "* ]] && [ ! -e $T/ck/FA-SPEED-E12-fa_gc0 ]'
 ok "P1 start from the share when the container disk lost it" '[[ "$d4" == *"start=$T/base/opd-dr/keep/SFT-P1/ckpt/global_step_283/huggingface "* ]]'

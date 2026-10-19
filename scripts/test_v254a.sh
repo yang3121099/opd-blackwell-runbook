@@ -189,6 +189,8 @@ ok "v2.5.7h P5top10 / P5rand10m: through the P6 hook, P5 teacher prompt, 50 step
 ( bash $T/rb/scripts/run_arm.sh 0 E10b-P5top10 > $T/g2 2>&1 ); r2=$?
 ok "v2.5.7h token-selective arms gated on PROBE-TOP10 PASS" '[ $r2 = 3 ] && grep -q "PROBE-TOP10 has not passed" $T/g2'
 ok "E10d on SDPA unless E10D_FA=1" '[[ "$d8" == *"venv=venv "* && "$d9" == *"venv=venv-fa "* ]]'
+s1=$(VENV= DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10d-P5-s43 | tail -1); s2=$(VENV=fa DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10d-P2-s43 | tail -1)
+ok "v2.5.7o E10d-P5-s43 / P2-s43: 4B, data seed 43, venv-fa whatever VENV; -s44 refused" '[[ "$s1" == *"arm=P5 lr=3e-6 seed=43 student=$T/m4 "*"venv=venv-fa "* && "$s2" == *"arm=P2 lr=3e-6 seed=43 student=$T/m4 "*"venv=venv-fa "* ]] && [[ "$(DRYRUN=1 bash $T/rb/scripts/task.sh 0 E10d-P5-s43 | tail -1)" == DRYRUN* ]] && ! bash $T/rb/scripts/task.sh 0 E10d-P5-s44 > /dev/null 2>&1'
 ok "E10d-P5: 4B student, P5, GC on" '[[ "$d5" == *"arm=P5 lr=3e-6 seed=42 student=$T/m4 "* && "$d5" == *"gc=True"* ]] && ! bash $T/rb/scripts/task.sh 0 E10d-P3 > /dev/null 2>&1'
 ok "FUSED=1 GC=0" '[[ "$d4" == *"kern=[actor_rollout_ref.model.use_fused_kernels=True actor_rollout_ref.model.fused_kernel_options.impl_backend=torch] gc=False"* && "$d3" == *"kern=[] gc=True"* ]]'
 printf 'echo "speed_probe $*"\n' > $T/rb/scripts/speed_probe.sh
@@ -200,7 +202,8 @@ printf 'echo "run_e12 $*"\n' > $T/rb/scripts/run_e12.sh
 cp $SRC/scripts/run_zero.sh $T/rb/scripts/run_zero.sh; mkdir -p $T/rb/code/weights
 printf 'import sys, os; open(os.environ["CALLS"], "a").write("wops " + " ".join(sys.argv[1:]) + "\\n")\n' > $T/rb/code/weights/wops.py
 ok "E12b-P5-s43 / -s44 accepted" '[[ "$(bash $T/rb/scripts/task.sh 0 E12b-P5-s43 | tail -1)" == "run_e12 0 E12b-P5-s43" ]] && [[ "$(bash $T/rb/scripts/task.sh 0 E12b-P5-s44 | tail -1)" == "run_e12 0 E12b-P5-s44" ]] && ! bash $T/rb/scripts/task.sh 0 E12b-P5-s45 > /dev/null 2>&1'
-ok "run_e12 gives P5-s43 / P5-s44 100 steps" 'grep -q "P0|P1|P2|P3|P5|P5-s43|P5-s44) STEPS=100" $SRC/scripts/run_e12.sh'
+ok "run_e12 gives P5-s43 / P5-s44 / P2-s43 100 steps" 'grep -q "P0|P1|P2|P3|P5|P5-s43|P5-s44|P2-s43) STEPS=100" $SRC/scripts/run_e12.sh'
+ok "v2.5.7o E12d-P0 / P5, E12b-P2-s43 accepted" '[[ "$(bash $T/rb/scripts/task.sh 0 E12d-P0 | tail -1)" == "run_e12 0 E12d-P0" ]] && [[ "$(bash $T/rb/scripts/task.sh 0 E12d-P5 | tail -1)" == "run_e12 0 E12d-P5" ]] && [[ "$(bash $T/rb/scripts/task.sh 0 E12b-P2-s43 | tail -1)" == "run_e12 0 E12b-P2-s43" ]] && ! bash $T/rb/scripts/task.sh 0 E12d-P2 > /dev/null 2>&1 && ! bash $T/rb/scripts/task.sh 0 E12b-P2-s44 > /dev/null 2>&1'
 bash $T/rb/scripts/task.sh 0 E02-opsa17-c2 > $T/z1 2>&1; bash $T/rb/scripts/task.sh 0 E01-opsa17-think > $T/z2 2>&1
 ok "E02 OPSA name from the HF id" 'grep -q "^wops scale --base $T/m17 --ft Tuwhy/Qwen3-1.7B-OPSA --c 2 " $CALLS && grep -q "e02_opsa17_c2_aime24_nothink" $CALLS'
 bash $T/rb/scripts/task.sh 0 E05-fstop-base06 > $T/z3 2>&1
