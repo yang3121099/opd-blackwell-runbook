@@ -35,7 +35,7 @@ v3c5     open   PROBE-4B EVAL-e10d-P0
 zero     open   E03-MI-l0.0 E03-MI-l0.3 E03-MI-l0.5 E03-MI-l0.7 E03-MI-l1.0 E02-opsa17-c0.5 E02-opsa17-c1.5 E02-opsa4-c-1 E02-opsa4-c0.5 E02-opsa4-c1.5
 v3c23    open   E12b-P5-s43:E10b-P5-s43 E02-opsa17-c-1 E02-opsa17-c2 E02-opsa4-c2 E01-opsa17-think E01-opsa17-nothink E01-base17-think E05-fstop-base06 E05-fstop-art06
 v3c5arms open   E10d-P2:PROBE-4B E10d-P5:PROBE-4B EVAL-e10d-P2:E10d-P2+EVAL-e10d-P0 EVAL-e10d-P5:E10d-P5+EVAL-e10d-P2+EVAL-e10d-P0
-late     open   E12b-P5-s44:E10b-P5-s44 E12d-P0 E12d-P5 PROBE-P5THINK E10b-P5think:PROBE-P5THINK PROBE-P5SELF E10b-P5self:PROBE-P5SELF STRICT-C1 EVAL-budA-p5s43rl-b EVAL-budA-4B:E10d-P5 EVAL-budA-4Bthink EVAL-budA-top10 EVAL-ext-E10d-P0 EVAL-ext-E10d-P2 EVAL-ext-E10d-P5 EVAL-budA17c EVAL-ext-E12b-P5s43 EVAL-e12b-P5-s44:E12b-P5-s44
+late     open   E12b-P5-s44:E10b-P5-s44 E12d-P0 E12d-P5 PROBE-P5THINK E10b-P5think:PROBE-P5THINK PROBE-P5SELF E10b-P5self:PROBE-P5SELF STRICT-C1 EVAL-budA-p5s43rl-b EVAL-budA-4B:E10d-P5 EVAL-budA-4Bthink EVAL-budA-top10 EVAL-budA-top10b EVAL-budA-top10c EVAL-ext-E10d-P0 EVAL-ext-E10d-P2 EVAL-ext-E10d-P5 EVAL-budA17c EVAL-ext-E12b-P5s43 EVAL-e12b-P5-s44:E12b-P5-s44
 p5think  open   EVAL-e10b-P5think:E10b-P5think EVAL-budA-P5think:E10b-P5think
 p5self   open   EVAL-e10b-P5self:E10b-P5self EVAL-budA-P5self:E10b-P5self
 midrl    open   EVAL-budA-p5s44rl-a:E12b-P5-s44 EVAL-budA-p5s44rl-b:E12b-P5-s44 EVAL-budA-e12dP5rl-a:E12d-P5 EVAL-budA-e12dP5rl-b:E12d-P5
@@ -281,11 +281,8 @@ term4    open   PROBE-TERM4
 #pair EVAL-e12b-P5-s44 e12b_P5-s44_s100_math500_T1.0 E11b-P0/e11b_P0_math500_T1.0_math500_no_think_t1.0.jsonl EVAL-e12b-P0/e12b_P0_s100_math500_T1.0_math500_no_think_t1.0.jsonl E11b-P5-s44/e11b_P5-s44_math500_T1.0_math500_no_think_t1.0.jsonl EVAL-e12b-P5/e12b_P5_s100_math500_T1.0_math500_no_think_t1.0.jsonl EVAL-e12b-P5-s43/e12b_P5-s43_s100_math500_T1.0_math500_no_think_t1.0.jsonl
 # budA-top10 (reviewer 05:4x UTC, Q-014 amendment): the token-selective arms at 32K (their 16K readings are budget-limited), with the E10-P5-1.7B s50 reference
 #eval EVAL-budA-top10 budAtop10_E10bP5top10_s50_math500_T0.6_32k result:runs/E10b-P5top10/global_step_50/actor/huggingface math500 4 0.6 32768
-#eval EVAL-budA-top10 budAtop10_E10bP5rand10m_s50_math500_T0.6_32k result:runs/E10b-P5rand10m/global_step_50/actor/huggingface math500 4 0.6 32768
-#eval EVAL-budA-top10 budAtop10_E10P5_17B_s50_math500_T0.6_32k yang31210999/opd-lab-ckpts/runs/E10-P5-1.7B-lr3e-6-s50/global_step_50/actor/huggingface math500 4 0.6 32768
-#budget EVAL-budA-top10 budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAtop10_E10bP5top10_s50_math500_T0.6_32k budAtop10_E10bP5rand10m_s50_math500_T0.6_32k budAtop10_E10P5_17B_s50_math500_T0.6_32k
-#budget EVAL-budA-top10 budget_curve_top10_vs_rand budAtop10_E10bP5rand10m_s50_math500_T0.6_32k budAtop10_E10bP5top10_s50_math500_T0.6_32k
-#budget EVAL-budA-top10 budget_curve_vsP5s50 budAtop10_E10P5_17B_s50_math500_T0.6_32k budAtop10_E10bP5top10_s50_math500_T0.6_32k budAtop10_E10bP5rand10m_s50_math500_T0.6_32k
+#eval EVAL-budA-top10b budAtop10_E10bP5rand10m_s50_math500_T0.6_32k result:runs/E10b-P5rand10m/global_step_50/actor/huggingface math500 4 0.6 32768
+#eval EVAL-budA-top10c budAtop10_E10P5_17B_s50_math500_T0.6_32k yang31210999/opd-lab-ckpts/runs/E10-P5-1.7B-lr3e-6-s50/global_step_50/actor/huggingface math500 4 0.6 32768
 # ext 4B (reviewer 06:0x UTC): base 4B / E10d-P2 / E10d-P5 s150 on the extension suite, 16K T0.6; P0 first, then P2 and P5 in parallel
 #eval EVAL-ext-E10d-P0 ext_E10dP0_aime24_T0.6 Qwen/Qwen3-4B aime24 16 0.6
 #eval EVAL-ext-E10d-P0 ext_E10dP0_aime25_T0.6 Qwen/Qwen3-4B aime25 16 0.6
@@ -425,3 +422,11 @@ term4    open   PROBE-TERM4
 #term PROBE-TERM4 17_P5RL result:runs/E12b-P5/global_step_100/actor/huggingface EVAL-e12b-P5/e12b_P5_s100_math500_T0.6_math500_no_think_t0.6.jsonl
 #term PROBE-TERM4 17_P0think Qwen/Qwen3-1.7B EVAL-budB/budB_P0think_math500_T0.6_32k_math500_think_t0.6.jsonl think
 #term PROBE-TERM4 17_P0 Qwen/Qwen3-1.7B E11b-P0/e11b_P0_math500_T0.6_math500_no_think_t0.6.jsonl
+# 11:2x UTC (reviewer): EVAL-budA-top10 split — top10 keeps P5top10 (stopped once its metrics were written), P5rand10m -> top10b,
+# the lab's P5 s50 -> top10c, in parallel on free GPUs; both new tasks carry the curves, the one that ends last holds them complete
+#budget EVAL-budA-top10b budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-top10/budAtop10_E10bP5top10_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAtop10_E10bP5rand10m_s50_math500_T0.6_32k EVAL-budA-top10c/budAtop10_E10P5_17B_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#budget EVAL-budA-top10b budget_curve_top10_vs_rand budAtop10_E10bP5rand10m_s50_math500_T0.6_32k EVAL-budA-top10/budAtop10_E10bP5top10_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#budget EVAL-budA-top10b budget_curve_vsP5s50 EVAL-budA-top10c/budAtop10_E10P5_17B_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-top10/budAtop10_E10bP5top10_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAtop10_E10bP5rand10m_s50_math500_T0.6_32k
+#budget EVAL-budA-top10c budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-top10/budAtop10_E10bP5top10_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-top10b/budAtop10_E10bP5rand10m_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAtop10_E10P5_17B_s50_math500_T0.6_32k
+#budget EVAL-budA-top10c budget_curve_top10_vs_rand EVAL-budA-top10b/budAtop10_E10bP5rand10m_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-top10/budAtop10_E10bP5top10_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#budget EVAL-budA-top10c budget_curve_vsP5s50 budAtop10_E10P5_17B_s50_math500_T0.6_32k EVAL-budA-top10/budAtop10_E10bP5top10_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-top10b/budAtop10_E10bP5rand10m_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl
