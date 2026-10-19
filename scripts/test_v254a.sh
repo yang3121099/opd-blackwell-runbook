@@ -71,6 +71,14 @@ bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-bridge > $T/out 2>&1; cp $CALLS $T/c
 ok "two evals ran" '[ "$(grep -c "^gen_eval" $CALLS)" = 2 ] && grep -q -- "--temperature 1.0 --top_p 1.0 --top_k 0" $CALLS && grep -q -- "--chunk 10" $CALLS'
 ok "TWR after the readings" 'grep -q "^twr --judge $T/m17 --bench math500 --ref $T/root/runs/E11b-P0/e11b_P0_math500_T0.6_math500_no_think_t0.6.jsonl --score $T/root/runs/EVAL-bridge/e12_P5c05_s40_math500_T0.6_" $CALLS && grep -q -- "--model_k $T/root/adhoc_models/runs/E12-P5c05/global_step_40/actor/huggingface" $CALLS'
 ok "upload + done" 'grep -q "remote put $T/root/runs/EVAL-bridge runs/EVAL-bridge" $CALLS && [ -f $T/root/runs/EVAL-bridge/.done ]'
+# v2.5.7zj: an optional judge / reference on a #twr line (4B: the 4B base and EVAL-e10d-P0); a bad one is refused, nothing runs
+mkdir -p $T/root/runs/EVAL-e10d-P0; : > $T/root/runs/EVAL-e10d-P0/e10d_P0_math500_T0.6_math500_no_think_t0.6.jsonl
+sed -i.bak 's|^#twr EVAL-bridge e12_P5c05_s40_math500_T0.6$|#twr EVAL-bridge e12_P5c05_s40_math500_T0.6 Qwen/Qwen3-4B EVAL-e10d-P0/e10d_P0_math500_T0.6_math500_no_think_t0.6.jsonl|' $T/rb/tasks/queue.txt
+rm -f $T/root/runs/EVAL-bridge/twr.json $T/root/runs/EVAL-bridge/.done; : > $CALLS; bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-bridge > $T/tw1 2>&1
+ok "v2.5.7zj #twr with judge Qwen3-4B and reference EVAL-e10d-P0" 'grep -q "^twr --judge $T/m4 --bench math500 --ref $T/root/runs/EVAL-e10d-P0/e10d_P0_math500_T0.6_math500_no_think_t0.6.jsonl --score $T/root/runs/EVAL-bridge/e12_P5c05_s40_math500_T0.6_" $CALLS'
+sed -i.bak 's| Qwen/Qwen3-4B EVAL-e10d-P0/| Qwen/Qwen3-8B ../etc/|' $T/rb/tasks/queue.txt
+rm -f $T/root/runs/EVAL-bridge/twr.json $T/root/runs/EVAL-bridge/.done; : > $CALLS; bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-bridge > $T/tw2 2>&1
+ok "v2.5.7zj #twr: a judge / reference outside the list refused, no TWR run" '! grep -q "^twr " $CALLS && grep -q "TWR_REFUSED judge Qwen/Qwen3-8B" $T/tw2 && grep -q "TWR_REFUSED reference" $T/tw2'
 rm -f $T/root/runs/EVAL-bridge/.done; : > $CALLS; bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-bridge > $T/out2 2>&1
 ok "finished evals skipped" '[ "$(grep -c "^gen_eval" $CALLS)" = 0 ] && grep -q DONE_ALREADY $T/out2'
 bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-other > $T/out3 2>&1
@@ -320,4 +328,4 @@ ok "running tasks keep their GPUs" '[[ " $got" == *" 1 "* && " $got" == *" 6 "* 
 rm -rf $T
 # v2.5.7j: no task script deletes a final bf16 copy (Runming: final weights keep a local copy after upload)
 ok "final bf16 copies are never deleted by run_e12.sh / run_arm.sh / run_eval.sh" '! grep -nE "rm -rf[^#]*huggingface_bf16" $SRC/scripts/run_e12.sh $SRC/scripts/run_arm.sh $SRC/scripts/run_eval.sh'
-[ $fails = 0 ] && echo "V254A_TEST PASS (53 checks)" || echo "V254A_TEST FAIL ($fails)"
+[ $fails = 0 ] && echo "V254A_TEST PASS (55 checks)" || echo "V254A_TEST FAIL ($fails)"

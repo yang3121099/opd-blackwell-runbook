@@ -84,16 +84,24 @@ while read -r TAG MODEL BENCH N TEMP MAXT MODE; do
   python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true   # v2.5.4b: release the GPU before the next engine
 done <<< "$SPECS"
 # v2.5.6i: "#twr EVAL-<name> <tag>" = TWR / alpha of that reading, as E11b does it (run_eval.sh): judge the base 1.7B,
-# reference E11b-P0's own T=0.6 generations, 4 per problem; a failure is logged and does not hold back the readings
-TWR_TAG=$(awk -v t="$T" '$1 == "#twr" && $2 == t {print $3}' "$Q" | head -1)
+# reference E11b-P0's own T=0.6 generations, 4 per problem; a failure is logged and does not hold back the readings.
+# v2.5.7zj (reviewer A1 19:1x UTC): "#twr EVAL-<name> <tag> [<judge> <reference>]": an optional judge (the base model of the
+# student's size: Qwen/Qwen3-0.6B / 1.7B / 4B) and reference reading (<task>/<file>.jsonl under runs/, the base's own
+# T=0.6 generations), so a 4B reading is judged by the 4B base against EVAL-e10d-P0; without them, as before (1.7B, E11b-P0)
+read -r TWR_TAG TWR_JUDGE TWR_REF <<< "$(awk -v t="$T" '$1 == "#twr" && $2 == t {print $3, $4, $5}' "$Q" | head -1)"
 if [ -n "$TWR_TAG" ] && [ ! -f $OUT/twr.json ]; then
   REF=$(ls $OPD_ROOT/runs/E11b-P0/e11b_P0_math500_T0.6_*.jsonl 2>/dev/null | head -1); SC=$(ls $OUT/${TWR_TAG}_*.jsonl 2>/dev/null | grep -v '\.forced\.jsonl$' | head -1)
+  JUDGE=$STUDENT_17B
+  case ${TWR_JUDGE:-} in ''|Qwen/Qwen3-1.7B) ;; Qwen/Qwen3-4B) JUDGE=$STUDENT_4B;; Qwen/Qwen3-0.6B) JUDGE=$STUDENT_06B;; *) echo "TWR_REFUSED judge $TWR_JUDGE"; JUDGE="";; esac
+  if [ -n "${TWR_REF:-}" ]; then
+    if [[ $TWR_REF =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+\.jsonl$ ]] && [ -f $OPD_ROOT/runs/$TWR_REF ]; then REF=$OPD_ROOT/runs/$TWR_REF; else echo "TWR_REFUSED reference $TWR_REF"; REF=""; fi
+  fi
   M=$(awk -v t="$TWR_TAG" '$1 == t {print $2}' $OUT/.models | tail -1)
-  if [ -n "$REF" ] && [ -n "$SC" ] && [ -n "$M" ]; then
-    CUDA_VISIBLE_DEVICES=$G python $RUNBOOK/code/leakage/twr_alpha.py --judge $STUDENT_17B --bench math500 --ref $REF --score $SC \
+  if [ -n "$REF" ] && [ -n "$SC" ] && [ -n "$M" ] && [ -n "$JUDGE" ]; then
+    CUDA_VISIBLE_DEVICES=$G python $RUNBOOK/code/leakage/twr_alpha.py --judge $JUDGE --bench math500 --ref $REF --score $SC \
       --model_k $M --per_problem 4 --out $OUT/twr.json >> $OUT/twr.log 2>&1 && echo "TWR_DONE $TWR_TAG" || echo "TWR_FAIL $TWR_TAG (see twr.log)"
     python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true
-  else echo "TWR_SKIPPED $TWR_TAG (ref ${REF:-missing}, score ${SC:-missing}, model ${M:-missing})"; fi
+  else echo "TWR_SKIPPED $TWR_TAG (ref ${REF:-missing}, score ${SC:-missing}, model ${M:-missing}, judge ${JUDGE:-refused})"; fi
 fi
 # v2.5.7h (budget readings B, lab Q-013): "#forced EVAL-<name> <reading> <model> <think|no_think>" = forced answers of that
 # reading at 2K / 4K / 8K / 16K / 32K (up to its own max_tokens): every sample not finished within B is cut at B, the

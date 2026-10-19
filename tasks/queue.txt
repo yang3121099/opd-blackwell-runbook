@@ -502,3 +502,7 @@ term4    open   PROBE-TERM4
 #eval EVAL-ext32k-4Brl ext32k4B_E12dP5_s100_aime25_T0.6 result:runs/E12d-P5/global_step_100/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-4Brl ext32k4B_E12dP5_s100_aime24_T0.6 EVAL-ext32k-4B/ext32k4B_base4B_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4B/ext32k4B_E12dP0_s100_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #pair EVAL-ext32k-4Brl ext32k4B_E12dP5_s100_aime25_T0.6 EVAL-ext32k-4B/ext32k4B_base4B_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4B/ext32k4B_E12dP0_s100_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl
+# (4) TWR of the 4B RL pair (v2.5.7zj: judge the 4B base, reference EVAL-e10d-P0's T=0.6 generations); run by a rerun of the
+#     done tasks (readings skipped, only the TWR) when a GPU would otherwise idle, after the t14 readings and budA-t14
+#twr EVAL-e12d-P5 e12d_P5_s100_math500_T0.6 Qwen/Qwen3-4B EVAL-e10d-P0/e10d_P0_math500_T0.6_math500_no_think_t0.6.jsonl
+#twr EVAL-e12d-P0 e12d_P0_s100_math500_T0.6 Qwen/Qwen3-4B EVAL-e10d-P0/e10d_P0_math500_T0.6_math500_no_think_t0.6.jsonl
