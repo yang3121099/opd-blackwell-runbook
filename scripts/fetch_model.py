@@ -41,6 +41,27 @@ elif os.environ.get("FETCH_HF_TRANSFER") != "1":
     os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
 
 ENDPOINTS = [e.strip() for e in os.environ.get("HF_DOWNLOAD_ENDPOINTS", "https://huggingface.co,https://hf-mirror.com").split(",") if e.strip()]
+
+
+def _fetch_endpoint():
+    """v2.5.7zi (reviewer 18:1x UTC, pre-approved): FETCH_ENDPOINT (setenv; read from the environment or, so the running
+    run_tasks loop sees it, from $OPD_ROOT/control.env) = the one endpoint to fetch from, also as HF_ENDPOINT; empty =
+    the official one first, as before. No token goes to it (HF_TOKEN only ever to huggingface.co)."""
+    v = os.environ.get("FETCH_ENDPOINT")
+    if v is None:
+        try:
+            for line in open(os.path.join(os.environ.get("OPD_ROOT", ""), "control.env")):
+                k, _, x = line.strip().removeprefix("export ").partition("=")
+                if k == "FETCH_ENDPOINT":
+                    v = x.strip().strip('"')
+        except OSError:
+            pass
+    return (v or "").strip().rstrip("/")
+
+
+if _fetch_endpoint():
+    ENDPOINTS = [_fetch_endpoint()]
+    os.environ["HF_ENDPOINT"] = ENDPOINTS[0]   # read by huggingface_hub at import (fetch() imports it later)
 TRIES = int(os.environ.get("FETCH_TRIES", "3"))
 
 

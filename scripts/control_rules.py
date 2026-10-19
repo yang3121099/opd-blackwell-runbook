@@ -6,13 +6,13 @@ import calendar
 import re
 import time
 
-RULES_VERSION = "2.5.30"   # 2.5.1: HF_REPO_PUBLIC / HF_REPO_PRIVATE / HEARTBEAT_SEC; 2.5.2: FIXED_MICRO_BSZ; 2.5.3: VENV=fa; 2.5.4: reap; 2.5.5: rerun; 2.5.6: republish; 2.5.7: rerun failed / skipped tasks; 2.5.8: E10c; 2.5.9: publish, leakscan; 2.5.10: fa-build; 2.5.11: scrubdiff; 2.5.12: SPEED-PROBE, setenv FUSED / GC; 2.5.13: du, rm-ours, dr-keep, setenv DR / DR_EVERY / DR_MBPS / E12B_GC; 2.5.14: persist-env, rebuild-drill; 2.5.15: E10d (4B), PROBE-4B; 2.5.16: FA-SPEED probes, setenv E12B_FA; 2.5.17: setenv E10D_FA; 2.5.18: FA-SPEED-TWIN; 2.5.19: #eval max_tokens, E10c dyn6144 / -s43, PROBE-TERM; 2.5.20: #eval mode, #forced, E10b-P5top10 / P5rand10m, PROBE-TOP10; 2.5.21: PROBE-TERM2; 2.5.22: PROBE-TERM3; 2.5.23: E12d, E12b-P2-s43, E10d -s43, STRICT-C1; 2.5.24: E10b / E11b -t14, PROBE-T14; 2.5.25: E10b-P5think, PROBE-P5THINK; 2.5.26: E10b-P5self, PROBE-P5SELF; 2.5.27: du ckpt; 2.5.28: PROBE-TERM4; 2.5.29: setenv DRILL / REMOTE_FAULT; 2.5.30: E10b-P2self, PROBE-P2SELF
+RULES_VERSION = "2.5.31"   # 2.5.1: HF_REPO_PUBLIC / HF_REPO_PRIVATE / HEARTBEAT_SEC; 2.5.2: FIXED_MICRO_BSZ; 2.5.3: VENV=fa; 2.5.4: reap; 2.5.5: rerun; 2.5.6: republish; 2.5.7: rerun failed / skipped tasks; 2.5.8: E10c; 2.5.9: publish, leakscan; 2.5.10: fa-build; 2.5.11: scrubdiff; 2.5.12: SPEED-PROBE, setenv FUSED / GC; 2.5.13: du, rm-ours, dr-keep, setenv DR / DR_EVERY / DR_MBPS / E12B_GC; 2.5.14: persist-env, rebuild-drill; 2.5.15: E10d (4B), PROBE-4B; 2.5.16: FA-SPEED probes, setenv E12B_FA; 2.5.17: setenv E10D_FA; 2.5.18: FA-SPEED-TWIN; 2.5.19: #eval max_tokens, E10c dyn6144 / -s43, PROBE-TERM; 2.5.20: #eval mode, #forced, E10b-P5top10 / P5rand10m, PROBE-TOP10; 2.5.21: PROBE-TERM2; 2.5.22: PROBE-TERM3; 2.5.23: E12d, E12b-P2-s43, E10d -s43, STRICT-C1; 2.5.24: E10b / E11b -t14, PROBE-T14; 2.5.25: E10b-P5think, PROBE-P5THINK; 2.5.26: E10b-P5self, PROBE-P5SELF; 2.5.27: du ckpt; 2.5.28: PROBE-TERM4; 2.5.29: setenv DRILL / REMOTE_FAULT; 2.5.30: E10b-P2self, PROBE-P2SELF; 2.5.31: setenv FETCH_ENDPOINT
 
 META = set(";&|`$<>\\\"'(){}*?!#~\n\r")
 TASK_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 KEY_RE = re.compile(r"^(VLLM_[A-Z0-9_]+|TRITON_[A-Z0-9_]+|TORCHINDUCTOR_[A-Z0-9_]+|NCCL_[A-Z0-9_]+|VLLM_UTIL|TEACHER_OFFLOAD"
                     r"|MAX_TOK_GPU|KEEP_LOCAL_HF|MAX_JOBS|SAVE|CKPT_ROOT|CKPT_CANDIDATES\+|UPLOAD_WEIGHTS|KEEP_BF16|ARCHIVE_ROOT"
-                    r"|HF_REPO_PUBLIC|HF_REPO_PRIVATE|HEARTBEAT_SEC|FIXED_MICRO_BSZ|VENV|FUSED|GC|E12B_GC|E12B_FA|E10D_FA|DR|DR_EVERY|DR_MBPS|DRILL|REMOTE_FAULT)$")
+                    r"|HF_REPO_PUBLIC|HF_REPO_PRIVATE|HEARTBEAT_SEC|FIXED_MICRO_BSZ|VENV|FUSED|GC|E12B_GC|E12B_FA|E10D_FA|DR|DR_EVERY|DR_MBPS|DRILL|REMOTE_FAULT|FETCH_ENDPOINT)$")
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")   # owner/name of an HF repository
 VAL_RE = re.compile(r"^[A-Za-z0-9_.,:/=+-]*$")
 BENCHES = {"math500", "amc23", "aime24", "aime25", "olympiadbench", "minervamath"}
