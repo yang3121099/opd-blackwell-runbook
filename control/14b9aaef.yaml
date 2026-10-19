@@ -212,3 +212,4 @@ commands:
   - {"seq": 210, "cmd": "logs run_tasks 6", "reason": "v2.5.7zb deployment check before the drill", "utc": "2026-10-19T14:34:07Z"}
   - {"seq": 211, "cmd": "logs watchdog 6", "reason": "v2.5.7zb deployment check before the drill", "utc": "2026-10-19T14:35:45Z"}
   - {"seq": 212, "cmd": "snapshot control", "reason": "v2.5.7zb deployment check before the drill", "utc": "2026-10-19T14:37:05Z"}
+  - {"seq": 213, "cmd": "setenv DRILL=1", "reason": "drill A (reviewer A1 14:4x UTC): one-shot hang of the heartbeat's status upload; expect the 180 s timeout and recovery in <= 4 min", "utc": "2026-10-19T14:40:55Z"}
