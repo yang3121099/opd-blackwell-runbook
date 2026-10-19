@@ -191,3 +191,4 @@ commands:
   - {"seq": 189, "cmd": "logs EVAL-budA-top10 40", "reason": "reviewer 11:1x UTC: progress of EVAL-budA-top10 (5 h so far)", "utc": "2026-10-19T11:04:52Z"}
   - {"seq": 190, "cmd": "snapshot runs/EVAL-budA-top10/gen_eval.log", "reason": "reviewer 11:1x UTC: block progress of EVAL-budA-top10", "utc": "2026-10-19T11:06:20Z"}
   - {"seq": 191, "cmd": "snapshot runs/EVAL-e10b-P5self", "reason": "patrol URGENT 11:13 UTC: GPU4 idle 30 min under EVAL-e10b-P5self (fetch of the s50 weights?)", "utc": "2026-10-19T11:14:36Z"}
+  - {"seq": 192, "cmd": "kill-pgid 3108717", "reason": "reviewer URGENT 11:1x UTC: EVAL-*-P5self stuck 35 min in two concurrent fetches of one result: path; relaunched on the local step-50 save (queue 129ea7d)", "utc": "2026-10-19T11:17:13Z"}
