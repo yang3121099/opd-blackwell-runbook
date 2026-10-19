@@ -56,5 +56,9 @@ ok "done: not run again" '! grep -q term_probe $CALLS'
 : > $CALLS; bash $T/rb/scripts/term_probe.sh 3 PROBE-TERM2 > $T/out2 2>&1
 D2=$T/root/runs/PROBE-TERM2
 ok "PROBE-TERM2 reads the PROBE-TERM lines and reuses its E14 generations" '! grep -q "^gen_eval" $CALLS && grep -q "^06_P5noEOS	.*	$D/gen/term_06_P5noEOS_math500_no_think_t0.6.jsonl	" $CALLS.tsv && grep -q "^17_P0	" $CALLS.tsv && grep -q "^remote put $D2/up runs/PROBE-TERM2$" $CALLS && [ -f $D2/.done ]'
+# v2.5.7m PROBE-TERM3: its own #term lines (a model on another model's generations), no teacher
+printf '#term PROBE-TERM3 17_P5-on-P0text Qwen/Qwen3-1.7B E11b-P0/e11b_P0.jsonl\n' >> $T/rb/tasks/queue.txt
+: > $CALLS; bash $T/rb/scripts/term_probe.sh 3 PROBE-TERM3 > $T/out3 2>&1
+ok "PROBE-TERM3 reads its own lines, runs without the teacher" '[ "$(wc -l < $CALLS.tsv | tr -d " ")" = 1 ] && grep -q "^17_P5-on-P0text	$T/m17	$T/root/runs/E11b-P0/e11b_P0.jsonl	" $CALLS.tsv && grep -q "^term_probe .*--no_teacher" $CALLS && grep -q "^remote put $T/root/runs/PROBE-TERM3/up runs/PROBE-TERM3$" $CALLS'
 rm -rf $T
 [ $fails = 0 ] && echo "TERM_PROBE_TEST PASS ($n checks)" || echo "TERM_PROBE_TEST FAIL ($fails of $n)"

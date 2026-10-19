@@ -14,7 +14,9 @@
 # repository as runs/PROBE-TERM; probe.log to logs/<node>/term_probe/ (private); an event term_probe_done; .done.
 # v2.5.7k: PROBE-TERM2 = the same models and generations (the #term PROBE-TERM lines; the E14 generations PROBE-TERM made
 # are reused, not drawn again) with the environment-close anchor and the 16-token maximum (term_probe.py, reviewer 23:35 UTC)
-# Usage: bash term_probe.sh <gpu> PROBE-TERM|PROBE-TERM2
+# v2.5.7m: PROBE-TERM3 (reviewer 01:0x UTC) = cross prefixes: a model on another model's generations, its own #term
+# PROBE-TERM3 lines, no teacher (its values depend on the text only, and the texts are those PROBE-TERM2 measured)
+# Usage: bash term_probe.sh <gpu> PROBE-TERM|PROBE-TERM2|PROBE-TERM3
 set -uo pipefail
 G=$1; T=$2; source "$(dirname "$0")/env.sh"; source ${VENV_EVAL:-$OPD_ROOT/venv}/bin/activate
 D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; Q=${QUEUE_FILE:-$RUNBOOK/tasks/queue.txt}; mkdir -p $D/gen $D/up/gen
@@ -24,6 +26,7 @@ fetch_ckpt() { python $RUNBOOK/scripts/fetch_model.py yang31210999/opd-lab-ckpts
 fetch_result() { python $RUNBOOK/scripts/fetch_model.py "$(python $RUNBOOK/scripts/remote.py repo public)" "$1" "$CKPT_ROOT/adhoc_models/result" --task $T >> $D/fetch.log 2>&1; }
 step "start $T gpu=$G"
 : > $D/inputs.tsv
+QT=$T; [ $T = PROBE-TERM2 ] && QT=PROBE-TERM   # v2.5.7m: only PROBE-TERM2 reuses PROBE-TERM's lines
 while read -r TAG MODEL GENS; do
   [ -n "$TAG" ] || continue
   [[ $TAG =~ ^[A-Za-z0-9.-]+_[A-Za-z0-9._-]+$ ]] || { step "REFUSED bad tag $TAG"; continue; }
@@ -55,11 +58,11 @@ while read -r TAG MODEL GENS; do
   [ -n "$F" ] && [ -f "$F" ] || { step "GENERATIONS_MISSING $TAG: $GENS"; F=-; }
   printf '%s\t%s\t%s\t%s\t%s\n' "$TAG" "$M" "$F" "$MODEL" "$SRC" >> $D/inputs.tsv
   step "input $TAG: $MODEL, $SRC"
-done <<< "$(awk -v t="${T%2}" '$1 == "#term" && $2 == t {print $3, $4, $5}' "$Q")"
+done <<< "$(awk -v t="$QT" '$1 == "#term" && $2 == t {print $3, $4, $5}' "$Q")"
 [ -s $D/inputs.tsv ] || { step "no #term lines for $T"; exit 1; }
 step "measure $(wc -l < $D/inputs.tsv) models"
 CUDA_VISIBLE_DEVICES=$G python $RUNBOOK/code/analysis/term_probe.py --teacher $TEACHER --inputs $D/inputs.tsv --out $D/report.json \
-  --samples $D/samples.jsonl >> $LOG 2>&1; rc=$?
+  --samples $D/samples.jsonl $([ $T = PROBE-TERM3 ] && echo --no_teacher) >> $LOG 2>&1; rc=$?
 python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true
 cp $D/report.json $D/samples.jsonl $D/up/ 2> /dev/null
 python $RUNBOOK/scripts/remote.py put $D/up runs/$T >> $LOG 2>&1 || { step "report upload failed (kept in $D)"; rc=1; }

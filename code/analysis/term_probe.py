@@ -241,14 +241,17 @@ def main():
     ap.add_argument("--samples", default=None)
     ap.add_argument("--max_per_model", type=int, default=0)
     ap.add_argument("--no_teacher_nothink", action="store_true")
+    ap.add_argument("--no_teacher", action="store_true")   # v2.5.7m (PROBE-TERM3): the teacher's values depend on the text only
     a = ap.parse_args()
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
     from gen_eval import PROMPT_SUFFIX, load_bench
     rows = load_bench("math500")
     load = lambda p: AutoModelForCausalLM.from_pretrained(p, torch_dtype=torch.bfloat16, attn_implementation="sdpa").cuda().eval()
-    ttok = AutoTokenizer.from_pretrained(a.teacher); teacher = load(a.teacher)
-    tp_think, tp_plain = prompts(ttok, rows, True, PROMPT_SUFFIX), prompts(ttok, rows, False, PROMPT_SUFFIX)
+    teacher = None
+    if not a.no_teacher:
+        ttok = AutoTokenizer.from_pretrained(a.teacher); teacher = load(a.teacher)
+        tp_think, tp_plain = prompts(ttok, rows, True, PROMPT_SUFFIX), prompts(ttok, rows, False, PROMPT_SUFFIX)
     report = {"method": __doc__.split("Usage:")[0].strip(), "markers": MARKERS.decode(), "models": {}, "pairs": {}}
     per = {}
     sf = open(a.samples, "w") if a.samples else None
@@ -288,10 +291,10 @@ def main():
                 vals["p_stop_nl"] = s.get(k_nl, (None,))[0]; vals["p_stop_any_nl"] = s.get(k_nl, (None, None))[1]
                 vals["p_stop_after_box"] = s.get(k_after, (None,))[0]
                 vals["p_stop_env_nl"] = s.get(k_env, (None,))[0]; vals["p_stop_max16"] = mx(s)
-                t = stop_probs(teacher, tp_think[r["pid"]], ids, [k_nl, k_env] + k16)
+                t = stop_probs(teacher, tp_think[r["pid"]], ids, [k_nl, k_env] + k16) if teacher is not None else {}
                 vals["teacher_stop_nl"] = t.get(k_nl, (None,))[0]
                 vals["teacher_stop_env_nl"] = t.get(k_env, (None,))[0]; vals["teacher_stop_max16"] = mx(t)
-                if not a.no_teacher_nothink:
+                if teacher is not None and not a.no_teacher_nothink:
                     tn = stop_probs(teacher, tp_plain[r["pid"]], ids, [k_nl, k_env])
                     vals["teacher_nothink_stop_nl"] = tn.get(k_nl, (None,))[0]; vals["teacher_nothink_stop_env_nl"] = tn.get(k_env, (None,))[0]
                 for k, v in vals.items():
