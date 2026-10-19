@@ -161,3 +161,4 @@ commands:
   - {"seq": 159, "cmd": "snapshot runs/EVAL-e10c-fix4-s43/.failed", "reason": "reviewer 04:1x UTC: EVAL-e10c-fix4-s43 attempt-1 cause", "utc": "2026-10-19T04:11:06Z"}
   - {"seq": 160, "cmd": "snapshot runs/E11b-P5rand10m/.failed", "reason": "reviewer 04:2x UTC: E11b-P5rand10m attempt-1 cause", "utc": "2026-10-19T04:17:49Z"}
   - {"seq": 161, "cmd": "logs EVAL-e10d-P5 30", "reason": "GPU4 idle: is EVAL-e10d-P5 still fetching E10d-P5 from the result repository", "utc": "2026-10-19T04:34:59Z"}
+  - {"seq": 162, "cmd": "logs EVAL-e10d-P5 400", "reason": "timeline v24 for Runming: progress of EVAL-e10d-P5", "utc": "2026-10-19T06:04:00Z"}
