@@ -189,3 +189,4 @@ commands:
   - {"seq": 187, "cmd": "rerun STRICT-C1", "reason": "reviewer A1 09:5x UTC (v2.5.7x): think-structure stats for answer_ready.md", "utc": "2026-10-19T09:23:01Z"}
   - {"seq": 188, "cmd": "du ckpt", "reason": "reviewer A1 10:5x UTC: local checkpoint disk use per task", "utc": "2026-10-19T10:41:52Z"}
   - {"seq": 189, "cmd": "logs EVAL-budA-top10 40", "reason": "reviewer 11:1x UTC: progress of EVAL-budA-top10 (5 h so far)", "utc": "2026-10-19T11:04:52Z"}
+  - {"seq": 190, "cmd": "snapshot runs/EVAL-budA-top10/gen_eval.log", "reason": "reviewer 11:1x UTC: block progress of EVAL-budA-top10", "utc": "2026-10-19T11:06:20Z"}
