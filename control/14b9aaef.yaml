@@ -241,3 +241,4 @@ commands:
   - {"seq": 239, "cmd": "signal 3507773 TERM", "reason": "stuck prefetch of EVAL-e12d-P0 since 14:31:55 (result: download, 0 bytes) blocks every prefetch; its reading is local: now (b905e24); wrapper first so no .prefetch_fail", "utc": "2026-10-19T16:01:13Z"}
   - {"seq": 240, "cmd": "du opd_root models/Qwen3-32B", "reason": "FETCH-Qwen3-32B has run since 09:03:50 UTC through the node proxy: growing or hung", "utc": "2026-10-19T16:02:10Z"}
   - {"seq": 241, "cmd": "signal 2878925 TERM", "reason": "FETCH-Qwen3-32B hung since 09:03 UTC at 4.0 GB (1 of 17 shards); reviewer 16:1x: end it, pull in daytime; its #fetch line is off", "utc": "2026-10-19T16:06:02Z"}
+  - {"seq": 242, "cmd": "resume E10b-P5-t14", "reason": "reviewer A1 16:1x: v2.5.7zd pushed (local 14B teacher instead of the inherited hub id)", "utc": "2026-10-19T16:09:29Z"}
