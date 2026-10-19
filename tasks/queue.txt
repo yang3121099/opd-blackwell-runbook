@@ -280,7 +280,7 @@ term4    open   PROBE-TERM4
 # budA-top10 (reviewer 05:4x UTC, Q-014 amendment): the token-selective arms at 32K (their 16K readings are budget-limited), with the E10-P5-1.7B s50 reference
 #eval EVAL-budA-top10 budAtop10_E10bP5top10_s50_math500_T0.6_32k result:runs/E10b-P5top10/global_step_50/actor/huggingface math500 4 0.6 32768
 #eval EVAL-budA-top10b budAtop10_E10bP5rand10m_s50_math500_T0.6_32k result:runs/E10b-P5rand10m/global_step_50/actor/huggingface math500 4 0.6 32768
-#eval EVAL-budA-top10c budAtop10_E10P5_17B_s50_math500_T0.6_32k yang31210999/opd-lab-ckpts/runs/E10-P5-1.7B-lr3e-6-s50/global_step_50/actor/huggingface math500 4 0.6 32768
+#hold EVAL-budA-top10c budAtop10_E10P5_17B_s50_math500_T0.6_32k yang31210999/opd-lab-ckpts/runs/E10-P5-1.7B-lr3e-6-s50/global_step_50/actor/huggingface math500 4 0.6 32768
 # ext 4B (reviewer 06:0x UTC): base 4B / E10d-P2 / E10d-P5 s150 on the extension suite, 16K T0.6; P0 first, then P2 and P5 in parallel
 #eval EVAL-ext-E10d-P0 ext_E10dP0_aime24_T0.6 Qwen/Qwen3-4B aime24 16 0.6
 #eval EVAL-ext-E10d-P0 ext_E10dP0_aime25_T0.6 Qwen/Qwen3-4B aime25 16 0.6
@@ -432,3 +432,5 @@ term4    open   PROBE-TERM4
 # runs of the same result: path into the same directory (stuck on the download lock). The P5think / P5self readings now read the
 # training's own fp32 HF save of step 50 (kept: KEEP_LOCAL_HF=1; local: = bf16, v2.5.7q, the same values as the bf16 upload), no
 # fetch; and they moved into late ahead of the top10 32K readings (reviewer: higher priority). The two stuck tasks are killed and rerun.
+# 11:4x UTC (reviewer): top10c's archive prefetch held back (#hold) until the P5think / P5self readings are prefetched; a stale prefetch
+# of EVAL-e10b-P5self (result:, stuck since 10:39) had blocked every prefetch and was ended (seq 196 / 197)
