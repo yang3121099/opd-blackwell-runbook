@@ -317,6 +317,16 @@ export CALLS=$T/calls; : > $CALLS
 ok "v2.5.7zb bounded: a hung call returns 124 at its timeout and is logged + evented; a normal one passes" 'grep -qE "^rc_hang 124 [23]$" $CALLS && grep -q "^rc_ok 0" $CALLS && grep -q "LOOP_TIMEOUT .* 2s sleep 30" $T/root/logs/control.log && grep -q "^py event node loop_timeout sleep 30" $CALLS'
 ok "v2.5.7zb run_tasks bounds its git pull and apply; the loop writes its liveness file and starts the watchdog" 'grep -q "bounded \${PULL_TIMEOUT:-120} git -C" $SRC/scripts/run_tasks.sh && grep -q "bounded \${APPLY_TIMEOUT:-300} python \$RUNBOOK/scripts/control.py apply" $SRC/scripts/run_tasks.sh && grep -q "loop_run_tasks" $SRC/scripts/run_tasks.sh && grep -q "ensure_watchdog" $SRC/scripts/run_tasks.sh'
 rm -rf $T
+# 3m. v2.5.7zl run_eval.sh (E11b) #pair: pairs before the upload; a pairs-only rerun skips the readings and the TWR there
+setup; cp $SRC/scripts/run_eval.sh $T/rb/scripts/; mkdir -p $T/rb/code/analysis $T/root/runs/E10b-P2-t14/ckpt/global_step_150/actor/huggingface_bf16
+touch $T/root/runs/E10b-P2-t14/ckpt/global_step_150/actor/huggingface_bf16/model.safetensors
+printf 'import sys, os; open(os.environ["CALLS"], "a").write("pair " + " ".join(sys.argv[1:]) + "\\n")\n' > $T/rb/code/analysis/paired_bootstrap.py
+printf 'version: 2\n#pair E11b-P2-t14 e11b_P2-t14_math500_T0.6 E11b-P2/e11b_P2_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P0/x.jsonl ../etc/y.jsonl\n' > $T/rb/tasks/queue.txt
+mkdir -p $T/root/runs/E11b-P2-t14; for TT in T0.6 T1.0; do : > $T/root/runs/E11b-P2-t14/e11b_P2-t14_math500_${TT}_math500_no_think_t${TT#T}.jsonl; : > $T/root/runs/E11b-P2-t14/e11b_P2-t14_math500_${TT}_math500_no_think_t${TT#T}.metrics.json; done
+echo '{}' > $T/root/runs/E11b-P2-t14/twr.json; mkdir -p $T/root/runs/E11b-P0; : > $T/root/runs/E11b-P0/e11b_P0_math500_T0.6_math500_no_think_t0.6.jsonl
+( cd $T/rb && PATH=$PATH bash scripts/run_eval.sh 0 E11b-P2-t14 > $T/re1 2>&1 )
+ok "v2.5.7zl run_eval pairs: two refs, ../ refused, no generation, no TWR, uploaded" 'grep -q "^pair --pairs $T/root/runs/E11b-P2-t14/e11b_P2-t14_math500_T0.6.paired.json $T/root/runs/E11b-P2-t14/e11b_P2-t14_math500_T0.6_math500_no_think_t0.6.jsonl $T/root/runs/E11b-P2/e11b_P2_math500_T0.6_math500_no_think_t0.6.jsonl $T/root/runs/E11b-P0/x.jsonl$" $CALLS && grep -q "PAIR_REF_REFUSED ../etc/y.jsonl" $T/re1 && ! grep -q "^gen_eval\|^twr" $CALLS && grep -q "remote put $T/root/runs/E11b-P2-t14 runs/E11b-P2-t14" $CALLS && [ -f $T/root/runs/E11b-P2-t14/.done ]'
+rm -rf $T
 # 4. v2.5.4d free_gpus(): a GPU whose task.sh (or ad-hoc evaluation) runs is not free, even with nothing on it yet
 T=$(mktemp -d); mkdir -p $T/bin $T/x/scripts
 printf '#!/usr/bin/env bash\ncase "$*" in *compute-apps*) ;; *) echo 0;; esac\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi
@@ -328,4 +338,4 @@ ok "running tasks keep their GPUs" '[[ " $got" == *" 1 "* && " $got" == *" 6 "* 
 rm -rf $T
 # v2.5.7j: no task script deletes a final bf16 copy (Runming: final weights keep a local copy after upload)
 ok "final bf16 copies are never deleted by run_e12.sh / run_arm.sh / run_eval.sh" '! grep -nE "rm -rf[^#]*huggingface_bf16" $SRC/scripts/run_e12.sh $SRC/scripts/run_arm.sh $SRC/scripts/run_eval.sh'
-[ $fails = 0 ] && echo "V254A_TEST PASS (55 checks)" || echo "V254A_TEST FAIL ($fails)"
+[ $fails = 0 ] && echo "V254A_TEST PASS (56 checks)" || echo "V254A_TEST FAIL ($fails)"

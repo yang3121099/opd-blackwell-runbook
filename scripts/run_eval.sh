@@ -25,5 +25,19 @@ if [ $A != P0 ]; then
   [ -f $OUT/twr.json ] || python code/leakage/twr_alpha.py --judge $STUDENT_17B --bench math500 --ref $REF --score $SC \
                                 --model_k $M --per_problem 4 --out $OUT/twr.json
 fi
+# v2.5.7zl (reviewer 21:1x UTC): "#pair E11b-<arm> <tag> <ref> [<ref> ...]" as in run_queue_eval.sh (paired_bootstrap.py; a ref
+# is <task dir>/<file>.jsonl under $OPD_ROOT/runs, no "." / ".." part), before the upload; a rerun for the pairs skips
+# the readings and the TWR already there. E11b-P2-t14 had no pairs (run_eval.sh had none).
+Q=${QUEUE_FILE:-$RUNBOOK/tasks/queue.txt}
+while read -r PTAG PREFS; do
+  [ -n "$PTAG" ] || continue
+  SC=$(ls $OUT/${PTAG}_*.jsonl 2> /dev/null | head -1 || true)
+  [ -n "$SC" ] || { echo "PAIR_SKIPPED $PTAG (no reading)"; continue; }
+  RP=(); for R in $PREFS; do
+    if [[ $R =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+\.jsonl$ && /$R/ != */../* && /$R/ != */./* ]]; then RP+=("$OPD_ROOT/runs/$R"); else echo "PAIR_REF_REFUSED $R"; fi
+  done
+  python3 code/analysis/paired_bootstrap.py --pairs $OUT/${PTAG}.paired.json "$SC" "${RP[@]}" > /dev/null 2>> $OUT/pair.log \
+    && echo "PAIR_DONE $PTAG (${#RP[@]} refs)" || echo "PAIR_FAIL $PTAG (see pair.log)"
+done <<< "$(awk -v t="$T" '$1 == "#pair" && $2 == t {$1 = ""; $2 = ""; sub(/^  /, ""); print}' "$Q")"
 # .done only after the upload (v2.3): a failed upload makes run_tasks retry, and the retry only re-uploads
 python scripts/remote.py put $OUT runs/$T && touch $OUT/.done && echo "UP_OK $T"
