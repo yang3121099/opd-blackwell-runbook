@@ -244,8 +244,8 @@ def test_p5rand10m_matches_the_top10_mass():
         sc = ar[b][sel] / a2[b][sel]
         assert torch.allclose(sc, sc[0].expand_as(sc), rtol=1e-4) and sc[0] >= 1   # one scale per response
     z = torch.zeros(1, 10); m = torch.ones(1, 10)
-    out, scales = rand_matched(z, m, 0.1, torch.Generator().manual_seed(0))
-    assert torch.all(out == 0) and scales == [1.0]                      # nothing to scale: no division by zero
+    out, scales, chosen = rand_matched(z, m, 0.1, torch.Generator().manual_seed(0))
+    assert torch.all(out == 0) and scales == [1.0] and chosen.sum().item() == 1   # nothing to scale: no division by zero
 
 
 def test_override_only_through_its_hook():
@@ -283,3 +283,16 @@ def test_selection_stats_and_token_classes():
     assert s["opd/rand_scale_p10"] <= s["opd/rand_scale_p50"] <= s["opd/rand_scale_p90"] <= s["opd/rand_scale_max"] and s["opd/rand_scale_cap_frac"] == 0
     s = adv_stats("P6", a2, at, mask, lm, old_log_prob=old, ref_log_prob=ref, responses=resp)
     assert "opd/sel_kept_frac" not in s                                 # nothing pending: a real P6 arm logs none of it
+
+
+
+def test_kept_share_counts_picked_tokens_with_zero_advantage():   # v2.5.7l: PROBE-TOP10 2026-10-19 00:1x UTC
+    import os
+    old, ref, mask, _ = _toy()
+    ref = ref.clone(); ref[:, ::3] = old[:, ::3]                        # a third of the tokens: teacher = student, A = 0
+    resp = _toy_resp(old, mask)
+    a2, _ = compute("P2", old, ref, mask)
+    for v in ("P5top10", "P5rand10m"):
+        a, lm = compute(v, old, ref, mask, generator=torch.Generator().manual_seed(3), responses=resp)
+        s = adv_stats(v, a2, a, mask, lm, old_log_prob=old, ref_log_prob=ref, responses=resp)
+        assert abs(s["opd/sel_kept_frac"] - 55 / 550) < 1e-6, (v, s["opd/sel_kept_frac"])

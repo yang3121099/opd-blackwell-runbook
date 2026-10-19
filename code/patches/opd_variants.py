@@ -185,8 +185,18 @@ def resolve_variant(variant):
 
 
 def top_frac(adv, response_mask, frac=0.10):
-    """P5top10: the OPD advantage only on the top-`frac` |A_t| tokens of each response, the rest 0 (sparse_topk)."""
-    return sparse_topk(adv, response_mask, frac, "top")
+    """P5top10: the OPD advantage only on the top-`frac` |A_t| tokens of each response, the rest 0 (sparse_topk's choice);
+    returns the advantages and the boolean mask of the chosen positions (v2.5.7l: a chosen token whose advantage is
+    exactly 0 still counts as chosen in the diagnostics)."""
+    out, chosen = torch.zeros_like(adv), torch.zeros_like(response_mask, dtype=torch.bool)
+    for b in range(adv.shape[0]):
+        idx = torch.nonzero(response_mask[b] > 0, as_tuple=False).squeeze(-1)
+        if idx.numel() == 0:
+            continue
+        k = max(1, int(round(frac * idx.numel())))
+        pos = idx[torch.argsort(adv[b, idx].abs(), descending=True)[:k]]
+        out[b, pos] = adv[b, pos]; chosen[b, pos] = True
+    return out, chosen
 
 
 RAND_CAP = 100.0
@@ -195,8 +205,8 @@ RAND_CAP = 100.0
 def rand_matched(adv, response_mask, frac=0.10, generator=None, cap=RAND_CAP):
     """P5rand10m: a uniformly random `frac` of each response's tokens keeps its advantage, scaled per response so that
     the sum of |A| over the random set equals the sum of |A| over that response's top-`frac` |A| set (scale capped at
-    `cap`; returns the advantages and the per-response scales)."""
-    out, scales = torch.zeros_like(adv), []
+    `cap`; returns the advantages, the per-response scales and the boolean mask of the picked positions)."""
+    out, scales, chosen = torch.zeros_like(adv), [], torch.zeros_like(response_mask, dtype=torch.bool)
     for b in range(adv.shape[0]):
         idx = torch.nonzero(response_mask[b] > 0, as_tuple=False).squeeze(-1)
         if idx.numel() == 0:
@@ -207,9 +217,9 @@ def rand_matched(adv, response_mask, frac=0.10, generator=None, cap=RAND_CAP):
         pick = torch.randperm(idx.numel(), generator=generator, device=idx.device)[:k]
         s_rand = a[pick].abs().sum()
         sc = torch.clamp(s_top / s_rand.clamp(min=1e-12), max=cap) if s_rand > 0 else adv.new_tensor(1.0)
-        out[b, idx[pick]] = a[pick] * sc
+        out[b, idx[pick]] = a[pick] * sc; chosen[b, idx[pick]] = True
         scales.append(float(sc))
-    return out, scales
+    return out, scales, chosen
 
 
 def compute(variant, old_log_prob, ref_log_prob, response_mask, generator=None, responses=None):
@@ -217,13 +227,13 @@ def compute(variant, old_log_prob, ref_log_prob, response_mask, generator=None, 
     (think template + '<think>\\n'), handled in ref input preparation, not here."""
     variant = resolve_variant(variant)
     if variant == "P5top10":
-        a = top_frac(opd_k1(old_log_prob, ref_log_prob, response_mask), response_mask, 0.10)
-        _LAST.update(variant=variant, sel=(a != 0) & (response_mask > 0), scales=None)
+        a, chosen = top_frac(opd_k1(old_log_prob, ref_log_prob, response_mask), response_mask, 0.10)
+        _LAST.update(variant=variant, sel=chosen & (response_mask > 0), scales=None)
         return a, response_mask
     if variant == "P5rand10m":
         g = generator if generator is not None else _gen(old_log_prob.device)
-        a, sc = rand_matched(opd_k1(old_log_prob, ref_log_prob, response_mask), response_mask, 0.10, g)
-        _LAST.update(variant=variant, sel=(a != 0) & (response_mask > 0), scales=sc)
+        a, sc, chosen = rand_matched(opd_k1(old_log_prob, ref_log_prob, response_mask), response_mask, 0.10, g)
+        _LAST.update(variant=variant, sel=chosen & (response_mask > 0), scales=sc)   # v2.5.7l: picked, not a != 0
         return a, response_mask
     if variant in ("P2", "P5"):
         return opd_k1(old_log_prob, ref_log_prob, response_mask), response_mask
