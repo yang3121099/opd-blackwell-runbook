@@ -9,6 +9,10 @@ v2.5.7s (reviewer 07:3x UTC): `same` is the C1 contract of record; "exactly one 
 reading also where `same` loses the lenient accuracy: of the correct samples, the share each clause rejects (not ended at
 EOS, an unclosed box, no box, boxes with different contents), and the same losses exclusively, in points of accuracy, in
 the order not EOS > unclosed > no box > inconsistent (they sum to acc - acc_same).
+v2.5.7v (reviewer 08:2x UTC, "when does the student have the answer, when does it hand it in"): per reading also
+answer_ready: of the correct samples, the token position where the first box holding the final (graded) answer ends, and
+how many tokens the sample still writes after it (median, p90, share > 500), plus the first box of any content over all
+samples. Positions in the whole text (thinking included); tokens estimated as n_tokens x char position / text length.
 Per reading: lenient accuracy (avg over samples, as gen_eval), contract accuracy, their difference, `same` accuracy, and
 the shares of samples that ended at EOS / hold one box / several boxes / no box / an unclosed box, and of the correct
 samples, the share each contract clause rejects. No generation, no GPU, no grading again: the text and `correct` of each
@@ -29,8 +33,8 @@ sys.path.insert(0, HERE)
 from paired_bootstrap import paired  # noqa: E402
 
 
-def boxes(text):
-    """(contents of the complete \\boxed{...} in text, number of unclosed ones)."""
+def boxes_at(text):
+    """([(start, end, content)] of the complete \\boxed{...} in text, number of unclosed ones)."""
     out, unclosed, i = [], 0, text.find("\\boxed{")
     while i >= 0:
         j, depth = i + len("\\boxed{"), 1
@@ -38,9 +42,26 @@ def boxes(text):
             depth += {"{": 1, "}": -1}.get(text[j], 0); j += 1
         if depth:
             unclosed += 1; break
-        out.append(text[i + len("\\boxed{"): j - 1])
+        out.append((i, j, text[i + len("\\boxed{"): j - 1]))
         i = text.find("\\boxed{", j)
     return out, unclosed
+
+
+def boxes(text):
+    """(contents of the complete \\boxed{...} in text, number of unclosed ones)."""
+    bl, unclosed = boxes_at(text)
+    return [c for _, _, c in bl], unclosed
+
+
+def ready(text, ans_boxes, correct):
+    """(char end of the first box holding the final answer or None, char start of the first box or None, len(text))."""
+    allb, _ = boxes_at(text)
+    first = allb[0][0] if allb else None
+    if not correct or not (ans_boxes or allb):
+        return None, first, len(text)
+    target = "".join((ans_boxes or [c for _, _, c in allb])[-1].split())
+    end = next((e for _, e, c in allb if "".join(c.split()) == target), None)
+    return end, first, len(text)
 
 
 def answer_part(text, think):
@@ -57,7 +78,8 @@ def judge(r, think):
     eos = r.get("finish_reason") == "stop"
     ok = bool(r.get("correct"))
     norm = {"".join(b.split()) for b in bx}
-    return {"correct": ok, "eos": eos, "nbox": len(bx), "unclosed": unc, "answer": ans is not None, "inconsistent": len(norm) > 1,
+    fc, fb, L = ready(r.get("text") or "", bx, ok)
+    return {"fc_char": fc, "fb_char": fb, "chars": L,"correct": ok, "eos": eos, "nbox": len(bx), "unclosed": unc, "answer": ans is not None, "inconsistent": len(norm) > 1,
             "strict": ok and eos and len(bx) == 1 and not unc,
             "same": ok and eos and len(bx) >= 1 and len(norm) == 1 and not unc}
 
@@ -87,7 +109,7 @@ def rejudge(path, name):
     n = 0; c = {k: 0 for k in ("correct", "strict", "same", "eos", "one", "multi", "none", "unclosed", "no_answer",
                                 "c_not_eos", "c_multi", "c_none", "c_unclosed", "c_inconsistent",
                                 "x_not_eos", "x_unclosed", "x_no_box", "x_inconsistent")}
-    probs, gv = {}, set()
+    probs, gv = {}, set(); ft, at, fbt, ntk = [], [], [], []
     for line in open(path):
         line = line.strip()
         if not line:
@@ -101,6 +123,11 @@ def rejudge(path, name):
             c["c_inconsistent"] += j["inconsistent"]
             if not j["same"]:   # the first clause that rejects it
                 c["x_not_eos" if not j["eos"] else "x_unclosed" if j["unclosed"] else "x_no_box" if j["nbox"] == 0 else "x_inconsistent"] += 1
+        nt = int(r.get("n_tokens") or 0); ntk.append(nt); tok = lambda ch: round(nt * ch / max(j["chars"], 1))
+        if j["fb_char"] is not None:
+            fbt.append(tok(j["fb_char"]))
+        if j["correct"] and j["fc_char"] is not None:
+            ft.append(tok(j["fc_char"])); at.append(max(nt - tok(j["fc_char"]), 0))
         p = probs.setdefault(r["pid"], [0, 0, 0, 0]); p[0] += j["correct"]; p[1] += j["strict"]; p[2] += j["same"]; p[3] += 1
     if not n:
         return {"name": name, "error": "empty"}, None
@@ -112,8 +139,18 @@ def rejudge(path, name):
            "share": {"eos": pct("eos"), "one_box": pct("one"), "multi_box": pct("multi"), "no_box": pct("none"),
                      "unclosed_box": pct("unclosed"), "no_answer_part": pct("no_answer")},
            "of_correct_rejected": {k[2:]: pct(k, c["correct"]) for k in ("c_not_eos", "c_multi", "c_none", "c_unclosed", "c_inconsistent")},
-           "same_loss_points_exclusive": {k[2:]: pct(k) for k in ("x_not_eos", "x_unclosed", "x_no_box", "x_inconsistent")}}
+           "same_loss_points_exclusive": {k[2:]: pct(k) for k in ("x_not_eos", "x_unclosed", "x_no_box", "x_inconsistent")},
+           "answer_ready": {"correct_with_answer_box": len(ft), "first_correct_box_tok_p50": q(ft, .5), "first_correct_box_tok_p90": q(ft, .9),
+                            "after_tok_p50": q(at, .5), "after_tok_p90": q(at, .9),
+                            "after_gt_500_share": round(100 * sum(a > 500 for a in at) / len(at), 2) if at else None,
+                            "first_box_tok_p50": q(fbt, .5), "n_tokens_p50": q(ntk, .5)}}
     return res, probs
+
+
+def q(xs, p):
+    """the p-quantile (nearest rank) of xs, None when empty."""
+    xs = sorted(xs)
+    return xs[min(len(xs) - 1, int(p * len(xs)))] if xs else None
 
 
 def table(rows):
@@ -136,6 +173,16 @@ def table(rows):
         f = lambda v, w: f"{v:>{w}.2f}" if v is not None else f"{'-':>{w}}"   # v2.5.7t: no correct sample -> no share
         out.append(f"{r['name'][:58]:58} {f(r['acc'], 7)} {f(r['acc_same'], 7)} {f(o['not_eos'], 8)} {f(o['unclosed'], 7)} {f(o['none'], 7)} "
                    f"{f(o['inconsistent'], 7)} {f(x['not_eos'], 9)} {f(x['unclosed'], 8)} {f(x['no_box'], 8)} {f(x['inconsistent'], 8)}")
+    out += ["", "answer ready (v2.5.7v): correct samples, token position where the first box holding the final answer ends and the",
+            "tokens written after it (p50 / p90; % after > 500), the first box of any content (p50, all samples), length p50",
+            f"{'reading':58} {'n':>5} {'ready50':>8} {'ready90':>8} {'after50':>8} {'after90':>8} {'>500%':>6} {'1stbox50':>9} {'len50':>7}"]
+    for r in rows:
+        a = r.get("answer_ready")
+        if "error" in r or not a:
+            continue
+        g = lambda v, w: f"{v:>{w}}" if v is not None else f"{'-':>{w}}"
+        out.append(f"{r['name'][:58]:58} {a['correct_with_answer_box']:>5} {g(a['first_correct_box_tok_p50'], 8)} {g(a['first_correct_box_tok_p90'], 8)} "
+                   f"{g(a['after_tok_p50'], 8)} {g(a['after_tok_p90'], 8)} {g(a['after_gt_500_share'], 6)} {g(a['first_box_tok_p50'], 9)} {g(a['n_tokens_p50'], 7)}")
     return "\n".join(out)
 
 

@@ -15,6 +15,15 @@ def test_boxes():
     assert SC.boxes("no answer") == ([], 0)
 
 
+def test_ready():
+    # the first box holding the final answer ends at char 12; a correct sample whose answer is never boxed earlier
+    t = "x \\boxed{3} y \\boxed{4} z \\boxed{ 4 }"
+    assert SC.ready(t, ["3", "4", " 4 "], True) == (t.index("\\boxed{4}") + len("\\boxed{4}"), 2, len(t))
+    assert SC.ready(t, ["3", "4", " 4 "], False)[0] is None
+    assert SC.ready("no box", [], True) == (None, None, 6)
+    assert SC.q([5, 1, 3, 2, 4], .5) == 3 and SC.q([], .5) is None
+
+
 def test_answer_part():
     assert SC.answer_part("a \\boxed{1}", False) == "a \\boxed{1}"
     assert SC.answer_part("<think>try \\boxed{2}</think>\n\\boxed{1}", True) == "\n\\boxed{1}"
@@ -79,10 +88,12 @@ def test_scan_and_main(tmp_path, monkeypatch):
     assert a["same_loss_points_exclusive"] == {"not_eos": 12.5, "unclosed": 0.0, "no_box": 0.0, "inconsistent": 12.5}
     assert round(sum(a["same_loss_points_exclusive"].values()), 2) == round(a["acc"] - a["acc_same"], 2)
     assert "model" not in a and "/node/" not in open(out).read()                             # path-free report
+    assert a["answer_ready"]["correct_with_answer_box"] == 8 and a["answer_ready"]["after_gt_500_share"] == 0.0   # v2.5.7v
     p = r["pairs"][0]
     assert p["lenient"]["diff"] == 50.0 and p["contract"]["diff"] == 12.5 and p["diff_change"] == -37.5
     assert r["pairs"][1]["error"] == "reading missing"
     t = open(tab).read()
     assert "EVAL-x/a_math500_no_think_t0.6.jsonl" in t and "-37.50" in t and "reading missing" in t
+    assert "answer ready (v2.5.7v)" in t
     w = {x["name"]: x for x in r["readings"]}["EVAL-w/w_math500_no_think_t0.6.jsonl"]
     assert w["acc"] == 0.0 and w["of_correct_rejected"]["not_eos"] is None and "EVAL-w/w_math500" in t.split("same (the C1")[1]

@@ -213,6 +213,11 @@ v1=$(DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10b-P5think | tail -1)
 ok "v2.5.7r E10b-P5think: thinking student, 8K, refthink 0, variant P5, 50 steps; E10b-P5 unchanged" '[[ "$v1" == *"arm=P5 lr=3e-6 seed=42 student=$T/m17 "*"sthink=1 maxresp=8192 teacher=$T/m8 offload=1 variant=P5 override= refthink=0 steps=50" && "$u3" == *"sthink=0 maxresp=4096 teacher=$T/m8 offload=1 variant=P5 override= refthink=1 steps=150" ]]'
 ( bash $T/rb/scripts/run_arm.sh 0 E10b-P5think > $T/g4 2>&1 ); r4=$?
 ok "v2.5.7r P5think gated on PROBE-P5THINK PASS; E11b / E12b-P5think refused" '[ $r4 = 3 ] && grep -q "PROBE-P5THINK has not passed" $T/g4 && ! bash $T/rb/scripts/task.sh 0 E11b-P5think > /dev/null 2>&1 && ! bash $T/rb/scripts/task.sh 0 E12b-P5think > /dev/null 2>&1 && ! bash $T/rb/scripts/task.sh 0 E10b-P2think > /dev/null 2>&1'
+# v2.5.7v (Q-017): E10b-P5self = P5 with the student's base as the teacher (thinking template), 50 steps, gated on PROBE-P5SELF
+w1=$(DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10b-P5self | tail -1)
+ok "v2.5.7v E10b-P5self: teacher = the 1.7B base, refthink 1, variant P5, 4K, 50 steps" '[[ "$w1" == *"arm=P5 lr=3e-6 seed=42 student=$T/m17 "*"sthink=0 maxresp=4096 teacher=$T/m17 offload=1 variant=P5 override= refthink=1 steps=50" ]]'
+( bash $T/rb/scripts/run_arm.sh 0 E10b-P5self > $T/g5 2>&1 ); r5=$?
+ok "v2.5.7v P5self gated on PROBE-P5SELF PASS; E11b / E12b-P5self refused" '[ $r5 = 3 ] && grep -q "PROBE-P5SELF has not passed" $T/g5 && ! bash $T/rb/scripts/task.sh 0 E11b-P5self > /dev/null 2>&1 && ! bash $T/rb/scripts/task.sh 0 E12b-P5self > /dev/null 2>&1'
 ok "E10d-P5: 4B student, P5, GC on" '[[ "$d5" == *"arm=P5 lr=3e-6 seed=42 student=$T/m4 "* && "$d5" == *"gc=True"* ]] && ! bash $T/rb/scripts/task.sh 0 E10d-P3 > /dev/null 2>&1'
 ok "FUSED=1 GC=0" '[[ "$d4" == *"kern=[actor_rollout_ref.model.use_fused_kernels=True actor_rollout_ref.model.fused_kernel_options.impl_backend=torch] gc=False"* && "$d3" == *"kern=[] gc=True"* ]]'
 printf 'echo "speed_probe $*"\n' > $T/rb/scripts/speed_probe.sh

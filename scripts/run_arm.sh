@@ -7,7 +7,7 @@
 # Usage: bash run_arm.sh <gpu> <task id>      task ids: E10b-{P2,P3,P4lowlr,P5,P6,P6r,P2noEOS,Pstop,P6rand,P6top5,P4EOSpen}
 #        and the seed replicates E10b-P2-s43/-s44, E10b-P6r-s43/-s44; v2.5.7h: E10b-P5top10 / E10b-P5rand10m (50 steps);
 #        v2.5.7o: E10d-P2-s43 / E10d-P5-s43 (4B, data.seed 43, flash-attn); v2.5.7p: E10b-P2-t14 / E10b-P5-t14 (14B teacher);
-#        v2.5.7r: E10b-P5think (the student in thinking mode too, 8K rollouts)
+#        v2.5.7r: E10b-P5think (the student in thinking mode too, 8K rollouts); v2.5.7v: E10b-P5self (teacher = the student's base)
 set -euo pipefail
 source "$(dirname "$0")/env.sh"; source "$(dirname "$0")/dr.sh"; GPU=$1; TASK=$2
 # task id E10b-<arm>[-s<seed>]: the seed changes only the data order (data.seed); the default seed is 42
@@ -23,6 +23,9 @@ T14=0; [[ $TASK =~ ^E10b-(P2|P5)-t14$ ]] && { T14=1; BASE=${TASK%-t14}; }
 # the student's response opens with its own <think>, and the patch's extra '<think>\n' (P5's non-thinking student) would
 # double it. No change to the installed patch.
 STHINK=0; MAXRESP=4096; [ $TASK = E10b-P5think ] && { STHINK=1; MAXRESP=8192; BASE=E10b-P5; }
+# v2.5.7v (Q-017, reviewer 08:2x UTC): E10b-P5self = P5 with the teacher replaced by the student's own base (Qwen3-1.7B,
+# the same weights the student starts from) on the thinking template: mode without extra knowledge; 50 steps, as P5 s50
+SELF=0; [ $TASK = E10b-P5self ] && { SELF=1; BASE=E10b-P5; }
 # v2.5.6f (queue v3 V3-c1): E10c-<arm>-fix4 / -dyn16k = the lab's 0.6B E10 arm on this node (student Qwen3-0.6B; data,
 # seeds and hyper-parameters as the lab's run_e10_arm.sh), with a fixed 4 sequences per micro-batch or the lab's dynamic
 # token budget of 16384. The batching mode is the experiment: an out-of-memory retry does not change it.
@@ -47,6 +50,11 @@ STUDENT=${STUDENT:-$STUDENT_17B}   # the verification smoke uses $STUDENT_06B
 [ -n "$MODE" ] && STUDENT=$STUDENT_06B
 [ "$SIZE" = 4B ] && { STUDENT=$STUDENT_4B; GC=1; }
 [ $T14 = 1 ] && { TEACHER=$TEACHER_14B; TEACHER_OFFLOAD=0; }   # v2.5.7p: a node-wide TEACHER_OFFLOAD does not reach it
+[ $SELF = 1 ] && TEACHER=$STUDENT_17B   # v2.5.7v
+# v2.5.7v: E10b-P5self starts only after PROBE-P5SELF passed (a 3-step smoke)
+if [ $SELF = 1 ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
+  grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-P5SELF/report.json 2> /dev/null || { echo "PROBE-P5SELF has not passed: $TASK not started"; exit 3; }
+fi
 # v2.5.7r: E10b-P5think starts only after PROBE-P5THINK passed (templates + a 3-step smoke whose rollouts open with <think>)
 if [ $STHINK = 1 ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
   grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-P5THINK/report.json 2> /dev/null || { echo "PROBE-P5THINK has not passed: $TASK not started"; exit 3; }
@@ -80,7 +88,8 @@ export OPD_VARIANT=$ARM OPD_SEED=${OPD_SEED:-1234} OPD_VARIANT_OVERRIDE= OPD_TOK
 # teacher prompt
 NSTEPS=150
 case $ARM in P5top10|P5rand10m) export OPD_VARIANT=P6 OPD_VARIANT_OVERRIDE=$ARM OPD_TOKCAT=1 OPD_TOKENIZER=$STUDENT; NSTEPS=50;; esac
-[ $STHINK = 1 ] && NSTEPS=${P5THINK_STEPS:-50}   # v2.5.7r: constant lr, so step 50 is the same point as in a 150-step run
+[ $STHINK = 1 ] && NSTEPS=${P5THINK_STEPS:-50}
+[ $SELF = 1 ] && NSTEPS=${P5SELF_STEPS:-50}   # v2.5.7v: the same point as P5 s50   # v2.5.7r: constant lr, so step 50 is the same point as in a 150-step run
 OPD_REF_THINK=0; [[ $ARM =~ ^P5(top10|rand10m)?$ ]] && OPD_REF_THINK=1; [ $STHINK = 1 ] && OPD_REF_THINK=0; export OPD_REF_THINK
 if python -c "import flash_attn" 2>/dev/null; then RMPAD=True; ATTN=flash_attention_2; TOK_DEFAULT=16384
 else RMPAD=False; ATTN=sdpa; TOK_DEFAULT=6144; fi
