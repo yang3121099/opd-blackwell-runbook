@@ -264,3 +264,4 @@ commands:
   - {"seq": 262, "cmd": "snapshot models.env", "reason": "reviewer 17:4x: model inventory, the paths the node uses (private repo)", "utc": "2026-10-19T17:37:35Z"}
   - {"seq": 263, "cmd": "du old_base", "reason": "reviewer 17:4x: model inventory, models under the old base", "utc": "2026-10-19T17:37:43Z"}
   - {"seq": 264, "cmd": "du old_base hf", "reason": "reviewer 17:4x: model inventory, the old base's HF cache (38 GB)", "utc": "2026-10-19T17:39:51Z"}
+  - {"seq": 265, "cmd": "du old_base hf/hub", "reason": "reviewer 17:4x: model inventory, the old base's HF hub cache by model", "utc": "2026-10-19T17:42:29Z"}
