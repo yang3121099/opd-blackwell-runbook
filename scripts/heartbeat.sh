@@ -12,6 +12,17 @@
 set -uo pipefail
 source "$(dirname "$0")/env.sh"; source "$(dirname "$0")/dr.sh"; source $OPD_ROOT/venv/bin/activate
 H=$(hostname -s); F=$OPD_ROOT/logs/status_$H.json
+# v2.5.7za (reviewer A1 12:3x UTC): every upload of this loop is bounded. On 2026-10-19 one HF upload hung at 12:16 UTC and
+# froze the loop: no status, pulse, events or receipts, while run_tasks kept working. A timeout (HB_PUT_TIMEOUT, 180 s) is
+# logged, sent as an event (itself bounded) and the loop goes on.
+TO=""; command -v timeout > /dev/null && TO="timeout ${HB_PUT_TIMEOUT:-180}"
+hb_to() {
+  $TO "$@"; local rc=$?
+  if [ $rc = 124 ]; then
+    echo "UPLOAD_TIMEOUT $(date -u +%T) $(basename $2) $3" >> $OPD_ROOT/logs/heartbeat.err
+    $TO python $RUNBOOK/scripts/control.py event node heartbeat_upload_timeout "$(basename $2) $3" > /dev/null 2>&1
+  fi
+  return $rc; }
 # software stack, read once: tells the project which install route this node is on
 python -c "import json, torch, vllm; json.dump({'torch': torch.__version__, 'torch_cuda': torch.version.cuda, 'vllm': vllm.__version__, 'arch_list': torch.cuda.get_arch_list(), 'device_capability': list(torch.cuda.get_device_capability())}, open('$OPD_ROOT/logs/stack.json', 'w'))" 2>/dev/null || echo '{}' > $OPD_ROOT/logs/stack.json
 # v2.5: run_tasks.sh restarts this loop when heartbeat.sh changes (it compares this sha with the current file)
@@ -124,12 +135,12 @@ PY
       "$H" "$(date -u +%FT%TZ)" "$(df -Pk $OPD_ROOT | awk 'NR==2{printf "%.1f", $4/1e6}')" "$(df -Pk ${CKPT_ROOT:-$OPD_ROOT} | awk 'NR==2{printf "%.1f", $4/1e6}')" > $UP
   fi
   N=$(python $RUNBOOK/scripts/control.py node)
-  python $RUNBOOK/scripts/remote.py put $UP status/$N.json 2>> $OPD_ROOT/logs/heartbeat.err && echo "HEARTBEAT $(date -u +%T)"
-  python $RUNBOOK/scripts/control.py pulse $UP > /dev/null 2>> $OPD_ROOT/logs/heartbeat.err   # v2.5.1: public pulse
+  hb_to python $RUNBOOK/scripts/remote.py put $UP status/$N.json 2>> $OPD_ROOT/logs/heartbeat.err && echo "HEARTBEAT $(date -u +%T)"
+  hb_to python $RUNBOOK/scripts/control.py pulse $UP > /dev/null 2>> $OPD_ROOT/logs/heartbeat.err   # v2.5.1: public pulse
   # v2.5 (D-004): the process table every round, and receipts/events again (a failed first upload is retried here)
-  python $RUNBOOK/scripts/control.py procs --upload > /dev/null 2>> $OPD_ROOT/logs/heartbeat.err
-  python $RUNBOOK/scripts/control.py alerts $UP > /dev/null 2>> $OPD_ROOT/logs/heartbeat.err   # disk / stalled / uploader events
-  for d in replies events; do [ -d $OPD_ROOT/control/$d ] && python $RUNBOOK/scripts/remote.py put $OPD_ROOT/control/$d status/$N/$d > /dev/null 2>> $OPD_ROOT/logs/heartbeat.err; done
+  hb_to python $RUNBOOK/scripts/control.py procs --upload > /dev/null 2>> $OPD_ROOT/logs/heartbeat.err
+  hb_to python $RUNBOOK/scripts/control.py alerts $UP > /dev/null 2>> $OPD_ROOT/logs/heartbeat.err   # disk / stalled / uploader events
+  for d in replies events; do [ -d $OPD_ROOT/control/$d ] && hb_to python $RUNBOOK/scripts/remote.py put $OPD_ROOT/control/$d status/$N/$d > /dev/null 2>> $OPD_ROOT/logs/heartbeat.err; done
   # v2.5.7: the small control files also go to $(dr_root)/state/ (the share), so a rebuilt container finds them in one place
   if dr_on && [ -d "$(dirname "$(dr_root)")" ]; then
     DS=$(dr_root)/state; mkdir -p $DS
@@ -138,7 +149,7 @@ PY
   fi
   # first-arm comparison with the reference H100 run, uploaded once when E10b-P2 has reached step 10
   if [ ! -f $OPD_ROOT/logs/.compare_uploaded ] && python $RUNBOOK/scripts/compare_first_arm.py >/dev/null 2>&1; then
-    python $RUNBOOK/scripts/remote.py put $OPD_ROOT/logs/compare_$H.json status/compare_$N.json && touch $OPD_ROOT/logs/.compare_uploaded && echo "COMPARE_UPLOADED $(date -u +%T)"
+    hb_to python $RUNBOOK/scripts/remote.py put $OPD_ROOT/logs/compare_$H.json status/compare_$N.json && touch $OPD_ROOT/logs/.compare_uploaded && echo "COMPARE_UPLOADED $(date -u +%T)"
   fi
   # v2.5: `heartbeat` (control.py) asks for the next round now: the flag is checked every 10 s
   # v2.5.1: the round lasts HEARTBEAT_SEC (control/heartbeat_sec, 60-3600, default 600); the pulse goes every 60 s
@@ -146,6 +157,6 @@ PY
   for _i in $(seq $((HB / 10))); do
     [ -f $OPD_ROOT/control/heartbeat_now ] && { rm -f $OPD_ROOT/control/heartbeat_now; break; }
     sleep 10
-    [ $((_i % 6)) = 0 ] && [ $_i -lt $((HB / 10)) ] && python $RUNBOOK/scripts/control.py pulse $UP > /dev/null 2>> $OPD_ROOT/logs/heartbeat.err
+    [ $((_i % 6)) = 0 ] && [ $_i -lt $((HB / 10)) ] && hb_to python $RUNBOOK/scripts/control.py pulse $UP > /dev/null 2>> $OPD_ROOT/logs/heartbeat.err
   done
 done

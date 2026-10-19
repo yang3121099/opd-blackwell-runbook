@@ -246,6 +246,17 @@ mkdir -p $T/bin; printf '#!/usr/bin/env bash\nexec "$@"\n' > $T/bin/setsid; prin
 ( PATH=$T/bin:$PATH OPD_ROOT=$T/root RUNBOOK=$T/rb Q=$T/q.txt; eval "$(sed -n '/^fetch_pass() {/,/^  done; }$/p' $SRC/scripts/run_tasks.sh)"; fetch_pass; sleep 2; fetch_pass; sleep 1 )
 ok "v2.5.7w #fetch: Qwen3-32B fetched once to models/, evil/model ignored" '[ "$(grep -c "^fetch Qwen/Qwen3-32B  $T/root/models/Qwen3-32B --task FETCH-Qwen3-32B" $CALLS)" = 1 ] && [ -f $T/root/models/Qwen3-32B/.fetch_ok ] && ! grep -q evil $CALLS'
 rm -rf $T
+# 3d. v2.5.7za heartbeat hb_to(): a timed-out upload (exit 124) is logged and sent as an event, the loop goes on; others pass through
+T=$(mktemp -d); mkdir -p $T/rb/scripts $T/root/logs $T/bin
+printf '#!/usr/bin/env bash\nshift; [ "$3" = hang ] && exit 124; "$@"\n' > $T/bin/timeout; chmod +x $T/bin/timeout
+printf 'import sys, os; open(os.environ["CALLS"], "a").write("py " + " ".join(sys.argv[1:]) + "\\n")\n' > $T/rb/scripts/remote.py; cp $T/rb/scripts/remote.py $T/rb/scripts/control.py
+export CALLS=$T/calls; : > $CALLS
+( PATH=$T/bin:$PATH OPD_ROOT=$T/root RUNBOOK=$T/rb; python() { python3 "$@"; }; export -f python
+  eval "$(sed -n '/^TO=""; command -v timeout/,/^  return \$rc; }$/p' $SRC/scripts/heartbeat.sh)"
+  hb_to python $RUNBOOK/scripts/remote.py put a status/x.json; echo "rc1 $?" >> $CALLS
+  hb_to python $RUNBOOK/scripts/remote.py hang a; echo "rc2 $?" >> $CALLS )
+ok "v2.5.7za hb_to: normal upload passes, a timeout is logged + evented and returns 124" 'grep -q "^py put a status/x.json" $CALLS && grep -q "^rc1 0" $CALLS && grep -q "^rc2 124" $CALLS && grep -q "UPLOAD_TIMEOUT .* remote.py hang" $T/root/logs/heartbeat.err && grep -q "^py event node heartbeat_upload_timeout remote.py hang" $CALLS'
+rm -rf $T
 # 4. v2.5.4d free_gpus(): a GPU whose task.sh (or ad-hoc evaluation) runs is not free, even with nothing on it yet
 T=$(mktemp -d); mkdir -p $T/bin $T/x/scripts
 printf '#!/usr/bin/env bash\ncase "$*" in *compute-apps*) ;; *) echo 0;; esac\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi
