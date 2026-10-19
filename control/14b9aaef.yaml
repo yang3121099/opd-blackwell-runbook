@@ -177,3 +177,4 @@ commands:
   - {"seq": 175, "cmd": "signal 2624124 TERM", "reason": "reviewer A1 08:0x UTC (v2.5.7u): restart this upload_sync so run_tasks relaunches it with UPLOAD_WEIGHTS=25,50,75,100 (training untouched)", "utc": "2026-10-19T07:56:34Z"}
   - {"seq": 176, "cmd": "logs run_tasks 400", "reason": "v2.5.7u: confirm run_tasks self-restarted on ee7151a before the upload_sync restarts (07:56 / 07:57 UTC)", "utc": "2026-10-19T07:58:24Z"}
   - {"seq": 177, "cmd": "du dr", "reason": "reviewer 08:2x UTC (DR plan): share usage before raising the DR cap to 1.5 TB", "utc": "2026-10-19T08:14:58Z"}
+  - {"seq": 178, "cmd": "du dr dr", "reason": "reviewer 08:2x UTC (DR plan): share usage before raising the DR cap to 1.5 TB", "utc": "2026-10-19T08:15:12Z"}
