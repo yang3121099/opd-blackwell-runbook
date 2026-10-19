@@ -25,7 +25,7 @@ case $T in
   FA-PROBE) bash $RUNBOOK/scripts/fa_probe.sh $G;;
   SPEED-PROBE) bash $RUNBOOK/scripts/speed_probe.sh $G;;
   PROBE-4B) bash $RUNBOOK/scripts/probe_4b.sh $G;;
-  PROBE-TERM|PROBE-TERM2|PROBE-TERM3|PROBE-TERM4) bash $RUNBOOK/scripts/term_probe.sh $G $T;;
+  PROBE-TERM|PROBE-TERM2|PROBE-TERM3|PROBE-TERM4|PROBE-TERM4-4B) bash $RUNBOOK/scripts/term_probe.sh $G $T;;   # v2.5.7zk: -4B
   STRICT-C1) bash $RUNBOOK/scripts/strict_c1.sh $G $T;;
   PROBE-T14) bash $RUNBOOK/scripts/probe_t14.sh $G;;   # v2.5.7p (Q-015): the 14B teacher's gate
   PROBE-P5THINK) bash $RUNBOOK/scripts/probe_p5think.sh $G;;   # v2.5.7r (Q-016): the thinking student's gate

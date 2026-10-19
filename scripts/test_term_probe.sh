@@ -64,5 +64,10 @@ ok "PROBE-TERM3 reads its own lines, runs without the teacher" '[ "$(wc -l < $CA
 printf '#term PROBE-TERM4 17_P0think Qwen/Qwen3-1.7B E11b-P0/e11b_P0.jsonl think\n#term PROBE-TERM4 17_P0 Qwen/Qwen3-1.7B E11b-P0/e11b_P0.jsonl\n' >> $T/rb/tasks/queue.txt
 : > $CALLS; bash $T/rb/scripts/term_probe.sh 3 PROBE-TERM4 > $T/out4 2>&1
 ok "PROBE-TERM4: own lines, thinking template flag, no teacher, --term4" '[ "$(wc -l < $CALLS.tsv | tr -d " ")" = 2 ] && grep -q "^17_P0think	$T/m17	.*	think$" $CALLS.tsv && grep -q "^17_P0	$T/m17	.*	nothink$" $CALLS.tsv && grep -q "^term_probe .*--no_teacher --term4" $CALLS && grep -q "^remote put $T/root/runs/PROBE-TERM4/up runs/PROBE-TERM4$" $CALLS'
+# v2.5.7zk PROBE-TERM4-4B: its own lines, --term4, its own runs/PROBE-TERM4-4B (PROBE-TERM4's left alone)
+printf '#term PROBE-TERM4-4B 4_P0 local:m4local E11b-P0/e11b_P0.jsonl\n' >> $T/rb/tasks/queue.txt; mkdir -p $T/root/m4local; touch $T/root/m4local/model.safetensors
+: > $CALLS; : > $CALLS.tsv; bash $T/rb/scripts/term_probe.sh 3 PROBE-TERM4-4B > $T/out44 2>&1
+ok "v2.5.7zk PROBE-TERM4-4B: own lines (local model), --term4, uploads to runs/PROBE-TERM4-4B" '[ "$(wc -l < $CALLS.tsv | tr -d " ")" = 1 ] && grep -q "^4_P0	$T/root/m4local	" $CALLS.tsv && grep -q "^term_probe .*--no_teacher --term4" $CALLS && grep -q "^remote put $T/root/runs/PROBE-TERM4-4B/up runs/PROBE-TERM4-4B$" $CALLS && ! grep -q "runs/PROBE-TERM4/up" $CALLS'
+ok "v2.5.7zk task.sh and the rerun rule take PROBE-TERM4-4B" 'grep -q "PROBE-TERM4|PROBE-TERM4-4B) bash \$RUNBOOK/scripts/term_probe.sh" $SRC/scripts/task.sh && python3 -c "import sys; sys.path.insert(0, \"$SRC/scripts\"); import control_rules as R; R.parse({\"cmd\": \"rerun PROBE-TERM4-4B\", \"reason\": \"t\"})"'
 rm -rf $T
 [ $fails = 0 ] && echo "TERM_PROBE_TEST PASS ($n checks)" || echo "TERM_PROBE_TEST FAIL ($fails of $n)"
