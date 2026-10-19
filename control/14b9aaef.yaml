@@ -198,3 +198,4 @@ commands:
   - {"seq": 196, "cmd": "signal 3114053 TERM", "reason": "reviewer 11:44 UTC: the stale prefetch of EVAL-e10b-P5self (result: path, stuck in fetch_model since 10:39) blocks every other prefetch, incl. the P5think readings", "utc": "2026-10-19T11:45:31Z"}
   - {"seq": 197, "cmd": "signal 3114023 TERM", "reason": "reviewer 11:44 UTC: the stale prefetch of EVAL-e10b-P5self (result: path, stuck in fetch_model since 10:39) blocks every other prefetch, incl. the P5think readings", "utc": "2026-10-19T11:45:59Z"}
   - {"seq": 198, "cmd": "kill E10d-P2-s43", "reason": "reviewer ruling 11:3x / 11:5x UTC: stop the null-result seed-2 arm (s11) so its GPU goes to EVAL-budA-P5think now; resumed afterwards at its v3o place", "utc": "2026-10-19T11:49:13Z"}
+  - {"seq": 199, "cmd": "resume E10d-P2-s43", "reason": "reviewer ruling 11:5x UTC: EVAL-budA-P5think has the GPU; E10d-P2-s43 back to its v3o place (restarts from step 0)", "utc": "2026-10-19T11:51:13Z"}
