@@ -277,3 +277,4 @@ commands:
   - {"seq": 275, "cmd": "du opd_root models/Qwen3-32B", "reason": "32B fetch via hf-mirror (7zi), after the 30-min cool-down: growth check 1/3", "utc": "2026-10-19T18:30:06Z"}
   - {"seq": 276, "cmd": "ps", "reason": "32B mirror fetch: started after the cool-down?", "utc": "2026-10-19T18:30:46Z"}
   - {"seq": 277, "cmd": "setenv FETCH_ENDPOINT=", "reason": "the mirror is unreachable from the node too (18:25 UTC); back to the default endpoint order", "utc": "2026-10-19T18:33:05Z"}
+  - {"seq": 278, "cmd": "du opd_root models/Qwen3-4B", "reason": "reviewer 19:3x: confirm the node's STUDENT_4B (env.sh uses the local 4B when .fetch_ok is there)", "utc": "2026-10-19T19:14:21Z"}
