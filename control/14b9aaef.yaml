@@ -259,3 +259,4 @@ commands:
   - {"seq": 257, "cmd": "du opd_root runs/E12d-P5/ckpt/global_step_25/actor", "reason": "reviewer rule 17:4x: hold readings that need a proxy download; are E12d-P5's mid-RL weights local", "utc": "2026-10-19T17:26:51Z"}
   - {"seq": 258, "cmd": "du opd_root runs/E12d-P5/ckpt/global_step_50/actor", "reason": "reviewer rule 17:4x: hold readings that need a proxy download; are E12d-P5's mid-RL weights local", "utc": "2026-10-19T17:27:00Z"}
   - {"seq": 259, "cmd": "du opd_root runs/E12d-P5/ckpt/global_step_75/actor", "reason": "reviewer rule 17:4x: hold readings that need a proxy download; are E12d-P5's mid-RL weights local", "utc": "2026-10-19T17:27:09Z"}
+  - {"seq": 260, "cmd": "du ckpt E12d-P5/ckpt", "reason": "reviewer rule 17:4x: which E12d-P5 mid-RL steps have local weights (budA-e12dP5rl readings)", "utc": "2026-10-19T17:30:41Z"}
