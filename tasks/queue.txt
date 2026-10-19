@@ -316,12 +316,13 @@ term4    open   PROBE-TERM4
 # CONFOUND (register with every reading): the seed-2 arms differ from their seed-1 twins in seed AND attention (FA vs SDPA:
 # E12b-P2, E10d-P2 / P5 ran on SDPA); a seed-2 minus seed-1 difference cannot be split into the two; no valid FA noise floor yet.
 # 10-19 15:3x UTC (reviewer 15:2x UTC): EVAL-e12d-P0 / EVAL-e12b-P2-s43 read the trainings' own fp32 HF saves (local:, in bf16) after their result: downloads stalled 30 / 10 min with the GPU idle; readings of weights trained on this node use local: first, result: only as a fallback
-#eval EVAL-e12d-P0 e12d_P0_s100_math500_T0.6 local:runs/E12d-P0/ckpt/global_step_100/actor/huggingface math500 4 0.6
-#eval EVAL-e12d-P0 e12d_P0_s100_math500_T1.0 local:runs/E12d-P0/ckpt/global_step_100/actor/huggingface math500 4 1.0
+# 10-19 16:1x UTC: back to result: (v2.5.7zd reads the training's own save first, with no prefetch: their local: lines waited behind a stuck prefetch)
+#eval EVAL-e12d-P0 e12d_P0_s100_math500_T0.6 result:runs/E12d-P0/global_step_100/actor/huggingface math500 4 0.6
+#eval EVAL-e12d-P0 e12d_P0_s100_math500_T1.0 result:runs/E12d-P0/global_step_100/actor/huggingface math500 4 1.0
 #eval EVAL-e12d-P5 e12d_P5_s100_math500_T0.6 result:runs/E12d-P5/global_step_100/actor/huggingface math500 4 0.6
 #eval EVAL-e12d-P5 e12d_P5_s100_math500_T1.0 result:runs/E12d-P5/global_step_100/actor/huggingface math500 4 1.0
-#eval EVAL-e12b-P2-s43 e12b_P2-s43_s100_math500_T0.6 local:runs/E12b-P2-s43/ckpt/global_step_100/actor/huggingface math500 4 0.6
-#eval EVAL-e12b-P2-s43 e12b_P2-s43_s100_math500_T1.0 local:runs/E12b-P2-s43/ckpt/global_step_100/actor/huggingface math500 4 1.0
+#eval EVAL-e12b-P2-s43 e12b_P2-s43_s100_math500_T0.6 result:runs/E12b-P2-s43/global_step_100/actor/huggingface math500 4 0.6
+#eval EVAL-e12b-P2-s43 e12b_P2-s43_s100_math500_T1.0 result:runs/E12b-P2-s43/global_step_100/actor/huggingface math500 4 1.0
 #eval EVAL-e10d-P2-s43 e10d_P2-s43_s150_math500_T0.6 result:runs/E10d-P2-s43/global_step_150/actor/huggingface math500 4 0.6
 #eval EVAL-e10d-P2-s43 e10d_P2-s43_s150_math500_T1.0 result:runs/E10d-P2-s43/global_step_150/actor/huggingface math500 4 1.0
 #eval EVAL-e10d-P5-s43 e10d_P5-s43_s150_math500_T0.6 result:runs/E10d-P5-s43/global_step_150/actor/huggingface math500 4 0.6
@@ -412,7 +413,7 @@ term4    open   PROBE-TERM4
 #budget EVAL-budA-P5self budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5self_s50_math500_T0.6_32k
 #budget EVAL-budA-P5self budget_curve_vsP5s150 EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5self_s50_math500_T0.6_32k
 # v2.5.7w (reviewer A1 09:0x UTC): Qwen3-32B fetched to the share without a GPU, for tomorrow's 8B probe / a larger teacher
-#fetch Qwen/Qwen3-32B
+# #fetch Qwen/Qwen3-32B   (10-19 16:1x UTC, reviewer: off until daytime; the hub download through the node proxy hung from 09:03 UTC at 4.0 GB, 1 of 17 shards)
 # TWR of 4B P5 -> RL (reviewer 08:5x UTC; judge = the base 1.7B, reference = E11b-P0, the same instrument as every other TWR)
 #twr EVAL-e12d-P5 e12d_P5_s100_math500_T0.6
 # term4 (v2.5.7z, Q-018; reviewer A1 11:3x UTC): does P5 stop once its thought is closed? p(</think>) after the first final-answer
