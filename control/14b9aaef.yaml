@@ -184,3 +184,4 @@ commands:
   - {"seq": 182, "cmd": "setenv KEEP_LOCAL_HF=1", "reason": "reviewer 08:5x UTC item 4 (Runming: B300 local disk up to 5 TB): keep every step's local HF weights after upload; upload_sync processes restarted next", "utc": "2026-10-19T08:47:24Z"}
   - {"seq": 183, "cmd": "signal 2601997 TERM", "reason": "reviewer 08:5x UTC item 4: restart upload_sync so it keeps local HF weights (setenv KEEP_LOCAL_HF=1, seq 182); training untouched", "utc": "2026-10-19T08:48:53Z"}
   - {"seq": 184, "cmd": "signal 2692428 TERM", "reason": "reviewer 08:5x UTC item 4: restart upload_sync so it keeps local HF weights (setenv KEEP_LOCAL_HF=1, seq 182); training untouched", "utc": "2026-10-19T08:50:23Z"}
+  - {"seq": 185, "cmd": "signal 2719028 TERM", "reason": "reviewer 08:5x UTC item 4: restart upload_sync so it keeps local HF weights (setenv KEEP_LOCAL_HF=1, seq 182); training untouched", "utc": "2026-10-19T08:51:45Z"}
