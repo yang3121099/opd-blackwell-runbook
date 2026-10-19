@@ -153,3 +153,4 @@ commands:
   - {"seq": 151, "cmd": "rerun PROBE-TOP10", "reason": "reviewer A1 00:2x UTC: rerun the gate with v2.5.7l (kept share counted on the picked positions)", "utc": "2026-10-19T00:18:28Z"}
   - {"seq": 152, "cmd": "resume E10b-P5top10", "reason": "reviewer A1 00:2x UTC: the arm starts once the rerun PROBE-TOP10 passes (run_arm.sh's gate)", "utc": "2026-10-19T00:18:49Z"}
   - {"seq": 153, "cmd": "resume E10b-P5rand10m", "reason": "reviewer A1 00:2x UTC: the arm starts once the rerun PROBE-TOP10 passes (run_arm.sh's gate)", "utc": "2026-10-19T00:19:58Z"}
+  - {"seq": 154, "cmd": "logs E11b-P5-s44 60", "reason": "reviewer 00:3x UTC: why E11b-P5-s44 attempt 1 failed (the flash-attn acceptance reading)", "utc": "2026-10-19T00:30:14Z"}
