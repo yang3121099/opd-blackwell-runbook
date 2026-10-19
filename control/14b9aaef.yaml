@@ -210,3 +210,4 @@ commands:
   - {"seq": 208, "cmd": "snapshot logs/heartbeat.err", "reason": "incident 2026-10-19 evidence: heartbeat errors", "utc": "2026-10-19T14:03:08Z"}
   - {"seq": 209, "cmd": "logs watchdog 5", "reason": "v2.5.7zb: watchdog started?", "utc": "2026-10-19T14:33:19Z"}
   - {"seq": 210, "cmd": "logs run_tasks 6", "reason": "v2.5.7zb deployment check before the drill", "utc": "2026-10-19T14:34:07Z"}
+  - {"seq": 211, "cmd": "logs watchdog 6", "reason": "v2.5.7zb deployment check before the drill", "utc": "2026-10-19T14:35:45Z"}
