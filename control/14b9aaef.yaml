@@ -229,3 +229,4 @@ commands:
   - {"seq": 227, "cmd": "resume EVAL-e12d-P0", "reason": "rerun on local: weights (b905e24)", "utc": "2026-10-19T15:31:54Z"}
   - {"seq": 228, "cmd": "resume EVAL-e12b-P2-s43", "reason": "rerun on local: weights (b905e24)", "utc": "2026-10-19T15:32:06Z"}
   - {"seq": 229, "cmd": "kill PROBE-TERM4", "reason": "PROBE-TERM4 is free-GPUs-only (Q-018); it took GPU3 at 15:34 only because the two readings switched to local: needed a prefetch first; GPU3 goes to EVAL-e12d-P0", "utc": "2026-10-19T15:44:51Z"}
+  - {"seq": 230, "cmd": "resume PROBE-TERM4", "reason": "back in its free-GPUs-only place (last stage)", "utc": "2026-10-19T15:47:15Z"}
