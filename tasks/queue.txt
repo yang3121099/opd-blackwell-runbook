@@ -96,10 +96,10 @@ ext      open   PROBE-TERM3 EVAL-ext-base17 EVAL-ext-E12b-P5:E12b-P5 EVAL-ext-E1
 #pair EVAL-e12b-P2noEOS e12b_P2noEOS_s60_math500_T1.0 E11b-P0/e11b_P0_math500_T1.0_math500_no_think_t1.0.jsonl EVAL-e12b-P0/e12b_P0_s100_math500_T1.0_math500_no_think_t1.0.jsonl E11b-P2noEOS/e11b_P2noEOS_math500_T1.0_math500_no_think_t1.0.jsonl
 #eval EVAL-e10d-P0 e10d_P0_math500_T0.6 Qwen/Qwen3-4B math500 4 0.6
 #eval EVAL-e10d-P0 e10d_P0_math500_T1.0 Qwen/Qwen3-4B math500 4 1.0
-#eval EVAL-e10d-P2 e10d_P2_s150_math500_T0.6 local:runs/E10d-P2/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
-#eval EVAL-e10d-P2 e10d_P2_s150_math500_T1.0 local:runs/E10d-P2/ckpt/global_step_150/actor/huggingface_bf16 math500 4 1.0
-#eval EVAL-e10d-P5 e10d_P5_s150_math500_T0.6 local:runs/E10d-P5/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
-#eval EVAL-e10d-P5 e10d_P5_s150_math500_T1.0 local:runs/E10d-P5/ckpt/global_step_150/actor/huggingface_bf16 math500 4 1.0
+#eval EVAL-e10d-P2 e10d_P2_s150_math500_T0.6 result:runs/E10d-P2/global_step_150/actor/huggingface math500 4 0.6
+#eval EVAL-e10d-P2 e10d_P2_s150_math500_T1.0 result:runs/E10d-P2/global_step_150/actor/huggingface math500 4 1.0
+#eval EVAL-e10d-P5 e10d_P5_s150_math500_T0.6 result:runs/E10d-P5/global_step_150/actor/huggingface math500 4 0.6
+#eval EVAL-e10d-P5 e10d_P5_s150_math500_T1.0 result:runs/E10d-P5/global_step_150/actor/huggingface math500 4 1.0
 #pair EVAL-e10d-P2 e10d_P2_s150_math500_T0.6 EVAL-e10d-P0/e10d_P0_math500_T0.6_math500_no_think_t0.6.jsonl
 #pair EVAL-e10d-P5 e10d_P5_s150_math500_T0.6 EVAL-e10d-P2/e10d_P2_s150_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e10d-P0/e10d_P0_math500_T0.6_math500_no_think_t0.6.jsonl
 #pair EVAL-e10d-P2 e10d_P2_s150_math500_T1.0 EVAL-e10d-P0/e10d_P0_math500_T1.0_math500_no_think_t1.0.jsonl
