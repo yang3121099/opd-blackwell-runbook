@@ -35,7 +35,7 @@ v3c5     open   PROBE-4B EVAL-e10d-P0
 zero     open   E03-MI-l0.0 E03-MI-l0.3 E03-MI-l0.5 E03-MI-l0.7 E03-MI-l1.0 E02-opsa17-c0.5 E02-opsa17-c1.5 E02-opsa4-c-1 E02-opsa4-c0.5 E02-opsa4-c1.5
 v3c23    open   E12b-P5-s43:E10b-P5-s43 E02-opsa17-c-1 E02-opsa17-c2 E02-opsa4-c2 E01-opsa17-think E01-opsa17-nothink E01-base17-think E05-fstop-base06 E05-fstop-art06
 v3c5arms open   E10d-P2:PROBE-4B E10d-P5:PROBE-4B EVAL-e10d-P2:E10d-P2+EVAL-e10d-P0 EVAL-e10d-P5:E10d-P5+EVAL-e10d-P2+EVAL-e10d-P0
-late     open   EVAL-budA-4B:E10d-P5 EVAL-budA17c EVAL-ext-E12b-P5s43 E12b-P5-s44:E10b-P5-s44 EVAL-e12b-P5-s44:E12b-P5-s44
+late     open   E12b-P5-s44:E10b-P5-s44 EVAL-budA-4B:E10d-P5 EVAL-budA17c EVAL-ext-E12b-P5s43 EVAL-e12b-P5-s44:E12b-P5-s44
 ext      open   PROBE-TERM3 EVAL-ext-base17 EVAL-ext-E12b-P5:E12b-P5 EVAL-ext-E12b-P0:E12b-P0 EVAL-ext-E12b-P2:E12b-P2 EVAL-ext-E10b-P5:E10b-P5 EVAL-ext-E10b-P2:E10b-P2 EVAL-ext-E12b-P3:E12b-P3 EVAL-ext-E12b-P1:E12b-P1 EVAL-ext-E10b-P4lowlr:E10b-P4lowlr EVAL-ext32k
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T0.6 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T1.0 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 1.0
