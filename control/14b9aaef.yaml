@@ -266,3 +266,4 @@ commands:
   - {"seq": 264, "cmd": "du old_base hf", "reason": "reviewer 17:4x: model inventory, the old base's HF cache (38 GB)", "utc": "2026-10-19T17:39:51Z"}
   - {"seq": 265, "cmd": "du old_base hf/hub", "reason": "reviewer 17:4x: model inventory, the old base's HF hub cache by model", "utc": "2026-10-19T17:42:29Z"}
   - {"seq": 266, "cmd": "du opd_root models/Qwen3-32B", "reason": "reviewer 17:4x: 32B fetch progress over plain HTTP (7zh)", "utc": "2026-10-19T17:43:52Z"}
+  - {"seq": 267, "cmd": "du opd_root models/Qwen3-32B", "reason": "32B fetch progress (7zh)", "utc": "2026-10-19T17:48:24Z"}
