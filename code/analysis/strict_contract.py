@@ -5,6 +5,10 @@ Contract (V3-c4): a sample counts only when it is correct under the EVAL-v1 grad
 holds exactly one complete \\boxed{...} (balanced braces). The answer is the whole text without thinking; in a thinking
 reading it is the text after the last </think> (no </think>: no answer). The softer variant `same` allows several boxes
 when all hold the same content (whitespace ignored); everything else as the contract.
+v2.5.7s (reviewer 07:3x UTC): `same` is the C1 contract of record; "exactly one box" is kept as the multi-box rate. Per
+reading also where `same` loses the lenient accuracy: of the correct samples, the share each clause rejects (not ended at
+EOS, an unclosed box, no box, boxes with different contents), and the same losses exclusively, in points of accuracy, in
+the order not EOS > unclosed > no box > inconsistent (they sum to acc - acc_same).
 Per reading: lenient accuracy (avg over samples, as gen_eval), contract accuracy, their difference, `same` accuracy, and
 the shares of samples that ended at EOS / hold one box / several boxes / no box / an unclosed box, and of the correct
 samples, the share each contract clause rejects. No generation, no GPU, no grading again: the text and `correct` of each
@@ -47,13 +51,13 @@ def answer_part(text, think):
 
 
 def judge(r, think):
-    """The contract clauses of one record: dict(correct, eos, nbox, unclosed, strict, same)."""
+    """The contract clauses of one record: dict(correct, eos, nbox, unclosed, inconsistent, strict, same)."""
     ans = answer_part(r.get("text") or "", think)
     bx, unc = boxes(ans) if ans is not None else ([], 0)
     eos = r.get("finish_reason") == "stop"
     ok = bool(r.get("correct"))
     norm = {"".join(b.split()) for b in bx}
-    return {"correct": ok, "eos": eos, "nbox": len(bx), "unclosed": unc, "answer": ans is not None,
+    return {"correct": ok, "eos": eos, "nbox": len(bx), "unclosed": unc, "answer": ans is not None, "inconsistent": len(norm) > 1,
             "strict": ok and eos and len(bx) == 1 and not unc,
             "same": ok and eos and len(bx) >= 1 and len(norm) == 1 and not unc}
 
@@ -81,7 +85,8 @@ def rejudge(path, name):
     m = metrics_of(path) or {}
     think = m.get("mode") == "think"
     n = 0; c = {k: 0 for k in ("correct", "strict", "same", "eos", "one", "multi", "none", "unclosed", "no_answer",
-                                "c_not_eos", "c_multi", "c_none", "c_unclosed")}
+                                "c_not_eos", "c_multi", "c_none", "c_unclosed", "c_inconsistent",
+                                "x_not_eos", "x_unclosed", "x_no_box", "x_inconsistent")}
     probs, gv = {}, set()
     for line in open(path):
         line = line.strip()
@@ -93,6 +98,9 @@ def rejudge(path, name):
         c["no_answer"] += not j["answer"]
         if j["correct"]:
             c["c_not_eos"] += not j["eos"]; c["c_multi"] += j["nbox"] > 1; c["c_none"] += j["nbox"] == 0; c["c_unclosed"] += j["unclosed"] > 0
+            c["c_inconsistent"] += j["inconsistent"]
+            if not j["same"]:   # the first clause that rejects it
+                c["x_not_eos" if not j["eos"] else "x_unclosed" if j["unclosed"] else "x_no_box" if j["nbox"] == 0 else "x_inconsistent"] += 1
         p = probs.setdefault(r["pid"], [0, 0, 0, 0]); p[0] += j["correct"]; p[1] += j["strict"]; p[2] += j["same"]; p[3] += 1
     if not n:
         return {"name": name, "error": "empty"}, None
@@ -103,7 +111,8 @@ def rejudge(path, name):
            "acc_same": pct("same"), "metrics_avg_acc": m.get("avg_acc"),
            "share": {"eos": pct("eos"), "one_box": pct("one"), "multi_box": pct("multi"), "no_box": pct("none"),
                      "unclosed_box": pct("unclosed"), "no_answer_part": pct("no_answer")},
-           "of_correct_rejected": {k[2:]: pct(k, c["correct"]) for k in ("c_not_eos", "c_multi", "c_none", "c_unclosed")}}
+           "of_correct_rejected": {k[2:]: pct(k, c["correct"]) for k in ("c_not_eos", "c_multi", "c_none", "c_unclosed", "c_inconsistent")},
+           "same_loss_points_exclusive": {k[2:]: pct(k) for k in ("x_not_eos", "x_unclosed", "x_no_box", "x_inconsistent")}}
     return res, probs
 
 
@@ -117,6 +126,15 @@ def table(rows):
         out.append(f"{r['name'][:58]:58} {str(r['mode']):8} {str(r['temperature']):>4} {str(r['max_tokens']):>6} {r['samples']:>5} "
                    f"{r['acc']:>7.2f} {r['acc_contract']:>9.2f} {r['diff']:>+7.2f} {r['acc_same']:>7.2f} {s['eos']:>6.1f} "
                    f"{s['one_box']:>6.1f} {s['multi_box']:>7.1f} {s['no_box']:>6.1f}")
+    out += ["", "same (the C1 contract): of the correct samples, % rejected by each clause; then the loss in points of accuracy,",
+            "exclusive in the order not EOS > unclosed > no box > inconsistent (sums to acc - same)",
+            f"{'reading':58} {'acc':>7} {'same':>7} {'notEOS%':>8} {'unclo%':>7} {'nobox%':>7} {'incon%':>7} {'L:notEOS':>9} {'L:unclo':>8} {'L:nobox':>8} {'L:incon':>8}"]
+    for r in rows:
+        if "error" in r:
+            continue
+        o, x = r["of_correct_rejected"], r["same_loss_points_exclusive"]
+        out.append(f"{r['name'][:58]:58} {r['acc']:>7.2f} {r['acc_same']:>7.2f} {o['not_eos']:>8.2f} {o['unclosed']:>7.2f} {o['none']:>7.2f} "
+                   f"{o['inconsistent']:>7.2f} {x['not_eos']:>9.2f} {x['unclosed']:>8.2f} {x['no_box']:>8.2f} {x['inconsistent']:>8.2f}")
     return "\n".join(out)
 
 

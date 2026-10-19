@@ -32,7 +32,7 @@ def test_judge_clauses():
     j = SC.judge(rec("a", "\\boxed{4} check: \\boxed{ 4 }", True), False)
     assert not j["strict"] and j["same"] and j["nbox"] == 2                                   # two boxes, same content
     j = SC.judge(rec("a", "\\boxed{3} no wait \\boxed{4}", True), False)
-    assert not j["strict"] and not j["same"]                                                  # two different boxes
+    assert not j["strict"] and not j["same"] and j["inconsistent"]                            # two different boxes
     assert not SC.judge(rec("a", "\\boxed{4}", False), False)["strict"]                       # wrong stays wrong
     # thinking: a box inside the thought does not count, the answer part needs its own
     assert SC.judge(rec("a", "<think>\\boxed{3}</think> \\boxed{4}", True), True)["strict"]
@@ -73,7 +73,10 @@ def test_scan_and_main(tmp_path, monkeypatch):
     a = {x["name"]: x for x in r["readings"]}["EVAL-x/a_math500_no_think_t0.6.jsonl"]
     assert a["acc"] == 100.0 and a["acc_contract"] == 62.5 and a["diff"] == -37.5 and a["acc_same"] == 75.0
     assert a["share"]["eos"] == 87.5 and a["share"]["multi_box"] == 25.0 and a["share"]["one_box"] == 75.0
-    assert a["of_correct_rejected"] == {"not_eos": 12.5, "multi": 25.0, "none": 0.0, "unclosed": 0.0}
+    assert a["of_correct_rejected"] == {"not_eos": 12.5, "multi": 25.0, "none": 0.0, "unclosed": 0.0, "inconsistent": 12.5}
+    # v2.5.7s: same loses 25 points: 12.5 not ended at EOS (p1 s1), 12.5 boxes that disagree (p0 s1)
+    assert a["same_loss_points_exclusive"] == {"not_eos": 12.5, "unclosed": 0.0, "no_box": 0.0, "inconsistent": 12.5}
+    assert round(sum(a["same_loss_points_exclusive"].values()), 2) == round(a["acc"] - a["acc_same"], 2)
     assert "model" not in a and "/node/" not in open(out).read()                             # path-free report
     p = r["pairs"][0]
     assert p["lenient"]["diff"] == 50.0 and p["contract"]["diff"] == 12.5 and p["diff_change"] == -37.5
