@@ -38,7 +38,7 @@ v3c5arms open   E10d-P2:PROBE-4B E10d-P5:PROBE-4B EVAL-e10d-P2:E10d-P2+EVAL-e10d
 late     open   PROBE-TERM4-4B EVAL-e10d-P2-s43:E10d-P2-s43 EVAL-e12d-P5:E12d-P5+EVAL-e12d-P0 EVAL-budA-e12dP5rl-b:E12d-P5 EVAL-e10d-P5-s43:E10d-P5-s43 EVAL-ext-E12d-P5:E12d-P5 EVAL-ext-E12d-P0:E12d-P0 EVAL-budA-4Bs43:E10d-P5-s43 EVAL-ext32k-4Brl:E12d-P5 EVAL-budA-e12d-P0:E12d-P0 EVAL-ext32k-4B:E12d-P0 PROBE-P2SELF E10b-P2self:PROBE-P2SELF EVAL-e10b-P2self:E10b-P2self EVAL-budA-P2self:E10b-P2self E12b-P5-s44:E10b-P5-s44 E12d-P0 E12d-P5 PROBE-P5THINK E10b-P5think:PROBE-P5THINK PROBE-P5SELF E10b-P5self:PROBE-P5SELF STRICT-C1 EVAL-budA-p5s43rl-b EVAL-budA-4B:E10d-P5 EVAL-budA-4Bthink EVAL-e10b-P5think:E10b-P5think EVAL-budA-P5think:E10b-P5think EVAL-e10b-P5self:E10b-P5self EVAL-budA-P5self:E10b-P5self EVAL-budA-top10 EVAL-budA-top10b EVAL-ext-E10d-P0 EVAL-ext-E10d-P2 EVAL-ext-E10d-P5 EVAL-budA17c EVAL-ext-E12b-P5s43 EVAL-e12b-P5-s44:E12b-P5-s44
 midrl    open   EVAL-budA-p5s44rl-a:E12b-P5-s44 EVAL-budA-p5s44rl-b:E12b-P5-s44 EVAL-budA-e12dP5rl-a:E12d-P5
 v3o      open   PROBE-T14 E12b-P2-s43:E10b-P2-s43 E10d-P5-s43 E10d-P2-s43 EVAL-e12d-P0:E12d-P0 EVAL-e12b-P2-s43:E12b-P2-s43
-t14      open   E10b-P5-t14:PROBE-T14 E10b-P2-t14:PROBE-T14 E11b-P5-t14:E10b-P5-t14+E11b-P0 E11b-P2-t14:E10b-P2-t14+E11b-P0 EVAL-budA-t14p2:E10b-P2-t14 EVAL-budA-t14:E10b-P5-t14+EVAL-budA-t14p2 EVAL-budA-top10c
+t14      open   E10b-P5-t14:PROBE-T14 E10b-P2-t14:PROBE-T14 E11b-P5-t14:E10b-P5-t14+E11b-P0 E11b-P2-t14:E10b-P2-t14+E11b-P0 EVAL-budA-t14p2:E10b-P2-t14 EVAL-ext32k-4Bthink EVAL-budA-t14:E10b-P5-t14+EVAL-budA-t14p2 EVAL-ext32k-17 EVAL-budA-top10c
 ext      open   PROBE-TERM3 EVAL-ext-base17 EVAL-ext-E12b-P5:E12b-P5 EVAL-ext-E12b-P0:E12b-P0 EVAL-ext-E12b-P2:E12b-P2 EVAL-ext-E10b-P5:E10b-P5 EVAL-ext-E10b-P2:E10b-P2 EVAL-ext-E12b-P3:E12b-P3 EVAL-ext-E12b-P1:E12b-P1 EVAL-ext-E10b-P4lowlr:E10b-P4lowlr EVAL-ext32k
 term4    open   PROBE-TERM4
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T0.6 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
@@ -528,3 +528,17 @@ term4    open   PROBE-TERM4
 #pair E11b-P2-t14 e11b_P2-t14_math500_T1.0 E11b-P2/e11b_P2_math500_T1.0_math500_no_think_t1.0.jsonl E11b-P0/e11b_P0_math500_T1.0_math500_no_think_t1.0.jsonl
 #pair E11b-P5-t14 e11b_P5-t14_math500_T0.6 E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P0/e11b_P0_math500_T0.6_math500_no_think_t0.6.jsonl
 #pair E11b-P5-t14 e11b_P5-t14_math500_T1.0 E11b-P5/e11b_P5_math500_T1.0_math500_no_think_t1.0.jsonl E11b-P0/e11b_P0_math500_T1.0_math500_no_think_t1.0.jsonl
+# ext32k-4Bthink (reviewer 21:2x UTC): does P5 match its own thinking mode on AIME too (it does on MATH500)? the 4B base in the
+# thinking template (local copy), AIME24 / AIME25 avg@16 32K, paired vs EVAL-ext32k-4B's P5 s150 and base 4B; before budA-t14
+#eval EVAL-ext32k-4Bthink ext32k4B_P0think_aime24_T0.6 local:models/Qwen3-4B aime24 16 0.6 32768 think
+#eval EVAL-ext32k-4Bthink ext32k4B_P0think_aime25_T0.6 local:models/Qwen3-4B aime25 16 0.6 32768 think
+#pair EVAL-ext32k-4Bthink ext32k4B_P0think_aime24_T0.6 EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4B/ext32k4B_base4B_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#pair EVAL-ext32k-4Bthink ext32k4B_P0think_aime25_T0.6 EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4B/ext32k4B_base4B_aime25_T0.6_aime25_no_think_t0.6.jsonl
+# ext32k-17 (reviewer 21:2x UTC, after 4Bthink): the 1.7B P5 s150 and the 1.7B base in the thinking template at AIME 32K (neither
+# existed); P5 paired vs the thinking mode and vs P5 -> RL (EVAL-ext32k)
+#eval EVAL-ext32k-17 ext32k17_E10bP5_s150_aime24_T0.6 result:runs/E10b-P5/global_step_150/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-17 ext32k17_P0think_aime24_T0.6 local:models/Qwen3-1.7B aime24 16 0.6 32768 think
+#eval EVAL-ext32k-17 ext32k17_E10bP5_s150_aime25_T0.6 result:runs/E10b-P5/global_step_150/actor/huggingface aime25 16 0.6 32768
+#eval EVAL-ext32k-17 ext32k17_P0think_aime25_T0.6 local:models/Qwen3-1.7B aime25 16 0.6 32768 think
+#pair EVAL-ext32k-17 ext32k17_E10bP5_s150_aime24_T0.6 EVAL-ext32k-17/ext32k17_P0think_aime24_T0.6_aime24_think_t0.6.jsonl EVAL-ext32k/ext32k_E12bP5_s100_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#pair EVAL-ext32k-17 ext32k17_E10bP5_s150_aime25_T0.6 EVAL-ext32k-17/ext32k17_P0think_aime25_T0.6_aime25_think_t0.6.jsonl EVAL-ext32k/ext32k_E12bP5_s100_aime25_T0.6_aime25_no_think_t0.6.jsonl
