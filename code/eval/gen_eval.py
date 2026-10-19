@@ -154,7 +154,7 @@ def compute_metrics(args, rows, recs, gen_s):
     return {
         "model": args.model, "bench": args.bench, "mode": args.mode, "n": args.n,
         "temperature": args.temperature, "top_p": args.top_p, "top_k": args.top_k,
-        "max_tokens": args.max_tokens, "num_problems": len(rows), "avg_acc": round(100 * acc, 2),
+        "max_tokens": args.max_tokens, "dtype": getattr(args, "dtype", "auto"), "num_problems": len(rows), "avg_acc": round(100 * acc, 2),
         "pass_at_k": {k: round(100 * sum(pass_at_k(len(v), sum(v), k) for v in per_prob.values()) / len(per_prob), 2)
                       for k in [1, 2, 4, 8, 16, 32, 64] if k <= args.n},
         "mean_tokens": round(sum(n_tok) / len(n_tok), 1), "trunc_rate": round(n_trunc / len(n_tok), 4),
@@ -219,6 +219,9 @@ def main():
     ap.add_argument("--tp", type=int, default=1)
     ap.add_argument("--gpu_mem", type=float, default=0.90)
     ap.add_argument("--seed", type=int, default=0)
+    # runbook v2.5.7q: vLLM's dtype; auto (default, as before) follows the checkpoint's config. A training's own HF save is
+    # fp32 (its upload is converted to bf16), so a reading of that save passes bfloat16 to be read as the upload would be
+    ap.add_argument("--dtype", default="auto", choices=["auto", "bfloat16"])
     ap.add_argument("--chunk", type=int, default=0, help="problems per resumable block (0: one pass, no resume)")
     ap.add_argument("--tag", default="")
     ap.add_argument("--out", required=True)
@@ -242,7 +245,7 @@ def main():
     stem = f"{args.tag or os.path.basename(args.model.rstrip('/'))}_{args.bench}_{args.mode}_t{args.temperature}"
     final = os.path.join(args.out, stem + ".jsonl")
     llm = LLM(model=args.model, tensor_parallel_size=args.tp, gpu_memory_utilization=args.gpu_mem,
-              max_model_len=args.max_tokens + 2048, seed=args.seed, trust_remote_code=True)
+              max_model_len=args.max_tokens + 2048, seed=args.seed, trust_remote_code=True, dtype=args.dtype)
     sp = SamplingParams(n=args.n, temperature=args.temperature, top_p=args.top_p,
                         top_k=args.top_k if args.top_k > 0 else -1, max_tokens=args.max_tokens, seed=args.seed)
     if args.chunk <= 0:

@@ -62,10 +62,12 @@ version: 2
 #eval EVAL-bridge e12_x_amc23_T1.0 yang31210999/opd-lab-ckpts/runs/E12-P5c05/global_step_40/actor/huggingface amc23 8 1.0
 #eval EVAL-other e12_y_math500_T0.6 /etc/passwd math500 4 0.6
 #twr EVAL-bridge e12_P5c05_s40_math500_T0.6
+#eval EVAL-loc e12b_s25_math500_T0.6_32k local:runs/E12b-X/ckpt/global_step_25/actor/huggingface math500 4 0.6 32768
+#eval EVAL-loc e12b_s50_math500_T0.6_32k local:runs/E12b-X/ckpt/global_step_50/actor/huggingface math500 4 0.6 32768
 EOF
 mkdir -p $T/root/runs/E11b-P0; : > $T/root/runs/E11b-P0/e11b_P0_math500_T0.6_math500_no_think_t0.6.jsonl
 for tg in e12_P5c05_s40_math500_T0.6 e12_x_amc23_T1.0; do :; done
-bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-bridge > $T/out 2>&1
+bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-bridge > $T/out 2>&1; cp $CALLS $T/calls.bridge
 ok "two evals ran" '[ "$(grep -c "^gen_eval" $CALLS)" = 2 ] && grep -q -- "--temperature 1.0 --top_p 1.0 --top_k 0" $CALLS && grep -q -- "--chunk 10" $CALLS'
 ok "TWR after the readings" 'grep -q "^twr --judge $T/m17 --bench math500 --ref $T/root/runs/E11b-P0/e11b_P0_math500_T0.6_math500_no_think_t0.6.jsonl --score $T/root/runs/EVAL-bridge/e12_P5c05_s40_math500_T0.6_" $CALLS && grep -q -- "--model_k $T/root/adhoc_models/runs/E12-P5c05/global_step_40/actor/huggingface" $CALLS'
 ok "upload + done" 'grep -q "remote put $T/root/runs/EVAL-bridge runs/EVAL-bridge" $CALLS && [ -f $T/root/runs/EVAL-bridge/.done ]'
@@ -73,6 +75,10 @@ rm -f $T/root/runs/EVAL-bridge/.done; : > $CALLS; bash $T/rb/scripts/run_queue_e
 ok "finished evals skipped" '[ "$(grep -c "^gen_eval" $CALLS)" = 0 ] && grep -q DONE_ALREADY $T/out2'
 bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-other > $T/out3 2>&1
 ok "bad model refused" 'grep -q REFUSED $T/out3 && [ ! -f $T/root/runs/EVAL-other/.done ]'
+ok "v2.5.7q archive / result models read as auto" '[ "$(grep -c -- "--dtype auto " $T/calls.bridge)" = 2 ]'
+mkdir -p $T/root/runs/E12b-X/ckpt/global_step_25/actor/huggingface; touch $T/root/runs/E12b-X/ckpt/global_step_25/actor/huggingface/model.safetensors
+: > $CALLS; bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-loc > $T/out8 2>&1
+ok "v2.5.7q local: (a training's fp32 save) read as bfloat16; a missing step is MODEL_MISSING, no .done" 'grep -q -- "--model $T/root/runs/E12b-X/ckpt/global_step_25/actor/huggingface .*--max_tokens 32768 --chunk 50 --dtype bfloat16 " $CALLS && [ "$(grep -c "^gen_eval" $CALLS)" = 1 ] && grep -q "MODEL_MISSING e12b_s50_math500_T0.6_32k" $T/out8 && [ ! -f $T/root/runs/EVAL-loc/.done ]'
 rm -rf $T
 # 3b. v2.5.6r "#pair": a finished reading paired against references under runs/ (problem-level bootstrap, CPU only)
 setup

@@ -29,11 +29,12 @@ fetch_result() {   # v2.5.6h: $1 = path inside this node's public result reposit
     python $RUNBOOK/scripts/fetch_model.py "$(python $RUNBOOK/scripts/remote.py repo public)" "$1" "$CKPT_ROOT/adhoc_models/result" --task $T >> $OUT/fetch.log 2>&1 && return 0
     [ "$G" = prefetch ] && return 1; sleep ${RESULT_WAIT_STEP:-60}; done; return 1; }
 resolve_model() {   # $1 = a model as on an #eval line -> M (fetched if needed); 1 = the fetch failed, 2 = no weights
+  DT=auto   # v2.5.7q: local: = a training's own HF save (fp32 for E12b / E10b steps), read in bf16 as its upload would be
   case $1 in
     Qwen/Qwen3-0.6B) M=$STUDENT_06B;; Qwen/Qwen3-1.7B) M=$STUDENT_17B;; Qwen/Qwen3-8B) M=$TEACHER;; Qwen/*) M=$1;;
     yang31210999/opd-lab-ckpts/*) M=$CKPT_ROOT/adhoc_models/${1#yang31210999/opd-lab-ckpts/}; fetch_ckpt "${1#yang31210999/opd-lab-ckpts/}" || return 1;;
     result:*) M=$CKPT_ROOT/adhoc_models/result/${1#result:}; fetch_result "${1#result:}" || return 1;;
-    *) M=$OPD_ROOT/${1#local:}; has_weights $M || M=$CKPT_ROOT/${1#local:};;
+    *) M=$OPD_ROOT/${1#local:}; has_weights $M || M=$CKPT_ROOT/${1#local:}; DT=bfloat16;;
   esac
   has_weights $M || [ "${M#Qwen/}" != "$M" ] || [ -f $M/config.json ] || return 2
 }
@@ -64,7 +65,7 @@ while read -r TAG MODEL BENCH N TEMP MAXT MODE; do
   case $BENCH in aime24|aime25|amc23) K=10;; *) K=50;; esac
   echo "EVAL_START $(date -u +%T) $TAG"
   CUDA_VISIBLE_DEVICES=$G python $RUNBOOK/code/eval/gen_eval.py --model $M --bench $BENCH --mode $MODE --n $N $SAMP \
-    --max_tokens $MAXT --chunk $K --tag $TAG --out $OUT >> $OUT/gen_eval.log 2>&1 || { echo "EVAL_FAIL $TAG"; ok=0; python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1; continue; }
+    --max_tokens $MAXT --chunk $K --dtype $DT --tag $TAG --out $OUT >> $OUT/gen_eval.log 2>&1 || { echo "EVAL_FAIL $TAG"; ok=0; python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1; continue; }
   echo "EVAL_DONE $(date -u +%T) $TAG"; echo "$TAG $M" >> $OUT/.models
   python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true   # v2.5.4b: release the GPU before the next engine
 done <<< "$SPECS"
