@@ -227,3 +227,4 @@ commands:
   - {"seq": 225, "cmd": "kill EVAL-e12d-P0", "reason": "reviewer 15:2x UTC: result: download stalled 35 min, GPU0 idle; reading switched to local: (b905e24)", "utc": "2026-10-19T15:31:35Z"}
   - {"seq": 226, "cmd": "kill EVAL-e12b-P2-s43", "reason": "reviewer 15:2x UTC: result: download stalled, GPU3 idle 15 min; reading switched to local: (b905e24)", "utc": "2026-10-19T15:31:45Z"}
   - {"seq": 227, "cmd": "resume EVAL-e12d-P0", "reason": "rerun on local: weights (b905e24)", "utc": "2026-10-19T15:31:54Z"}
+  - {"seq": 228, "cmd": "resume EVAL-e12b-P2-s43", "reason": "rerun on local: weights (b905e24)", "utc": "2026-10-19T15:32:06Z"}
