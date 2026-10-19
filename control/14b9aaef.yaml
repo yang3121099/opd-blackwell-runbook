@@ -256,3 +256,4 @@ commands:
   - {"seq": 254, "cmd": "signal 3850656 TERM", "reason": "reviewer A1 17:4x: the stuck prefetch of EVAL-budA-p5s44rl-a (s25 download) holding back the prefetch queue", "utc": "2026-10-19T17:26:10Z"}
   - {"seq": 255, "cmd": "signal 3850620 TERM", "reason": "reviewer A1 17:4x: the stuck prefetch of EVAL-budA-p5s44rl-a (s25 download) holding back the prefetch queue", "utc": "2026-10-19T17:26:22Z"}
   - {"seq": 256, "cmd": "signal 3850618 TERM", "reason": "reviewer A1 17:4x: the stuck prefetch of EVAL-budA-p5s44rl-a (s25 download) holding back the prefetch queue", "utc": "2026-10-19T17:26:32Z"}
+  - {"seq": 257, "cmd": "du opd_root runs/E12d-P5/ckpt/global_step_25/actor", "reason": "reviewer rule 17:4x: hold readings that need a proxy download; are E12d-P5's mid-RL weights local", "utc": "2026-10-19T17:26:51Z"}
