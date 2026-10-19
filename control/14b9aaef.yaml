@@ -280,3 +280,4 @@ commands:
   - {"seq": 278, "cmd": "du opd_root models/Qwen3-4B", "reason": "reviewer 19:3x: confirm the node's STUDENT_4B (env.sh uses the local 4B when .fetch_ok is there)", "utc": "2026-10-19T19:14:21Z"}
   - {"seq": 279, "cmd": "rerun EVAL-e12d-P5", "reason": "reviewer 20:2x UTC: TWR only (7zj: 4B base judge, EVAL-e10d-P0 reference) - the readings exist and are skipped; GPU5/6 idle, nothing else queued", "utc": "2026-10-19T20:20:14Z"}
   - {"seq": 280, "cmd": "rerun EVAL-e12d-P0", "reason": "reviewer 20:2x UTC: TWR only (7zj: 4B base judge, EVAL-e10d-P0 reference) - the readings exist and are skipped; GPU5/6 idle", "utc": "2026-10-19T20:20:22Z"}
+  - {"seq": 281, "cmd": "du ckpt adhoc_models/runs/E10-P5-1.7B-lr3e-6-s50/global_step_50/actor/huggingface", "reason": "budA-top10c: is the lab P5 s50 already local (cached .fetch_ok), so no proxy download", "utc": "2026-10-19T20:20:30Z"}
