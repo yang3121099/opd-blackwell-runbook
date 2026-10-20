@@ -51,6 +51,7 @@ b258a    open   E10c-P5-fix4 E12c-P0:PROBE-E12C E12b-P5self EVAL-e10c-P5-fix4:E1
 fill3    open   EVAL-ext32k-17p5self:E10b-P5self EVAL-ext32k-17p2self:E10b-P2self EVAL-ext32k-17think:E10b-P5think EVAL-ext-E10b-P5self:E10b-P5self EVAL-ext-E10b-P2self:E10b-P2self EVAL-ext-E10b-P5think:E10b-P5think EVAL-ext32k-17p2s44:E10b-P2-s44
 b258b    open   E12b-P5-kl:PROBE-E12B-KL EVAL-e12b-P5kl:E12b-P5-kl EVAL-budA-e12bP5kl:E12b-P5-kl
 b258c    open   E12b-P5-stop:PROBE-E12B-STOP EVAL-e12b-P5stop:E12b-P5-stop EVAL-budA-e12bP5stop:E12b-P5-stop
+q2507    open   EVAL-i2507 EVAL-t2507 EVAL-i2507-aime EVAL-t2507-aime
 b258e    open   E10b-P5self-s43 PROBE-P5SELF-4B E10d-P5self:PROBE-P5SELF-4B E12b-P5self-s43:E10b-P5self-s43 EVAL-e10b-P5self-s43:E10b-P5self-s43 EVAL-budA-P5self-s43:E10b-P5self-s43 EVAL-e10d-P5self:E10d-P5self EVAL-budA-e10dP5self:E10d-P5self EVAL-e12b-P5self-s43:E12b-P5self-s43 EVAL-budA-e12bP5self-s43:E12b-P5self-s43+EVAL-budA-P5self-s43
 fill4    open   EVAL-ext32k-17p1:E12b-P1 EVAL-ext32k-17p3:E12b-P3 EVAL-ext-E10b-P3:E10b-P3 EVAL-ext-E10b-P6r:E10b-P6r
 len      open   EVAL-budA06p5:E10c-P5-fix4 EVAL-budA06think EVAL-budA-8Bthink
@@ -1023,3 +1024,21 @@ passk    open   EVAL-passk-ext
 #budget EVAL-passk-ext passk4B_32k_aime24 EVAL-ext32k-4B/ext32k4B_base4B_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4Bp2/ext32k4B_E10dP2_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4B/ext32k4B_E12dP0_s100_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4Brl/ext32k4B_E12dP5_s100_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4Bthink/ext32k4B_P0think_aime24_T0.6_aime24_think_t0.6.jsonl
 #budget EVAL-passk-ext passk17_32k_aime25 EVAL-ext32k/ext32k_E12bP0_s100_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k/ext32k_E12bP5_s100_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17s43/ext32k17_E12bP5s43_s100_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17s44/ext32k17_E12bP5s44_s100_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17p2/ext32k17_E10bP2_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17think/ext32k17_E10bP5think_s50_aime25_T0.6_aime25_think_t0.6.jsonl EVAL-ext32k-17/ext32k17_P0think_aime25_T0.6_aime25_think_t0.6.jsonl
 #budget EVAL-passk-ext passk4B_32k_aime25 EVAL-ext32k-4B/ext32k4B_base4B_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Bp2/ext32k4B_E10dP2_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4B/ext32k4B_E12dP0_s100_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Brl/ext32k4B_E12dP5_s100_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Bthink/ext32k4B_P0think_aime25_T0.6_aime25_think_t0.6.jsonl
+# q2507 (reviewer 17:4x UTC; Runming: explore Qwen3's separate Instruct / Thinking weights): Qwen3-4B-Instruct-2507 and
+# Qwen3-4B-Thinking-2507 (in the node's HF cache, the shards' sha256 names and sizes checked against the Hub 10-20 18:0x UTC), each
+# in its own template: MATH500 avg@4 at 32K with forced answers and the budget curve (vs base 4B; 4B think mode and E10d-P5
+# alongside), AIME24/25 avg@16 at 32K (vs the 4B base and the 4B think mode); the 32K truncation is in the budget curve
+#eval EVAL-i2507 i2507_math500_T0.6_32k Qwen/Qwen3-4B-Instruct-2507 math500 4 0.6 32768
+#forced EVAL-i2507 EVAL-i2507/i2507_math500_T0.6_32k_math500_no_think_t0.6.jsonl Qwen/Qwen3-4B-Instruct-2507 no_think
+#budget EVAL-i2507 budget_curve EVAL-budA-4B/budA4B_base4B_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-i2507/i2507_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-4Bthink/budA4B_P0think_math500_T0.6_32k_math500_think_t0.6.jsonl EVAL-budA-4B/budA4B_E10dP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#eval EVAL-i2507-aime i2507_aime24_T0.6_32k Qwen/Qwen3-4B-Instruct-2507 aime24 16 0.6 32768
+#eval EVAL-i2507-aime i2507_aime25_T0.6_32k Qwen/Qwen3-4B-Instruct-2507 aime25 16 0.6 32768
+#pair EVAL-i2507-aime i2507_aime24_T0.6_32k EVAL-ext32k-4B/ext32k4B_base4B_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4Bthink/ext32k4B_P0think_aime24_T0.6_aime24_think_t0.6.jsonl
+#pair EVAL-i2507-aime i2507_aime25_T0.6_32k EVAL-ext32k-4B/ext32k4B_base4B_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Bthink/ext32k4B_P0think_aime25_T0.6_aime25_think_t0.6.jsonl
+#eval EVAL-t2507 t2507_math500_T0.6_32k Qwen/Qwen3-4B-Thinking-2507 math500 4 0.6 32768 think
+#forced EVAL-t2507 EVAL-t2507/t2507_math500_T0.6_32k_math500_think_t0.6.jsonl Qwen/Qwen3-4B-Thinking-2507 think
+#budget EVAL-t2507 budget_curve EVAL-budA-4B/budA4B_base4B_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-t2507/t2507_math500_T0.6_32k_math500_think_t0.6.jsonl EVAL-budA-4Bthink/budA4B_P0think_math500_T0.6_32k_math500_think_t0.6.jsonl EVAL-budA-4B/budA4B_E10dP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#eval EVAL-t2507-aime t2507_aime24_T0.6_32k Qwen/Qwen3-4B-Thinking-2507 aime24 16 0.6 32768 think
+#eval EVAL-t2507-aime t2507_aime25_T0.6_32k Qwen/Qwen3-4B-Thinking-2507 aime25 16 0.6 32768 think
+#pair EVAL-t2507-aime t2507_aime24_T0.6_32k EVAL-ext32k-4B/ext32k4B_base4B_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4Bthink/ext32k4B_P0think_aime24_T0.6_aime24_think_t0.6.jsonl
+#pair EVAL-t2507-aime t2507_aime25_T0.6_32k EVAL-ext32k-4B/ext32k4B_base4B_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Bthink/ext32k4B_P0think_aime25_T0.6_aime25_think_t0.6.jsonl
