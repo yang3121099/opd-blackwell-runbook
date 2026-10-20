@@ -297,3 +297,4 @@ commands:
   - {"seq": 295, "cmd": "du ckpt E12b-P5-s44/ckpt", "reason": "reviewer 00:5x: which E12b-P5-s44 mid-RL steps have local weights (substitute for the s43 half)", "utc": "2026-10-20T00:48:44Z"}
   - {"seq": 296, "cmd": "resume EVAL-budA-p5s44rl-a", "reason": "reviewer 00:5x UTC: its s50 half runs now (local weights); s25 stays held", "utc": "2026-10-20T00:50:02Z"}
   - {"seq": 297, "cmd": "logs EVAL-ext-E10d-P5s43 60", "reason": "reviewer 02:5x UTC: is the 4B ext reading on GPU4 (since 22:58 UTC) stuck?", "utc": "2026-10-20T02:47:47Z"}
+  - {"seq": 298, "cmd": "logs uploader 30", "reason": "v2.5.8 deploy check: the uploader runs and ships; receipt latency through the outbox", "utc": "2026-10-20T02:55:58Z"}
