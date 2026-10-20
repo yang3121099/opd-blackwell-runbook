@@ -332,3 +332,4 @@ commands:
   - {"seq": 330, "cmd": "logs PROBE-TERM4 20", "reason": "patrol 23:4x UTC: PROBE-TERM4 at 0%/0G on GPU4 for 30 min (stalled)", "utc": "2026-10-20T23:44:29Z"}
   - {"seq": 331, "cmd": "logs EVAL-e12b-P5kl 30", "reason": "patrol 23:4x UTC: find the local save each new TERM4 row should load (PROBE-TERM4 hangs on a result fetch)", "utc": "2026-10-20T23:45:27Z"}
   - {"seq": 332, "cmd": "logs EVAL-e10d-P5self 30", "reason": "patrol 23:4x UTC: find the local save each new TERM4 row should load (PROBE-TERM4 hangs on a result fetch)", "utc": "2026-10-20T23:47:46Z"}
+  - {"seq": 333, "cmd": "kill PROBE-TERM4", "reason": "patrol 23:4x UTC: PROBE-TERM4 hangs in a result: fetch for its new rows (the proxy blocks hub downloads; term_probe has no local-first step); the rows move to local: paths, then resume", "utc": "2026-10-20T23:49:17Z"}
