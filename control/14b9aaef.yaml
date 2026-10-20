@@ -314,3 +314,4 @@ commands:
   - {"seq": 312, "cmd": "du old_base hf/hub", "reason": "reviewer 17:1x UTC D: which models the HF cache holds, read-only", "utc": "2026-10-20T17:34:27Z"}
   - {"seq": 313, "cmd": "rerun STRICT-C1", "reason": "v2.5.8g pearl curve (reviewer A1 17:5x UTC), with v2.5.8f's repetition; the per-arm tables follow", "utc": "2026-10-20T17:47:02Z"}
   - {"seq": 314, "cmd": "rerun STRICT-C1", "reason": "v2.5.8g pearl curve (reviewer A1 17:5x UTC), with v2.5.8f's repetition", "utc": "2026-10-20T17:47:28Z"}
+  - {"seq": 315, "cmd": "du old_base hf/hub/models--Qwen--Qwen3-4B-Instruct-2507/blobs", "reason": "reviewer 17:4x UTC: integrity of the 4B-2507 pair (blob names = sha256, sizes), read-only", "utc": "2026-10-20T17:53:09Z"}
