@@ -12,7 +12,8 @@ setup() {
   printf 'import sys, os; open(os.environ["CALLS"], "a").write("fetch " + " ".join(sys.argv[1:]) + "\\n"); os.makedirs(sys.argv[3], exist_ok=True); open(os.path.join(sys.argv[3], "config.json"), "w").write("{}")\n' > $T/rb/scripts/fetch_model.py
   cat > $T/rb/scripts/run_arm.sh <<'SH'
 echo "run_arm $* SMOKE=$SMOKE STEPS=$SMOKE_STEPS TEACHER_14B=${TEACHER_14B:-} PROBE_TASK=$PROBE_TASK" >> $CALLS
-d=$OPD_ROOT/runs/$PROBE_TASK; mkdir -p $d; : > $d/config.yaml
+d=$OPD_ROOT/runs/$PROBE_TASK; mkdir -p $d; S=/m/Qwen3-1.7B; [ $2 = E10d-P5self ] && S=/m/Qwen3-4B   # [v2.5.8e] student / teacher lines
+printf "task: $2\nstudent: $S (no_think)\nteacher: ${FAKE_TEACHER:-$S} (ref; think-template=1; param_offload=1)\n" > $d/config.yaml
 for i in $(seq 1 $SMOKE_STEPS); do echo "(TaskRunner pid=1) step:$i - timing_s/gen:100 - timing_s/update_actor:150 - timing_s/step:$([ $i = 1 ] && echo 600 || echo 330) - response_length/mean:3000" >> $d/train.log; done
 sleep ${FAKE_SLEEP:-0}; [ "${FAKE_OOM:-0}" = 1 ] && { echo "torch.OutOfMemoryError: CUDA out of memory" >> $d/train.log; exit 1; }; exit 0
 SH
@@ -39,5 +40,16 @@ rm -rf $T
 setup
 FAKE_MEM=500 FAKE_SLEEP=1 PSE_PEAK_MIB=100 bash $T/rb/scripts/probe_p5self.sh 3 > /dev/null 2>&1
 ok "peak over the limit is FAIL" '[ "$(res result)" = FAIL ] && python3 -c "import json, sys; assert \"peak\" in json.load(open(sys.argv[1]))[\"reason\"]" $T/root/runs/PROBE-P5SELF/report.json'
+rm -rf $T
+# 4. [v2.5.8e] 4b: PROBE-P5SELF-4B, a 3-step smoke of E10d-P5self, its own report path
+res4() { python3 -c "import json, sys; print(json.load(open(sys.argv[1])).get(sys.argv[2], ''))" $T/root/runs/PROBE-P5SELF-4B/report.json "$1"; }
+setup
+FAKE_MEM=0 bash $T/rb/scripts/probe_p5self.sh 3 4b > /dev/null 2>&1
+ok "[v2.5.8e] 4b PASS: E10d-P5self smoke, report to probe_p5self_4b" '[ "$(res4 result)" = PASS ] && grep -q "^run_arm 3 E10d-P5self SMOKE=1 STEPS=3 TEACHER_14B= PROBE_TASK=PROBE-P5SELF-4B-smoke" $CALLS && grep -q "^remote put $T/root/runs/PROBE-P5SELF-4B/up logs/abcd1234/probe_p5self_4b" $CALLS && grep -q "^control event PROBE-P5SELF-4B probe_p5self_pass" $CALLS && [ ! -e $T/root/runs/PROBE-P5SELF ]'
+rm -rf $T
+# 5. [v2.5.8e] a teacher that is not the student itself: FAIL
+setup
+FAKE_MEM=0 FAKE_TEACHER=/m/Qwen3-8B bash $T/rb/scripts/probe_p5self.sh 3 4b > /dev/null 2>&1
+ok "[v2.5.8e] teacher != student is FAIL" '[ "$(res4 result)" = FAIL ] && [[ "$(res4 reason)" == *"is not the student itself"* ]]'
 rm -rf $T
 [ $fails = 0 ] && echo "PROBE_P5SELF_TEST PASS ($n checks)" || echo "PROBE_P5SELF_TEST FAIL ($fails of $n)"

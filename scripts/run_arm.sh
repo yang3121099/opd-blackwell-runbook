@@ -26,6 +26,9 @@ STHINK=0; MAXRESP=4096; [ $TASK = E10b-P5think ] && { STHINK=1; MAXRESP=8192; BA
 # v2.5.7v (Q-017, reviewer 08:2x UTC): E10b-P5self = P5 with the teacher replaced by the student's own base (Qwen3-1.7B,
 # the same weights the student starts from) on the thinking template: mode without extra knowledge; 50 steps, as P5 s50
 SELF=0; [ $TASK = E10b-P5self ] && { SELF=1; BASE=E10b-P5; }
+# [v2.5.8e] (reviewer 15:5x UTC 10-20): E10b-P5self-s43 = its second seed (data.seed 43, the seed parse above); E10d-P5self =
+# the same with the 4B student, whose own base (Qwen3-4B, thinking template) is the teacher; 50 steps, E10d's batching
+[ $TASK = E10b-P5self-s43 ] && { SELF=1; BASE=E10b-P5; }
 # v2.5.7zg (Q-019, reviewer 17:0x UTC): E10b-P2self = P2 (non-thinking teacher prompt) with the teacher replaced by the
 # student's own base, the other cell of the 2x2 (teacher mode x teacher = self); 50 steps on venv-fa, gated by PROBE-P2SELF
 [ $TASK = E10b-P2self ] && { SELF=1; BASE=E10b-P2; }
@@ -38,6 +41,7 @@ MODE=""; [[ $TASK =~ ^E10c-(.+)-(fix4|dyn16k|dyn6144)(-s(43|44))?$ ]] && { BASE=
 # v2.5.7b (queue v3 V3-c5, the 4B probe): E10d-<P2|P5> = the E10b arm with the 4B student ($STUDENT_4B); gradient
 # checkpointing stays on for it (GC=0 was measured on 1.7B only), the batching is the node's (FIXED_MICRO_BSZ)
 SIZE=""; [[ $TASK =~ ^E10d-(P2|P5)(-s43)?$ ]] && { BASE=E10b-${BASH_REMATCH[1]}; SIZE=4B; }   # v2.5.7o: -s43 = data.seed 43
+[ $TASK = E10d-P5self ] && { BASE=E10b-P5; SIZE=4B; SELF=1; }   # [v2.5.8e]
 case $BASE in
   E10b-P2) ARM=P2; LR=3e-6;; E10b-P3) ARM=P3; LR=3e-6;; E10b-P4lowlr) ARM=P4; LR=6e-7;; E10b-P5) ARM=P5; LR=3e-6;;
   E10b-P6) ARM=P6; LR=3e-6;; E10b-P6r) ARM=P6r; LR=3e-6;; E10b-P2noEOS) ARM=P2noEOS; LR=3e-6;;
@@ -53,10 +57,10 @@ STUDENT=${STUDENT:-$STUDENT_17B}   # the verification smoke uses $STUDENT_06B
 [ -n "$MODE" ] && STUDENT=$STUDENT_06B
 [ "$SIZE" = 4B ] && { STUDENT=$STUDENT_4B; GC=1; }
 [ $T14 = 1 ] && { TEACHER=$TEACHER_14B; TEACHER_OFFLOAD=0; }   # v2.5.7p: a node-wide TEACHER_OFFLOAD does not reach it
-[ $SELF = 1 ] && TEACHER=$STUDENT_17B   # v2.5.7v
+[ $SELF = 1 ] && { TEACHER=$STUDENT_17B; [ "$SIZE" = 4B ] && TEACHER=$STUDENT_4B; }   # v2.5.7v; [v2.5.8e] the 4B student's own base
 # v2.5.7v: E10b-P5self starts only after PROBE-P5SELF passed (a 3-step smoke); v2.5.7zg: E10b-P2self after PROBE-P2SELF
 if [ $SELF = 1 ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
-  PG=PROBE-$(echo ${TASK#E10b-} | tr a-z A-Z)
+  SA=${TASK#E10[bd]-}; PG=PROBE-$(echo ${SA%-s4[34]} | tr a-z A-Z); [ "$SIZE" = 4B ] && PG=$PG-4B   # [v2.5.8e] -s43 shares its arm's gate; 4B: PROBE-P5SELF-4B
   grep -q '"result": "PASS"' $OPD_ROOT/runs/$PG/report.json 2> /dev/null || { echo "$PG has not passed: $TASK not started"; exit 3; }
 fi
 # v2.5.7r: E10b-P5think starts only after PROBE-P5THINK passed (templates + a 3-step smoke whose rollouts open with <think>)

@@ -83,6 +83,9 @@ ok "E10b start fetched from the result repository" 'grep -q "^fetch me/pub runs/
 # 0.6B copy (models/, else the HF cache, else the hub id), P5 from E10c-P5-fix4 step 150 (or the result repository)
 mkdir -p $T/base/root/runs/E10b-P5self/ckpt/global_step_50/actor/huggingface_bf16; : > $T/base/root/runs/E10b-P5self/ckpt/global_step_50/actor/huggingface_bf16/model.safetensors
 a1=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P5self 2>&1 | tail -1)
+mkdir -p $T/base/root/runs/E10b-P5self-s43/ckpt/global_step_50/actor/huggingface_bf16; : > $T/base/root/runs/E10b-P5self-s43/ckpt/global_step_50/actor/huggingface_bf16/model.safetensors
+a2=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P5self-s43 2>&1 | tail -1)
+ok "[v2.5.8e] E12b-P5self-s43: from E10b-P5self-s43 s50, 100 steps, as E12b-P5self" '[[ "$a2" == "DRYRUN E12b-P5self-s43 start=$T/base/root/runs/E10b-P5self-s43/ckpt/global_step_50/actor/huggingface_bf16 steps=100 "*"venv=venv "*"upload=100 vllm=0.6 var=none"* ]]'
 ok "[v2.5.8a] E12b-P5self: from E10b-P5self s50, 100 steps, upload the last step, venv and vLLM as E12b-P5" '[[ "$a1" == "DRYRUN E12b-P5self start=$T/base/root/runs/E10b-P5self/ckpt/global_step_50/actor/huggingface_bf16 steps=100 "*"venv=venv "*"upload=100 vllm=0.6 var=none"* ]]'
 c1=$(HF_HOME=$T/hf DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12c-P0 2>&1 | tail -1)
 ok "[v2.5.8a] E12c-P0 refused before PROBE-E12C passed" '[[ "$c1" == "PROBE-E12C has not passed: E12c-P0 not started" ]] && [ ! -e $T/base/root/runs/E12c-P0/config.yaml ]'

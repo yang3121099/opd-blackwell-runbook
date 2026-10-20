@@ -228,10 +228,10 @@ def test_run_accepts_fa_probe(env):
 
 
 def test_run_accepts_v258a(env):   # [v2.5.8a] E12b-P5self, the 0.6B ladder E12c (P0 / P5 only) and its gate PROBE-E12C
-    for i, t in enumerate(("E12b-P5self", "E12c-P0", "E12c-P5", "PROBE-E12C", "E12b-P5-kl", "PROBE-E12B-KL", "E12b-P5-stop", "PROBE-E12B-STOP")):   # [v2.5.8b] kl; [v2.5.8c] stop
+    for i, t in enumerate(("E12b-P5self", "E12b-P5self-s43", "E10b-P5self-s43", "E10d-P5self", "PROBE-P5SELF-4B", "E12c-P0", "E12c-P5", "PROBE-E12C", "E12b-P5-kl", "PROBE-E12B-KL", "E12b-P5-stop", "PROBE-E12B-STOP")):   # [v2.5.8b] kl; [v2.5.8c] stop
         st, msg, _ = env.c.v_run([t], 30 + i)
         assert st == "accepted", (t, msg)
-    for i, t in enumerate(("E12c-P2", "E12c-P5self", "E12b-P2self", "PROBE-E12D", "E12b-P2-kl", "E12b-P2-stop", "PROBE-E12B-FOO")):
+    for i, t in enumerate(("E12c-P2", "E12c-P5self", "E12b-P2self", "PROBE-E12D", "E12b-P2-kl", "E12b-P2-stop", "PROBE-E12B-FOO", "E10d-P2self", "E10b-P5self-s44")):
         assert env.c.v_run([t], 40 + i)[0] == "rejected", t
 
 
@@ -355,7 +355,7 @@ def test_eval_verb_unchanged(cmd, ok):   # the eval verb keeps 2-4 arguments (no
         R.parse({"cmd": cmd + " 32768", "reason": "t"})
 
 
-@pytest.mark.parametrize("cmd,ok", [("rerun FA-PROBE", True), ("rerun EVAL-bridge", True), ("rerun E10b-P2", True), ("rerun SFT-P1", True), ("rerun E10c-P4lowlr-fix4", True), ("rerun PROBE-TERM", True), ("rerun E10c-P4lowlr-dyn6144", True), ("rerun E12c-P0", True), ("rerun PROBE-E12C", True), ("rerun E12b-P5self", True), ("rerun PROBE-E12B-KL", True), ("rerun E12b-P5-kl", True), ("rerun PROBE-E12B-STOP", True), ("rerun E12b-P5-stop", True), ("rerun /etc", False),
+@pytest.mark.parametrize("cmd,ok", [("rerun FA-PROBE", True), ("rerun EVAL-bridge", True), ("rerun E10b-P2", True), ("rerun SFT-P1", True), ("rerun E10c-P4lowlr-fix4", True), ("rerun PROBE-TERM", True), ("rerun E10c-P4lowlr-dyn6144", True), ("rerun E12c-P0", True), ("rerun PROBE-E12C", True), ("rerun E12b-P5self", True), ("rerun PROBE-E12B-KL", True), ("rerun E12b-P5-kl", True), ("rerun PROBE-E12B-STOP", True), ("rerun PROBE-P5SELF-4B", True), ("rerun E10d-P5self", True), ("rerun E12b-P5-stop", True), ("rerun /etc", False),
                                     ("rerun EVAL-a;b", False), ("rerun", False), ("rerun FA-PROBE x", False)])
 def test_rules_rerun(cmd, ok):
     if ok:

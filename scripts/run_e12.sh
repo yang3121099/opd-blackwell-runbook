@@ -25,7 +25,7 @@ if [ -n "$VAR" ] && [ "${SMOKE:-0}" != 1 ]; then
 fi
 SRC=E10b; [ $LADDER = E12d ] && SRC=E10d   # v2.5.7o: the preparation run a start comes from
 SRUN=$SRC-$A; [ $LADDER = E12c ] && SRUN=E10c-$A-fix4   # [v2.5.8a] the 0.6B starts: E10c-<arm>-fix4, this node's 0.6B batching
-SS=150; [ $A = P5self ] && SS=50                          # [v2.5.8a] E10b-P5self ran 50 steps
+SS=150; case $A in P5self|P5self-s43) SS=50;; esac       # [v2.5.8a] E10b-P5self ran 50 steps; [v2.5.8e] its seed 43 too
 # [v2.5.8a] an E12c task starts only after PROBE-E12C passed (the smoke itself is exempt)
 if [ $LADDER = E12c ] && [ "${SMOKE:-0}" != 1 ]; then
   grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-E12C/report.json 2> /dev/null || { echo "PROBE-E12C has not passed: $T not started"; exit 3; }
@@ -49,7 +49,7 @@ if [ $A != P0 ] && ! has_weights $START; then
          && START=$CKPT_ROOT/adhoc_models/result/$R;;
   esac
 fi
-case $A in P0|P1|P2|P3|P5|P5-s43|P5-s44|P2-s43|P5self) STEPS=100;; *) STEPS=60;; esac   # v2.5.6j: P5-s43 = the headline chain's second seed (queue v3 V3-c2); v2.5.7n: P5-s44 its third (from the flash-attn arm)
+case $A in P0|P1|P2|P3|P5|P5-s43|P5-s44|P2-s43|P5self|P5self-s43) STEPS=100;; *) STEPS=60;; esac   # v2.5.6j: P5-s43 = the headline chain's second seed (queue v3 V3-c2); v2.5.7n: P5-s44 its third (from the flash-attn arm)
 [ $A = P0 ] || has_weights $START || { echo "missing start checkpoint $START"; exit 1; }
 # v2.5.7c: venv-fa (flash-attn, remove-padding) only with VENV=fa and E12B_FA=1: the E12b ladder stays on one attention
 V=$OPD_ROOT/venv; [ "${VENV:-}" = fa ] && [ "${E12B_FA:-0}" = 1 ] && V=$OPD_ROOT/venv-fa
