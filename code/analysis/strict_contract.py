@@ -18,6 +18,10 @@ the rest) of the ready position and of the tokens after it (correct samples), fo
 share of all samples whose FIRST box is correct under the EVAL-v1 grader (gen_eval.grade on the text up to that box;
 graded again only when its content differs from the last box's), next to acc (the last box), the first box's end
 position (p50, samples with a box) and the mean tokens written after it (what stopping at the first box would save).
+[v2.5.8d] (reviewer 13:3x UTC, Runming: was a changed answer changed to right or to wrong?): answer_ready.box_change =
+the samples whose first and last boxes (whole text) differ in content, split by the EVAL-v1 grade of the first box
+(first_box) and of the last (the reading's correct): first right / last wrong, first wrong / last right, both, neither;
+counts and points of all samples (first_right_last_wrong - first_wrong_last_right = first_box_acc - acc).
 v2.5.7x (reviewer 09:3x UTC, "does P5 copy the thinking mode's two-part structure?"): answer_ready also gives, over the
 correct samples, the share with two or more boxes in the whole text all holding the same content (and with any
 content), and, for samples that close </think>, the share whose first final-answer box ends before the last </think>
@@ -165,6 +169,7 @@ def rejudge(path, name):
     probs, gv = {}, set(); ft, at, fbt, ntk = [], [], [], []; fb_ok, fb_end, fb_save = 0, [], []
     nc, m_same, m_any, th_n, th_before, post = 0, 0, 0, 0, 0, []   # v2.5.7x
     stop_after, tails = [], Counter()   # v2.5.7ze
+    bc = Counter()   # [v2.5.8d] box_change
     for line in open(path):
         line = line.strip()
         if not line:
@@ -197,6 +202,10 @@ def rejudge(path, name):
             tails[tail_pattern(text, allb)] += 1
         ok1, e1 = first_box(r)   # v2.5.7w
         fb_ok += ok1
+        allt = boxes_at(r.get("text") or "")[0]   # [v2.5.8d] the first and the last box differ: which one is right?
+        if len(allt) >= 2 and "".join(allt[0][2].split()) != "".join(allt[-1][2].split()):
+            last = bool(r.get("correct")); bc["n"] += 1
+            bc["first_right_last_wrong" if ok1 and not last else "first_wrong_last_right" if last and not ok1 else "both_right" if ok1 else "both_wrong"] += 1
         if e1 is not None:
             fb_end.append(tok(e1)); fb_save.append(max(nt - tok(e1), 0))
         p = probs.setdefault(r["pid"], [0, 0, 0, 0]); p[0] += j["correct"]; p[1] += j["strict"]; p[2] += j["same"]; p[3] += 1
@@ -226,7 +235,10 @@ def rejudge(path, name):
                             "stop_n": sum(tails.values()), "stop_after_last_box_tok_p50": q(stop_after, .5),
                             "stop_after_last_box_tok_p90": q(stop_after, .9),
                             "stop_after_last_box_tok_mean": round(sum(stop_after) / len(stop_after), 1) if stop_after else None,
-                            "stop_tail_top5": [[t, k, round(100 * k / sum(tails.values()), 2)] for t, k in tails.most_common(5)]}}
+                            "stop_tail_top5": [[t, k, round(100 * k / sum(tails.values()), 2)] for t, k in tails.most_common(5)],
+                            "box_change": {"n": bc["n"], "share": round(100 * bc["n"] / n, 2),   # [v2.5.8d]
+                                           **{k: bc[k] for k in ("first_right_last_wrong", "first_wrong_last_right", "both_right", "both_wrong")},
+                                           **{k + "_points": round(100 * bc[k] / n, 2) for k in ("first_right_last_wrong", "first_wrong_last_right")}}}}
     return res, probs
 
 

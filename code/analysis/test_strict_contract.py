@@ -128,6 +128,9 @@ def test_scan_and_main(tmp_path, monkeypatch):
     assert a["answer_ready"]["correct_with_answer_box"] == 8 and a["answer_ready"]["after_gt_500_share"] == 0.0   # v2.5.7v
     ar = a["answer_ready"]   # v2.5.7w: p0 s1's first box (2) is wrong; the rest open with the final answer
     assert ar["first_box_acc"] == 87.5 and sum(ar["ready_tok_hist"]) == 8 and len(ar["after_tok_hist"]) == 128 and ar["bin_tokens"] == 256
+    # [v2.5.8d] p0 s1 changed its answer from a wrong first box (2) to a right last one (1); p2 s1 repeats the same box
+    assert ar["box_change"] == {"n": 1, "share": 12.5, "first_right_last_wrong": 0, "first_wrong_last_right": 1, "both_right": 0, "both_wrong": 0,
+                                "first_right_last_wrong_points": 0.0, "first_wrong_last_right_points": 12.5}
     p = r["pairs"][0]
     assert p["lenient"]["diff"] == 50.0 and p["contract"]["diff"] == 12.5 and p["diff_change"] == -37.5
     assert r["pairs"][1]["error"] == "reading missing"
@@ -136,3 +139,19 @@ def test_scan_and_main(tmp_path, monkeypatch):
     assert "answer ready (v2.5.7v)" in t
     w = {x["name"]: x for x in r["readings"]}["EVAL-w/w_math500_no_think_t0.6.jsonl"]
     assert w["acc"] == 0.0 and w["of_correct_rejected"]["not_eos"] is None and "EVAL-w/w_math500" in t.split("same (the C1")[1]
+
+
+def test_box_change(tmp_path, monkeypatch):   # [v2.5.8d] which way did a changed answer go?
+    monkeypatch.setattr(SC, "_GRADE", lambda text, gold: (text.endswith("{" + gold + "}"), None))
+    g = lambda r: dict(r, gold="1")
+    R = [g(rec("p0", "\\boxed{1} wait \\boxed{2}", False)),      # right, then changed to wrong
+         g(rec("p1", "\\boxed{2} wait \\boxed{1}", True)),       # wrong, then changed to right
+         g(rec("p2", "\\boxed{3} wait \\boxed{2}", False)),      # wrong both times
+         g(rec("p3", "\\boxed{1} so \\boxed{ 1 }", True)),       # the same answer twice: not a change
+         g(rec("p4", "\\boxed{1}", True))]
+    write_reading(str(tmp_path), "EVAL-c", "c_math500_no_think_t0.6", R)
+    res, _ = SC.rejudge(str(tmp_path / "EVAL-c" / "c_math500_no_think_t0.6.jsonl"), "c")
+    bc, ar = res["answer_ready"]["box_change"], res["answer_ready"]
+    assert (bc["n"], bc["first_right_last_wrong"], bc["first_wrong_last_right"], bc["both_wrong"], bc["both_right"]) == (3, 1, 1, 1, 0)
+    assert bc["share"] == 60.0 and bc["first_right_last_wrong_points"] == 20.0
+    assert round(bc["first_right_last_wrong_points"] - bc["first_wrong_last_right_points"], 2) == round(ar["first_box_acc"] - res["acc"], 2)
