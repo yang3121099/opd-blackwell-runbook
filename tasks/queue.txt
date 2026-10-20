@@ -42,6 +42,7 @@ t14      open   E10b-P5-t14:PROBE-T14 E10b-P2-t14:PROBE-T14 E11b-P5-t14:E10b-P5-
 ext      open   PROBE-TERM3 EVAL-ext-base17 EVAL-ext-E12b-P5:E12b-P5 EVAL-ext-E12b-P0:E12b-P0 EVAL-ext-E12b-P2:E12b-P2 EVAL-ext-E10b-P5:E10b-P5 EVAL-ext-E10b-P2:E10b-P2 EVAL-ext-E12b-P3:E12b-P3 EVAL-ext-E12b-P1:E12b-P1 EVAL-ext-E10b-P4lowlr:E10b-P4lowlr EVAL-ext32k
 term4    open   PROBE-TERM4
 fill1    open   EVAL-ext32k-17t14:E10b-P5-t14 EVAL-ext32k-17p2:E10b-P2-t14+E10b-P2 EVAL-ext-E10b-P5s43:E10b-P5-s43 EVAL-ext-E10b-P5s44:E10b-P5-s44 EVAL-ext-E12b-P2s43:E12b-P2-s43 EVAL-ext-E10d-P2s43:E10d-P2-s43
+base06   open   EVAL-e10c-base06
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T0.6 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T1.0 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 1.0
 #eval EVAL-e10c-dyn16k e10c_P4lowlr-dyn16k_s150_math500_T0.6 local:runs/E10c-P4lowlr-dyn16k/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
@@ -695,3 +696,7 @@ fill1    open   EVAL-ext32k-17t14:E10b-P5-t14 EVAL-ext32k-17p2:E10b-P2-t14+E10b-
 #pair EVAL-ext-E10d-P2s43 ext_E10dP2s43_amc23_T0.6 EVAL-ext-E10d-P2/ext_E10dP2_amc23_T0.6_amc23_no_think_t0.6.jsonl EVAL-ext-E10d-P0/ext_E10dP0_amc23_T0.6_amc23_no_think_t0.6.jsonl
 #pair EVAL-ext-E10d-P2s43 ext_E10dP2s43_minervamath_T0.6 EVAL-ext-E10d-P2/ext_E10dP2_minervamath_T0.6_minervamath_no_think_t0.6.jsonl EVAL-ext-E10d-P0/ext_E10dP0_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
 #pair EVAL-ext-E10d-P2s43 ext_E10dP2s43_olympiadbench_T0.6 EVAL-ext-E10d-P2/ext_E10dP2_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl EVAL-ext-E10d-P0/ext_E10dP0_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
+# base06 (executor 03:1x UTC, Q-023 / reviewer 03:0x UTC): the 0.6B base at 16K on this node (local copy), the reference of
+# EVAL-e10c-P5-fix4 (vs the lab's +19.2) and EVAL-e12c-P0 (v2.5.8a)
+#eval EVAL-e10c-base06 e10c_base06_math500_T0.6 local:models/Qwen3-0.6B math500 4 0.6
+#eval EVAL-e10c-base06 e10c_base06_math500_T1.0 local:models/Qwen3-0.6B math500 4 1.0
