@@ -303,3 +303,4 @@ commands:
   - {"seq": 301, "cmd": "rerun EVAL-e12b-P5-s44", "reason": "reviewer 07:1x UTC fill4: TWR alpha of the third P5 -> RL seed (new #twr line; the generations are kept, gen_eval resumes)", "utc": "2026-10-20T07:10:56Z"}
   - {"seq": 302, "cmd": "rerun STRICT-C1", "reason": "patrol 11:40 UTC: fill3 done; STRICT-C1 judges the 27 new #strict lines (fill3 readings, self / think arms)", "utc": "2026-10-20T11:42:24Z"}
   - {"seq": 303, "cmd": "rerun STRICT-C1", "reason": "patrol 12:03 UTC: EVAL-ext-E10b-P5think done; STRICT-C1 judges its five #strict lines too", "utc": "2026-10-20T12:04:43Z"}
+  - {"seq": 304, "cmd": "rerun STRICT-C1", "reason": "v2.5.8d box_change (reviewer A1 13:4x UTC): the answer-change split for every MATH500 reading, and the five equal-step 32K pairs of 6324209", "utc": "2026-10-20T13:32:24Z"}
