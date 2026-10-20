@@ -55,6 +55,7 @@ b258e    open   E10b-P5self-s43 PROBE-P5SELF-4B E10d-P5self:PROBE-P5SELF-4B E12b
 fill4    open   EVAL-ext32k-17p1:E12b-P1 EVAL-ext32k-17p3:E12b-P3 EVAL-ext-E10b-P3:E10b-P3 EVAL-ext-E10b-P6r:E10b-P6r
 len      open   EVAL-budA06p5:E10c-P5-fix4 EVAL-budA06think EVAL-budA-8Bthink
 fill5    open   EVAL-ext-E10c-P0 EVAL-ext32k-06think EVAL-ext-E10c-P5-fix4:E10c-P5-fix4+EVAL-ext-E10c-P0 EVAL-ext32k-06:E10c-P5-fix4+EVAL-ext32k-06think EVAL-ext-E12c-P0:E12c-P0+EVAL-ext-E10c-P0+EVAL-ext-E10c-P5-fix4
+budF     open   EVAL-budF-4B EVAL-budF-06:EVAL-budA06p5+EVAL-budA06think
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T0.6 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T1.0 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 1.0
 #eval EVAL-e10c-dyn16k e10c_P4lowlr-dyn16k_s150_math500_T0.6 local:runs/E10c-P4lowlr-dyn16k/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
@@ -990,3 +991,16 @@ fill5    open   EVAL-ext-E10c-P0 EVAL-ext32k-06think EVAL-ext-E10c-P5-fix4:E10c-
 #budget EVAL-budA-e10dP5self budget_curve EVAL-budA-4B/budA4B_base4B_math500_T0.6_32k_math500_no_think_t0.6.jsonl budA4B_E10dP5self_s50_math500_T0.6_32k
 #budget EVAL-budA-e10dP5self budget_curve_vs4Bthink EVAL-budA-4Bthink/budA4B_P0think_math500_T0.6_32k_math500_think_t0.6.jsonl budA4B_E10dP5self_s50_math500_T0.6_32k
 #budget EVAL-budA-e10dP5self budget_curve_vsE10dP5 EVAL-budA-4B/budA4B_E10dP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budA4B_E10dP5self_s50_math500_T0.6_32k
+# budF (reviewer 17:1x UTC, Runming: how do the models before OPD do with forced answers?): forced answers at 2K / 4K / 8K /
+# 16K / 32K (forced_stop.py, as EVAL-budB for 1.7B) for the 4B and 0.6B base, their think mode and their P5, next to each other;
+# each task also reads its size's base in think mode at 16K (a task needs one #eval line; the 16K think point is new)
+#eval EVAL-budF-4B budF4B_P0think_math500_T0.6_16k local:models/Qwen3-4B math500 4 0.6 16384 think
+#forced EVAL-budF-4B EVAL-budA-4B/budA4B_base4B_math500_T0.6_32k_math500_no_think_t0.6.jsonl local:models/Qwen3-4B no_think
+#forced EVAL-budF-4B EVAL-budA-4Bthink/budA4B_P0think_math500_T0.6_32k_math500_think_t0.6.jsonl local:models/Qwen3-4B think
+#forced EVAL-budF-4B EVAL-budA-4B/budA4B_E10dP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl result:runs/E10d-P5/global_step_150/actor/huggingface no_think
+#budget EVAL-budF-4B budget_curve_forced EVAL-budA-4B/budA4B_base4B_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-4Bthink/budA4B_P0think_math500_T0.6_32k_math500_think_t0.6.jsonl EVAL-budA-4B/budA4B_E10dP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#eval EVAL-budF-06 budF06_P0think_math500_T0.6_16k local:models/Qwen3-0.6B math500 4 0.6 16384 think
+#forced EVAL-budF-06 EVAL-budA06/budA_base06_math500_T0.6_32k_math500_no_think_t0.6.jsonl local:models/Qwen3-0.6B no_think
+#forced EVAL-budF-06 EVAL-budA06think/budA06_P0think_math500_T0.6_32k_math500_think_t0.6.jsonl local:models/Qwen3-0.6B think
+#forced EVAL-budF-06 EVAL-budA06p5/budA06_E10cP5fix4_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl result:runs/E10c-P5-fix4/global_step_150/actor/huggingface no_think
+#budget EVAL-budF-06 budget_curve_forced EVAL-budA06/budA_base06_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA06think/budA06_P0think_math500_T0.6_32k_math500_think_t0.6.jsonl EVAL-budA06p5/budA06_E10cP5fix4_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl
