@@ -291,3 +291,4 @@ commands:
   - {"seq": 289, "cmd": "rerun E11b-P2-t14", "reason": "reviewer A1 21:2x UTC: pairs only (v2.5.7zl) - the readings and twr.json exist and are skipped; adds the paired CIs vs E11b-P2 and E11b-P0", "utc": "2026-10-19T21:07:40Z"}
   - {"seq": 290, "cmd": "rerun STRICT-C1", "reason": "reviewer A1 21:4x UTC (v2.5.7zm): C1 contract rejudge incl. the 4B RL pair on the five external sets (16K) and AIME 32K - CPU only, no generation", "utc": "2026-10-19T21:29:36Z"}
   - {"seq": 291, "cmd": "rerun STRICT-C1", "reason": "reviewer 21:4x UTC: C1 contract rejudge incl. the 1.7B headline beyond MATH500 (19 #strict pairs: five external sets 16K, seed 43, AIME 32K) - CPU only, no generation", "utc": "2026-10-19T21:38:41Z"}
+  - {"seq": 292, "cmd": "du opd_root", "reason": "patrol 00:45 UTC: idx0 free fell 3.4 TB during the offline hours; size our own prefixes", "utc": "2026-10-20T00:47:39Z"}
