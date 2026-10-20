@@ -69,9 +69,9 @@ mkdir -p $T/base/root/runs/E10d-P5/ckpt/global_step_150/actor/huggingface_bf16 $
 : > $T/base/root/runs/E10d-P5/ckpt/global_step_150/actor/huggingface_bf16/model.safetensors; : > $T/base/root/runs/E10b-P2-s43/ckpt/global_step_150/actor/huggingface_bf16/model.safetensors
 o1=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12d-P0 2>&1 | tail -1); o2=$(VLLM_UTIL=0.7 DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12d-P5 2>&1 | tail -1)
 o3=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P2-s43 2>&1 | tail -1); o4=$(E12D_VLLM_UTIL=0.45 DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12d-P0 2>&1 | tail -1)
-ok "v2.5.7o E12d-P0: base 4B, 100 steps, GC on, venv-fa, vLLM 0.5" '[[ "$o1" == "DRYRUN E12d-P0 start=$T/m4 steps=100 "*"gc=True venv=venv-fa "*"vllm=0.5" ]]'
-ok "v2.5.7o E12d-P5: from E10d-P5 s150, vLLM 0.5 whatever the node VLLM_UTIL; E12D_VLLM_UTIL sets it; v2.5.7u: mid-RL uploads (E12d-P0 last step only)" '[[ "$o2" == "DRYRUN E12d-P5 start=$T/base/root/runs/E10d-P5/ckpt/global_step_150/actor/huggingface_bf16 steps=100 "*"venv=venv-fa "*"upload=25,50,75,100 vllm=0.5" && "$o4" == *"upload=100 vllm=0.45" ]]'
-ok "v2.5.7o E12b-P2-s43: from E10b-P2-s43, 100 steps, venv-fa, vLLM as E12b" '[[ "$o3" == "DRYRUN E12b-P2-s43 start=$T/base/root/runs/E10b-P2-s43/ckpt/global_step_150/actor/huggingface_bf16 steps=100 "*"venv=venv-fa "*"vllm=0.6" ]] && [[ "$d9" == *"venv=venv "* ]]'
+ok "v2.5.7o E12d-P0: base 4B, 100 steps, GC on, venv-fa, vLLM 0.5" '[[ "$o1" == "DRYRUN E12d-P0 start=$T/m4 steps=100 "*"gc=True venv=venv-fa "*"vllm=0.5 var=none"* ]]'
+ok "v2.5.7o E12d-P5: from E10d-P5 s150, vLLM 0.5 whatever the node VLLM_UTIL; E12D_VLLM_UTIL sets it; v2.5.7u: mid-RL uploads (E12d-P0 last step only)" '[[ "$o2" == "DRYRUN E12d-P5 start=$T/base/root/runs/E10d-P5/ckpt/global_step_150/actor/huggingface_bf16 steps=100 "*"venv=venv-fa "*"upload=25,50,75,100 vllm=0.5 var=none"* && "$o4" == *"upload=100 vllm=0.45 var=none"* ]]'
+ok "v2.5.7o E12b-P2-s43: from E10b-P2-s43, 100 steps, venv-fa, vLLM as E12b" '[[ "$o3" == "DRYRUN E12b-P2-s43 start=$T/base/root/runs/E10b-P2-s43/ckpt/global_step_150/actor/huggingface_bf16 steps=100 "*"venv=venv-fa "*"vllm=0.6 var=none"* ]] && [[ "$d9" == *"venv=venv "* ]]'
 rm -rf $T/base/root/runs/E10d-P5; bash $T/rb/scripts/run_e12.sh 0 E12d-P5 > $T/e5 2>&1
 ok "v2.5.7o E12d-P5 start fetched from the result repository (runs/E10d-P5)" 'grep -q "^fetch me/pub runs/E10d-P5/global_step_150/actor/huggingface $T/ck/adhoc_models/result --task E12d-P5" $CALLS'
 ok "E12b: venv-fa only with E12B_FA=1" '[[ "$d6" == *"venv=venv "* && "$d7" == *"venv=venv-fa "* ]]'
@@ -83,18 +83,29 @@ ok "E10b start fetched from the result repository" 'grep -q "^fetch me/pub runs/
 # 0.6B copy (models/, else the HF cache, else the hub id), P5 from E10c-P5-fix4 step 150 (or the result repository)
 mkdir -p $T/base/root/runs/E10b-P5self/ckpt/global_step_50/actor/huggingface_bf16; : > $T/base/root/runs/E10b-P5self/ckpt/global_step_50/actor/huggingface_bf16/model.safetensors
 a1=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P5self 2>&1 | tail -1)
-ok "[v2.5.8a] E12b-P5self: from E10b-P5self s50, 100 steps, upload the last step, venv and vLLM as E12b-P5" '[[ "$a1" == "DRYRUN E12b-P5self start=$T/base/root/runs/E10b-P5self/ckpt/global_step_50/actor/huggingface_bf16 steps=100 "*"venv=venv "*"upload=100 vllm=0.6" ]]'
+ok "[v2.5.8a] E12b-P5self: from E10b-P5self s50, 100 steps, upload the last step, venv and vLLM as E12b-P5" '[[ "$a1" == "DRYRUN E12b-P5self start=$T/base/root/runs/E10b-P5self/ckpt/global_step_50/actor/huggingface_bf16 steps=100 "*"venv=venv "*"upload=100 vllm=0.6 var=none"* ]]'
 c1=$(HF_HOME=$T/hf DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12c-P0 2>&1 | tail -1)
 ok "[v2.5.8a] E12c-P0 refused before PROBE-E12C passed" '[[ "$c1" == "PROBE-E12C has not passed: E12c-P0 not started" ]] && [ ! -e $T/base/root/runs/E12c-P0/config.yaml ]'
 c2=$(HF_HOME=$T/hf SMOKE=1 PROBE_TASK=PROBE-E12C-smoke DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12c-P0 2>&1 | tail -1)
 ok "[v2.5.8a] the PROBE-E12C smoke is exempt: 3 steps, no save; the hub id when no local copy exists" '[[ "$c2" == "DRYRUN PROBE-E12C-smoke start=Qwen/Qwen3-0.6B steps=3 save=-1 "* ]]'
 mkdir -p $T/base/root/runs/PROBE-E12C $T/base/root/models/Qwen3-0.6B; echo '{"result": "PASS"}' > $T/base/root/runs/PROBE-E12C/report.json; : > $T/base/root/models/Qwen3-0.6B/model.safetensors
 c3=$(HF_HOME=$T/hf DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12c-P0 2>&1 | tail -1)
-ok "[v2.5.8a] E12c-P0 after a PASS: the local 0.6B copy, 100 steps, the last step uploaded" '[[ "$c3" == "DRYRUN E12c-P0 start=$T/base/root/models/Qwen3-0.6B steps=100 "*"upload=100 vllm=0.6" ]] && grep -q "^start: $T/base/root/models/Qwen3-0.6B$" $T/base/root/runs/E12c-P0/config.yaml'
+ok "[v2.5.8a] E12c-P0 after a PASS: the local 0.6B copy, 100 steps, the last step uploaded" '[[ "$c3" == "DRYRUN E12c-P0 start=$T/base/root/models/Qwen3-0.6B steps=100 "*"upload=100 vllm=0.6 var=none"* ]] && grep -q "^start: $T/base/root/models/Qwen3-0.6B$" $T/base/root/runs/E12c-P0/config.yaml'
 mkdir -p $T/base/root/runs/E10c-P5-fix4/ckpt/global_step_150/actor/huggingface_bf16; : > $T/base/root/runs/E10c-P5-fix4/ckpt/global_step_150/actor/huggingface_bf16/model.safetensors
 c4=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12c-P5 2>&1 | tail -1)
 ok "[v2.5.8a] E12c-P5: from E10c-P5-fix4 s150, 100 steps" '[[ "$c4" == "DRYRUN E12c-P5 start=$T/base/root/runs/E10c-P5-fix4/ckpt/global_step_150/actor/huggingface_bf16 steps=100 "* ]]'
 rm -rf $T/base/root/runs/E10c-P5-fix4; bash $T/rb/scripts/run_e12.sh 0 E12c-P5 > $T/c5 2>&1
 ok "[v2.5.8a] E12c-P5 start fetched from the result repository (runs/E10c-P5-fix4)" 'grep -q "^fetch me/pub runs/E10c-P5-fix4/global_step_150/actor/huggingface $T/ck/adhoc_models/result --task E12c-P5" $CALLS'
+# [v2.5.8b] E12b-P5-kl: refused before PROBE-E12B-KL passed; then E12b-P5's path with a KL loss to the start (reference = start)
+S5=$T/base/root/runs/E10b-P5/ckpt/global_step_150/actor/huggingface_bf16; mkdir -p $S5; : > $S5/model.safetensors
+k1=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P5-kl 2>&1 | tail -1)
+ok "[v2.5.8b] E12b-P5-kl refused before PROBE-E12B-KL passed" '[[ "$k1" == "PROBE-E12B-KL has not passed: E12b-P5-kl not started" ]]'
+mkdir -p $T/base/root/runs/PROBE-E12B-KL; echo '{"result": "PASS"}' > $T/base/root/runs/PROBE-E12B-KL/report.json
+k2=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P5-kl 2>&1 | tail -1); k3=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P5 2>&1 | tail -1)
+ok "[v2.5.8b] E12b-P5-kl: start P5 s150, 100 steps, KL 0.01 low_var_kl, reference = the start, the plain reward" '[[ "$k2" == "DRYRUN E12b-P5-kl start=$S5 steps=100 "*"upload=100 "*"var=kl kl=[actor_rollout_ref.actor.use_kl_loss=True actor_rollout_ref.actor.kl_loss_coef=0.01 actor_rollout_ref.actor.kl_loss_type=low_var_kl +actor_rollout_ref.ref.model.path=$S5 "*"reward=reward_mathverify.py" ]]'
+ok "[v2.5.8b] the config names the start as the reference; E12b-P5 unchanged (KL off, no variant)" 'grep -q "KL loss 0.01 low_var_kl to the start (reference = $S5)" $T/base/root/runs/E12b-P5-kl/config.yaml && grep -q "^variant: kl$" $T/base/root/runs/E12b-P5-kl/config.yaml && [[ "$k3" == "DRYRUN E12b-P5 start=$S5 "*"var=none kl=[actor_rollout_ref.actor.use_kl_loss=False] reward=reward_mathverify.py" ]]'
+k4=$(SMOKE=1 PROBE_TASK=PROBE-E12B-KL-smoke DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P5-kl 2>&1 | tail -1); rm -f $T/base/root/runs/PROBE-E12B-KL/report.json
+k5=$(SMOKE=1 PROBE_TASK=PROBE-E12B-KL-smoke2 DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P5-kl 2>&1 | tail -1)
+ok "[v2.5.8b] the probe's smoke runs without a PASS: 3 steps, no save, KL on" '[[ "$k5" == "DRYRUN PROBE-E12B-KL-smoke2 start=$S5 steps=3 save=-1 "*"var=kl kl=[actor_rollout_ref.actor.use_kl_loss=True"* ]]'
 rm -rf $T
 [ $fails = 0 ] && echo "DR_TEST PASS ($n checks)" || echo "DR_TEST FAIL ($fails of $n)"

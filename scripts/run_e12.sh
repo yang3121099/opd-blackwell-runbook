@@ -16,6 +16,13 @@
 set -euo pipefail
 # v2.5.7c: SMOKE=1 (FA-SPEED-E12) runs SMOKE_STEPS (3) steps in runs/$PROBE_TASK: no checkpoint, upload, DR, validation
 source "$(dirname "$0")/env.sh"; source "$(dirname "$0")/dr.sh"; G=$1; T=$2; LADDER=${T%%-*}; A=${T#*-}
+# [v2.5.8b] (Q-020, reviewer 22:0x UTC 10-19): E12b-P5-<variant> = E12b-P5 with one change: kl = a KL loss to the start (coef
+# 0.01, low_var_kl, the reference policy = the start P5 s150), stop = the stop reward ([v2.5.8c]). Everything else is E12b-P5's.
+VAR=""; case $A in P5-kl|P5-stop) VAR=${A#P5-}; A=P5;; esac
+# [v2.5.8b] the variant starts only after its gate PROBE-E12B-<VAR> passed (a 3-step smoke that checks the reference; the smoke itself is exempt)
+if [ -n "$VAR" ] && [ "${SMOKE:-0}" != 1 ]; then
+  P=PROBE-E12B-$(echo $VAR | tr a-z A-Z); grep -q '"result": "PASS"' $OPD_ROOT/runs/$P/report.json 2> /dev/null || { echo "$P has not passed: $T not started"; exit 3; }
+fi
 SRC=E10b; [ $LADDER = E12d ] && SRC=E10d   # v2.5.7o: the preparation run a start comes from
 SRUN=$SRC-$A; [ $LADDER = E12c ] && SRUN=E10c-$A-fix4   # [v2.5.8a] the 0.6B starts: E10c-<arm>-fix4, this node's 0.6B batching
 SS=150; [ $A = P5self ] && SS=50                          # [v2.5.8a] E10b-P5self ran 50 steps
@@ -72,7 +79,8 @@ GCK=True; [ "${GC:-1}" = 0 ] && [ "${E12B_GC:-0}" = 1 ] && GCK=False
 [ -f $OUT/config.yaml ] && echo "resumed: $(date -u +%FT%TZ)" >> $OUT/config.yaml || cat > $OUT/config.yaml <<CFG
 task: $T
 start: $START
-algo: GRPO 64x8, 4K, T=1.0, lr 1e-6, clip 0.2/0.28, KL 0, mini-batch 16, data.seed 4242, $STEPS steps
+algo: GRPO 64x8, 4K, T=1.0, lr 1e-6, clip 0.2/0.28, $([ "$VAR" = kl ] && echo "KL loss 0.01 low_var_kl to the start (reference = $START)" || echo "KL 0"), mini-batch 16, data.seed 4242, $STEPS steps
+variant: ${VAR:-none}
 attention: $ATTN (use_remove_padding=$RMPAD)
 batching: [$BATCH]
 kernels: fused=${FUSED:-0} gradient_checkpointing=$GCK
@@ -89,7 +97,10 @@ VALB=True; TESTF=25; [ $SM = 1 ] && { STEPS=${SMOKE_STEPS:-3}; SAVE=-1; VALB=Fal
 # readings (where does P5 -> RL lose the 32K ceiling), so they are uploaded as bf16 like the last step; until now
 # upload_sync deleted every step not uploaded (E12b-P5-s43 lost s25 / s50 / s75 that way)
 UW=$STEPS; case $T in E12b-P5-s44|E12d-P5) UW=25,50,75,$STEPS;; esac   # E12d-P5: the same across sizes (reviewer A1 08:0x UTC)
-[ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $NAME start=$START steps=$STEPS save=$SAVE contents=$CONTENTS kern=[$KERN] gc=$GCK venv=$(basename $V) rmpad=$RMPAD upload=${UPLOAD_WEIGHTS:-$UW} vllm=${VLLM_UTIL:-0.6}"; exit 0; }   # tests
+# [v2.5.8b] the variant's settings (KL loss and its reference; the reward function)
+KL="actor_rollout_ref.actor.use_kl_loss=False"; REWARD=$RUNBOOK/code/train/reward_mathverify.py
+[ "$VAR" = kl ] && KL="actor_rollout_ref.actor.use_kl_loss=True actor_rollout_ref.actor.kl_loss_coef=0.01 actor_rollout_ref.actor.kl_loss_type=low_var_kl +actor_rollout_ref.ref.model.path=$START actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=$LOGP_MB actor_rollout_ref.ref.fsdp_config.param_offload=False"
+[ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $NAME start=$START steps=$STEPS save=$SAVE contents=$CONTENTS kern=[$KERN] gc=$GCK venv=$(basename $V) rmpad=$RMPAD upload=${UPLOAD_WEIGHTS:-$UW} vllm=${VLLM_UTIL:-0.6} var=${VAR:-none} kl=[$KL] reward=$(basename $REWARD)"; exit 0; }   # tests
 if [ $SM = 0 ]; then
   ckpt_link $OUT
   dr_restore $OUT || echo "DR_RESTORE_FAILED $T"; dr_start_sync $OUT   # v2.5.7
@@ -110,7 +121,7 @@ python3 -m verl.trainer.main_ppo \
   actor_rollout_ref.actor.optim.lr=1e-6 actor_rollout_ref.actor.optim.lr_warmup_steps_ratio=0.0 \
   actor_rollout_ref.actor.clip_ratio_low=0.2 actor_rollout_ref.actor.clip_ratio_high=0.28 \
   actor_rollout_ref.actor.ppo_mini_batch_size=16 $BATCH $ENT $KERN \
-  actor_rollout_ref.actor.use_kl_loss=False actor_rollout_ref.actor.entropy_coeff=0 \
+  $KL actor_rollout_ref.actor.entropy_coeff=0 \
   actor_rollout_ref.actor.checkpoint.save_contents=$CONTENTS \
   actor_rollout_ref.actor.fsdp_config.param_offload=False actor_rollout_ref.actor.fsdp_config.optimizer_offload=False \
   actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=$LOGP_MB actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
@@ -119,7 +130,7 @@ python3 -m verl.trainer.main_ppo \
   actor_rollout_ref.rollout.temperature=1.0 actor_rollout_ref.rollout.top_p=1.0 \
   actor_rollout_ref.rollout.val_kwargs.do_sample=True actor_rollout_ref.rollout.val_kwargs.temperature=0.6 \
   actor_rollout_ref.rollout.val_kwargs.top_p=0.95 actor_rollout_ref.rollout.val_kwargs.n=4 \
-  custom_reward_function.path=$RUNBOOK/code/train/reward_mathverify.py custom_reward_function.name=compute_score \
+  custom_reward_function.path=$REWARD custom_reward_function.name=compute_score \
   reward_model.reward_manager=naive trainer.critic_warmup=0 trainer.val_before_train=$VALB \
   trainer.logger='["console"]' trainer.project_name=opd-e10b trainer.experiment_name=$NAME \
   trainer.n_gpus_per_node=1 trainer.nnodes=1 trainer.save_freq=$SAVE trainer.test_freq=$TESTF trainer.resume_mode=auto \
