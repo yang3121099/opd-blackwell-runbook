@@ -12,9 +12,11 @@
 #       grader and the start's tokenizer (the training's venv) give 1.5 / 1.0 / 1.0 / 0.0 (one box ending at once,
 #       a changed box, a long tail, a wrong box); the smoke's config names reward_stop.py; every step's score lies in
 #       [0, 1.5]; and critic/rewards/mean = critic/score/mean (nothing else added to the reward).
+#   [v2.5.8h] 8k / 16k: the long response limits fit (the smoke's config names the limit; its response lengths and the
+#       peak are reported; the peak check above is the main one).
 set -uo pipefail
 G=$1; VAR=$2; source "$(dirname "$0")/env.sh"
-case $VAR in kl|stop) ;; *) echo "unknown variant $VAR"; exit 2;; esac   # [v2.5.8c] stop
+case $VAR in kl|stop|8k|16k) ;; *) echo "unknown variant $VAR"; exit 2;; esac   # [v2.5.8c] stop; [v2.5.8h] 8k / 16k
 T=PROBE-E12B-$(echo $VAR | tr a-z A-Z); D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; mkdir -p $D
 [ -f $D/.done ] && { echo "TASK_ALREADY_DONE $T"; exit 0; }
 step() { echo "PROBE_E12VAR $(date -u +%T) $*" | tee -a $LOG; }
@@ -141,5 +143,11 @@ PY
   why=$(cat $D/stop_check.txt)
   [ -z "$why" ] || finish FAIL "stop: $why"
   finish PASS "${PEV_STEPS:-3}-step smoke ok, peak ${peak} MiB, the stop reward scores the fixed cases 1.5 / 1.0 / 1.0 / 0.0 on the node"
+fi
+if [ $VAR = 8k ] || [ $VAR = 16k ]; then   # [v2.5.8h]
+  N=$(( ${VAR%k} * 1024 ))
+  grep -q "^max_response_length: $N$" $D/smoke/config.yaml || finish FAIL "the smoke's config does not name max_response_length $N"
+  LENS=$(grep -oE "response_length/mean:[0-9.]+" $D/smoke/train.log | cut -d: -f2 | xargs | tr ' ' '/')
+  finish PASS "${PEV_STEPS:-3}-step smoke ok at the $N limit, peak ${peak} MiB, response_length/mean by step ${LENS:-none}"
 fi
 finish PASS "${PEV_STEPS:-3}-step smoke ok, peak ${peak} MiB"

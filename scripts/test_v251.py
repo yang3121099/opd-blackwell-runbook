@@ -228,10 +228,10 @@ def test_run_accepts_fa_probe(env):
 
 
 def test_run_accepts_v258a(env):   # [v2.5.8a] E12b-P5self, the 0.6B ladder E12c (P0 / P5 only) and its gate PROBE-E12C
-    for i, t in enumerate(("E12b-P5self", "E12b-P5self-s43", "E10b-P5self-s43", "E10d-P5self", "PROBE-P5SELF-4B", "E12c-P0", "E12c-P5", "PROBE-E12C", "E12b-P5-kl", "PROBE-E12B-KL", "E12b-P5-stop", "PROBE-E12B-STOP")):   # [v2.5.8b] kl; [v2.5.8c] stop
+    for i, t in enumerate(("E12b-P5self", "E12b-P5self-s43", "E10b-P5self-s43", "E10d-P5self", "PROBE-P5SELF-4B", "E12c-P0", "E12c-P5", "PROBE-E12C", "E12b-P5-kl", "PROBE-E12B-KL", "E12b-P5-stop", "PROBE-E12B-STOP", "E12b-P5-8k", "E12b-P5-16k", "PROBE-E12B-8K", "PROBE-E12B-16K")):   # [v2.5.8b] kl; [v2.5.8c] stop; [v2.5.8h] 8k / 16k
         st, msg, _ = env.c.v_run([t], 30 + i)
         assert st == "accepted", (t, msg)
-    for i, t in enumerate(("E12c-P2", "E12c-P5self", "E12b-P2self", "PROBE-E12D", "E12b-P2-kl", "E12b-P2-stop", "PROBE-E12B-FOO", "E10d-P2self", "E10b-P5self-s44")):
+    for i, t in enumerate(("E12c-P2", "E12c-P5self", "E12b-P2self", "PROBE-E12D", "E12b-P2-kl", "E12b-P2-stop", "PROBE-E12B-FOO", "E10d-P2self", "E10b-P5self-s44", "E12b-P5-32k", "PROBE-E12B-32K")):
         assert env.c.v_run([t], 40 + i)[0] == "rejected", t
 
 

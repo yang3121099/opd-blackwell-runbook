@@ -110,6 +110,17 @@ ok "[v2.5.8b] the config names the start as the reference; E12b-P5 unchanged (KL
 k4=$(SMOKE=1 PROBE_TASK=PROBE-E12B-KL-smoke DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P5-kl 2>&1 | tail -1); rm -f $T/base/root/runs/PROBE-E12B-KL/report.json
 k5=$(SMOKE=1 PROBE_TASK=PROBE-E12B-KL-smoke2 DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P5-kl 2>&1 | tail -1)
 ok "[v2.5.8b] the probe's smoke runs without a PASS: 3 steps, no save, KL on" '[[ "$k5" == "DRYRUN PROBE-E12B-KL-smoke2 start=$S5 steps=3 save=-1 "*"var=kl kl=[actor_rollout_ref.actor.use_kl_loss=True"* ]]'
+# [v2.5.8h] E12b-P5-8k / -16k: refused before their gates passed; then E12b-P5's path at 8192 / 16384 on venv-fa, the token
+# budget >= prompt + response (no fixed micro-batch), vLLM batching above the model length, mid-RL uploads
+l1=$(FIXED_MICRO_BSZ=4 DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P5-16k 2>&1 | tail -1)
+ok "[v2.5.8h] E12b-P5-16k refused before PROBE-E12B-16K passed" '[[ "$l1" == "PROBE-E12B-16K has not passed: E12b-P5-16k not started" ]]'
+mkdir -p $T/base/root/runs/PROBE-E12B-16K $T/base/root/runs/PROBE-E12B-8K; echo '{"result": "PASS"}' > $T/base/root/runs/PROBE-E12B-16K/report.json; echo '{"result": "PASS"}' > $T/base/root/runs/PROBE-E12B-8K/report.json
+l2=$(FIXED_MICRO_BSZ=4 DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P5-16k 2>&1 | tail -1); l3=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P5-8k 2>&1 | tail -1)
+C16=$T/base/root/runs/E12b-P5-16k/config.yaml; C8=$T/base/root/runs/E12b-P5-8k/config.yaml
+ok "[v2.5.8h] E12b-P5-16k: start P5 s150, 50 steps, venv-fa, uploads s25 / s50, KL off, plain reward" '[[ "$l2" == "DRYRUN E12b-P5-16k start=$S5 steps=50 "*"venv=venv-fa "*"upload=25,50 "*"var=16k kl=[actor_rollout_ref.actor.use_kl_loss=False] reward=reward_mathverify.py" ]]'
+ok "[v2.5.8h] 16k config: the limit, 16K in algo, a dynamic budget of 17408 whatever FIXED_MICRO_BSZ" 'grep -q "^max_response_length: 16384$" $C16 && grep -q "^algo: GRPO 64x8, 16K," $C16 && grep -q "use_dynamic_bsz=True actor_rollout_ref.actor.ppo_max_token_len_per_gpu=17408" $C16'
+ok "[v2.5.8h] 8k: 8192, budget 9216 (SDPA stub; 16384 with flash-attn), E12b-P5 keeps 4096" '[[ "$l3" == "DRYRUN E12b-P5-8k start=$S5 steps=50 "*"var=8k "* ]] && grep -q "^max_response_length: 8192$" $C8 && grep -q "ppo_max_token_len_per_gpu=9216" $C8 && grep -q "^max_response_length: 4096$" $T/base/root/runs/E12b-P5/config.yaml && grep -q "^algo: GRPO 64x8, 4K," $T/base/root/runs/E12b-P5/config.yaml'
+ok "[v2.5.8h] the command takes the limit and vLLM batching" 'grep -q "data.max_response_length=\$MAXR " $SRC/scripts/run_e12.sh && grep -q "rollout.max_num_batched_tokens=\$VBT " $SRC/scripts/run_e12.sh'
 # [v2.5.8c] E12b-P5-stop: refused before PROBE-E12B-STOP passed; then E12b-P5's path with the stop reward (no KL)
 t1=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P5-stop 2>&1 | tail -1)
 ok "[v2.5.8c] E12b-P5-stop refused before PROBE-E12B-STOP passed" '[[ "$t1" == "PROBE-E12B-STOP has not passed: E12b-P5-stop not started" ]]'

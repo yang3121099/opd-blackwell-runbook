@@ -14,6 +14,11 @@ setup() {
   cat > $T/rb/scripts/run_e12.sh <<'SH'
 echo "run_e12 $* SMOKE=$SMOKE STEPS=$SMOKE_STEPS PROBE_TASK=$PROBE_TASK" >> $CALLS
 d=$OPD_ROOT/runs/$PROBE_TASK; mkdir -p $d; S=/runs/E10b-P5/ckpt/global_step_150/actor/huggingface_bf16
+if [ $2 = E12b-P5-16k ]; then   # [v2.5.8h]
+  printf "task: E12b-P5-16k\nstart: $S\nvariant: 16k\nmax_response_length: ${FAKE_MAXR:-16384}\n" > $d/config.yaml
+  for i in 1 2 3; do echo "(TaskRunner pid=1) step:$i - response_length/mean:$((9000 + i)) - critic/score/mean:0.5" >> $d/train.log; done
+  exit 0
+fi
 if [ $2 = E12b-P5-stop ]; then   # [v2.5.8c]
   printf "task: E12b-P5-stop\nstart: $S\nalgo: GRPO, KL 0\nvariant: stop\nvenv: ${FAKE_VENV:-venv}\nreward: ${FAKE_REWARD:-reward_stop.py (1 if correct, +0.5 ...)}\n" > $d/config.yaml
   for i in 1 2 3; do echo "(TaskRunner pid=1) step:$i - critic/score/mean:0.6 - critic/score/max:${FAKE_MAX:-1.5} - critic/score/min:0.0 - critic/rewards/mean:0.6 - critic/rewards/max:1.5" >> $d/train.log; done
@@ -91,5 +96,15 @@ rm -rf $T
 setup
 FAKE_MAX=2.0 bash $T/rb/scripts/probe_e12var.sh 2 stop > /dev/null 2>&1
 ok "stop: a score outside [0, 1.5] is FAIL" '[ "$(sres result)" = FAIL ] && [[ "$(sres reason)" == *"score outside [0, 1.5]"* ]]'
+rm -rf $T
+# 11. [v2.5.8h] 16k: PASS at the limit, response lengths reported; a config without the limit: FAIL
+lres() { python3 -c "import json, sys; print(json.load(open(sys.argv[1])).get(sys.argv[2], ''))" $T/root/runs/PROBE-E12B-16K/report.json "$1"; }
+setup
+bash $T/rb/scripts/probe_e12var.sh 2 16k > /dev/null 2>&1
+ok "16k PASS with the lengths" '[ "$(lres result)" = PASS ] && [[ "$(lres reason)" == *"at the 16384 limit"*"9001/9002/9003"* ]] && grep -q "^run_e12 2 E12b-P5-16k SMOKE=1 STEPS=3 PROBE_TASK=PROBE-E12B-16K-smoke" $CALLS'
+rm -rf $T
+setup
+FAKE_MAXR=4096 bash $T/rb/scripts/probe_e12var.sh 2 16k > /dev/null 2>&1
+ok "16k: a smoke at another limit is FAIL" '[ "$(lres result)" = FAIL ] && [[ "$(lres reason)" == *"max_response_length 16384"* ]]'
 rm -rf $T
 [ $fails = 0 ] && echo "PROBE_E12VAR_TEST PASS ($n checks)" || echo "PROBE_E12VAR_TEST FAIL ($fails of $n)"
