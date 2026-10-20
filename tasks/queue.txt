@@ -38,7 +38,7 @@ v3c5arms open   E10d-P2:PROBE-4B E10d-P5:PROBE-4B EVAL-e10d-P2:E10d-P2+EVAL-e10d
 late     open   PROBE-TERM4-4B EVAL-e10d-P2-s43:E10d-P2-s43 EVAL-e12d-P5:E12d-P5+EVAL-e12d-P0 EVAL-budA-e12dP5rl-b:E12d-P5 EVAL-e10d-P5-s43:E10d-P5-s43 EVAL-ext-E12d-P5:E12d-P5 EVAL-ext-E12d-P0:E12d-P0 EVAL-budA-4Bs43:E10d-P5-s43 EVAL-ext32k-4Brl:E12d-P5 EVAL-budA-e12d-P0:E12d-P0 EVAL-ext32k-4B:E12d-P0 PROBE-P2SELF E10b-P2self:PROBE-P2SELF EVAL-e10b-P2self:E10b-P2self EVAL-budA-P2self:E10b-P2self E12b-P5-s44:E10b-P5-s44 E12d-P0 E12d-P5 PROBE-P5THINK E10b-P5think:PROBE-P5THINK PROBE-P5SELF E10b-P5self:PROBE-P5SELF STRICT-C1 EVAL-budA-p5s43rl-b EVAL-budA-4B:E10d-P5 EVAL-budA-4Bthink EVAL-e10b-P5think:E10b-P5think EVAL-budA-P5think:E10b-P5think EVAL-e10b-P5self:E10b-P5self EVAL-budA-P5self:E10b-P5self EVAL-budA-top10 EVAL-budA-top10b EVAL-ext-E10d-P0 EVAL-ext-E10d-P2 EVAL-ext-E10d-P5 EVAL-budA17c EVAL-ext-E12b-P5s43 EVAL-e12b-P5-s44:E12b-P5-s44
 midrl    open   EVAL-budA-p5s44rl-a:E12b-P5-s44 EVAL-budA-p5s44rl-b:E12b-P5-s44 EVAL-budA-e12dP5rl-a:E12d-P5
 v3o      open   PROBE-T14 E12b-P2-s43:E10b-P2-s43 E10d-P5-s43 E10d-P2-s43 EVAL-e12d-P0:E12d-P0 EVAL-e12b-P2-s43:E12b-P2-s43
-t14      open   E10b-P5-t14:PROBE-T14 E10b-P2-t14:PROBE-T14 E11b-P5-t14:E10b-P5-t14+E11b-P0 E11b-P2-t14:E10b-P2-t14+E11b-P0 EVAL-budA-t14p2:E10b-P2-t14 EVAL-ext32k-4Bthink EVAL-budA-t14:E10b-P5-t14+EVAL-budA-t14p2 EVAL-ext32k-17s43 EVAL-ext32k-17s44 EVAL-ext32k-4Bs43 EVAL-ext-E12b-P5s44 EVAL-ext-E10d-P5s43 EVAL-ext32k-17 EVAL-budA-top10c
+t14      open   E10b-P5-t14:PROBE-T14 E10b-P2-t14:PROBE-T14 E11b-P5-t14:E10b-P5-t14+E11b-P0 E11b-P2-t14:E10b-P2-t14+E11b-P0 EVAL-budA-t14p2:E10b-P2-t14 EVAL-ext32k-4Bthink EVAL-budA-t14:E10b-P5-t14+EVAL-budA-t14p2 EVAL-ext32k-17s43 EVAL-ext32k-17s44 EVAL-ext32k-4Bs43 EVAL-ext-E12b-P5s44 EVAL-ext-E10d-P5s43 EVAL-ext32k-17 EVAL-budA-top10c EVAL-ext-E10b-P5t14:E10b-P5-t14 EVAL-ext-E10b-P2t14:E10b-P2-t14
 ext      open   PROBE-TERM3 EVAL-ext-base17 EVAL-ext-E12b-P5:E12b-P5 EVAL-ext-E12b-P0:E12b-P0 EVAL-ext-E12b-P2:E12b-P2 EVAL-ext-E10b-P5:E10b-P5 EVAL-ext-E10b-P2:E10b-P2 EVAL-ext-E12b-P3:E12b-P3 EVAL-ext-E12b-P1:E12b-P1 EVAL-ext-E10b-P4lowlr:E10b-P4lowlr EVAL-ext32k
 term4    open   PROBE-TERM4
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T0.6 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
@@ -388,7 +388,8 @@ term4    open   PROBE-TERM4
 # same #budget lines, the one that ends last holds the complete curve
 # 10-19 17:3x UTC (reviewer): EVAL-budA-p5s44rl-a held: its s25 is not on the node and the result-repository download through the node proxy hangs
 #hold EVAL-budA-p5s44rl-a budAp5s44rl_s25_math500_T0.6_32k result:runs/E12b-P5-s44/global_step_25/actor/huggingface math500 4 0.6 32768
-#hold EVAL-budA-p5s44rl-a budAp5s44rl_s50_math500_T0.6_32k result:runs/E12b-P5-s44/global_step_50/actor/huggingface math500 4 0.6 32768
+# 10-20 00:5x UTC (reviewer): s50 released (its weights are local; s25 has none and stays held)
+#eval EVAL-budA-p5s44rl-a budAp5s44rl_s50_math500_T0.6_32k result:runs/E12b-P5-s44/global_step_50/actor/huggingface math500 4 0.6 32768
 #eval EVAL-budA-p5s44rl-b budAp5s44rl_s75_math500_T0.6_32k result:runs/E12b-P5-s44/global_step_75/actor/huggingface math500 4 0.6 32768
 #eval EVAL-budA-p5s44rl-b budAp5s44rl_s100_math500_T0.6_32k result:runs/E12b-P5-s44/global_step_100/actor/huggingface math500 4 0.6 32768
 #budget EVAL-budA-p5s44rl-a budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA17c/budA17c_E10bP5s44_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAp5s44rl_s25_math500_T0.6_32k budAp5s44rl_s50_math500_T0.6_32k EVAL-budA-p5s44rl-b/budAp5s44rl_s75_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-p5s44rl-b/budAp5s44rl_s100_math500_T0.6_32k_math500_no_think_t0.6.jsonl
@@ -618,3 +619,24 @@ term4    open   PROBE-TERM4
 #pair EVAL-ext-E10d-P5s43 ext_E10dP5s43_minervamath_T0.6 EVAL-ext-E10d-P0/ext_E10dP0_minervamath_T0.6_minervamath_no_think_t0.6.jsonl EVAL-ext-E10d-P5/ext_E10dP5_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
 #pair EVAL-ext-E12b-P5s44 ext_E12bP5s44_olympiadbench_T0.6 EVAL-ext-E12b-P0/ext_E12bP0_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
 #pair EVAL-ext-E10d-P5s43 ext_E10dP5s43_olympiadbench_T0.6 EVAL-ext-E10d-P0/ext_E10dP0_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl EVAL-ext-E10d-P5/ext_E10dP5_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
+# ext-t14 (reviewer 00:5x UTC, Q-015 on the external sets): the t14 arms' s150 on the five external sets (16K), vs their 8B-teacher arm and the base
+#eval EVAL-ext-E10b-P5t14 ext_E10bP5t14_aime24_T0.6 result:runs/E10b-P5-t14/global_step_150/actor/huggingface aime24 16 0.6
+#eval EVAL-ext-E10b-P5t14 ext_E10bP5t14_aime25_T0.6 result:runs/E10b-P5-t14/global_step_150/actor/huggingface aime25 16 0.6
+#eval EVAL-ext-E10b-P5t14 ext_E10bP5t14_amc23_T0.6 result:runs/E10b-P5-t14/global_step_150/actor/huggingface amc23 8 0.6
+#eval EVAL-ext-E10b-P5t14 ext_E10bP5t14_minervamath_T0.6 result:runs/E10b-P5-t14/global_step_150/actor/huggingface minervamath 4 0.6
+#eval EVAL-ext-E10b-P5t14 ext_E10bP5t14_olympiadbench_T0.6 result:runs/E10b-P5-t14/global_step_150/actor/huggingface olympiadbench 4 0.6
+#pair EVAL-ext-E10b-P5t14 ext_E10bP5t14_aime24_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext-base17/ext_base17_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#pair EVAL-ext-E10b-P5t14 ext_E10bP5t14_aime25_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext-base17/ext_base17_aime25_T0.6_aime25_no_think_t0.6.jsonl
+#pair EVAL-ext-E10b-P5t14 ext_E10bP5t14_amc23_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_amc23_T0.6_amc23_no_think_t0.6.jsonl EVAL-ext-base17/ext_base17_amc23_T0.6_amc23_no_think_t0.6.jsonl
+#pair EVAL-ext-E10b-P5t14 ext_E10bP5t14_minervamath_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_minervamath_T0.6_minervamath_no_think_t0.6.jsonl EVAL-ext-base17/ext_base17_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
+#pair EVAL-ext-E10b-P5t14 ext_E10bP5t14_olympiadbench_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl EVAL-ext-base17/ext_base17_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
+#eval EVAL-ext-E10b-P2t14 ext_E10bP2t14_aime24_T0.6 result:runs/E10b-P2-t14/global_step_150/actor/huggingface aime24 16 0.6
+#eval EVAL-ext-E10b-P2t14 ext_E10bP2t14_aime25_T0.6 result:runs/E10b-P2-t14/global_step_150/actor/huggingface aime25 16 0.6
+#eval EVAL-ext-E10b-P2t14 ext_E10bP2t14_amc23_T0.6 result:runs/E10b-P2-t14/global_step_150/actor/huggingface amc23 8 0.6
+#eval EVAL-ext-E10b-P2t14 ext_E10bP2t14_minervamath_T0.6 result:runs/E10b-P2-t14/global_step_150/actor/huggingface minervamath 4 0.6
+#eval EVAL-ext-E10b-P2t14 ext_E10bP2t14_olympiadbench_T0.6 result:runs/E10b-P2-t14/global_step_150/actor/huggingface olympiadbench 4 0.6
+#pair EVAL-ext-E10b-P2t14 ext_E10bP2t14_aime24_T0.6 EVAL-ext-E10b-P2/ext_E10bP2_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext-base17/ext_base17_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#pair EVAL-ext-E10b-P2t14 ext_E10bP2t14_aime25_T0.6 EVAL-ext-E10b-P2/ext_E10bP2_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext-base17/ext_base17_aime25_T0.6_aime25_no_think_t0.6.jsonl
+#pair EVAL-ext-E10b-P2t14 ext_E10bP2t14_amc23_T0.6 EVAL-ext-E10b-P2/ext_E10bP2_amc23_T0.6_amc23_no_think_t0.6.jsonl EVAL-ext-base17/ext_base17_amc23_T0.6_amc23_no_think_t0.6.jsonl
+#pair EVAL-ext-E10b-P2t14 ext_E10bP2t14_minervamath_T0.6 EVAL-ext-E10b-P2/ext_E10bP2_minervamath_T0.6_minervamath_no_think_t0.6.jsonl EVAL-ext-base17/ext_base17_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
+#pair EVAL-ext-E10b-P2t14 ext_E10bP2t14_olympiadbench_T0.6 EVAL-ext-E10b-P2/ext_E10bP2_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl EVAL-ext-base17/ext_base17_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
