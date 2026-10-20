@@ -30,11 +30,12 @@ verify_busy() { [ -f $CDIR/verify.running ] && kill -0 "$(cat $CDIR/verify.runni
 # timeout is logged and sent as a (bounded) event, and the loop goes on.
 bounded() {
   local s=$1; shift
-  if command -v timeout > /dev/null; then timeout $s "$@"; else "$@"; fi
+  local to=0; command -v timeout > /dev/null && to=1
+  if [ $to = 1 ]; then timeout -k 30 $s "$@"; else "$@"; fi   # [v2.5.8] -k 30: KILL 30 s after a TERM that is ignored
   local rc=$?
-  if [ $rc = 124 ]; then
-    echo "LOOP_TIMEOUT $(date -u +%T) ${s}s $*" >> $OPD_ROOT/logs/control.log
-    if command -v timeout > /dev/null; then timeout 60 python $RUNBOOK/scripts/control.py event node loop_timeout "$(basename $1) $2" > /dev/null 2>&1 & fi
+  if [ $to = 1 ] && { [ $rc = 124 ] || [ $rc = 137 ]; }; then
+    echo "LOOP_TIMEOUT $(date -u +%T) ${s}s rc=$rc $*" >> $OPD_ROOT/logs/control.log
+    timeout -k 10 60 python $RUNBOOK/scripts/control.py event node loop_timeout "$(basename $1) $2" > /dev/null 2>&1 &
   fi
   return $rc; }
 # v2.5.7zb: the watchdog (watchdog.sh) restarts this loop or the heartbeat when their liveness files go stale; it is
@@ -42,11 +43,20 @@ bounded() {
 nap() {   # v2.5.7zb: sleep in 10-s steps, refreshing the liveness file (90 s between launches must not look stale)
   local t=$1
   while [ $t -gt 0 ]; do sleep $(( t < 10 ? t : 10 )); t=$(( t - 10 )); date -u +%s > $CDIR/loop_run_tasks; done; }
-ensure_watchdog() {
+# [v2.5.8] ensure_loop <name>: the watchdog / the uploader runs, on the current script: one whose file changed since it
+# started (control/<name>.sha, like the heartbeat's) is stopped and started again, so a pull upgrades them too
+ensure_loop() {
   [ "${DRY:-0}" = 1 ] && return
-  pgrep -f "scripts/watchdog.s[h]" > /dev/null && return
-  setsid nohup bash $RUNBOOK/scripts/watchdog.sh >> $OPD_ROOT/logs/watchdog.log 2>&1 < /dev/null &
-}
+  local sha p; sha=$(sha1sum $RUNBOOK/scripts/$1.sh | cut -c1-12)
+  if pgrep -f "scripts/$1.s[h]" > /dev/null; then
+    [ "$(cat $CDIR/$1.sha 2> /dev/null)" = "$sha" ] && return
+    for p in $(pgrep -f "scripts/$1.s[h]"); do kill $p 2> /dev/null; done; sleep 2
+    python $RUNBOOK/scripts/control.py event node $1_upgraded "$sha" > /dev/null 2>&1 &
+  fi
+  echo $sha > $CDIR/$1.sha
+  (cd $RUNBOOK && setsid nohup bash scripts/$1.sh >> $OPD_ROOT/logs/$1.log 2>&1 9>&- < /dev/null &); }
+ensure_watchdog() { ensure_loop watchdog; }
+ensure_uploader() { ensure_loop uploader; }   # [v2.5.8] the outbox's shipper
 pull_and_control() {   # git pull, record it, apply new control commands, restart this loop if it changed
   local before=$(git -C "$RUNBOOK" rev-parse --short HEAD 2>/dev/null) ok=false
   bounded ${PULL_TIMEOUT:-120} git -C "$RUNBOOK" pull -q --ff-only 2>/dev/null && ok=true   # v2.5.7zb
@@ -73,7 +83,11 @@ done_() { [ -f $OPD_ROOT/runs/$1/.done ] && return 0
 skipped() { [ -f $OPD_ROOT/runs/$1/.skipped ]; }
 attempts() { sed -n 's/^attempts: //p' $OPD_ROOT/runs/$1/.failed 2>/dev/null || echo 0; }
 dead() { [ "$(attempts $1)" -ge 3 ]; }
-running() { pgrep -f "task.sh [0-9]+ $1\$" >/dev/null; }
+running() { pgrep -f "task.sh ([0-9]+|cpu) $1\$" >/dev/null; }   # [v2.5.8] cpu: a CPU-lane task
+# [v2.5.8] (reviewer 08:5x UTC 10-19: CPU phases without a GPU slot) CPU-only tasks run in a lane of their own, "gpu" cpu,
+# at most CPU_MAX (default 1) at once; STRICT-C1 held a GPU slot for its rejudge (and three on its failed attempts)
+cpu_task() { case $1 in STRICT-C1) return 0;; esac; return 1; }
+cpu_busy() { [ "$(pgrep -f "task.sh cpu [A-Za-z0-9._-]+\$" | wc -l | tr -d ' ')" -ge "${CPU_MAX:-1}" ]; }
 free_gpus() { for i in $(seq 0 $((NGPU-1))); do
     # v2.5.4d: a GPU given to a task stays taken while its task.sh / ad-hoc evaluation runs, also before the task touches it
     # (2026-10-17: FA-PROBE's CPU-only venv copy left GPU6 empty, and EVAL-bridge and EVAL-p5s43-s20 were started on it too)
@@ -81,22 +95,32 @@ free_gpus() { for i in $(seq 0 $((NGPU-1))); do
     [ -z "$(nvidia-smi --query-compute-apps=pid --format=csv,noheader -i $i)" ] || continue
     [ "$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $i | tr -d ' ')" -le 2048 ] && echo $i; done; }
 # v2.5.4e: EVAL tasks get a GPU only once their models are local and checked (.inputs_ok = the hash of their #eval
-# lines, written by `run_queue_eval.sh prefetch`); one CPU-side prefetch at a time, for every EVAL task of the queue
+# lines, written by `run_queue_eval.sh prefetch`); CPU-side prefetches for every EVAL task of the queue
 # (also in locked stages), a failed one again after 30 min
 eval_hash() { awk -v t="$1" '$1 == "#eval" && $2 == t' "$Q" | cksum | cut -d' ' -f1; }
 inputs_ok() { [ "$(cat $OPD_ROOT/runs/$1/.inputs_ok 2>/dev/null)" = "$(eval_hash $1)" ]; }
 # v2.5.6h: an EVAL task whose models are all result:runs/... (read back from this node's public repository after the
 # training's upload) is ready once its deps are done; it waits for the upload itself, so it takes the first free GPU
 result_only() { local m; m=$(awk -v t="$1" '$1 == "#eval" && $2 == t {print $4}' "$Q"); [ -n "$m" ] && ! echo "$m" | grep -qv '^result:'; }
+# [v2.5.8] an EVAL task with nothing to download (only Qwen/ base models and local: saves) is ready at once: on 10-19
+# the two readings switched to local: waited for a prefetch while trainings took the GPUs freed for them (15:33 UTC)
+no_fetch() { local m; m=$(awk -v t="$1" '$1 == "#eval" && $2 == t {print $4}' "$Q"); [ -n "$m" ] && ! echo "$m" | grep -qv -E '^(Qwen/|local:)'; }
+# [v2.5.8] up to PREFETCH_PAR (default 3) prefetches at once (10-19: one stuck prefetch held back every reading for an
+# hour), each ended after PREFETCH_TIMEOUT (default 5400 s); fetch_model.py locks each path, so two prefetches needing
+# one model download it once
 prefetch_pass() {
-  pgrep -f "run_queue_eval\.sh prefetch " > /dev/null && return
+  local n t PTO=""   # n = distinct tasks being prefetched (the wrapper, timeout and bash of one prefetch all match)
+  n=$(ps -eo args= | grep -o "run_queue_eval\.sh prefetch [A-Za-z0-9._-]*" | sort -u | wc -l | tr -d ' ')
+  command -v timeout > /dev/null && PTO="timeout -k 60 ${PREFETCH_TIMEOUT:-5400}"
   for t in $(awk '$1 == "#eval" {print $2}' "$Q" | sort -u); do
+    [ "${n:-0}" -ge "${PREFETCH_PAR:-3}" ] && return
+    pgrep -f "run_queue_eval\.sh prefetch $t( |\$)" > /dev/null && continue
     [ -f $OPD_ROOT/runs/$t/.done ] && continue; inputs_ok $t && continue
     [ -n "$(find $OPD_ROOT/runs/$t/.prefetch_fail -mmin -10 2>/dev/null)" ] && continue   # v2.5.6h: retry after 10 min
     _wait=0; for d in $(deps_of $t); do [ -f $OPD_ROOT/runs/$d/.done ] || _wait=1; done; [ $_wait = 1 ] && continue   # v2.5.6h: only once its inputs exist
     mkdir -p $OPD_ROOT/runs/$t
-    setsid nohup bash -c "bash $RUNBOOK/scripts/run_queue_eval.sh prefetch $t >> $OPD_ROOT/logs/prefetch_$t.log 2>&1 || touch $OPD_ROOT/runs/$t/.prefetch_fail" < /dev/null > /dev/null 2>&1 &
-    return
+    setsid nohup bash -c "$PTO bash $RUNBOOK/scripts/run_queue_eval.sh prefetch $t >> $OPD_ROOT/logs/prefetch_$t.log 2>&1 || touch $OPD_ROOT/runs/$t/.prefetch_fail" < /dev/null > /dev/null 2>&1 &
+    n=$((n + 1))
   done; }
 # v2.5.7w (reviewer 08:5x UTC): "#fetch Qwen/Qwen3-<n>B" lines of the queue = a model fetched to $OPD_ROOT/models/<name> in the
 # background, without a GPU (fetch_model.py: every file by size and sha256, .fetch_ok, events fetch_done / fetch_failed);
@@ -112,11 +136,11 @@ fetch_pass() {
     setsid nohup bash -c "python $RUNBOOK/scripts/fetch_model.py $m '' $d --task FETCH-${m#Qwen/} >> $OPD_ROOT/logs/fetch_${m#Qwen/}.log 2>&1 && rm -f $d.fetch_fail || touch $d.fetch_fail" < /dev/null > /dev/null 2>&1 &
     return
   done; }
-launch() { # gpu task   (v2.5: start / done / killed / failed also go to status/<node>/events/ as receipts)
+launch() { # gpu task   (v2.5: start / done / killed / failed also go to status/<node>/events/ as receipts; [v2.5.8] gpu cpu: no reap)
   mkdir -p $OPD_ROOT/runs/$2
   python $RUNBOOK/scripts/control.py event $2 start "gpu=$1 attempt=$(( $(attempts $2) + 1 ))" > /dev/null 2>&1 &
   setsid nohup bash -c "bash $RUNBOOK/scripts/task.sh $1 $2 > $OPD_ROOT/logs/$2.log 2>&1
-    python $RUNBOOK/scripts/control.py reap $1 $2 > /dev/null 2>&1   # v2.5.4b: the task's orphaned vLLM / Ray processes off its GPU
+    [ $1 = cpu ] || python $RUNBOOK/scripts/control.py reap $1 $2 > /dev/null 2>&1   # v2.5.4b: the task's orphaned vLLM / Ray processes off its GPU
     if [ -f $OPD_ROOT/runs/$2/.done ]; then python $RUNBOOK/scripts/control.py event $2 done gpu=$1
     elif [ -f $OPD_ROOT/runs/$2/.killed ]; then python $RUNBOOK/scripts/control.py event $2 killed gpu=$1
     else a=\$(( \$(sed -n 's/^attempts: //p' $OPD_ROOT/runs/$2/.failed 2>/dev/null || echo 0) + 1 ))
@@ -129,7 +153,7 @@ launch() { # gpu task   (v2.5: start / done / killed / failed also go to status/
 deps_of() { local s=$(grep -v '^#' "$Q" | tr ' ' '\n' | grep -E "^$1(:|\$)" | head -1); [ "$s" != "${s#*:}" ] && echo ${s#*:} | tr '+' ' '; }
 while true; do
   date -u +%s > $CDIR/loop_run_tasks   # v2.5.7zb: liveness for the watchdog (local, every round)
-  ensure_watchdog
+  ensure_watchdog; ensure_uploader
   if [ "${PULL:-1}" = 1 ] && [ $(( $(date +%s) - last_pull )) -ge ${PULL_EVERY:-60} ]; then last_pull=$(date +%s); pull_and_control; fi
   # v2.5 self-heal: the heartbeat loop runs the current heartbeat.sh (restarted when it died or the file changed), and every
   # running E10b/E12b task has its upload_sync (restarted with the settings run_arm.sh / run_e12.sh use); one event each
@@ -177,7 +201,12 @@ while true; do
       paused $t && continue
       ok=1; for d in $deps; do done_ $d || ok=0; done
       [ $ok = 1 ] || continue
-      case $t in EVAL-*) inputs_ok $t || result_only $t || continue;; esac   # v2.5.4e: no GPU while its models are being fetched
+      case $t in EVAL-*) inputs_ok $t || result_only $t || no_fetch $t || continue;; esac   # v2.5.4e: no GPU while its models are being fetched ([v2.5.8] no_fetch)
+      if cpu_task $t; then   # [v2.5.8] the CPU lane: no GPU taken
+        cpu_busy && continue
+        if [ "${DRY:-0}" = 1 ]; then echo "WOULD_START gpu=cpu $t (stage $stage, attempt $(( $(attempts $t) + 1 )))"; continue; fi
+        echo "START $(date -u +%T) gpu=cpu $t (stage $stage, attempt $(( $(attempts $t) + 1 )))"; launch cpu $t; nap 10; continue
+      fi
       [ ${#FREE[@]} -gt 0 ] || continue
       g=${FREE[0]}; FREE=("${FREE[@]:1}")
       if [ "${DRY:-0}" = 1 ]; then echo "WOULD_START gpu=$g $t (stage $stage, attempt $(( $(attempts $t) + 1 )))"; continue; fi

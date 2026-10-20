@@ -32,6 +32,12 @@ def test_at_budget_cuts_and_regrades():
     assert [c for _, c, _, _, _ in rows] == [True, True, False] and [t for _, _, t, _, _ in rows] == [False, False, True] and k == 0
 
 
+def test_crossing_with_a_missing_budget():   # [v2.5.8] -1 / None / +2 crosses between 2048 and 8192
+    c = BC.crossing([2048, 4096, 8192], [-1.0, None, 2.0], [None, None, None])
+    assert c["first_positive"] == 8192 and c["missing"] == [4096] and 2048 < c["log2_interp"] < 8192
+    assert BC.crossing([2048, 4096, 8192], [None, 1.0, 2.0], [None, None, None])["positive_at_all"] is True
+
+
 def test_crossing():
     c = BC.crossing([2048, 4096, 8192, 16384], [-3.0, -1.0, 1.0, 2.0], [-5, -3, -0.5, 0.2])
     assert c["first_positive"] == 8192 and c["first_ci_positive"] == 16384 and 4096 < c["log2_interp"] < 8192 and c["log2_interp"] == 5793

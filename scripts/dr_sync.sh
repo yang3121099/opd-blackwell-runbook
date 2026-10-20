@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # v2.5.7 disaster recovery: mirror one training's newest resume state to $(dr_root)/dr/<task>/ (see dr.sh). Every
 # DR_SYNC_SEC (120 s): when ckpt/latest_checkpointed_iteration.txt names a step whose resume state (actor/*.pt) is
-# complete and not yet mirrored, and DR_ROOT holds less than DR_CAP_GB (900), the step goes to global_step_<N>.tmp
+# complete and not yet mirrored, and DR_ROOT holds less than DR_CAP_GB (1500; [v2.5.8] was 900), the step goes to global_step_<N>.tmp
 # (rsync, nice 19, ionice idle, --bwlimit DR_MBPS = 300 MB/s; HF weights excluded), is renamed when complete, `latest`
 # is written, and the older mirrored step is deleted (one copy per task). Over the cap: event dr_cap, nothing written.
 # The task done (.done or finished:): the mirror and the local resume files (*.pt) are deleted (event dr_cleared),
@@ -10,7 +10,7 @@
 # Usage: bash dr_sync.sh <task dir>
 set -uo pipefail
 source "$(dirname "$0")/env.sh"; source "$(dirname "$0")/dr.sh"
-RUN=$1; TASK=$(basename $RUN); D=$(dr_root)/dr/$TASK; CAP=${DR_CAP_GB:-900}
+RUN=$1; TASK=$(basename $RUN); D=$(dr_root)/dr/$TASK; CAP=${DR_CAP_GB:-1500}
 export DR_BWLIMIT=$(( ${DR_MBPS:-300} * 1024 ))   # rsync counts KiB/s
 LOW="nice -n 19"; command -v ionice > /dev/null 2>&1 && LOW="ionice -c3 $LOW"
 ev() { python3 $RUNBOOK/scripts/control.py event $TASK "$1" "$2" > /dev/null 2>&1 || true; }

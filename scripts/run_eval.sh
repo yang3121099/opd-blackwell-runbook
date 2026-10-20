@@ -18,6 +18,7 @@ for t in "T0.6 --temperature 0.6 --top_p 0.95 --top_k 0" "T1.0 --temperature 1.0
   ls $OUT/${tag}_*.metrics.json >/dev/null 2>&1 || \
     python code/eval/gen_eval.py --model $M --bench math500 --mode no_think --n 4 "$@" --max_tokens 16384 --tag $tag --out $OUT
   python scripts/control.py reap $G $T > /dev/null 2>&1 || true   # v2.5.4b: the finished engine must not hold the GPU for the next one
+  gpu_wait_free $G || true   # [v2.5.8] and its memory has fallen before the next engine starts
 done
 if [ $A != P0 ]; then
   REF=$(ls $OPD_ROOT/runs/E11b-P0/e11b_P0_math500_T0.6_*.jsonl | head -1)
@@ -36,6 +37,8 @@ while read -r PTAG PREFS; do
   RP=(); for R in $PREFS; do
     if [[ $R =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+\.jsonl$ && /$R/ != */../* && /$R/ != */./* ]]; then RP+=("$OPD_ROOT/runs/$R"); else echo "PAIR_REF_REFUSED $R"; fi
   done
+  [ ${#RP[@]} -gt 0 ] || { echo "PAIR_SKIPPED $PTAG (no usable reference)"; continue; }   # [v2.5.8] (reviewer 21:2x UTC: an empty
+  # array under set -u fails on older bash, and paired_bootstrap needs a reference)
   python3 code/analysis/paired_bootstrap.py --pairs $OUT/${PTAG}.paired.json "$SC" "${RP[@]}" > /dev/null 2>> $OUT/pair.log \
     && echo "PAIR_DONE $PTAG (${#RP[@]} refs)" || echo "PAIR_FAIL $PTAG (see pair.log)"
 done <<< "$(awk -v t="$T" '$1 == "#pair" && $2 == t {$1 = ""; $2 = ""; sub(/^  /, ""); print}' "$Q")"

@@ -86,7 +86,7 @@ def origin_ok():
 
 
 def running_pids(task=None):
-    pat = f"task.sh [0-9]+ {re.escape(task)}$" if task else "task.sh [0-9]+ [A-Za-z0-9._-]+$"
+    pat = f"task.sh ([0-9]+|cpu) {re.escape(task)}$" if task else "task.sh ([0-9]+|cpu) [A-Za-z0-9._-]+$"   # [v2.5.8] cpu lane
     r = subprocess.run(["pgrep", "-f", pat], capture_output=True, text=True)
     return [int(x) for x in r.stdout.split() if x.strip().isdigit() and int(x) != os.getpid()]
 
@@ -356,6 +356,80 @@ def remote_put(src, dst):
     return r.returncode == 0
 
 
+# ---------- [v2.5.8] outbox + uploader (design 4b.2 with the reviewer's A1 additions a-d, 2026-10-19 13:3x UTC) ----------
+# The control plane's small uploads (receipts, events, procs.json, logs / snapshot replies, the status and the pulse) go
+# into a local outbox; uploader.sh ships it with the bounded remote_put, so a hung upload stops only the uploader, which
+# the watchdog restarts, never dispatching or the heartbeat. An item is one pending (src, dst) pair, named
+# <enqueue time ns>__<hash of dst>.json; the content is read when it ships. (a) Coalescing: enqueueing a dst that is
+# already waiting replaces the older item, which moves to the end, so the status, pulse and procs.json go up once, with
+# the newest content, and a receipt goes after the outputs enqueued before it. Items ship in time order; a failed upload
+# ends the pass (the next pass retries it first); after 3 failures in a row the item moves to the end. Without a fresh
+# uploader (control/loop_uploader, OUTBOX_STALE_S 600 s) or with OUTBOX=0, queue_put uploads directly, as before.
+def _outbox():
+    return _p("outbox")
+
+
+def enqueue(src, dst):
+    d = _outbox(); os.makedirs(d, exist_ok=True); k = hashlib.sha256(dst.encode()).hexdigest()[:16]
+    for n in os.listdir(d):
+        if n.endswith(f"__{k}.json"):
+            try:
+                os.remove(os.path.join(d, n))
+            except FileNotFoundError:
+                pass
+    name = f"{time.time_ns():020d}__{k}.json"
+    json.dump({"src": os.path.abspath(src), "dst": dst, "utc": utc(), "fails": 0}, open(os.path.join(d, "." + name), "w"))
+    os.replace(os.path.join(d, "." + name), os.path.join(d, name))
+    return True
+
+
+def uploader_alive():
+    t = (_read(_p("loop_uploader")) or "").strip()
+    return t.isdigit() and time.time() - int(t) < int(os.environ.get("OUTBOX_STALE_S", "600"))
+
+
+def queue_put(src, dst):
+    if os.environ.get("OUTBOX", "1") == "1" and uploader_alive():
+        return enqueue(src, dst)
+    return remote_put(src, dst)
+
+
+def ship_outbox(budget_s=None):
+    """One pass of uploader.sh: (shipped, dropped, failed). A missing src is dropped; the pass ends at the first failure
+    or after OUTBOX_PASS_S (420 s); control/loop_uploader is refreshed after every item."""
+    budget_s = budget_s or int(os.environ.get("OUTBOX_PASS_S", "420"))
+    d = _outbox(); os.makedirs(d, exist_ok=True); t0 = time.time(); shipped = dropped = failed = 0
+    for name in sorted(n for n in os.listdir(d) if n.endswith(".json") and not n.startswith(".")):
+        if time.time() - t0 > budget_s:
+            break
+        p = os.path.join(d, name)
+        try:
+            it = json.load(open(p))
+        except (OSError, ValueError):
+            continue   # replaced while we listed
+        if not os.path.exists(it.get("src", "")):
+            _rm(p); dropped += 1; continue
+        ok = remote_put(it["src"], it["dst"])
+        open(_p("loop_uploader"), "w").write(str(int(time.time())))
+        if ok:
+            _rm(p); shipped += 1; continue
+        failed += 1; it["fails"] = it.get("fails", 0) + 1
+        if os.path.exists(p):
+            if it["fails"] >= 3:   # moved to the end, so one item that never goes up cannot hold back the others
+                _rm(p); enqueue(it["src"], it["dst"])
+            else:
+                json.dump(it, open(p + ".tmp", "w")); os.replace(p + ".tmp", p)
+        break
+    return shipped, dropped, failed
+
+
+def _rm(p):
+    try:
+        os.remove(p)
+    except FileNotFoundError:
+        pass
+
+
 STATUS_NAME = {"ok": "done", "rejected": "refused"}   # receipts use D-004's names; log.jsonl keeps v2.4's
 
 
@@ -374,18 +448,19 @@ def receipt(seq, entry, status, detail, upload=True, **extra):
     r.update({k: v for k, v in old.items() if k not in r and k != "status"}); r.update(extra)
     json.dump(r, open(path + ".tmp", "w"), indent=1); os.replace(path + ".tmp", path)
     if upload:
-        remote_put(path, f"status/{node_id()}/replies/{seq}.json")
+        queue_put(path, f"status/{node_id()}/replies/{seq}.json")   # [v2.5.8] through the outbox
     return r
 
 
 def event(task, kind, detail=""):
     """The pool's own actions (start, retry, failed, done) in the receipt shape, under status/<node>/events/ (R-012)."""
     os.makedirs(_p("events"), exist_ok=True)
-    name = f"{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}_{task}_{kind}.json"
+    safe = lambda x: re.sub(r"[^A-Za-z0-9._-]", "_", str(x))   # v2.5.8: never a path in a file name
+    name = f"{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}_{safe(task)}_{safe(kind)}.json"
     e = {"event": kind, "task": task, "detail": redact(detail)[:2000], "node": node_id(), "utc": utc(),
          "runbook_head": _git_head(), "origin": "pool"}
     json.dump(e, open(_p("events", name), "w"), indent=1)
-    remote_put(_p("events", name), f"status/{node_id()}/events/{name}")
+    queue_put(_p("events", name), f"status/{node_id()}/events/{name}")   # [v2.5.8]
 
 
 def _git_head():
@@ -400,7 +475,8 @@ def _git_head():
 # behind by a killed loop or wrapper (drill B; the prefetch of EVAL-e12d-P0 whose wrapper was TERMed at 16:01 UTC, 10-19:
 # their parent is init, and the orphaned prefetch still holds back every other prefetch) is listed in procs.json and
 # can be signalled
-OUR_ROOTS = re.compile(r"scripts/(run_tasks|task|upload_sync|heartbeat|run_adhoc_eval|watchdog|run_queue_eval)\.sh|scripts/(control|remote|fetch_model)\.py"
+# [v2.5.8] also uploader.sh
+OUR_ROOTS = re.compile(r"scripts/(run_tasks|task|upload_sync|heartbeat|run_adhoc_eval|watchdog|run_queue_eval|uploader)\.sh|scripts/(control|remote|fetch_model)\.py"
                        r"|code/eval/gen_eval\.py|/tmp/ray_gpu")
 
 
@@ -491,7 +567,7 @@ def publish_procs(upload=True):
     t = {"utc": utc(), "node": node_id(), "rows": proc_table()}
     json.dump(t, open(_p("procs.json.tmp"), "w"), indent=1); os.replace(_p("procs.json.tmp"), _p("procs.json"))
     if upload:
-        remote_put(_p("procs.json"), f"status/{node_id()}/procs.json")
+        queue_put(_p("procs.json"), f"status/{node_id()}/procs.json")   # [v2.5.8]
     return t
 
 
@@ -530,7 +606,7 @@ def check_target(pid, sig, flags):
         return "pid recycled or command changed since procs.json was published"
     if pid in _ancestors():
         return "control.py, its run_tasks loop or their ancestors are never signalled (use update)"
-    if R.NEVER_CMD.search(now["_cmd"]):
+    if R.protected(now["_cmd"]):   # [v2.5.8] our loops by their own program
         return "protected system or session process"
     if now["uid"] != os.getuid():
         return "process of another user"
@@ -584,7 +660,7 @@ def v_killpgid(a, seq, flags=None, entry=None):
     if not re.search(r"scripts/task\.sh|code/eval/gen_eval\.py|run_adhoc_eval\.sh", now["_cmd"]):
         return "rejected", "only the group of a task session (task.sh, gen_eval, an ad-hoc eval) can be killed", {}
     members = [r["pid"] for r in proc_table() if r["pgid"] == pgid]
-    if any(m in _ancestors() for m in members) or any(R.NEVER_CMD.search((_proc(m) or {}).get("_cmd", "")) for m in members):
+    if any(m in _ancestors() for m in members) or any(R.protected((_proc(m) or {}).get("_cmd", "")) for m in members):   # [v2.5.8]
         return "rejected", "group contains a protected process", {}
     if flags.get("force"):
         os.killpg(pgid, signal.SIGKILL); sent = "KILL"
@@ -609,7 +685,7 @@ def v_logs(a, seq, flags=None, entry=None):
     out = _p(f"req_{seq}"); shutil.rmtree(out, ignore_errors=True); os.makedirs(out)
     open(os.path.join(out, "log_tail.txt"), "w").write(redact("".join(_read(src).splitlines(True)[-n:])))
     dest = f"status/{node_id()}/replies/{seq}"
-    return ("ok", f"last {n} lines of logs/{t}.log", {"outputs": [f"{dest}/log_tail.txt"]}) if remote_put(out, dest) else ("failed", "upload failed", {})
+    return ("ok", f"last {n} lines of logs/{t}.log", {"outputs": [f"{dest}/log_tail.txt"]}) if queue_put(out, dest) else ("failed", "upload failed", {})
 
 
 def v_snapshot0(seq):
@@ -622,7 +698,7 @@ def v_snapshot0(seq):
     publish_procs(upload=True); shutil.copy(_p("procs.json"), os.path.join(out, "procs.json"))
     json.dump(roots_report(), open(os.path.join(out, "ckpt_roots.json"), "w"), indent=1)
     dest = f"status/{node_id()}/replies/{seq}"
-    return ("ok", "nvidia-smi, df, procs.json and ckpt_roots.json", {"outputs": [dest]}) if remote_put(out, dest) else ("failed", "upload failed", {})
+    return ("ok", "nvidia-smi, df, procs.json and ckpt_roots.json", {"outputs": [dest]}) if queue_put(out, dest) else ("failed", "upload failed", {})
 
 
 def v_set(a, seq, flags=None, entry=None):
@@ -934,7 +1010,7 @@ def pulse(status_path, upload=True):
         return None
     json.dump(p, open(_p("pulse.json.tmp"), "w")); os.replace(_p("pulse.json.tmp"), _p("pulse.json"))
     if upload and _split_mode():
-        remote_put(_p("pulse.json"), f"pulse/{node_id()}.json")
+        queue_put(_p("pulse.json"), f"pulse/{node_id()}.json")   # [v2.5.8]
     return p
 
 
@@ -1359,7 +1435,7 @@ def _tree_bytes(p):
 
 def dr_report():
     """For the heartbeat: DR_ROOT's total, each mirrored task's step and size, the kept models, the cap."""
-    d = dr_root(); out = {"exists": os.path.isdir(d), "cap_gb": float(os.environ.get("DR_CAP_GB", "900")), "tasks": {}, "keep": {}}
+    d = dr_root(); out = {"exists": os.path.isdir(d), "cap_gb": float(os.environ.get("DR_CAP_GB", "1500")), "tasks": {}, "keep": {}}
     if not out["exists"]:
         return out
     tot = 0
@@ -1511,18 +1587,21 @@ def v_dr_keep(a, seq, flags=None, entry=None):
     return "accepted", f"{t}: final model copied to the share", {}
 
 
-def do_dr_keep(seq, t):
-    t0 = time.time(); ck = os.path.join(ROOT, "runs", t, "ckpt")
-    fs = (_read(os.path.join(ROOT, "runs", t, "final_step")) or "").strip()
-    steps = sorted((int(m.group(1)), d) for d in os.listdir(ck) for m in [re.match(r"global_step_(\d+)$", d)] if m)
-    step = next((d for n, d in steps if str(n) == fs), steps[-1][1] if steps else None)
+def _dr_keep(t, step=None):
+    """Copy one step's model of task t to $(dr_root)/keep/<t>/ckpt/<step>/: (ok, message, GB). step None = the final step
+    (runs/<t>/final_step, else the newest). The bf16 copy is preferred over the fp32 HF save; SFT keeps huggingface/."""
+    ck = os.path.join(ROOT, "runs", t, "ckpt")
+    if step is None:
+        fs = (_read(os.path.join(ROOT, "runs", t, "final_step")) or "").strip()
+        steps = sorted((int(m.group(1)), d) for d in os.listdir(ck) for m in [re.match(r"global_step_(\d+)$", d)] if m)
+        step = next((d for n, d in steps if str(n) == fs), steps[-1][1] if steps else None)
     src = None
     for sub in ("huggingface", os.path.join("actor", "huggingface_bf16"), os.path.join("actor", "huggingface")):
         p = os.path.join(ck, step, sub) if step else ""
         if step and os.path.isdir(p) and any(f.endswith(".safetensors") for f in os.listdir(p)):
             src = (p, sub); break
     if not src:
-        receipt(seq, None, "failed", f"{t}: no final model with weights under ckpt/"); return
+        return False, f"{t}: no {step or 'final'} model with weights under ckpt/", None
     dst = os.path.join(dr_root(), "keep", t, "ckpt", step, src[1])
     os.makedirs(os.path.dirname(dst), exist_ok=True); shutil.rmtree(dst + ".tmp", ignore_errors=True)
     rc = subprocess.run(["nice", "-n", "19", "cp", "-a", src[0], dst + ".tmp"]).returncode
@@ -1532,9 +1611,79 @@ def do_dr_keep(seq, t):
             if os.path.isfile(os.path.join(ROOT, "runs", t, f)):
                 shutil.copy2(os.path.join(ROOT, "runs", t, f), os.path.join(dr_root(), "keep", t, f))
     gb = round(_tree_bytes(dst) / 1e9, 2) if rc == 0 else None
-    receipt(seq, None, "ok" if rc == 0 else "failed", f"{t}: {step}/{src[1]} {'kept on the share' if rc == 0 else 'copy failed'}" + (f", {gb} GB" if gb else ""),
-            kept_gb=gb, seconds=round(time.time() - t0, 1))
-    event(t, "dr_kept" if rc == 0 else "dr_keep_failed", f"{step} {gb} GB")
+    return rc == 0, f"{t}: {step}/{src[1]} {'kept on the share' if rc == 0 else 'copy failed'}" + (f", {gb} GB" if gb else ""), gb
+
+
+def do_dr_keep(seq, t):
+    t0 = time.time(); ok, msg, gb = _dr_keep(t)
+    receipt(seq, None, "ok" if ok else "failed", msg, kept_gb=gb, seconds=round(time.time() - t0, 1))
+    event(t, "dr_kept" if ok else "dr_keep_failed", msg)
+
+
+def dr_keep_auto(t):
+    """[v2.5.8] (reviewer 08:2x UTC 10-19: DR first, the B300 may be released mid-week) called by upload_sync.sh when a
+    task's uploads are done: the final step and every uploaded step (UPLOAD_WEIGHTS) are kept on the share, one event
+    each; a step over DR_CAP_GB is skipped with an event dr_cap. DR=0 turns it off."""
+    if os.environ.get("DR", "1") != "1":
+        return 0
+    ck = os.path.join(ROOT, "runs", t, "ckpt")
+    if not os.path.isdir(ck):
+        return 0
+    up = [d for d in os.listdir(ck) if re.match(r"global_step_\d+$", d) and os.path.exists(os.path.join(ck, d, ".uploaded"))
+          and not os.path.exists(os.path.join(ck, d, ".not_uploaded"))]
+    n = 0
+    for step in [None] + sorted(up, key=lambda d: int(d.rsplit("_", 1)[1])):
+        if step is not None and os.path.isdir(os.path.join(dr_root(), "keep", t, "ckpt", step)):
+            continue   # the final step, already kept above
+        r = dr_report()
+        if r.get("over_cap"):
+            event(t, "dr_cap", f"keep of {step or 'final'} skipped: DR_ROOT {r.get('total_gb')} GB >= {r['cap_gb']} GB"); break
+        ok, msg, gb = _dr_keep(t, step)
+        event(t, "dr_kept" if ok else "dr_keep_failed", msg); n += ok
+    return n
+
+
+def lru_clean(limit_gb=None):
+    """[v2.5.8] (Runming via the reviewer, 10-19 08:5x UTC: local weights kept, the local disk up to 5 TB) with
+    LOCAL_LRU_GB set (setenv; unset = off, the default): while the HF weights of our checkpoints (runs/<task>/ckpt, on
+    CKPT_ROOT or the old local layout) hold more than LOCAL_LRU_GB, delete the oldest eligible copy, one event
+    lru_deleted each. Eligible: a step whose weights went to the result repository (.uploaded, no .not_uploaded) of a
+    task that is not running and is not its final step (runs/<task>/final_step, else its newest step). Order: an fp32
+    save that has a local bf16 copy, then an fp32 save, then a bf16 copy; oldest first in each. Never a final step,
+    a resume state (*.pt) or anything outside actor/huggingface*. Returns the GB freed."""
+    limit_gb = limit_gb if limit_gb is not None else os.environ.get("LOCAL_LRU_GB")
+    if not limit_gb:
+        return 0.0
+    limit = float(limit_gb) * 1e9; seen, cands, total = set(), [], 0
+    size = lambda d: sum(os.path.getsize(os.path.join(d, f)) for f in os.listdir(d) if f.endswith(".safetensors")) if os.path.isdir(d) else 0
+    for t in sorted(os.listdir(os.path.join(ROOT, "runs"))) if os.path.isdir(os.path.join(ROOT, "runs")) else []:
+        ck = os.path.realpath(os.path.join(ROOT, "runs", t, "ckpt"))
+        if ck in seen or not os.path.isdir(ck):
+            continue
+        seen.add(ck)
+        steps = sorted(int(m.group(1)) for d in os.listdir(ck) for m in [re.match(r"global_step_(\d+)$", d)] if m)
+        fs = (_read(os.path.join(ROOT, "runs", t, "final_step")) or "").strip()
+        final = int(fs) if fs.isdigit() else (steps[-1] if steps else None)
+        busy = bool(running_pids(t))
+        for n in steps:
+            sd = os.path.join(ck, f"global_step_{n}"); fp, bf = os.path.join(sd, "actor", "huggingface"), os.path.join(sd, "actor", "huggingface_bf16")
+            a, b = size(fp), size(bf); total += a + b
+            if busy or n == final or not os.path.exists(os.path.join(sd, ".uploaded")) or os.path.exists(os.path.join(sd, ".not_uploaded")):
+                continue
+            if a:
+                cands.append((0 if b else 1, os.path.getmtime(fp), t, n, fp, a))
+            if b:
+                cands.append((2, os.path.getmtime(bf), t, n, bf, b))
+    freed = 0
+    for tier, _, t, n, d, b in sorted(cands):
+        if total <= limit:
+            break
+        for f in os.listdir(d):
+            if f.endswith(".safetensors"):
+                os.remove(os.path.join(d, f))
+        total -= b; freed += b
+        event(t, "lru_deleted", f"global_step_{n}/actor/{os.path.basename(d)} {b / 1e9:.1f} GB (our weights {total / 1e9:.0f} GB, limit {limit / 1e9:.0f} GB)")
+    return round(freed / 1e9, 2)
 
 
 def _script_verb(name, script, out_json):
@@ -1601,9 +1750,12 @@ def alerts(status_path):
     for k in ("disk_alert", "ckpt_disk_alert"):
         if st.get(k):
             now.add(k)
-    for r in st.get("ckpt_roots") or []:   # one alert per candidate root (v2.5)
+    for i, r in enumerate(st.get("ckpt_roots") or []):   # one alert per candidate root (v2.5)
         if r.get("alert") and r.get("writable"):
-            now.add(f"ckpt_root_alert:{r.get('base')}")
+            # v2.5.8: a symbolic target (root<i>, its mount's free GB in the detail), never the path: the path in the
+            # event file name made every round raise FileNotFoundError from 2026-10-17 09:31 UTC on, and the alert,
+            # with every alert after it, never went out
+            now.add(f"ckpt_root_alert:root{i}")
     ups = subprocess.run(["pgrep", "-af", "scripts/upload_syn[c].sh"], capture_output=True, text=True).stdout
     for pid in running_pids():
         m = re.search(r"task\.sh\s+\d+\s+(\S+)", _read(f"/proc/{pid}/cmdline").replace("\0", " ") + " ")
@@ -1614,11 +1766,22 @@ def alerts(status_path):
             now.add(f"stalled:{t}")
         if re.match(r"(E10b|E10d|E12b|E12d)-", t) and f"/runs/{t}" not in ups:
             now.add(f"upload_sync_missing:{t}")
+    roots = {f"root{i}": {"free_gb": r.get("free_gb"), "current": r.get("current")} for i, r in enumerate(st.get("ckpt_roots") or [])}
+    state(alerts=sorted(now))   # v2.5.8: saved first, so a failing event can never re-fire every round
     for a in sorted(now - prev):
-        event(a.split(":", 1)[1] if ":" in a else "node", a.split(":", 1)[0], json.dumps({k: st.get(k) for k in ("disk_free_gb", "ckpt_disk_free_gb")}))
+        tgt = a.split(":", 1)[1] if ":" in a else "node"
+        detail = {k: st.get(k) for k in ("disk_free_gb", "ckpt_disk_free_gb")}
+        if tgt in roots:
+            detail["root"] = roots[tgt]
+        try:
+            event(tgt, a.split(":", 1)[0], json.dumps(detail))
+        except Exception as e:   # v2.5.8: one failing event never stops the others
+            print(f"ALERT_EVENT_FAILED {a}: {type(e).__name__}", file=sys.stderr)
     for a in sorted(prev - now):
-        event(a.split(":", 1)[1] if ":" in a else "node", a.split(":", 1)[0] + "_cleared")
-    state(alerts=sorted(now))
+        try:
+            event(a.split(":", 1)[1] if ":" in a else "node", a.split(":", 1)[0] + "_cleared")
+        except Exception as e:
+            print(f"ALERT_EVENT_FAILED {a}: {type(e).__name__}", file=sys.stderr)
     return sorted(now)
 
 
@@ -1835,7 +1998,7 @@ def apply():
         receipt(seq, c, status, msg, upload=False, **extra)   # v2.5.7zb: local first ...
         print(f"CONTROL seq {seq} {c.get('cmd')!r}: {status}: {msg}", flush=True)
         applied = seq; open(_p("applied_seq.tmp"), "w").write(str(seq)); os.replace(_p("applied_seq.tmp"), _p("applied_seq"))
-        remote_put(_p("replies", f"{seq}.json"), f"status/{node_id()}/replies/{seq}.json")   # ... then the bounded upload
+        queue_put(_p("replies", f"{seq}.json"), f"status/{node_id()}/replies/{seq}.json")   # ... then the bounded upload ([v2.5.8] the outbox)
     pending = sum(1 for c in cmds if isinstance(c, dict) and isinstance(c.get("seq"), int) and c["seq"] > applied)
     state(last_apply_utc=utc(), pending=pending)
 
@@ -1904,6 +2067,14 @@ if __name__ == "__main__":
         do_du(int(sys.argv[2]), sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else "")
     elif cmd == "do_rm_ours":
         do_rm_ours(int(sys.argv[2]), sys.argv[3], sys.argv[4])
+    elif cmd == "lru_clean":   # [v2.5.8] heartbeat.sh every round; nothing unless LOCAL_LRU_GB is set
+        g = lru_clean(); print(f"LRU_FREED {g} GB") if g else None
+    elif cmd == "ship_outbox":   # [v2.5.8] uploader.sh, one pass
+        a, b, c = ship_outbox(); print(f"SHIPPED {a} DROPPED {b} FAILED {c} LEFT {len([n for n in os.listdir(_outbox()) if n.endswith('.json') and not n.startswith('.')])}")
+    elif cmd == "put_q":   # [v2.5.8] heartbeat.sh: put_q <src> <dst> through the outbox (directly without a live uploader)
+        sys.exit(0 if queue_put(sys.argv[2], sys.argv[3]) else 1)
+    elif cmd == "dr_keep_auto":   # [v2.5.8] upload_sync.sh at UPLOAD_DONE
+        print(f"DR_KEPT_AUTO {sys.argv[2]} {dr_keep_auto(sys.argv[2])}")
     elif cmd == "do_dr_keep":
         do_dr_keep(int(sys.argv[2]), sys.argv[3])
     elif cmd == "do_script":

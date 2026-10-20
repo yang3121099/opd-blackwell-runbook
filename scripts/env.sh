@@ -70,6 +70,14 @@ mkdir -p $OPD_ROOT/logs $OPD_ROOT/runs $OPD_ROOT/data
 # HF weights present in a folder: model.safetensors or shards model-0000k-of-0000n.safetensors (every 1.7B checkpoint is
 # sharded; v2.3: run_e12/run_eval/run_sft used to look for model.safetensors only and failed on every 1.7B start)
 has_weights() { ls "$1"/*.safetensors > /dev/null 2>&1; }
+# [v2.5.8] (10-19 03:0x UTC: E11b engine-init failures) gpu_wait_free <gpu> [seconds]: before the next engine on a GPU, wait
+# until its memory has fallen to <= GPU_FREE_MIB (2048) MiB, i.e. the previous engine and its workers are gone; 1 on timeout
+gpu_wait_free() {
+  command -v nvidia-smi > /dev/null || return 0
+  local i u; for i in $(seq ${2:-${GPU_WAIT_FREE_S:-180}}); do
+    u=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $1 2> /dev/null | tr -d ' ')
+    [[ $u =~ ^[0-9]+$ ]] && [ $u -le ${GPU_FREE_MIB:-2048} ] && return 0; sleep 1; done
+  echo "GPU_NOT_FREE gpu $1 still ${u:-?} MiB after ${2:-${GPU_WAIT_FREE_S:-180}} s"; return 1; }
 # B300 (compute capability 10.3, v2.3): the Triton in torch 2.8 ships the ptxas of CUDA 12.8, which may fail on sm_103
 # ("PTXASError: Internal Triton PTX codegen error"). Order of fixes (README section 2b): 12.8 as is, then the CUDA 12.9
 # ptxas ($B300_PTXAS, installed by install_uv.sh / install_conda.sh on a 10.3 card), then the CUDA 13 route.

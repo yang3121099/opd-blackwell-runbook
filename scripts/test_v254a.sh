@@ -79,6 +79,18 @@ ok "v2.5.7zj #twr with judge Qwen3-4B and reference EVAL-e10d-P0" 'grep -q "^twr
 sed -i.bak 's| Qwen/Qwen3-4B EVAL-e10d-P0/| Qwen/Qwen3-8B ../etc/|' $T/rb/tasks/queue.txt
 rm -f $T/root/runs/EVAL-bridge/twr.json $T/root/runs/EVAL-bridge/.done; : > $CALLS; bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-bridge > $T/tw2 2>&1
 ok "v2.5.7zj #twr: a judge / reference outside the list refused, no TWR run" '! grep -q "^twr " $CALLS && grep -q "TWR_REFUSED judge Qwen/Qwen3-8B" $T/tw2 && grep -q "TWR_REFUSED reference" $T/tw2'
+sed -i.bak 's| Qwen/Qwen3-8B ../etc/[^ ]*$| Qwen/Qwen3-4B|' $T/rb/tasks/queue.txt
+rm -f $T/root/runs/EVAL-bridge/twr.json $T/root/runs/EVAL-bridge/.done; : > $CALLS; bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-bridge > $T/tw3 2>&1
+ok "[v2.5.8] #twr: a judge without a reference refused" '! grep -q "^twr " $CALLS && grep -q "TWR_REFUSED judge Qwen/Qwen3-4B without a reference" $T/tw3'
+echo "#twr EVAL-bridge e12_P5c05_s40_math500_T0.6" >> $T/rb/tasks/queue.txt
+rm -f $T/root/runs/EVAL-bridge/twr.json $T/root/runs/EVAL-bridge/.done; : > $CALLS; bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-bridge > $T/tw4 2>&1
+ok "[v2.5.8] #twr: a second #twr line for the task refused, no TWR run" '! grep -q "^twr " $CALLS && grep -q "TWR_REFUSED EVAL-bridge has several #twr lines" $T/tw4'
+sed -i.bak '$d' $T/rb/tasks/queue.txt; sed -i.bak 's|^#twr EVAL-bridge e12_P5c05_s40_math500_T0.6 Qwen/Qwen3-4B$|#twr EVAL-bridge e12_P5c05_s40_math500_T0.6 Qwen/Qwen3-4B EVAL-e10d-P0/e10d_P0_math500_T0.6_math500_no_think_t0.6.jsonl|' $T/rb/tasks/queue.txt
+printf 'import sys, os, json\nopen(os.environ["CALLS"], "a").write("twr " + " ".join(sys.argv[1:]) + "\\n")\nprint("ALPHA_REFUSED hidden size: judge 2560 != model_k 2048")\nout = sys.argv[sys.argv.index("--out") + 1]; json.dump({"alpha_error": "x"}, open(out, "w"))\n' > $T/rb/code/leakage/twr_alpha.py
+rm -f $T/root/runs/EVAL-bridge/twr.json $T/root/runs/EVAL-bridge/.done; : > $CALLS; bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-bridge > $T/tw5 2>&1
+ok "[v2.5.8] #twr: a judge of another size is one clear line in the task log" 'grep -q "^twr " $CALLS && grep -q "^TWR_e12_P5c05_s40_math500_T0.6 ALPHA_REFUSED hidden size: judge 2560 != model_k 2048" $T/tw5'
+got=$( OPD_ROOT=$T/root; eval "$(sed -n '/^run_rel() {/p' $SRC/scripts/run_queue_eval.sh)"; for x in A/b.jsonl ../b.jsonl ./b.jsonl A/..jsonl; do run_rel "$x" && printf "%s=1 " $x || printf "%s=0 " $x; done )
+ok "[v2.5.8] run_rel: <task>/<file>.jsonl only, never .. / ." '[ "$got" = "A/b.jsonl=1 ../b.jsonl=0 ./b.jsonl=0 A/..jsonl=1 " ]'
 rm -f $T/root/runs/EVAL-bridge/.done; : > $CALLS; bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-bridge > $T/out2 2>&1
 ok "finished evals skipped" '[ "$(grep -c "^gen_eval" $CALLS)" = 0 ] && grep -q DONE_ALREADY $T/out2'
 bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-other > $T/out3 2>&1
@@ -287,13 +299,14 @@ ok "v2.5.7w #fetch: Qwen3-32B fetched once to models/, evil/model ignored" '[ "$
 rm -rf $T
 # 3d. v2.5.7za heartbeat hb_to(): a timed-out upload (exit 124) is logged and sent as an event, the loop goes on; others pass through
 T=$(mktemp -d); mkdir -p $T/rb/scripts $T/root/logs $T/bin
-printf '#!/usr/bin/env bash\nshift; [ "$3" = hang ] && exit 124; "$@"\n' > $T/bin/timeout; chmod +x $T/bin/timeout
+printf '#!/usr/bin/env bash\necho "timeout $*" >> %s; [ "$1" = -k ] && shift 2; shift; [ "$3" = hang ] && exit 124; "$@"\n' $T/targs > $T/bin/timeout; chmod +x $T/bin/timeout
 printf 'import sys, os; open(os.environ["CALLS"], "a").write("py " + " ".join(sys.argv[1:]) + "\\n")\n' > $T/rb/scripts/remote.py; cp $T/rb/scripts/remote.py $T/rb/scripts/control.py
 export CALLS=$T/calls; : > $CALLS
 ( PATH=$T/bin:$PATH OPD_ROOT=$T/root RUNBOOK=$T/rb; python() { python3 "$@"; }; export -f python
   eval "$(sed -n '/^TO=""; command -v timeout/,/^  return \$rc; }$/p' $SRC/scripts/heartbeat.sh)"
   hb_to python $RUNBOOK/scripts/remote.py put a status/x.json; echo "rc1 $?" >> $CALLS
   hb_to python $RUNBOOK/scripts/remote.py hang a; echo "rc2 $?" >> $CALLS )
+ok "[v2.5.8] hb_to runs its uploads under timeout -k 30" 'grep -q "^timeout -k 30 180 python .*remote.py put a status/x.json" $T/targs'
 ok "v2.5.7za hb_to: normal upload passes, a timeout is logged + evented and returns 124" 'grep -q "^py put a status/x.json" $CALLS && grep -q "^rc1 0" $CALLS && grep -q "^rc2 124" $CALLS && grep -q "UPLOAD_TIMEOUT .* remote.py hang" $T/root/logs/heartbeat.err && grep -q "^py event node heartbeat_upload_timeout remote.py hang" $CALLS'
 rm -rf $T
 # 3e. v2.5.7zb run_tasks bounded(): a hung command (git pull, control.py apply) is cut at its timeout (124), logged, and
@@ -302,9 +315,10 @@ T=$(mktemp -d); mkdir -p $T/root/logs $T/rb/scripts $T/bin
 cat > $T/bin/timeout <<'PY'
 #!/usr/bin/env python3
 import os, signal, subprocess, sys
-p = subprocess.Popen(sys.argv[2:], start_new_session=True)
+a = sys.argv[3:] if sys.argv[1] == "-k" else sys.argv[1:]   # [v2.5.8] timeout -k <s> <limit> ...
+p = subprocess.Popen(a[1:], start_new_session=True)
 try:
-    sys.exit(p.wait(timeout=float(sys.argv[1])))
+    sys.exit(p.wait(timeout=float(a[0])))
 except subprocess.TimeoutExpired:
     os.killpg(p.pid, signal.SIGTERM); sys.exit(124)
 PY
@@ -314,7 +328,8 @@ export CALLS=$T/calls; : > $CALLS
   eval "$(sed -n '/^bounded() {/,/^  return \$rc; }$/p' $SRC/scripts/run_tasks.sh)"
   t0=$(date +%s); bounded 2 sleep 30; echo "rc_hang $? $(( $(date +%s) - t0 ))" >> $CALLS
   bounded 5 true; echo "rc_ok $?" >> $CALLS; sleep 1 )
-ok "v2.5.7zb bounded: a hung call returns 124 at its timeout and is logged + evented; a normal one passes" 'grep -qE "^rc_hang 124 [23]$" $CALLS && grep -q "^rc_ok 0" $CALLS && grep -q "LOOP_TIMEOUT .* 2s sleep 30" $T/root/logs/control.log && grep -q "^py event node loop_timeout sleep 30" $CALLS'
+ok "v2.5.7zb bounded: a hung call returns 124 at its timeout and is logged + evented; a normal one passes" 'grep -qE "^rc_hang 124 [23]$" $CALLS && grep -q "^rc_ok 0" $CALLS && grep -q "LOOP_TIMEOUT .* 2s rc=124 sleep 30" $T/root/logs/control.log && grep -q "^py event node loop_timeout sleep 30" $CALLS'
+ok "[v2.5.8] bounded() uses timeout -k 30 and takes 137 (KILLed) as a timeout too" 'grep -q "timeout -k 30 \$s \"\$@\"" $SRC/scripts/run_tasks.sh && grep -q "\[ \$rc = 137 \]" $SRC/scripts/run_tasks.sh'
 ok "v2.5.7zb run_tasks bounds its git pull and apply; the loop writes its liveness file and starts the watchdog" 'grep -q "bounded \${PULL_TIMEOUT:-120} git -C" $SRC/scripts/run_tasks.sh && grep -q "bounded \${APPLY_TIMEOUT:-300} python \$RUNBOOK/scripts/control.py apply" $SRC/scripts/run_tasks.sh && grep -q "loop_run_tasks" $SRC/scripts/run_tasks.sh && grep -q "ensure_watchdog" $SRC/scripts/run_tasks.sh'
 rm -rf $T
 # 3m. v2.5.7zl run_eval.sh (E11b) #pair: pairs before the upload; a pairs-only rerun skips the readings and the TWR there
@@ -326,7 +341,83 @@ mkdir -p $T/root/runs/E11b-P2-t14; for TT in T0.6 T1.0; do : > $T/root/runs/E11b
 echo '{}' > $T/root/runs/E11b-P2-t14/twr.json; mkdir -p $T/root/runs/E11b-P0; : > $T/root/runs/E11b-P0/e11b_P0_math500_T0.6_math500_no_think_t0.6.jsonl
 ( cd $T/rb && PATH=$PATH bash scripts/run_eval.sh 0 E11b-P2-t14 > $T/re1 2>&1 )
 ok "v2.5.7zl run_eval pairs: two refs, ../ refused, no generation, no TWR, uploaded" 'grep -q "^pair --pairs $T/root/runs/E11b-P2-t14/e11b_P2-t14_math500_T0.6.paired.json $T/root/runs/E11b-P2-t14/e11b_P2-t14_math500_T0.6_math500_no_think_t0.6.jsonl $T/root/runs/E11b-P2/e11b_P2_math500_T0.6_math500_no_think_t0.6.jsonl $T/root/runs/E11b-P0/x.jsonl$" $CALLS && grep -q "PAIR_REF_REFUSED ../etc/y.jsonl" $T/re1 && ! grep -q "^gen_eval\|^twr" $CALLS && grep -q "remote put $T/root/runs/E11b-P2-t14 runs/E11b-P2-t14" $CALLS && [ -f $T/root/runs/E11b-P2-t14/.done ]'
+printf 'version: 2\n#pair E11b-P2-t14 e11b_P2-t14_math500_T0.6 ../etc/y.jsonl\n' > $T/rb/tasks/queue.txt; rm -f $T/root/runs/E11b-P2-t14/.done; : > $CALLS
+( cd $T/rb && PATH=$PATH bash scripts/run_eval.sh 0 E11b-P2-t14 > $T/re2 2>&1 )
+ok "[v2.5.8] run_eval pairs: all refs refused -> PAIR_SKIPPED, no paired_bootstrap call, still uploaded" '! grep -q "^pair " $CALLS && grep -q "PAIR_SKIPPED e11b_P2-t14_math500_T0.6 (no usable reference)" $T/re2 && [ -f $T/root/runs/E11b-P2-t14/.done ]'
 rm -rf $T
+# 3f. [v2.5.8] prefetch_pass(): up to PREFETCH_PAR prefetches of different tasks at once (was one), none twice, each
+#     under PREFETCH_TIMEOUT (a timeout stub that records its limit)
+T=$(mktemp -d); mkdir -p $T/rb/scripts $T/root/runs $T/root/logs $T/bin
+printf 'T=$2; echo "prefetch $T" >> $CALLS; sleep 4; touch $OPD_ROOT/runs/$T/.done\n' > $T/rb/scripts/run_queue_eval.sh
+printf '#!/usr/bin/env bash\n[ "$1" = -k ] && shift 2; echo "limit $1" >> $CALLS; shift; exec "$@"\n' > $T/bin/timeout
+printf '#!/usr/bin/env bash\nexec "$@"\n' > $T/bin/setsid; chmod +x $T/bin/timeout $T/bin/setsid
+printf 'version: 2\n' > $T/q.txt; for i in 1 2 3 4 5; do echo "#eval EVAL-p$i t$i result:runs/X/global_step_$i math500 4 0.6" >> $T/q.txt; done
+export CALLS=$T/calls; : > $CALLS
+( PATH=$T/bin:$PATH OPD_ROOT=$T/root RUNBOOK=$T/rb Q=$T/q.txt PREFETCH_PAR=3 PREFETCH_TIMEOUT=77; deps_of() { :; }
+  eval "$(sed -n '/^eval_hash() {/,/^  done; }$/p' $SRC/scripts/run_tasks.sh)"
+  prefetch_pass; sleep 1; prefetch_pass; sleep 1; echo "mid $(grep -c '^prefetch' $CALLS)" >> $CALLS; sleep 4; prefetch_pass; sleep 5 )
+ok "[v2.5.8] prefetch_pass: 3 at once, none twice, the rest after them" 'grep -q "^mid 3$" $CALLS && [ "$(grep -c "^prefetch" $CALLS)" = 5 ] && [ "$(grep "^prefetch" $CALLS | sort -u | wc -l | tr -d " ")" = 5 ]'
+ok "[v2.5.8] prefetch_pass: every prefetch under PREFETCH_TIMEOUT" '[ "$(grep -c "^limit 77$" $CALLS)" = 5 ]'
+rm -rf $T
+# 3g. [v2.5.8] heartbeat status: .paused (not running) -> "paused"; a directory no longer in the queue, not done and not
+#     running -> stale_task_dirs, not in tasks; done ones and ad-hoc evaluations stay listed
+T=$(mktemp -d); mkdir -p $T/root/runs/{E12d-P0,EVAL-gone,EVAL-paused,adhoc_eval_7,EVAL-old-done} $T/root/logs $T/root/control $T/rb/tasks $T/bin
+touch $T/root/runs/EVAL-old-done/.done $T/root/runs/EVAL-paused/.paused; printf 'version: 9\ne12 open E12d-P0 EVAL-paused\n' > $T/rb/tasks/queue.txt
+printf '#!/usr/bin/env bash\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi; cp -r $SRC/scripts $T/rb/
+sed -n "/^  python - \"\$F\" <<'PY'$/,/^PY$/p" $SRC/scripts/heartbeat.sh | sed '1d;$d' > $T/hb.py
+( cd $T && PATH=$T/bin:$PATH OPD_ROOT=$T/root RUNBOOK=$T/rb python3 hb.py $T/out.json > /dev/null 2>&1 )
+got=$(python3 -c "import json; d = json.load(open('$T/out.json')); print(' '.join(sorted(d['tasks'])), '|', ' '.join(d['stale_task_dirs']), '|', d['tasks']['EVAL-paused']['state'])" 2>&1)
+ok "[v2.5.8] heartbeat: paused state, stale directories counted not listed" '[ "$got" = "E12d-P0 EVAL-old-done EVAL-paused adhoc_eval_7 | EVAL-gone | paused" ]'
+rm -rf $T
+# 3h. [v2.5.8] upload_sync ends for a paused / finally failed task that no longer runs (nothing pending); a paused task
+#     still running (pause does not stop it) keeps its loop
+T=$(mktemp -d); mkdir -p $T/rb/scripts $T/root/venv/bin $T/root/runs/A $T/root/runs/B $T/root/runs/C $T/x/scripts
+cp $SRC/scripts/upload_sync.sh $T/rb/scripts/; : > $T/root/venv/bin/activate
+printf 'export OPD_ROOT=%s RUNBOOK=%s\n' $T/root $T/rb > $T/rb/scripts/env.sh
+touch $T/root/runs/A/.paused $T/root/runs/C/.paused; printf 'attempts: 3\n' > $T/root/runs/B/.failed
+printf 'sleep 30\n' > $T/x/scripts/task.sh; bash $T/x/scripts/task.sh 4 C & P1=$!
+for t in A B C; do ( UPLOAD_DRY=1 bash $T/rb/scripts/upload_sync.sh $T/root/runs/$t > $T/up_$t.log 2>&1 & ); done; sleep 8
+ok "[v2.5.8] upload_sync stops for paused A / failed B, keeps C (paused but its task.sh runs)" 'grep -q "UPLOAD_STOPPED A paused" $T/up_A.log && grep -q "UPLOAD_STOPPED B failed" $T/up_B.log && ! grep -q UPLOAD_STOPPED $T/up_C.log && grep -q "UPLOAD_SETTINGS .* C UPLOAD_WEIGHTS=all" $T/up_C.log'
+pkill -f "upload_sync.sh $T/root/runs/C" 2> /dev/null; kill $P1 2> /dev/null; wait $P1 2> /dev/null
+rm -rf $T
+# 3i. [v2.5.8] no_fetch(): an EVAL task with only Qwen/ and local: models needs no prefetch; one with a ckpts or
+#     result: model does
+T=$(mktemp -d); printf 'version: 2\n#eval EVAL-a a local:runs/X/ckpt/global_step_1/actor/huggingface math500 4 0.6\n#eval EVAL-a b Qwen/Qwen3-1.7B math500 4 0.6\n#eval EVAL-b c yang31210999/opd-lab-ckpts/runs/Y/global_step_1/actor/huggingface math500 4 0.6\n#eval EVAL-c d result:runs/Z/global_step_1/actor/huggingface math500 4 0.6\n' > $T/q.txt
+got=$( Q=$T/q.txt; eval "$(sed -n '/^no_fetch() {/p' $SRC/scripts/run_tasks.sh)"; for t in EVAL-a EVAL-b EVAL-c EVAL-none; do no_fetch $t && printf "%s=1 " $t || printf "%s=0 " $t; done )
+ok "[v2.5.8] no_fetch: local:/Qwen only -> ready; ckpts / result: / no lines -> not" '[ "$got" = "EVAL-a=1 EVAL-b=0 EVAL-c=0 EVAL-none=0 " ]'
+ok "[v2.5.8] the dispatch takes no_fetch tasks" 'grep -q "inputs_ok \$t || result_only \$t || no_fetch \$t || continue" $SRC/scripts/run_tasks.sh'
+rm -rf $T
+# 3j. [v2.5.8] the CPU lane: STRICT-C1 is a CPU task; a running "task.sh cpu <task>" counts as running and fills the
+#     lane (CPU_MAX 1); the dispatch launches it with gpu cpu before any GPU is taken, and launch skips the GPU reap
+T=$(mktemp -d); mkdir -p $T/x/scripts; printf 'sleep 30\n' > $T/x/scripts/task.sh
+got=$( eval "$(sed -n '/^running() {/p;/^cpu_task() {/p;/^cpu_busy() {/p' $SRC/scripts/run_tasks.sh)"
+  cpu_task STRICT-C1 && printf "c1 "; cpu_task EVAL-x || printf "notcpu "; cpu_busy || printf "free "
+  bash $T/x/scripts/task.sh cpu STRICT-C1 & P=$!; sleep 0.5
+  running STRICT-C1 && printf "running "; cpu_busy && printf "busy "; kill $P 2> /dev/null; wait $P 2> /dev/null )
+ok "[v2.5.8] CPU lane: STRICT-C1 cpu task, running + busy while its task.sh cpu runs" '[ "$got" = "c1 notcpu free running busy " ]'
+ok "[v2.5.8] dispatch: cpu tasks launch with gpu cpu before the GPU check; launch skips the reap for cpu" 'grep -q "launch cpu \$t" $SRC/scripts/run_tasks.sh && grep -q "\[ \$1 = cpu \] || python \$RUNBOOK/scripts/control.py reap" $SRC/scripts/run_tasks.sh && [ $(grep -n "launch cpu \$t" $SRC/scripts/run_tasks.sh | cut -d: -f1) -lt $(grep -n "g=\${FREE\[0\]}; FREE=(\"\${FREE\[@\]:1}\")$" $SRC/scripts/run_tasks.sh | head -1 | cut -d: -f1) ]'
+rm -rf $T
+# 3k. [v2.5.8] gpu_wait_free: returns once the GPU's memory falls to <= 2048 MiB; times out (1, GPU_NOT_FREE) if it stays
+#     up; the eval scripts call it before every engine
+T=$(mktemp -d); mkdir -p $T/bin; echo 0 > $T/n
+printf '#!/usr/bin/env bash\nn=$(cat %s); echo $((n + 1)) > %s; [ $n -ge 2 ] && [ "$STICK" != 1 ] && echo 100 || echo 70000\n' $T/n $T/n > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi
+got=$( PATH=$T/bin:$PATH; eval "$(sed -n '/^gpu_wait_free() {/,/; }$/p' $SRC/scripts/env.sh)"; gpu_wait_free 3 10 > /dev/null && printf "freed "
+  echo 0 > $T/n; STICK=1 gpu_wait_free 3 2 | grep -q GPU_NOT_FREE && printf "timeout " )
+ok "[v2.5.8] gpu_wait_free: waits until free, times out when it stays full" '[ "$got" = "freed timeout " ]'
+ok "[v2.5.8] gpu_wait_free before every engine (gen_eval, forced_stop, E11b)" '[ "$(grep -c "gpu_wait_free \$G" $SRC/scripts/run_queue_eval.sh)" -ge 2 ] && grep -q "gpu_wait_free \$G" $SRC/scripts/run_eval.sh'
+rm -rf $T
+# 3l. [v2.5.8] ensure_loop: starts a missing watchdog / uploader; leaves a current one alone; restarts one whose script
+#     changed since it started (control/<name>.sha)
+T=$(mktemp -d); mkdir -p $T/rb/scripts $T/root/control $T/root/logs $T/bin
+printf 'echo $$ >> %s/starts\nwhile true; do sleep 1; done\n' $T > $T/rb/scripts/uploader.sh
+printf 'import sys\n' > $T/rb/scripts/control.py
+printf '#!/usr/bin/env bash\nexec python3 -c "import os, sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])" "$@"\n' > $T/bin/setsid
+printf '#!/usr/bin/env bash\nexec python3 "$@"\n' > $T/bin/python; chmod +x $T/bin/setsid $T/bin/python
+command -v sha1sum > /dev/null || printf '#!/usr/bin/env bash\nshasum "$@"\n' > $T/bin/sha1sum; chmod +x $T/bin/sha1sum 2> /dev/null
+( PATH=$T/bin:$PATH RUNBOOK=$T/rb OPD_ROOT=$T/root CDIR=$T/root/control; eval "$(sed -n '/^ensure_loop() {/,/^  (cd \$RUNBOOK && setsid nohup bash scripts\/\$1.sh .*; }$/p' $SRC/scripts/run_tasks.sh)"
+  ensure_loop uploader; sleep 1; ensure_loop uploader; sleep 1; echo "# changed" >> $T/rb/scripts/uploader.sh; ensure_loop uploader; sleep 2 )
+ok "[v2.5.8] ensure_loop: started once, left alone, restarted after its script changed" '[ "$(grep -c . $T/starts)" = 2 ] && ! kill -0 $(head -1 $T/starts) 2> /dev/null && kill -0 $(tail -1 $T/starts) 2> /dev/null'
+for p in $(cat $T/starts); do kill $p 2> /dev/null; done; rm -rf $T   # only the pids this test started
 # 4. v2.5.4d free_gpus(): a GPU whose task.sh (or ad-hoc evaluation) runs is not free, even with nothing on it yet
 T=$(mktemp -d); mkdir -p $T/bin $T/x/scripts
 printf '#!/usr/bin/env bash\ncase "$*" in *compute-apps*) ;; *) echo 0;; esac\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi
@@ -338,4 +429,4 @@ ok "running tasks keep their GPUs" '[[ " $got" == *" 1 "* && " $got" == *" 6 "* 
 rm -rf $T
 # v2.5.7j: no task script deletes a final bf16 copy (Runming: final weights keep a local copy after upload)
 ok "final bf16 copies are never deleted by run_e12.sh / run_arm.sh / run_eval.sh" '! grep -nE "rm -rf[^#]*huggingface_bf16" $SRC/scripts/run_e12.sh $SRC/scripts/run_arm.sh $SRC/scripts/run_eval.sh'
-[ $fails = 0 ] && echo "V254A_TEST PASS (56 checks)" || echo "V254A_TEST FAIL ($fails)"
+[ $fails = 0 ] && echo "V254A_TEST PASS (74 checks)" || echo "V254A_TEST FAIL ($fails)"

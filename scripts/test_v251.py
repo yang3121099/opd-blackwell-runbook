@@ -753,7 +753,7 @@ def test_dr_report_and_keep(env, tmp_path, monkeypatch):
     d = tmp_path / "opd-dr" / "dr" / "E10b-P2" / "global_step_25" / "actor"; d.mkdir(parents=True); (d / "m.pt").write_bytes(b"x" * 2000)
     (tmp_path / "opd-dr" / "dr" / "E10b-P2" / "latest").write_text("25\n")
     r = c.dr_report()
-    assert r["exists"] and r["tasks"]["E10b-P2"]["step"] == "25" and r["cap_gb"] == 900 and not r["over_cap"]
+    assert r["exists"] and r["tasks"]["E10b-P2"]["step"] == "25" and r["cap_gb"] == 1500 and not r["over_cap"]   # [v2.5.8] was 900
     hf = env.root / "runs" / "SFT-P1" / "ckpt" / "global_step_283" / "huggingface"; hf.mkdir(parents=True); (hf / "model.safetensors").write_bytes(b"w")
     (env.root / "runs" / "SFT-P1" / "global_step_1").mkdir(); (env.root / "runs" / "SFT-P1" / "final_step").write_text("283\n")
     started, real = [], c.subprocess.Popen
@@ -766,6 +766,26 @@ def test_dr_report_and_keep(env, tmp_path, monkeypatch):
     k = tmp_path / "opd-dr" / "keep" / "SFT-P1"
     assert got["st"] == "ok" and (k / "ckpt" / "global_step_283" / "huggingface" / "model.safetensors").exists() and (k / "final_step").exists()
     assert c.v_dr_keep(["E10b-none"], 114)[0] == "rejected"
+
+
+def test_dr_keep_auto(env, tmp_path, monkeypatch):   # [v2.5.8] upload_sync: final + uploaded steps kept, others not
+    c = env.c; evs = []
+    monkeypatch.setattr(c, "event", lambda t, k, d="": evs.append((t, k, d)))
+    ck = env.root / "runs" / "E12d-X" / "ckpt"
+    for n, sub, up in ((25, "huggingface", "not"), (50, "huggingface_bf16", "yes"), (100, "huggingface", "yes")):
+        h = ck / f"global_step_{n}" / "actor" / sub; h.mkdir(parents=True); (h / "model.safetensors").write_bytes(b"w")
+        (ck / f"global_step_{n}" / ".uploaded").write_text("")
+        if up == "not":
+            (ck / f"global_step_{n}" / ".not_uploaded").write_text("")
+    (env.root / "runs" / "E12d-X" / "final_step").write_text("100\n")
+    assert c.dr_keep_auto("E12d-X") == 2
+    k = tmp_path / "opd-dr" / "keep" / "E12d-X" / "ckpt"
+    assert (k / "global_step_100" / "actor" / "huggingface" / "model.safetensors").exists()
+    assert (k / "global_step_50" / "actor" / "huggingface_bf16" / "model.safetensors").exists() and not (k / "global_step_25").exists()
+    assert [e[1] for e in evs] == ["dr_kept", "dr_kept"]
+    monkeypatch.setenv("DR_CAP_GB", "0"); evs.clear()
+    assert c.dr_keep_auto("E12d-X") == 0 and evs[0][1] == "dr_cap"
+    monkeypatch.setenv("DR", "0"); assert c.dr_keep_auto("E12d-X") == 0
 
 
 @pytest.mark.parametrize("cmd,ok", [("persist-env", True), ("persist-env now", False), ("rebuild-drill", True), ("rebuild-drill x", False)])

@@ -8,8 +8,8 @@
 # younger than 120 s when the run finishes). v2.1 fixed both: before, shards were skipped and the last checkpoint lost.
 # v2.4 (Runming's save rule): after the bf16 copy is uploaded the local fp32 HF weights are deleted (KEEP_LOCAL_HF=0,
 # now the default) and the bf16 copy stays in <ckpt>/actor/huggingface_bf16 for an evaluation on this machine
-# (KEEP_BF16=1; run_e12.sh passes 0). On SPOT=1 runs the resume files (*.pt) of every step older than the newest
-# checkpoint are deleted, so one resume state stays. UPLOAD_WEIGHTS (v2.4): which steps' weights go to the result
+# (KEEP_BF16=1; run_e12.sh passes 0). On every run (not only SPOT=1; [v2.5.8] comment corrected, checked 10-19) the
+# resume files (*.pt) of every step older than the newest checkpoint are deleted, so one resume state stays. UPLOAD_WEIGHTS (v2.4): which steps' weights go to the result
 # repository: a comma list (run_arm.sh / run_e12.sh pass the last step), or all; a step not in it gets no bf16 copy,
 # its fp32 HF weights are deleted (unless KEEP_LOCAL_HF=1) and it is marked .not_uploaded.
 # UPLOAD_DRY=1 (verify.sh): no credentials, no upload; leaves the bf16 copy in <ckpt>/.bf16 and prints UP_DRY.
@@ -19,6 +19,7 @@ source "$(dirname "$0")/env.sh"; source $OPD_ROOT/venv/bin/activate
 RUN=$1; TASK=$(basename $RUN); DRY=${UPLOAD_DRY:-0}
 up() { [ "$DRY" = 1 ] && return 0; python $RUNBOOK/scripts/remote.py put "$1" "$2"; }
 [ "$DRY" = 1 ] || python $RUNBOOK/scripts/remote.py check || { echo "UPLOAD_STOP: backend not usable (token or repo missing?)"; exit 1; }
+echo "UPLOAD_SETTINGS $(date -u +%FT%TZ) $TASK UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-all} KEEP_LOCAL_HF=${KEEP_LOCAL_HF:-0} KEEP_BF16=${KEEP_BF16:-1} DRY=$DRY"   # [v2.5.8]
 while true; do
   latest=$(cat $RUN/ckpt/latest_checkpointed_iteration.txt 2>/dev/null || echo 0); new=0; pend=0
   for d in $RUN/ckpt/global_step_*; do
@@ -50,7 +51,19 @@ while true; do
     for f in train.log config.yaml metrics.jsonl rollout_stats.csv; do [ -f $RUN/$f ] && up $RUN/$f runs/$TASK/$f; done
     [ -d $RUN/rollouts ] && up $RUN/rollouts runs/$TASK/rollouts
     [ -f $RUN/.done ] && up $RUN/.done runs/$TASK/.done
-    echo "UPLOAD_DONE $TASK $(date -u +%T)"; break
+    echo "UPLOAD_DONE $TASK $(date -u +%T)"
+    # [v2.5.8] the final step and every uploaded step kept on the share (dr-keep, under DR_CAP_GB; DR=0: none)
+    [ "$DRY" = 1 ] || python $RUNBOOK/scripts/control.py dr_keep_auto $TASK 2>&1 | tail -1
+    break
+  fi
+  # [v2.5.8] a task that is paused or failed for good (3 attempts) and no longer running gets no retry: its loop ends
+  # once nothing is pending (10-19: the loops of E10c-dyn16k (failed) and -dyn6144 (paused) ran on for a day); a
+  # resumed or rerun task's run starts a new one
+  why=""; [ -f $RUN/.paused ] && why=paused
+  [ "$(sed -n 's/^attempts: //p' $RUN/.failed 2>/dev/null)" -ge 3 ] 2> /dev/null && why=failed
+  if [ -n "$why" ] && [ $pend = 0 ] && ! pgrep -f "scripts/task\.sh ([0-9]+|cpu) $TASK( |\$)" > /dev/null; then
+    for f in train.log config.yaml; do [ -f $RUN/$f ] && up $RUN/$f runs/$TASK/$f; done
+    echo "UPLOAD_STOPPED $TASK $why $(date -u +%T)"; break
   fi
   sleep $([ "$DRY" = 1 ] && echo 5 || echo 120)
 done

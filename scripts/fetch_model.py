@@ -14,10 +14,17 @@ seconds, MB/s, and the error of every failed attempt (type and the first 200 cha
 fetch_done / fetch_failed. Exit 0 when complete, 1 when not.
 (B300, 2026-10-17: snapshot_download through hf-mirror.com failed with FileMetadataError and through huggingface.co with
 LocalEntryNotFoundError on the HEAD call; a directory with config.json but no weights was then taken as a model.)
+[v2.5.8] One fetch per path at a time: an flock on <local dir>/.<prefix>.lock, the wait bounded by FETCH_LOCK_WAIT
+(default FETCH_TIMEOUT + 300 s); the second caller then finds the files complete and downloads nothing (10-19: two
+readings fetching one result: path blocked each other for 35 min). [v2.5.8] An overall cap per call: the download
+runs in a child process (its own session), ended with its group after FETCH_TIMEOUT (default 3600 s); the files
+already complete stay and the next call goes on from them. Both give an error LockTimeout / FetchTimeout.
 """
+import fcntl
 import hashlib
 import json
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -63,6 +70,8 @@ if _fetch_endpoint():
     ENDPOINTS = [_fetch_endpoint()]
     os.environ["HF_ENDPOINT"] = ENDPOINTS[0]   # read by huggingface_hub at import (fetch() imports it later)
 TRIES = int(os.environ.get("FETCH_TRIES", "3"))
+FETCH_TIMEOUT = int(os.environ.get("FETCH_TIMEOUT", "3600"))                          # [v2.5.8]
+FETCH_LOCK_WAIT = int(os.environ.get("FETCH_LOCK_WAIT", str(FETCH_TIMEOUT + 300)))   # [v2.5.8]
 
 
 def sha256(path, bs=1 << 22):
@@ -147,15 +156,83 @@ def fetch(repo, prefix, local):
     return {"ok": False, "files": None, "bytes": got, "seconds": round(time.time() - t0, 1), "errors": errors}
 
 
+def lock_path(prefix, local):
+    """[v2.5.8] <local dir>/.<prefix with / as __>.lock (the whole directory when the prefix is empty)."""
+    return os.path.join(local, "." + (prefix.strip("/").replace("/", "__") or "_all") + ".lock")
+
+
+def fail(error, detail, t0):
+    return {"ok": False, "files": None, "bytes": 0, "seconds": round(time.time() - t0, 1),
+            "errors": [{"endpoint": "-", "attempt": 0, "error": error, "detail": detail}]}
+
+
+def locked_fetch(repo, prefix, local):
+    """[v2.5.8] fetch() under the path's lock, in a child process ended after FETCH_TIMEOUT."""
+    t0 = time.time()
+    os.makedirs(local, exist_ok=True)
+    fd = os.open(lock_path(prefix, local), os.O_CREAT | os.O_RDWR, 0o644)
+    try:
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.time() - t0 > FETCH_LOCK_WAIT:
+                    return fail("LockTimeout", f"another fetch held {os.path.basename(lock_path(prefix, local))} for {FETCH_LOCK_WAIT}s", t0)
+                time.sleep(5)
+        waited = round(time.time() - t0, 1)
+        p = subprocess.Popen([sys.executable, os.path.abspath(__file__), "--child", repo, prefix, local],
+                             stdout=subprocess.PIPE, text=True, start_new_session=True)
+
+        def on_term(signum, frame):   # [v2.5.8] a TERM to this call (timeout, kill) ends the download too
+            try:
+                os.killpg(p.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            sys.exit(128 + signum)
+        signal.signal(signal.SIGTERM, on_term)
+        try:
+            out, _ = p.communicate(timeout=FETCH_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            for sig, wait in ((signal.SIGTERM, 15), (signal.SIGKILL, 15)):
+                try:
+                    os.killpg(p.pid, sig)
+                except ProcessLookupError:
+                    break
+                try:
+                    p.wait(wait)
+                    break
+                except subprocess.TimeoutExpired:
+                    pass
+            return fail("FetchTimeout", f"{prefix or repo} not complete after {FETCH_TIMEOUT}s", t0)
+        r = None
+        for line in reversed((out or "").splitlines()):
+            try:
+                r = json.loads(line)
+                break
+            except ValueError:
+                continue
+        if not isinstance(r, dict) or "ok" not in r:
+            return fail("ChildFailed", f"exit {p.returncode}, no result line", t0)
+        if waited >= 5:
+            r["lock_wait_s"] = waited
+        return r
+    finally:
+        os.close(fd)
+
+
 def main():
     a = sys.argv[1:]
+    if a[:1] == ["--child"]:   # [v2.5.8] the download itself, run by locked_fetch
+        print(json.dumps(fetch(*a[1:4])), flush=True)
+        return
     task = None
     if "--task" in a:
         i = a.index("--task"); task = a[i + 1]; a = a[:i] + a[i + 2:]
     if len(a) != 3:
         sys.exit(__doc__)
     repo, prefix, local = a
-    r = fetch(repo, prefix, local)
+    r = locked_fetch(repo, prefix, local)
     r.update({"repo": repo, "prefix": prefix})
     if not r.get("cached"):   # v2.5.5b: into control/transfers.jsonl like every upload
         try:
@@ -167,7 +244,7 @@ def main():
             pass
     print(json.dumps(r), flush=True)
     if task and not r.get("cached"):
-        brief = {k: r.get(k) for k in ("endpoint", "hf_transfer", "files", "bytes", "seconds", "mb_s")}
+        brief = {k: r.get(k) for k in ("endpoint", "hf_transfer", "files", "bytes", "seconds", "mb_s", "lock_wait_s")}
         errs = "; ".join(f"{e['endpoint'].split('//')[-1]}#{e['attempt']} {e['error']}" for e in r.get("errors", []))[:400]
         subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "control.py"), "event", task,
                         "fetch_done" if r["ok"] else "fetch_failed", f"{prefix} {json.dumps(brief)} errors: {errs or 'none'}"],

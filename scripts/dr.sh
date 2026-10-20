@@ -4,7 +4,7 @@
 # and holds dr/<task>/global_step_<N>/ (the newest resume state of each running training, written by dr_sync.sh, one
 # copy per task, deleted when the task is done), keep/<task>/ (dr-keep: a finished task's final model kept on the share,
 # e.g. SFT-P1, the start of E12b-P1) and state/ (small control files, heartbeat.sh). DR=0 (setenv) turns it off;
-# DR_EVERY (setenv, default 25) is the save interval; DR_CAP_GB (default 900) the ceiling for all of DR_ROOT.
+# DR_EVERY (setenv, default 25) is the save interval; DR_CAP_GB (default 1500; [v2.5.8] was 900, Runming: the share up to 2 TB) the ceiling for all of DR_ROOT.
 dr_root() { echo "${DR_ROOT:-$(dirname "$OPD_ROOT")/opd-dr}"; }
 dr_on() { [ "${DR:-1}" = 1 ]; }
 dr_copy() {   # <src dir> <dst dir>: resume state without HF weights (resume reads model / optimizer / extra / data.pt)

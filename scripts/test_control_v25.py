@@ -238,6 +238,28 @@ def test_alerts_once_and_cleared(env, tmp_path, monkeypatch):
     assert events(env) == ["disk_alert", "disk_alert_cleared"] and env.c.status()["alerts"] == []
 
 
+def test_ckpt_root_alert_symbolic_target(env, tmp_path, monkeypatch):
+    """v2.5.8: a checkpoint-root alert is evented as root<i> (never its path: a "/" in the event file name raised
+    FileNotFoundError every round from 2026-10-17 on), the state is saved before the events, and one failing event
+    does not stop the others."""
+    monkeypatch.setattr(env.c, "running_pids", lambda task=None: [])
+    stp = tmp_path / "st.json"
+    stp.write_text(json.dumps({"disk_alert": True, "ckpt_roots": [{"base": "/a/b", "alert": False, "writable": True, "free_gb": 5000},
+                                                                     {"base": "/x/y/z", "alert": True, "writable": True, "free_gb": 72.3}]}))
+    assert env.c.alerts(str(stp)) == ["ckpt_root_alert:root1", "disk_alert"]
+    ev = [e for e in os.listdir(os.path.join(env.c.CDIR, "events"))]
+    assert any(e.endswith("_root1_ckpt_root_alert.json") for e in ev) and not any("x_y_z" in e for e in ev)
+    real = env.c.event
+    def flaky(task, kind, detail=""):
+        if kind == "disk_alert_cleared":
+            raise OSError("boom")
+        return real(task, kind, detail)
+    monkeypatch.setattr(env.c, "event", flaky)
+    stp.write_text(json.dumps({"ckpt_roots": []}))
+    assert env.c.alerts(str(stp)) == []                                    # the failing event did not stop the other
+    assert env.c.status()["alerts"] == [] and "ckpt_root_alert_cleared" in events(env)
+
+
 def test_stalled_and_missing_uploader(env, tmp_path, monkeypatch):
     logs = env.root / "logs"; logs.mkdir(exist_ok=True); lg = logs / "E10b-P2.log"; lg.write_text("step 3\n")
     old = time.time() - 3600; os.utime(lg, (old, old))
@@ -309,3 +331,43 @@ def test_roots_report(roots, monkeypatch):
     assert rep[str(b2)]["current"] and not rep[str(b1)]["current"]
     assert rep[str(b2)]["tasks_gb"] == {"E12b-P5": 0.0} or rep[str(b2)]["tasks_gb"]["E12b-P5"] >= 0
     assert rep[str(b1)]["writable"] and rep[str(b1)]["free_gb"] > 0 and "mount" in rep[str(b1)]
+
+
+# ---------- [v2.5.8] loop protection by the process's own program (kill-pgid of a run_tasks-launched task group) ----------
+WRAP = "bash -c bash /r/scripts/task.sh 3 EVAL-x > /l/EVAL-x.log 2>&1 ; python /r/scripts/control.py event EVAL-x done x"
+
+
+def test_protected_by_program_not_arguments():
+    for cmd, want in ((WRAP, False), ("bash /r/scripts/task.sh 3 EVAL-x", False), ("python3 code/eval/gen_eval.py --note scripts/control.py", False),
+                      ("python -u /r/scripts/control.py apply", True), ("python3 /r/scripts/control.py procs --upload", True),
+                      ("bash /r/scripts/run_tasks.sh", True), ("bash scripts/heartbeat.sh", True), ("bash /r/scripts/watchdog.sh", True),
+                      ("/usr/sbin/sshd -D", True), ("tmux new -s x", True), ("timeout 5400 bash /r/scripts/run_queue_eval.sh prefetch E", False)):
+        assert R.protected(cmd) is want, cmd
+
+
+def killpgid_env(env, monkeypatch, members):
+    live = {p: proc(p, c) for p, c in members}
+    for p in live:
+        live[p]["pgid"] = members[0][0]
+    rows = [dict({k: v for k, v in live[p].items() if k != "_cmd"}, cmd=live[p]["_cmd"], ours=True, gpu=None, task="EVAL-x") for p in live]
+    json.dump({"rows": rows}, open(os.path.join(env.c.CDIR, "procs.json"), "w"))
+    monkeypatch.setattr(env.c, "_proc", lambda p: live.get(p))
+    monkeypatch.setattr(env.c, "proc_table", lambda: rows)
+    monkeypatch.setattr(env.c, "_ancestors", lambda: {999})
+    killed = []
+    monkeypatch.setattr(env.c.os, "killpg", lambda g, s: (killed.append((g, s)), live.clear()))
+    monkeypatch.setattr(env.c, "publish_procs", lambda upload=True: {"rows": rows})
+    monkeypatch.setattr(env.c.time, "sleep", lambda s: None)
+    return killed
+
+
+def test_killpgid_task_group_with_control_py_argument(env, monkeypatch):
+    killed = killpgid_env(env, monkeypatch, [(7000, WRAP), (7001, "bash /r/scripts/task.sh 3 EVAL-x"), (7002, "python code/eval/gen_eval.py --m x")])
+    st, detail, extra = env.c.v_killpgid(["7000"], 1)
+    assert st == "ok" and killed and killed[0][0] == 7000 and extra["members"] == [7000, 7001, 7002], (st, detail)
+
+
+def test_killpgid_refuses_a_group_holding_a_loop(env, monkeypatch):
+    killed = killpgid_env(env, monkeypatch, [(7100, WRAP), (7101, "python -u /r/scripts/control.py apply")])
+    st, detail, _ = env.c.v_killpgid(["7100"], 1)
+    assert st == "rejected" and "protected" in detail and not killed

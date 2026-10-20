@@ -15,12 +15,14 @@ H=$(hostname -s); F=$OPD_ROOT/logs/status_$H.json
 # v2.5.7za (reviewer A1 12:3x UTC): every upload of this loop is bounded. On 2026-10-19 one HF upload hung at 12:16 UTC and
 # froze the loop: no status, pulse, events or receipts, while run_tasks kept working. A timeout (HB_PUT_TIMEOUT, 180 s) is
 # logged, sent as an event (itself bounded) and the loop goes on.
-TO=""; command -v timeout > /dev/null && TO="timeout ${HB_PUT_TIMEOUT:-180}"
-hb_alive() { date -u +%s > $OPD_ROOT/control/loop_heartbeat 2> /dev/null; }   # v2.5.7zb: liveness for the watchdog (local)
+# [v2.5.8] -k 30: an upload that ignores TERM is KILLed 30 s later (drill B, 10-19 14:52 UTC: TERM alone left the loop
+# hung until the watchdog); the timeout's exit is then 137 instead of 124
+TO=""; command -v timeout > /dev/null && TO="timeout -k 30 ${HB_PUT_TIMEOUT:-180}"
+hb_alive() { { date -u +%s > $OPD_ROOT/control/loop_heartbeat; } 2> /dev/null; }   # v2.5.7zb: liveness for the watchdog (local); [v2.5.8] its redirect error silenced too
 hb_to() {
   $TO "$@"; local rc=$?; hb_alive
-  if [ $rc = 124 ]; then
-    echo "UPLOAD_TIMEOUT $(date -u +%T) $(basename $2) $3" >> $OPD_ROOT/logs/heartbeat.err
+  if [ -n "$TO" ] && { [ $rc = 124 ] || [ $rc = 137 ]; }; then   # [v2.5.8] 137: KILLed after -k
+    echo "UPLOAD_TIMEOUT $(date -u +%T) $(basename $2) $3 rc=$rc" >> $OPD_ROOT/logs/heartbeat.err
     $TO python $RUNBOOK/scripts/control.py event node heartbeat_upload_timeout "$(basename $2) $3" > /dev/null 2>&1
   fi
   return $rc; }
@@ -63,17 +65,23 @@ def live_tasks():
         except (OSError, IndexError, ValueError):
             continue
         for i, x in enumerate(a[:-2]):
-            if x.endswith(("/scripts/task.sh", "/scripts/run_adhoc_eval.sh")) and a[i + 1].isdigit():
+            if x.endswith(("/scripts/task.sh", "/scripts/run_adhoc_eval.sh")) and (a[i + 1].isdigit() or a[i + 1] == "cpu"):
                 name = a[i + 2] if x.endswith("task.sh") else f"adhoc_eval_{a[i + 2]}"
                 if name not in out or start < out[name][1]:
-                    out[name] = (int(a[i + 1]), start)
+                    out[name] = (int(a[i + 1]) if a[i + 1].isdigit() else "cpu", start)   # [v2.5.8] the CPU lane
     return out
 def kind(name):
     return ("train" if re.match(r"E1(0[bcd]|2[bd])-", name) else "sft" if name.startswith("SFT-") else
             "eval" if re.match(r"E11b-|EVAL-|adhoc_eval_|E0[1-5]-", name) else "probe" if name in ("FA-PROBE", "SPEED-PROBE", "PROBE-4B", "PROBE-TERM", "PROBE-TERM2", "PROBE-TERM3", "PROBE-TERM4", "PROBE-TERM4-4B", "PROBE-TOP10", "STRICT-C1", "PROBE-T14", "PROBE-P5THINK", "PROBE-P5SELF", "PROBE-P2SELF") or name.startswith("FA-SPEED-") else "other")
 live = live_tasks()
-tasks = {}
+tasks = {}; stale = []
+queue = open(os.path.join(runbook, "tasks", "queue.txt")).read() if os.path.exists(os.path.join(runbook, "tasks", "queue.txt")) else ""
+def in_queue(name):
+    return re.search(r"(^|\s)" + re.escape(name) + r"(\s|$)", queue, re.M) is not None
 for d in sorted(x for x in glob.glob(os.path.join(root, "runs", "*")) if os.path.isdir(x) and not os.path.basename(x).startswith("smoke")):
+    n = os.path.basename(d)   # [v2.5.8] a directory of a task no longer in the queue, not running and not done: counted, not listed
+    if queue and not in_queue(n) and n not in live and not n.startswith("adhoc_eval_") and not os.path.exists(os.path.join(d, ".done")):
+        stale.append(n); continue
     log = os.path.join(d, "train.log"); text = open(log, errors="ignore").read()[-400000:] if os.path.exists(log) else ""
     steps = re.findall(r"(?:^|[ )\]])step:(\d+) - ", text)   # v2.5.6d: verl's SFT trainer prints "...s/it]step:N - "
     failed = open(os.path.join(d, ".failed")).read() if os.path.exists(os.path.join(d, ".failed")) else ""
@@ -93,6 +101,8 @@ for d in sorted(x for x in glob.glob(os.path.join(root, "runs", "*")) if os.path
     lv = live.get(os.path.basename(d))   # v2.5.5: the GPU a running task holds, its kind and start (no paths, no names)
     if lv and t["state"] == "queued":
         t["state"] = "running"            # FA-PROBE, SFT's teacher traces, evaluations: running without a train.log
+    if not lv and os.path.exists(os.path.join(d, ".paused")) and t["state"] not in ("done", "skipped"):
+        t["state"] = "paused"             # [v2.5.8] pause / kill / move-ckpt leave .paused; was shown as running or retrying
     t["gpu"] = lv[0] if lv else None; t["kind"] = kind(os.path.basename(d))
     t["started_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(lv[1])) if lv else None
 gpu = []
@@ -104,13 +114,12 @@ for line in subprocess.run(["nvidia-smi", "--query-gpu=index,name,utilization.gp
                     "mem_used_mib": float(f[3]), "mem_total_mib": float(f[4])})
 git = lambda *a: subprocess.run(["git", "-C", runbook, *a], capture_output=True, text=True).stdout.strip()
 st = os.statvfs(root)
-queue = open(os.path.join(runbook, "tasks", "queue.txt")).read() if os.path.exists(os.path.join(runbook, "tasks", "queue.txt")) else ""
 ver = re.search(r"^version:\s*(\S+)", queue, re.M)
 stages = {m.group(1): m.group(2) for m in re.finditer(r"^(\S+)\s+(open|auto|locked)\s", queue, re.M)}   # v2.3: stage -> status
 json.dump({"host": os.uname().nodename, "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
            "queue_version": ver.group(1) if ver else None, "stages": stages,
            "stack": json.load(open(os.path.join(root, "logs", "stack.json"))) if os.path.exists(os.path.join(root, "logs", "stack.json")) else {},
-           "tasks": tasks, "gpus": gpu, "disk_free_gb": round(st.f_bavail * st.f_frsize / 1e9, 1),
+           "tasks": tasks, "stale_task_dirs": stale, "gpus": gpu, "disk_free_gb": round(st.f_bavail * st.f_frsize / 1e9, 1),
            # v2.4: alert below DISK_ALERT_GB (30): one 1.7B save needs ~11 GB for a moment (fp32 HF + bf16 copy), a SPOT
            # resume save ~28 GB
            "disk_alert": st.f_bavail * st.f_frsize / 1e9 < float(os.environ.get("DISK_ALERT_GB", "30")),
@@ -119,7 +128,7 @@ json.dump({"host": os.uname().nodename, "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ
            "ckpt_disk_free_gb": (lambda c: round(c.f_bavail * c.f_frsize / 1e9, 1))(os.statvfs(os.environ["CKPT_ROOT"])) if os.path.isdir(os.environ.get("CKPT_ROOT", "")) else None,
            "ckpt_disk_alert": (lambda c: c.f_bavail * c.f_frsize / 1e9 < float(os.environ.get("CKPT_ALERT_GB", "100")))(os.statvfs(os.environ["CKPT_ROOT"])) if os.path.isdir(os.environ.get("CKPT_ROOT", "")) else None,
            "disk_used_pct": round(100 * (1 - st.f_bavail / st.f_blocks), 1) if st.f_blocks else None,
-           "runbook_head": git("rev-parse", "--short", "HEAD"), "runbook_version": "v2.5.7z",
+           "runbook_head": git("rev-parse", "--short", "HEAD"), "runbook_version": "v2.5.8",
            "run_tasks_sha": open(os.path.join(root, "control", "run_tasks.sha")).read().strip() if os.path.exists(os.path.join(root, "control", "run_tasks.sha")) else None,
            "ckpt_roots": roots_report(),   # v2.5: every candidate root: mount, free GB, writable, alert, task dirs and sizes
            "dr": dr_report(),   # v2.5.7: the disaster-recovery share: total, mirrored steps per task, kept models, cap
@@ -133,16 +142,20 @@ PY
   UP=$F
   if ! python -c "import json, sys; json.load(open(sys.argv[1]))" $F 2> /dev/null; then
     UP=/dev/shm/status_$H.json; [ -d /dev/shm ] || UP=/tmp/status_$H.json
-    printf '{"host": "%s", "utc": "%s", "error": "status JSON not written (disk full?)", "disk_free_gb": %s, "ckpt_disk_free_gb": %s, "runbook_version": "v2.5.7z"}\n' \
+    printf '{"host": "%s", "utc": "%s", "error": "status JSON not written (disk full?)", "disk_free_gb": %s, "ckpt_disk_free_gb": %s, "runbook_version": "v2.5.8"}\n' \
       "$H" "$(date -u +%FT%TZ)" "$(df -Pk $OPD_ROOT | awk 'NR==2{printf "%.1f", $4/1e6}')" "$(df -Pk ${CKPT_ROOT:-$OPD_ROOT} | awk 'NR==2{printf "%.1f", $4/1e6}')" > $UP
   fi
   N=$(python $RUNBOOK/scripts/control.py node)
-  hb_to python $RUNBOOK/scripts/remote.py put $UP status/$N.json 2>> $OPD_ROOT/logs/heartbeat.err && echo "HEARTBEAT $(date -u +%T)"
+  # [v2.5.8] every upload below goes through the outbox (control.py put_q; procs / pulse / alerts / events inside
+  # control.py too): this loop only writes local files while uploader.sh ships them; hb_to still bounds each call,
+  # since put_q uploads directly while the uploader is stale
+  hb_to python $RUNBOOK/scripts/control.py put_q $UP status/$N.json 2>> $OPD_ROOT/logs/heartbeat.err && echo "HEARTBEAT $(date -u +%T)"
   hb_to python $RUNBOOK/scripts/control.py pulse $UP > /dev/null 2>> $OPD_ROOT/logs/heartbeat.err   # v2.5.1: public pulse
   # v2.5 (D-004): the process table every round, and receipts/events again (a failed first upload is retried here)
   hb_to python $RUNBOOK/scripts/control.py procs --upload > /dev/null 2>> $OPD_ROOT/logs/heartbeat.err
   hb_to python $RUNBOOK/scripts/control.py alerts $UP > /dev/null 2>> $OPD_ROOT/logs/heartbeat.err   # disk / stalled / uploader events
-  for d in replies events; do [ -d $OPD_ROOT/control/$d ] && hb_to python $RUNBOOK/scripts/remote.py put $OPD_ROOT/control/$d status/$N/$d > /dev/null 2>> $OPD_ROOT/logs/heartbeat.err; done
+  [ -n "${LOCAL_LRU_GB:-}" ] && python $RUNBOOK/scripts/control.py lru_clean >> $OPD_ROOT/logs/heartbeat.log 2>> $OPD_ROOT/logs/heartbeat.err   # [v2.5.8] off unless set
+  for d in replies events; do [ -d $OPD_ROOT/control/$d ] && hb_to python $RUNBOOK/scripts/control.py put_q $OPD_ROOT/control/$d status/$N/$d > /dev/null 2>> $OPD_ROOT/logs/heartbeat.err; done
   # v2.5.7: the small control files also go to $(dr_root)/state/ (the share), so a rebuilt container finds them in one place
   if dr_on && [ -d "$(dirname "$(dr_root)")" ]; then
     DS=$(dr_root)/state; mkdir -p $DS
@@ -151,7 +164,7 @@ PY
   fi
   # first-arm comparison with the reference H100 run, uploaded once when E10b-P2 has reached step 10
   if [ ! -f $OPD_ROOT/logs/.compare_uploaded ] && python $RUNBOOK/scripts/compare_first_arm.py >/dev/null 2>&1; then
-    hb_to python $RUNBOOK/scripts/remote.py put $OPD_ROOT/logs/compare_$H.json status/compare_$N.json && touch $OPD_ROOT/logs/.compare_uploaded && echo "COMPARE_UPLOADED $(date -u +%T)"
+    hb_to python $RUNBOOK/scripts/control.py put_q $OPD_ROOT/logs/compare_$H.json status/compare_$N.json && touch $OPD_ROOT/logs/.compare_uploaded && echo "COMPARE_UPLOADED $(date -u +%T)"
   fi
   # v2.5: `heartbeat` (control.py) asks for the next round now: the flag is checked every 10 s
   # v2.5.1: the round lasts HEARTBEAT_SEC (control/heartbeat_sec, 60-3600, default 600); the pulse goes every 60 s

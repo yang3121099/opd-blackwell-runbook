@@ -51,8 +51,9 @@ resolve_model() {   # $1 = a model as on an #eval line -> M (fetched if needed);
   esac
   has_weights $M || [ "${M#Qwen/}" != "$M" ] || [ -f $M/config.json ] || return 2
 }
+run_rel() { [[ $1 =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+\.jsonl$ ]] && [[ /$1/ != */../* && /$1/ != */./* ]]; }   # [v2.5.8] <task>/<file>.jsonl, never ".." / "."
 ref_path() {   # a reading: a tag of this task -> its jsonl, or <task dir>/<file>.jsonl under $OPD_ROOT/runs; "" if refused
-  if [[ $1 =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+\.jsonl$ ]]; then echo "$OPD_ROOT/runs/$1"
+  if run_rel "$1"; then echo "$OPD_ROOT/runs/$1"   # [v2.5.8] run_rel
   elif [[ $1 =~ ^[A-Za-z0-9._-]+$ ]]; then F=$(ls $OUT/${1}_*.jsonl 2>/dev/null | grep -v '\.forced\.jsonl$' | head -1); echo "${F:-$OUT/$1.missing.jsonl}"; fi
 }
 if [ "$G" = prefetch ]; then
@@ -77,6 +78,7 @@ while read -r TAG MODEL BENCH N TEMP MAXT MODE; do
   [ $rc = 2 ] && { echo "MODEL_MISSING $TAG: $MODEL"; ok=0; continue; }
   case $TEMP in 1.0) SAMP="--temperature 1.0 --top_p 1.0 --top_k 0";; *) SAMP="--temperature 0.6 --top_p 0.95 --top_k 0";; esac
   case $BENCH in aime24|aime25|amc23) K=10;; *) K=50;; esac
+  gpu_wait_free $G || { python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1; gpu_wait_free $G 120; }   # [v2.5.8] the previous engine gone first
   echo "EVAL_START $(date -u +%T) $TAG"
   CUDA_VISIBLE_DEVICES=$G python $RUNBOOK/code/eval/gen_eval.py --model $M --bench $BENCH --mode $MODE --n $N $SAMP \
     --max_tokens $MAXT --chunk $K --dtype $DT --tag $TAG --out $OUT >> $OUT/gen_eval.log 2>&1 || { echo "EVAL_FAIL $TAG"; ok=0; python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1; continue; }
@@ -87,19 +89,26 @@ done <<< "$SPECS"
 # reference E11b-P0's own T=0.6 generations, 4 per problem; a failure is logged and does not hold back the readings.
 # v2.5.7zj (reviewer A1 19:1x UTC): "#twr EVAL-<name> <tag> [<judge> <reference>]": an optional judge (the base model of the
 # student's size: Qwen/Qwen3-0.6B / 1.7B / 4B) and reference reading (<task>/<file>.jsonl under runs/, the base's own
-# T=0.6 generations), so a 4B reading is judged by the 4B base against EVAL-e10d-P0; without them, as before (1.7B, E11b-P0)
+# T=0.6 generations), so a 4B reading is judged by the 4B base against EVAL-e10d-P0; without them, as before (1.7B, E11b-P0).
+# [v2.5.8] Both or neither: a judge without a reference is refused; a reference is <task>/<file>.jsonl with no "." / "..".
 read -r TWR_TAG TWR_JUDGE TWR_REF <<< "$(awk -v t="$T" '$1 == "#twr" && $2 == t {print $3, $4, $5}' "$Q" | head -1)"
+# [v2.5.8] one #twr line per task: a second one is refused (10-19: an older judge-less line of EVAL-e12d-P5 came first, so
+# its 4B reading was judged by the 1.7B base and the alpha step failed on the hidden size)
+[ "$(awk -v t="$T" '$1 == "#twr" && $2 == t' "$Q" | wc -l | tr -d ' ')" -gt 1 ] && { echo "TWR_REFUSED $T has several #twr lines: keep one"; TWR_TAG=""; }
 if [ -n "$TWR_TAG" ] && [ ! -f $OUT/twr.json ]; then
   REF=$(ls $OPD_ROOT/runs/E11b-P0/e11b_P0_math500_T0.6_*.jsonl 2>/dev/null | head -1); SC=$(ls $OUT/${TWR_TAG}_*.jsonl 2>/dev/null | grep -v '\.forced\.jsonl$' | head -1)
   JUDGE=$STUDENT_17B
   case ${TWR_JUDGE:-} in ''|Qwen/Qwen3-1.7B) ;; Qwen/Qwen3-4B) JUDGE=$STUDENT_4B;; Qwen/Qwen3-0.6B) JUDGE=$STUDENT_06B;; *) echo "TWR_REFUSED judge $TWR_JUDGE"; JUDGE="";; esac
   if [ -n "${TWR_REF:-}" ]; then
-    if [[ $TWR_REF =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+\.jsonl$ ]] && [ -f $OPD_ROOT/runs/$TWR_REF ]; then REF=$OPD_ROOT/runs/$TWR_REF; else echo "TWR_REFUSED reference $TWR_REF"; REF=""; fi
+    if run_rel "$TWR_REF" && [ -f $OPD_ROOT/runs/$TWR_REF ]; then REF=$OPD_ROOT/runs/$TWR_REF; else echo "TWR_REFUSED reference $TWR_REF"; REF=""; fi
+  elif [ -n "${TWR_JUDGE:-}" ]; then   # [v2.5.8] (reviewer 19:3x UTC) a judge without its reference would score against E11b-P0's 1.7B
+    echo "TWR_REFUSED judge $TWR_JUDGE without a reference: give both or neither"; REF=""
   fi
   M=$(awk -v t="$TWR_TAG" '$1 == t {print $2}' $OUT/.models | tail -1)
   if [ -n "$REF" ] && [ -n "$SC" ] && [ -n "$M" ] && [ -n "$JUDGE" ]; then
     CUDA_VISIBLE_DEVICES=$G python $RUNBOOK/code/leakage/twr_alpha.py --judge $JUDGE --bench math500 --ref $REF --score $SC \
       --model_k $M --per_problem 4 --out $OUT/twr.json >> $OUT/twr.log 2>&1 && echo "TWR_DONE $TWR_TAG" || echo "TWR_FAIL $TWR_TAG (see twr.log)"
+    grep -h "^ALPHA_REFUSED" $OUT/twr.log 2> /dev/null | tail -1 | sed "s/^/TWR_$TWR_TAG /"   # [v2.5.8] the reason in the task log
     python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true
   else echo "TWR_SKIPPED $TWR_TAG (ref ${REF:-missing}, score ${SC:-missing}, model ${M:-missing}, judge ${JUDGE:-refused})"; fi
 fi
@@ -117,6 +126,7 @@ while read -r FR FMODEL FMODE; do
   STEM=$(basename "${RP%.jsonl}")
   [ -f $OUT/$STEM.forced.json ] && { echo "FORCED_DONE_ALREADY $STEM"; continue; }
   resolve_model "$FMODEL" || { echo "FORCED_MODEL_MISSING $FR: $FMODEL"; ok=0; continue; }
+  gpu_wait_free $G || { python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1; gpu_wait_free $G 120; }   # [v2.5.8]
   CUDA_VISIBLE_DEVICES=$G python $RUNBOOK/code/eval/forced_stop.py --model $M --jsonl "$RP" --bench math500 --mode $FMODE --force_preset budB \
     --max_new 32 --budgets 2048,4096,8192,16384,32768 --out $OUT/$STEM.forced.json --samples $OUT/$STEM.forced.jsonl >> $OUT/forced.log 2>&1 \
     && echo "FORCED_DONE $STEM" || { echo "FORCED_FAIL $STEM (see forced.log)"; ok=0; rm -f $OUT/$STEM.forced.json; }
@@ -131,10 +141,11 @@ while read -r PTAG PREFS; do
   SC=$(ls $OUT/${PTAG}_*.jsonl 2>/dev/null | grep -v '\.forced\.jsonl$' | head -1)   # v2.5.7h: never a forced-answer file
   [ -n "$SC" ] || { echo "PAIR_SKIPPED $PTAG (no reading)"; continue; }
   RP=(); for R in $PREFS; do
-    if [[ $R =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+\.jsonl$ ]]; then RP+=("$OPD_ROOT/runs/$R")
+    if run_rel "$R"; then RP+=("$OPD_ROOT/runs/$R")   # [v2.5.8] run_rel
     # v2.5.7r: archive:<path>.jsonl = a lab reading in yang31210999/opd-lab-ckpts (fetch_model.py: size + sha256), e.g. P5 s50
     elif [[ $R =~ ^archive:[A-Za-z0-9._/-]+\.jsonl$ && $R != *..* ]]; then P=${R#archive:}; fetch_ckpt "$P" && RP+=("$CKPT_ROOT/adhoc_models/$P") || echo "PAIR_REF_MISSING $R"
     else echo "PAIR_REF_REFUSED $R"; fi; done
+  [ ${#RP[@]} -gt 0 ] || { echo "PAIR_SKIPPED $PTAG (no usable reference)"; continue; }   # [v2.5.8] (reviewer 21:2x UTC)
   python3 $RUNBOOK/code/analysis/paired_bootstrap.py --pairs $OUT/${PTAG}.paired.json "$SC" "${RP[@]}" > /dev/null 2>> $OUT/pair.log \
     && echo "PAIR_DONE $PTAG (${#RP[@]} refs)" || echo "PAIR_FAIL $PTAG (see pair.log)"
 done <<< "$(awk -v t="$T" '$1 == "#pair" && $2 == t {$1 = ""; $2 = ""; sub(/^  /, ""); print}' "$Q")"

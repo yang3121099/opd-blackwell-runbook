@@ -112,8 +112,15 @@ def main():
                                                 "mean_llr": round(sum(l) / len(l), 5), "n": len(l)}
         print(os.path.basename(path), res["scores"][os.path.basename(path)], flush=True)
 
+    mk = None
     if args.model_k:
         mk = AutoModelForCausalLM.from_pretrained(args.model_k, torch_dtype=torch.bfloat16, device_map="cuda").eval()
+        if mk.config.hidden_size != judge.config.hidden_size:   # [v2.5.8] a judge of another size: a clear line, the TWR kept
+            res["alpha_error"] = (f"hidden size: judge {judge.config.hidden_size} != model_k {mk.config.hidden_size} "
+                                  "(judge with the base of the student's own size)")
+            print("ALPHA_REFUSED", res["alpha_error"], flush=True)
+            mk = None
+    if mk is not None:
         halves = {0: [], 1: []}
         for r in ref_rows:
             halves[int(r["pid"].split("-")[-1]) % 2].append(r)

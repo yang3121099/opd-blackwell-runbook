@@ -86,15 +86,18 @@ def load_forced(d, name):
 
 
 def crossing(budgets, diffs, lows):
-    """diffs[i] = reading - base at budgets[i] (None where not available)."""
+    """diffs[i] = reading - base at budgets[i] (None where not available). [v2.5.8] Read over the budgets that have a
+    value: a missing budget no longer hides a crossing (before, -1 / None / +2 gave none) nor makes "positive at all"
+    false; the missing budgets are listed."""
+    pts = [(B, d) for B, d in zip(budgets, diffs) if d is not None]
     res = {"first_positive": None, "log2_interp": None, "first_ci_positive": None,
-           "positive_at_all": all(d is not None and d > 0 for d in diffs) and any(d is not None for d in diffs)}
-    for i in range(1, len(budgets)):
-        a, b = diffs[i - 1], diffs[i]
-        if a is not None and b is not None and a <= 0 < b:
-            res["first_positive"] = budgets[i]
+           "positive_at_all": bool(pts) and all(d > 0 for _, d in pts),
+           "missing": [B for B, d in zip(budgets, diffs) if d is None]}
+    for (B0, a), (B1, b) in zip(pts, pts[1:]):
+        if a <= 0 < b:
+            res["first_positive"] = B1
             t = (0 - a) / (b - a)
-            res["log2_interp"] = int(round(2 ** (math.log2(budgets[i - 1]) + t * (math.log2(budgets[i]) - math.log2(budgets[i - 1])))))
+            res["log2_interp"] = int(round(2 ** (math.log2(B0) + t * (math.log2(B1) - math.log2(B0)))))
             break
     for B, lo in zip(budgets, lows):
         if lo is not None and lo > 0:
