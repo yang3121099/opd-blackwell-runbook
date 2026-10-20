@@ -294,3 +294,4 @@ commands:
   - {"seq": 292, "cmd": "du opd_root", "reason": "patrol 00:45 UTC: idx0 free fell 3.4 TB during the offline hours; size our own prefixes", "utc": "2026-10-20T00:47:39Z"}
   - {"seq": 293, "cmd": "du ckpt", "reason": "patrol 00:45 UTC: idx0 free fell 3.4 TB during the offline hours; size our own prefixes", "utc": "2026-10-20T00:47:48Z"}
   - {"seq": 294, "cmd": "du dr", "reason": "patrol 00:45 UTC: idx0 free fell 3.4 TB during the offline hours; size our own prefixes", "utc": "2026-10-20T00:47:57Z"}
+  - {"seq": 295, "cmd": "du ckpt E12b-P5-s44/ckpt", "reason": "reviewer 00:5x: which E12b-P5-s44 mid-RL steps have local weights (substitute for the s43 half)", "utc": "2026-10-20T00:48:44Z"}
