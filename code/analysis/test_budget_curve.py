@@ -67,6 +67,14 @@ def test_main_end_to_end(tmp_path, monkeypatch):
     pr = r["pairs_vs_base"]["p5"]
     assert pr["8"]["diff"] == 50.0 and pr["16"]["diff"] == -50.0
     assert r["crossing"]["p5"]["first_positive"] is None and r["crossing"]["p5"]["first_ci_positive"] == 4
+    assert r["readings"]["p5"]["by_budget"]["16"]["pass_at_k"] == {"1": 50.0, "2": 50.0}   # [v2.5.8f] two samples per problem
+    assert r["readings"]["base"]["by_budget"]["8"]["pass_at_k"] == {"1": 0.0, "2": 0.0}
+
+
+def test_pass_at_k():   # [v2.5.8f] the unbiased estimate, k up to the fewest samples
+    assert BC.pass_at_k({"a": [1, 4]}) == {"1": 25.0, "2": 50.0, "4": 100.0}
+    assert BC.pass_at_k({"a": [0, 4], "b": [4, 4]}) == {"1": 50.0, "2": 50.0, "4": 50.0}
+    assert BC.pass_at_k({"a": [2, 16], "b": [1, 2]}) == {"1": 31.25, "2": 62.08} and BC.pass_at_k({}) == {}
 
 
 def test_forced_and_finished(tmp_path, monkeypatch):   # v2.5.7h (Q-013)

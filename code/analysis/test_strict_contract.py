@@ -155,3 +155,20 @@ def test_box_change(tmp_path, monkeypatch):   # [v2.5.8d] which way did a change
     assert (bc["n"], bc["first_right_last_wrong"], bc["first_wrong_last_right"], bc["both_wrong"], bc["both_right"]) == (3, 1, 1, 1, 0)
     assert bc["share"] == 60.0 and bc["first_right_last_wrong_points"] == 20.0
     assert round(bc["first_right_last_wrong_points"] - bc["first_wrong_last_right_points"], 2) == round(ar["first_box_acc"] - res["acc"], 2)
+
+
+def test_repetition(tmp_path, monkeypatch):   # [v2.5.8f] repeated 8-grams and markers, before / after the first box
+    monkeypatch.setattr(SC, "_GRADE", lambda text, gold: (text.endswith("{" + gold + "}"), None))
+    cov, best = SC.repeats("a b c d e f g h x a b c d e f g h".split())
+    assert sum(cov) == 16 and best == 8                          # "a .. h" twice: both copies covered, the longest run is 8
+    assert SC.repeats("a b c d e f g h".split()) == ([False] * 8, 0) and SC.repeats([]) == ([], 0)
+    loop = " ".join(["so the answer is two"] * 4)                 # 20 words, one 5-word phrase looping: all covered
+    R = [dict(rec("p0", "think hard \\boxed{2} " + loop + " wait let me check", True), gold="2"),
+         dict(rec("p1", "one two three \\boxed{2}", True), gold="2")]
+    write_reading(str(tmp_path), "EVAL-r", "r_math500_no_think_t0.6", R)
+    res, _ = SC.rejudge(str(tmp_path / "EVAL-r" / "r_math500_no_think_t0.6.jsonl"), "r")
+    rp = res["repetition"]
+    assert rp["before_words"] == 3 + 4 and rp["after_words"] == 20 + 4 and rp["before_rep8"] == 0.0
+    assert rp["after_rep8"] == round(100 * 20 / 24, 2) and rp["longest_repeat_words_max"] == 20
+    assert rp["after_markers_per_1k_words"] == round(1000 * 2 / 24, 2) and rp["before_markers_per_1k_words"] == 0.0   # "wait", "let me check"
+    assert rp["rep8_over_20pct_share"] == 50.0

@@ -16,6 +16,9 @@ v2.5.7h (budget readings B, lab Q-013): per budget also the share of samples fin
 (acc_finished), and with --forced_dir <dir> holding <stem>.forced.jsonl (forced_stop.py --force_preset budB --samples)
 the forced-answer accuracy acc_forced (a finished sample counts as graded, an unfinished one by its forced answer; one
 with no forced answer counts wrong and is counted in forced_missing), paired against the base as well.
+[v2.5.8f] (reviewer 17:1x UTC 10-20) per budget also pass@k, the unbiased estimate 1 - C(n-c, k) / C(n, k) averaged over
+problems (n samples of a problem, c correct), for k = 1, 2, 4, 8, 16 up to the fewest samples any problem has; in the
+json (by_budget[B].pass_at_k) and as a second block of the table.
 """
 import argparse
 import json
@@ -54,6 +57,20 @@ def summarise(rows):
     return {"acc": round(100 * sum(c for _, c, _, _, _ in rows) / n, 2), "trunc_rate": round(sum(t for _, _, t, _, _ in rows) / n, 4),
             "mean_tokens": round(sum(k for _, _, _, k, _ in rows) / n, 1), "samples": n,
             "finished_rate": round(len(fin) / n, 4), "acc_finished": round(100 * sum(fin) / len(fin), 2) if fin else None}
+
+
+def pass_at_k(pp, ks=(1, 2, 4, 8, 16)):
+    """[v2.5.8f] {k: pass@k in %} over the problems of per_problem() output, for each k up to the fewest samples."""
+    if not pp:
+        return {}
+    nmin = min(n for _, n in pp.values())
+    out = {}
+    for k in ks:
+        if k > nmin:
+            break
+        v = [1.0 if n - c < k else 1.0 - math.comb(n - c, k) / math.comb(n, k) for c, n in pp.values()]
+        out[str(k)] = round(100 * sum(v) / len(v), 2)
+    return out
 
 
 def per_problem(rows):
@@ -145,6 +162,7 @@ def main():
                 continue
             rows, k = at_budget(recs, B, decode, grade)
             r["by_budget"][str(B)] = dict(summarise(rows), regraded=k); tables[name][B] = per_problem(rows)
+            r["by_budget"][str(B)]["pass_at_k"] = pass_at_k(tables[name][B])   # [v2.5.8f]
             if forced is not None:
                 fr, miss = with_forced(rows, forced, B)
                 r["by_budget"][str(B)].update(acc_forced=summarise(fr)["acc"], forced_missing=miss); ftables[name][B] = per_problem(fr)
@@ -179,6 +197,9 @@ def main():
     for name, pr in res["pairs_vs_base"].items():
         print(("- base: " + name)[:39].ljust(40) + "".join((f"{pr[str(B)]['diff']:+.2f} [{pr[str(B)]['ci95'][0]:+.1f},{pr[str(B)]['ci95'][1]:+.1f}]" if str(B) in pr else "-").rjust(22) for B in budgets))
         print("  crossing".ljust(40) + json.dumps(res["crossing"][name]))
+    print("pass@k".ljust(40) + "".join(str(B).rjust(22) for B in budgets))   # [v2.5.8f] pass@1 / 2 / 4 / ... per budget
+    for name, r in res["readings"].items():
+        print(name[:39].ljust(40) + "".join(("/".join(f"{v:.1f}" for v in r["by_budget"][str(B)]["pass_at_k"].values()) if str(B) in r["by_budget"] else "-").rjust(22) for B in budgets))
     if res["missing"]:
         print("missing or incomplete: " + ", ".join(res["missing"]))
 

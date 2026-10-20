@@ -22,6 +22,11 @@ position (p50, samples with a box) and the mean tokens written after it (what st
 the samples whose first and last boxes (whole text) differ in content, split by the EVAL-v1 grade of the first box
 (first_box) and of the last (the reading's correct): first right / last wrong, first wrong / last right, both, neither;
 counts and points of all samples (first_right_last_wrong - first_wrong_last_right = first_box_acc - acc).
+[v2.5.8f] (reviewer 17:1x UTC, Runming: repeated pieces as reward hacking?): repetition = per reading, on whitespace words,
+split at the end of the first box (before / after; no box: all before): rep8 = the share of words covered by an
+8-word n-gram that occurs at least twice in the same sample (pooled and the sample mean, p90, share of samples > 20%),
+the longest stretch covered by repeated 8-grams (words: p50 / p90 / max), and the TERM probe's markers (wait, let me
+check, ...; term_probe.MARKERS) per 1000 words.
 v2.5.7x (reviewer 09:3x UTC, "does P5 copy the thinking mode's two-part structure?"): answer_ready also gives, over the
 correct samples, the share with two or more boxes in the whole text all holding the same content (and with any
 content), and, for samples that close </think>, the share whose first final-answer box ends before the last </think>
@@ -46,6 +51,7 @@ from collections import Counter
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from paired_bootstrap import paired  # noqa: E402
+from term_probe import MARKERS  # noqa: E402   [v2.5.8f] the TERM probe's marker regex
 
 
 def boxes_at(text):
@@ -87,6 +93,23 @@ def hist(xs):
     for x in xs:
         h[min(int(x) // BIN, NBIN - 1)] += 1
     return h
+
+
+def repeats(words, n=8):
+    """[v2.5.8f] (covered flags, longest covered stretch) of words: a word is covered when an n-gram holding it occurs at
+    least twice in words."""
+    cov = [False] * len(words)
+    if len(words) >= n:
+        grams = list(zip(*[words[i:] for i in range(n)]))
+        cnt = Counter(grams)
+        for i, g in enumerate(grams):
+            if cnt[g] > 1:
+                for j in range(i, i + n):
+                    cov[j] = True
+    best = run = 0
+    for c in cov:
+        run = run + 1 if c else 0; best = max(best, run)
+    return cov, best
 
 
 def first_box(r):
@@ -170,6 +193,7 @@ def rejudge(path, name):
     nc, m_same, m_any, th_n, th_before, post = 0, 0, 0, 0, 0, []   # v2.5.7x
     stop_after, tails = [], Counter()   # v2.5.7ze
     bc = Counter()   # [v2.5.8d] box_change
+    rp = Counter(); rp_rates, rp_long = [], []   # [v2.5.8f] repetition
     for line in open(path):
         line = line.strip()
         if not line:
@@ -203,6 +227,13 @@ def rejudge(path, name):
         ok1, e1 = first_box(r)   # v2.5.7w
         fb_ok += ok1
         allt = boxes_at(r.get("text") or "")[0]   # [v2.5.8d] the first and the last box differ: which one is right?
+        text = r.get("text") or ""; cut = allt[0][1] if allt else len(text)   # [v2.5.8f] before / after the first box
+        for part, seg in (("before", text[:cut]), ("after", text[cut:])):
+            w = seg.split(); cov, _ = repeats(w)
+            rp[part + "_words"] += len(w); rp[part + "_covered"] += sum(cov)
+            rp[part + "_markers"] += len(re.findall(MARKERS, seg.encode("utf-8", "ignore")))
+        w = text.split(); cov, best = repeats(w)
+        rp_rates.append(sum(cov) / len(w) if w else 0.0); rp_long.append(best)
         if len(allt) >= 2 and "".join(allt[0][2].split()) != "".join(allt[-1][2].split()):
             last = bool(r.get("correct")); bc["n"] += 1
             bc["first_right_last_wrong" if ok1 and not last else "first_wrong_last_right" if last and not ok1 else "both_right" if ok1 else "both_wrong"] += 1
@@ -238,7 +269,15 @@ def rejudge(path, name):
                             "stop_tail_top5": [[t, k, round(100 * k / sum(tails.values()), 2)] for t, k in tails.most_common(5)],
                             "box_change": {"n": bc["n"], "share": round(100 * bc["n"] / n, 2),   # [v2.5.8d]
                                            **{k: bc[k] for k in ("first_right_last_wrong", "first_wrong_last_right", "both_right", "both_wrong")},
-                                           **{k + "_points": round(100 * bc[k] / n, 2) for k in ("first_right_last_wrong", "first_wrong_last_right")}}}}
+                                           **{k + "_points": round(100 * bc[k] / n, 2) for k in ("first_right_last_wrong", "first_wrong_last_right")}}},
+           "repetition": {"rep8_pooled": round(100 * (rp["before_covered"] + rp["after_covered"]) / max(1, rp["before_words"] + rp["after_words"]), 2),   # [v2.5.8f]
+                          "rep8_sample_mean": round(100 * sum(rp_rates) / n, 2), "rep8_sample_p90": round(100 * q(rp_rates, .9), 2),
+                          "rep8_over_20pct_share": round(100 * sum(x > 0.2 for x in rp_rates) / n, 2),
+                          "longest_repeat_words_p50": q(rp_long, .5), "longest_repeat_words_p90": q(rp_long, .9), "longest_repeat_words_max": max(rp_long),
+                          **{f"{p}_{k}": v for p in ("before", "after") for k, v in (
+                              ("words", rp[p + "_words"]),
+                              ("rep8", round(100 * rp[p + "_covered"] / rp[p + "_words"], 2) if rp[p + "_words"] else None),
+                              ("markers_per_1k_words", round(1000 * rp[p + "_markers"] / rp[p + "_words"], 2) if rp[p + "_words"] else None))}}}
     return res, probs
 
 
