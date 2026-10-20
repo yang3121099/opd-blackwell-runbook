@@ -336,3 +336,4 @@ commands:
   - {"seq": 334, "cmd": "du ckpt E12b-P5-kl/ckpt/global_step_100/actor", "reason": "the local save of a TERM4 row (read-only)", "utc": "2026-10-20T23:49:58Z"}
   - {"seq": 335, "cmd": "du ckpt E12b-P5-stop/ckpt/global_step_100/actor", "reason": "the local save of a TERM4 row (read-only)", "utc": "2026-10-20T23:52:31Z"}
   - {"seq": 336, "cmd": "du ckpt E12b-P5self/ckpt/global_step_100/actor", "reason": "the local save of a TERM4 row (read-only)", "utc": "2026-10-20T23:53:45Z"}
+  - {"seq": 337, "cmd": "du ckpt E10d-P5self/ckpt/global_step_50/actor", "reason": "the local save of a TERM4 row (read-only)", "utc": "2026-10-20T23:54:42Z"}
