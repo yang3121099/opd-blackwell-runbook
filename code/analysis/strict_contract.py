@@ -27,6 +27,10 @@ split at the end of the first box (before / after; no box: all before): rep8 = t
 8-word n-gram that occurs at least twice in the same sample (pooled and the sample mean, p90, share of samples > 20%),
 the longest stretch covered by repeated 8-grams (words: p50 / p90 / max), and the TERM probe's markers (wait, let me
 check, ...; term_probe.MARKERS) per 1000 words.
+[v2.5.8g] (reviewer 17:4x UTC, DEER 2504.15895's protocol: how far into a trajectory is the answer already written?):
+answer_ready.pearl = each sample cut at 20 / 40 / 60 / 80 / 100% of its length (characters, the token share of this
+file's other positions), the last complete box before the cut graded by EVAL-v1 (no box: wrong); accuracy over all
+samples and, of the samples whose final answer is correct, the share already correct at each cut.
 v2.5.7x (reviewer 09:3x UTC, "does P5 copy the thinking mode's two-part structure?"): answer_ready also gives, over the
 correct samples, the share with two or more boxes in the whole text all holding the same content (and with any
 content), and, for samples that close </think>, the share whose first final-answer box ends before the last </think>
@@ -112,6 +116,24 @@ def repeats(words, n=8):
     return cov, best
 
 
+PEARL = (0.2, 0.4, 0.6, 0.8, 1.0)
+
+
+def pearl(r):
+    """[v2.5.8g] [correct at each PEARL cut]: the last complete box of text[:cut] graded (the final box's grade when its
+    content is the final box's)."""
+    text = r.get("text") or ""; allb = boxes_at(text)[0]; out = []
+    final = "".join(allb[-1][2].split()) if allb else None
+    for fr in PEARL:
+        cut = len(text) if fr >= 1.0 else int(round(fr * len(text)))
+        bs = [b for b in allb if b[1] <= cut]
+        if not bs:
+            out.append(False); continue
+        s, e, c = bs[-1]
+        out.append(bool(r.get("correct")) if "".join(c.split()) == final else grade(text[:e], str(r.get("gold", ""))))
+    return out
+
+
 def first_box(r):
     """(first box correct under EVAL-v1, char end of the first box) or (False, None) without a box."""
     text = r.get("text") or ""
@@ -194,6 +216,7 @@ def rejudge(path, name):
     stop_after, tails = [], Counter()   # v2.5.7ze
     bc = Counter()   # [v2.5.8d] box_change
     rp = Counter(); rp_rates, rp_long = [], []   # [v2.5.8f] repetition
+    pl_all, pl_c, pl_nc = [0] * len(PEARL), [0] * len(PEARL), 0   # [v2.5.8g] pearl
     for line in open(path):
         line = line.strip()
         if not line:
@@ -233,6 +256,10 @@ def rejudge(path, name):
             rp[part + "_words"] += len(w); rp[part + "_covered"] += sum(cov)
             rp[part + "_markers"] += len(re.findall(MARKERS, seg.encode("utf-8", "ignore")))
         w = text.split(); cov, best = repeats(w)
+        pv = pearl(r)   # [v2.5.8g]
+        for i, v in enumerate(pv):
+            pl_all[i] += v; pl_c[i] += v and bool(r.get("correct"))
+        pl_nc += bool(r.get("correct"))
         rp_rates.append(sum(cov) / len(w) if w else 0.0); rp_long.append(best)
         if len(allt) >= 2 and "".join(allt[0][2].split()) != "".join(allt[-1][2].split()):
             last = bool(r.get("correct")); bc["n"] += 1
@@ -269,7 +296,9 @@ def rejudge(path, name):
                             "stop_tail_top5": [[t, k, round(100 * k / sum(tails.values()), 2)] for t, k in tails.most_common(5)],
                             "box_change": {"n": bc["n"], "share": round(100 * bc["n"] / n, 2),   # [v2.5.8d]
                                            **{k: bc[k] for k in ("first_right_last_wrong", "first_wrong_last_right", "both_right", "both_wrong")},
-                                           **{k + "_points": round(100 * bc[k] / n, 2) for k in ("first_right_last_wrong", "first_wrong_last_right")}}},
+                                           **{k + "_points": round(100 * bc[k] / n, 2) for k in ("first_right_last_wrong", "first_wrong_last_right")}},
+                            "pearl": {"fractions": list(PEARL), "acc_all": [round(100 * x / n, 2) for x in pl_all],   # [v2.5.8g]
+                                      "of_correct": [round(100 * x / pl_nc, 2) if pl_nc else None for x in pl_c], "correct_samples": pl_nc}},
            "repetition": {"rep8_pooled": round(100 * (rp["before_covered"] + rp["after_covered"]) / max(1, rp["before_words"] + rp["after_words"]), 2),   # [v2.5.8f]
                           "rep8_sample_mean": round(100 * sum(rp_rates) / n, 2), "rep8_sample_p90": round(100 * q(rp_rates, .9), 2),
                           "rep8_over_20pct_share": round(100 * sum(x > 0.2 for x in rp_rates) / n, 2),

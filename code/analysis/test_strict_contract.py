@@ -172,3 +172,19 @@ def test_repetition(tmp_path, monkeypatch):   # [v2.5.8f] repeated 8-grams and m
     assert rp["after_rep8"] == round(100 * 20 / 24, 2) and rp["longest_repeat_words_max"] == 20
     assert rp["after_markers_per_1k_words"] == round(1000 * 2 / 24, 2) and rp["before_markers_per_1k_words"] == 0.0   # "wait", "let me check"
     assert rp["rep8_over_20pct_share"] == 50.0
+
+
+def test_pearl(tmp_path, monkeypatch):   # [v2.5.8g] the answer's share of the trajectory (DEER's protocol)
+    monkeypatch.setattr(SC, "_GRADE", lambda text, gold: (text.endswith("{" + gold + "}"), None))
+    a = dict(rec("p0", "x" * 10 + "\\boxed{1}" + "y" * 40, True), gold="1")              # right from 20%: the box ends at char 19 of 59
+    b = dict(rec("p1", "x" * 50 + "\\boxed{1}", True), gold="1")                         # right only at the end
+    c = dict(rec("p2", "\\boxed{2}" + "x" * 30 + "\\boxed{1}", True), gold="1")          # wrong first answer, right at the end
+    d = dict(rec("p3", "x" * 20, False), gold="1")                                         # never a box
+    assert SC.pearl(a) == [False, True, True, True, True] and SC.pearl(b) == [False] * 4 + [True]
+    assert SC.pearl(c) == [False, False, False, False, True] and SC.pearl(d) == [False] * 5
+    write_reading(str(tmp_path), "EVAL-p", "p_math500_no_think_t0.6", [a, b, c, d])
+    res, _ = SC.rejudge(str(tmp_path / "EVAL-p" / "p_math500_no_think_t0.6.jsonl"), "p")
+    pl = res["answer_ready"]["pearl"]
+    assert pl["fractions"] == [0.2, 0.4, 0.6, 0.8, 1.0] and pl["correct_samples"] == 3
+    assert pl["acc_all"] == [0.0, 25.0, 25.0, 25.0, 75.0] and pl["of_correct"] == [0.0, 33.33, 33.33, 33.33, 100.0]
+    assert pl["acc_all"][-1] == res["acc"]                                                 # the full text is the reading's own grade
