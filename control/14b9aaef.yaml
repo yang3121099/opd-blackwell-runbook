@@ -319,3 +319,4 @@ commands:
   - {"seq": 317, "cmd": "rerun STRICT-C1", "reason": "v2.5.8g pearl curve (reviewer A1 17:5x UTC); the 17:24 run predates it", "utc": "2026-10-20T18:00:53Z"}
   - {"seq": 318, "cmd": "snapshot G-OPD/verl/verl/trainer/ppo", "reason": "reviewer 18:5x UTC: E10d-X1/X2 design, how G-OPD loads the teacher tokenizer and renders its prompt (read-only)", "utc": "2026-10-20T18:46:03Z"}
   - {"seq": 319, "cmd": "snapshot G-OPD/verl/verl/trainer/ppo", "reason": "reviewer 18:5x UTC: E10d-X1/X2 design, how G-OPD loads the teacher tokenizer and renders its prompt (read-only)", "utc": "2026-10-20T18:46:30Z"}
+  - {"seq": 320, "cmd": "snapshot G-OPD/verl/verl/trainer/ppo", "reason": "reviewer 18:5x UTC: E10d-X1/X2 design, how G-OPD loads the teacher tokenizer and renders its prompt (read-only)", "utc": "2026-10-20T18:47:01Z"}
