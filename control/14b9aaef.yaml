@@ -337,3 +337,4 @@ commands:
   - {"seq": 335, "cmd": "du ckpt E12b-P5-stop/ckpt/global_step_100/actor", "reason": "the local save of a TERM4 row (read-only)", "utc": "2026-10-20T23:52:31Z"}
   - {"seq": 336, "cmd": "du ckpt E12b-P5self/ckpt/global_step_100/actor", "reason": "the local save of a TERM4 row (read-only)", "utc": "2026-10-20T23:53:45Z"}
   - {"seq": 337, "cmd": "du ckpt E10d-P5self/ckpt/global_step_50/actor", "reason": "the local save of a TERM4 row (read-only)", "utc": "2026-10-20T23:54:42Z"}
+  - {"seq": 338, "cmd": "kill PROBE-TERM4-4B", "reason": "same as PROBE-TERM4: its new E10d-P5self row would hang in a result: fetch; moves to a local: path, then resume", "utc": "2026-10-20T23:56:36Z"}
