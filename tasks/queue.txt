@@ -47,11 +47,12 @@ b258p    open   PROBE-E12C
 b258bp   open   PROBE-E12B-KL
 b258cp   open   PROBE-E12B-STOP
 fill2    open   EVAL-ext32k-4Bp2:E10d-P2 EVAL-ext32k-4Bp2s43:E10d-P2-s43 EVAL-ext32k-17p2s:E10b-P2-s43 EVAL-ext32k-17p2srl:E12b-P2-s43 EVAL-ext-E10b-P2s43:E10b-P2-s43 EVAL-ext-E10b-P2s44:E10b-P2-s44
-b258a    open   E10c-P5-fix4 E12c-P0:PROBE-E12C E12b-P5self EVAL-e10c-P5-fix4:E10c-P5-fix4+EVAL-e10c-base06 E12c-P5:PROBE-E12C+E10c-P5-fix4 EVAL-e12b-P5self:E12b-P5self EVAL-budA-e12bP5self:E12b-P5self EVAL-e12c-P0:E12c-P0+EVAL-e10c-base06 EVAL-e12c-P5:E12c-P5+EVAL-e12c-P0+EVAL-e10c-P5-fix4 EVAL-budA-e12c:E12c-P0+E12c-P5
+b258a    open   E10c-P5-fix4 E12c-P0:PROBE-E12C E12b-P5self EVAL-e10c-P5-fix4:E10c-P5-fix4+EVAL-e10c-base06 E12c-P5:PROBE-E12C+E10c-P5-fix4 EVAL-e12b-P5self:E12b-P5self EVAL-budA-e12bP5self:E12b-P5self EVAL-e12c-P0:E12c-P0+EVAL-e10c-base06 EVAL-e12c-P5:E12c-P5+EVAL-e12c-P0+EVAL-e10c-P5-fix4 EVAL-budA-e12c:E12c-P0+E12c-P5+EVAL-budA06p5
 fill3    open   EVAL-ext32k-17p5self:E10b-P5self EVAL-ext32k-17p2self:E10b-P2self EVAL-ext32k-17think:E10b-P5think EVAL-ext-E10b-P5self:E10b-P5self EVAL-ext-E10b-P2self:E10b-P2self EVAL-ext-E10b-P5think:E10b-P5think EVAL-ext32k-17p2s44:E10b-P2-s44
 b258b    open   E12b-P5-kl:PROBE-E12B-KL EVAL-e12b-P5kl:E12b-P5-kl EVAL-budA-e12bP5kl:E12b-P5-kl
 b258c    open   E12b-P5-stop:PROBE-E12B-STOP EVAL-e12b-P5stop:E12b-P5-stop EVAL-budA-e12bP5stop:E12b-P5-stop
 fill4    open   EVAL-ext32k-17p1:E12b-P1 EVAL-ext32k-17p3:E12b-P3 EVAL-ext-E10b-P3:E10b-P3 EVAL-ext-E10b-P6r:E10b-P6r
+len      open   EVAL-budA06p5:E10c-P5-fix4 EVAL-budA06think EVAL-budA-8Bthink
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T0.6 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T1.0 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 1.0
 #eval EVAL-e10c-dyn16k e10c_P4lowlr-dyn16k_s150_math500_T0.6 local:runs/E10c-P4lowlr-dyn16k/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
@@ -777,9 +778,8 @@ fill4    open   EVAL-ext32k-17p1:E12b-P1 EVAL-ext32k-17p3:E12b-P3 EVAL-ext-E10b-
 #pair EVAL-e12c-P5 e12c_P5_s100_math500_T1.0 EVAL-e12c-P0/e12c_P0_s100_math500_T1.0_math500_no_think_t1.0.jsonl EVAL-e10c-P5-fix4/e10c_P5-fix4_s150_math500_T1.0_math500_no_think_t1.0.jsonl EVAL-e10c-base06/e10c_base06_math500_T1.0_math500_no_think_t1.0.jsonl
 #eval EVAL-budA-e12c budAe12c_P0_s100_math500_T0.6_32k result:runs/E12c-P0/global_step_100/actor/huggingface math500 4 0.6 32768
 #eval EVAL-budA-e12c budAe12c_P5_s100_math500_T0.6_32k result:runs/E12c-P5/global_step_100/actor/huggingface math500 4 0.6 32768
-#eval EVAL-budA-e12c budAe12c_P5start_s150_math500_T0.6_32k result:runs/E10c-P5-fix4/global_step_150/actor/huggingface math500 4 0.6 32768
-#budget EVAL-budA-e12c budget_curve EVAL-budA06/budA_base06_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12c_P0_s100_math500_T0.6_32k budAe12c_P5start_s150_math500_T0.6_32k budAe12c_P5_s100_math500_T0.6_32k
-#budget EVAL-budA-e12c budget_curve_vsStart budAe12c_P5start_s150_math500_T0.6_32k budAe12c_P5_s100_math500_T0.6_32k
+#budget EVAL-budA-e12c budget_curve EVAL-budA06/budA_base06_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12c_P0_s100_math500_T0.6_32k EVAL-budA06p5/budA06_E10cP5fix4_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12c_P5_s100_math500_T0.6_32k
+#budget EVAL-budA-e12c budget_curve_vsStart EVAL-budA06p5/budA06_E10cP5fix4_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12c_P5_s100_math500_T0.6_32k
 # fill3 (executor 06:5x UTC 10-20, patrol URGENT: 5 idle GPUs; local weights only): the self-distilled arms (P5self / P2self s50,
 # the start of E12b-P5self) on the five external sets (16K) and at AIME 32K, and the third P2 seed (s44) at AIME 32K
 #eval EVAL-ext-E10b-P5self ext_E10bP5self_aime24_T0.6 result:runs/E10b-P5self/global_step_50/actor/huggingface aime24 16 0.6
@@ -909,3 +909,12 @@ fill4    open   EVAL-ext32k-17p1:E12b-P1 EVAL-ext32k-17p3:E12b-P3 EVAL-ext-E10b-
 #eval EVAL-budA-e12bP5stop budAe12bP5stop_s100_math500_T0.6_32k result:runs/E12b-P5-stop/global_step_100/actor/huggingface math500 4 0.6 32768
 #budget EVAL-budA-e12bP5stop budget_curve_vsStart EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12bP5stop_s100_math500_T0.6_32k
 #budget EVAL-budA-e12bP5stop budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12bP5stop_s100_math500_T0.6_32k
+# len (reviewer 12:0x UTC, Runming's question, Q-024: is the ~8K crossing size-free because each size's own thinking mode writes
+# about as long?): the 0.6B P5 start at 32K on its own (EVAL-budA-e12c now reads it from here), the 0.6B base in think mode at 32K,
+# and the 8B teacher's own think mode at 32K (never measured); local copies only
+#eval EVAL-budA06p5 budA06_E10cP5fix4_s150_math500_T0.6_32k result:runs/E10c-P5-fix4/global_step_150/actor/huggingface math500 4 0.6 32768
+#budget EVAL-budA06p5 budget_curve EVAL-budA06/budA_base06_math500_T0.6_32k_math500_no_think_t0.6.jsonl budA06_E10cP5fix4_s150_math500_T0.6_32k
+#eval EVAL-budA06think budA06_P0think_math500_T0.6_32k local:models/Qwen3-0.6B math500 4 0.6 32768 think
+#budget EVAL-budA06think budget_curve EVAL-budA06/budA_base06_math500_T0.6_32k_math500_no_think_t0.6.jsonl budA06_P0think_math500_T0.6_32k
+#eval EVAL-budA-8Bthink budA8B_think_math500_T0.6_32k local:models/Qwen3-8B math500 4 0.6 32768 think
+#budget EVAL-budA-8Bthink budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl budA8B_think_math500_T0.6_32k
