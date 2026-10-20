@@ -918,3 +918,10 @@ len      open   EVAL-budA06p5:E10c-P5-fix4 EVAL-budA06think EVAL-budA-8Bthink
 #budget EVAL-budA06think budget_curve EVAL-budA06/budA_base06_math500_T0.6_32k_math500_no_think_t0.6.jsonl budA06_P0think_math500_T0.6_32k
 #eval EVAL-budA-8Bthink budA8B_think_math500_T0.6_32k local:models/Qwen3-8B math500 4 0.6 32768 think
 #budget EVAL-budA-8Bthink budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl budA8B_think_math500_T0.6_32k
+# strict s50 (reviewer 13:3x UTC, Runming: the answer-changing evidence at equal steps): P5 s50 (the lab's 1.7B P5 s50, read
+# here as EVAL-budA-top10c) vs P5self s50 vs P5think s50 at MATH500 32K, and each vs the base at 32K; judged on the next STRICT-C1 rerun
+#strict STRICT-C1 EVAL-budA-top10c/budAtop10_E10P5_17B_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-P5self/budAP5self_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#strict STRICT-C1 EVAL-budA-top10c/budAtop10_E10P5_17B_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-P5think/budAP5think_s50_math500_T0.6_32k_math500_think_t0.6.jsonl
+#strict STRICT-C1 EVAL-budA-top10c/budAtop10_E10P5_17B_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#strict STRICT-C1 EVAL-budA-P5self/budAP5self_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#strict STRICT-C1 EVAL-budA-P5think/budAP5think_s50_math500_T0.6_32k_math500_think_t0.6.jsonl EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl
