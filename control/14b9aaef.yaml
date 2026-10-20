@@ -312,3 +312,4 @@ commands:
   - {"seq": 310, "cmd": "du old_base hf", "reason": "reviewer 17:1x UTC D: which models the HF cache holds, read-only", "utc": "2026-10-20T17:31:45Z"}
   - {"seq": 311, "cmd": "du old_base hf/hub", "reason": "reviewer 17:1x UTC D: which models the HF cache holds, read-only", "utc": "2026-10-20T17:33:59Z"}
   - {"seq": 312, "cmd": "du old_base hf/hub", "reason": "reviewer 17:1x UTC D: which models the HF cache holds, read-only", "utc": "2026-10-20T17:34:27Z"}
+  - {"seq": 313, "cmd": "rerun STRICT-C1", "reason": "v2.5.8g pearl curve (reviewer A1 17:5x UTC), with v2.5.8f's repetition; the per-arm tables follow", "utc": "2026-10-20T17:47:02Z"}
