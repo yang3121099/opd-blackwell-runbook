@@ -325,3 +325,4 @@ commands:
   - {"seq": 323, "cmd": "logs EVAL-ext-E12c-P0 25", "reason": "reviewer 22:5x UTC: GPU2 idle since 22:15 with fill6 queued; STRICT-C1 retrying", "utc": "2026-10-20T22:52:22Z"}
   - {"seq": 324, "cmd": "logs STRICT-C1 25", "reason": "reviewer 22:5x UTC: GPU2 idle since 22:15 with fill6 queued; STRICT-C1 retrying", "utc": "2026-10-20T22:53:23Z"}
   - {"seq": 325, "cmd": "snapshot runs/STRICT-C1", "reason": "reviewer 22:5x UTC: STRICT-C1 attempt 1 ended rc=1 without a report; read its log (read-only)", "utc": "2026-10-20T22:54:47Z"}
+  - {"seq": 326, "cmd": "snapshot", "reason": "reviewer 23:2x UTC: idx0 free jumped from 23 TB to ~2.7 PB at 22:5x; df -h to see whether the share's mount or reporting changed (read-only)", "utc": "2026-10-20T23:14:55Z"}
