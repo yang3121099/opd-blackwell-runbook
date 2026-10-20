@@ -43,8 +43,9 @@ ext      open   PROBE-TERM3 EVAL-ext-base17 EVAL-ext-E12b-P5:E12b-P5 EVAL-ext-E1
 term4    open   PROBE-TERM4
 fill1    open   EVAL-ext32k-17t14:E10b-P5-t14 EVAL-ext32k-17p2:E10b-P2-t14+E10b-P2 EVAL-ext-E10b-P5s43:E10b-P5-s43 EVAL-ext-E10b-P5s44:E10b-P5-s44 EVAL-ext-E12b-P2s43:E12b-P2-s43 EVAL-ext-E10d-P2s43:E10d-P2-s43
 base06   open   EVAL-e10c-base06
+b258p    open   PROBE-E12C
 fill2    open   EVAL-ext32k-4Bp2:E10d-P2 EVAL-ext32k-4Bp2s43:E10d-P2-s43 EVAL-ext32k-17p2s:E10b-P2-s43 EVAL-ext32k-17p2srl:E12b-P2-s43 EVAL-ext-E10b-P2s43:E10b-P2-s43 EVAL-ext-E10b-P2s44:E10b-P2-s44
-b258a    open   PROBE-E12C E10c-P5-fix4 E12c-P0:PROBE-E12C E12b-P5self EVAL-e10c-P5-fix4:E10c-P5-fix4+EVAL-e10c-base06 E12c-P5:PROBE-E12C+E10c-P5-fix4 EVAL-e12b-P5self:E12b-P5self EVAL-budA-e12bP5self:E12b-P5self EVAL-e12c-P0:E12c-P0+EVAL-e10c-base06 EVAL-e12c-P5:E12c-P5+EVAL-e12c-P0+EVAL-e10c-P5-fix4 EVAL-budA-e12c:E12c-P0+E12c-P5
+b258a    open   E10c-P5-fix4 E12c-P0:PROBE-E12C E12b-P5self EVAL-e10c-P5-fix4:E10c-P5-fix4+EVAL-e10c-base06 E12c-P5:PROBE-E12C+E10c-P5-fix4 EVAL-e12b-P5self:E12b-P5self EVAL-budA-e12bP5self:E12b-P5self EVAL-e12c-P0:E12c-P0+EVAL-e10c-base06 EVAL-e12c-P5:E12c-P5+EVAL-e12c-P0+EVAL-e10c-P5-fix4 EVAL-budA-e12c:E12c-P0+E12c-P5
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T0.6 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T1.0 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 1.0
 #eval EVAL-e10c-dyn16k e10c_P4lowlr-dyn16k_s150_math500_T0.6 local:runs/E10c-P4lowlr-dyn16k/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
