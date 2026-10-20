@@ -53,6 +53,7 @@ b258b    open   E12b-P5-kl:PROBE-E12B-KL EVAL-e12b-P5kl:E12b-P5-kl EVAL-budA-e12
 b258c    open   E12b-P5-stop:PROBE-E12B-STOP EVAL-e12b-P5stop:E12b-P5-stop EVAL-budA-e12bP5stop:E12b-P5-stop
 fill4    open   EVAL-ext32k-17p1:E12b-P1 EVAL-ext32k-17p3:E12b-P3 EVAL-ext-E10b-P3:E10b-P3 EVAL-ext-E10b-P6r:E10b-P6r
 len      open   EVAL-budA06p5:E10c-P5-fix4 EVAL-budA06think EVAL-budA-8Bthink
+fill5    open   EVAL-ext-E10c-P0 EVAL-ext32k-06think EVAL-ext-E10c-P5-fix4:E10c-P5-fix4+EVAL-ext-E10c-P0 EVAL-ext32k-06:E10c-P5-fix4+EVAL-ext32k-06think EVAL-ext-E12c-P0:E12c-P0+EVAL-ext-E10c-P0+EVAL-ext-E10c-P5-fix4
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T0.6 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T1.0 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 1.0
 #eval EVAL-e10c-dyn16k e10c_P4lowlr-dyn16k_s150_math500_T0.6 local:runs/E10c-P4lowlr-dyn16k/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
@@ -925,3 +926,39 @@ len      open   EVAL-budA06p5:E10c-P5-fix4 EVAL-budA06think EVAL-budA-8Bthink
 #strict STRICT-C1 EVAL-budA-top10c/budAtop10_E10P5_17B_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl
 #strict STRICT-C1 EVAL-budA-P5self/budAP5self_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl
 #strict STRICT-C1 EVAL-budA-P5think/budAP5think_s50_math500_T0.6_32k_math500_think_t0.6.jsonl EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+# fill5 (reviewer 16:4x UTC 10-20; local copies only): the 0.6B column on the external sets and at AIME 32K, as for 1.7B and 4B:
+# the 0.6B base (no external-set reading existed), the 0.6B P5 arm (E10c-P5-fix4 s150) and the 0.6B base -> RL (E12c-P0 s100) on
+# the five sets at 16K; P5, the base and the base in think mode at AIME24/25 avg@16 32K
+#eval EVAL-ext-E10c-P0 ext_E10cP0_aime24_T0.6 local:models/Qwen3-0.6B aime24 16 0.6
+#eval EVAL-ext-E10c-P0 ext_E10cP0_aime25_T0.6 local:models/Qwen3-0.6B aime25 16 0.6
+#eval EVAL-ext-E10c-P0 ext_E10cP0_amc23_T0.6 local:models/Qwen3-0.6B amc23 8 0.6
+#eval EVAL-ext-E10c-P0 ext_E10cP0_minervamath_T0.6 local:models/Qwen3-0.6B minervamath 4 0.6
+#eval EVAL-ext-E10c-P0 ext_E10cP0_olympiadbench_T0.6 local:models/Qwen3-0.6B olympiadbench 4 0.6
+#eval EVAL-ext-E10c-P5-fix4 ext_E10cP5fix4_aime24_T0.6 result:runs/E10c-P5-fix4/global_step_150/actor/huggingface aime24 16 0.6
+#eval EVAL-ext-E10c-P5-fix4 ext_E10cP5fix4_aime25_T0.6 result:runs/E10c-P5-fix4/global_step_150/actor/huggingface aime25 16 0.6
+#eval EVAL-ext-E10c-P5-fix4 ext_E10cP5fix4_amc23_T0.6 result:runs/E10c-P5-fix4/global_step_150/actor/huggingface amc23 8 0.6
+#eval EVAL-ext-E10c-P5-fix4 ext_E10cP5fix4_minervamath_T0.6 result:runs/E10c-P5-fix4/global_step_150/actor/huggingface minervamath 4 0.6
+#eval EVAL-ext-E10c-P5-fix4 ext_E10cP5fix4_olympiadbench_T0.6 result:runs/E10c-P5-fix4/global_step_150/actor/huggingface olympiadbench 4 0.6
+#pair EVAL-ext-E10c-P5-fix4 ext_E10cP5fix4_aime24_T0.6 EVAL-ext-E10c-P0/ext_E10cP0_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#pair EVAL-ext-E10c-P5-fix4 ext_E10cP5fix4_aime25_T0.6 EVAL-ext-E10c-P0/ext_E10cP0_aime25_T0.6_aime25_no_think_t0.6.jsonl
+#pair EVAL-ext-E10c-P5-fix4 ext_E10cP5fix4_amc23_T0.6 EVAL-ext-E10c-P0/ext_E10cP0_amc23_T0.6_amc23_no_think_t0.6.jsonl
+#pair EVAL-ext-E10c-P5-fix4 ext_E10cP5fix4_minervamath_T0.6 EVAL-ext-E10c-P0/ext_E10cP0_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
+#pair EVAL-ext-E10c-P5-fix4 ext_E10cP5fix4_olympiadbench_T0.6 EVAL-ext-E10c-P0/ext_E10cP0_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
+#eval EVAL-ext-E12c-P0 ext_E12cP0_aime24_T0.6 result:runs/E12c-P0/global_step_100/actor/huggingface aime24 16 0.6
+#eval EVAL-ext-E12c-P0 ext_E12cP0_aime25_T0.6 result:runs/E12c-P0/global_step_100/actor/huggingface aime25 16 0.6
+#eval EVAL-ext-E12c-P0 ext_E12cP0_amc23_T0.6 result:runs/E12c-P0/global_step_100/actor/huggingface amc23 8 0.6
+#eval EVAL-ext-E12c-P0 ext_E12cP0_minervamath_T0.6 result:runs/E12c-P0/global_step_100/actor/huggingface minervamath 4 0.6
+#eval EVAL-ext-E12c-P0 ext_E12cP0_olympiadbench_T0.6 result:runs/E12c-P0/global_step_100/actor/huggingface olympiadbench 4 0.6
+#pair EVAL-ext-E12c-P0 ext_E12cP0_aime24_T0.6 EVAL-ext-E10c-P0/ext_E10cP0_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext-E10c-P5-fix4/ext_E10cP5fix4_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#pair EVAL-ext-E12c-P0 ext_E12cP0_aime25_T0.6 EVAL-ext-E10c-P0/ext_E10cP0_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext-E10c-P5-fix4/ext_E10cP5fix4_aime25_T0.6_aime25_no_think_t0.6.jsonl
+#pair EVAL-ext-E12c-P0 ext_E12cP0_amc23_T0.6 EVAL-ext-E10c-P0/ext_E10cP0_amc23_T0.6_amc23_no_think_t0.6.jsonl EVAL-ext-E10c-P5-fix4/ext_E10cP5fix4_amc23_T0.6_amc23_no_think_t0.6.jsonl
+#pair EVAL-ext-E12c-P0 ext_E12cP0_minervamath_T0.6 EVAL-ext-E10c-P0/ext_E10cP0_minervamath_T0.6_minervamath_no_think_t0.6.jsonl EVAL-ext-E10c-P5-fix4/ext_E10cP5fix4_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
+#pair EVAL-ext-E12c-P0 ext_E12cP0_olympiadbench_T0.6 EVAL-ext-E10c-P0/ext_E10cP0_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl EVAL-ext-E10c-P5-fix4/ext_E10cP5fix4_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
+#eval EVAL-ext32k-06 ext32k06_E10cP5fix4_s150_aime24_T0.6 result:runs/E10c-P5-fix4/global_step_150/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-06 ext32k06_base06_aime24_T0.6 local:models/Qwen3-0.6B aime24 16 0.6 32768
+#eval EVAL-ext32k-06think ext32k06_P0think_aime24_T0.6 local:models/Qwen3-0.6B aime24 16 0.6 32768 think
+#eval EVAL-ext32k-06 ext32k06_E10cP5fix4_s150_aime25_T0.6 result:runs/E10c-P5-fix4/global_step_150/actor/huggingface aime25 16 0.6 32768
+#eval EVAL-ext32k-06 ext32k06_base06_aime25_T0.6 local:models/Qwen3-0.6B aime25 16 0.6 32768
+#eval EVAL-ext32k-06think ext32k06_P0think_aime25_T0.6 local:models/Qwen3-0.6B aime25 16 0.6 32768 think
+#pair EVAL-ext32k-06 ext32k06_E10cP5fix4_s150_aime24_T0.6 EVAL-ext32k-06think/ext32k06_P0think_aime24_T0.6_aime24_think_t0.6.jsonl EVAL-ext32k-06/ext32k06_base06_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#pair EVAL-ext32k-06 ext32k06_E10cP5fix4_s150_aime25_T0.6 EVAL-ext32k-06think/ext32k06_P0think_aime25_T0.6_aime25_think_t0.6.jsonl EVAL-ext32k-06/ext32k06_base06_aime25_T0.6_aime25_no_think_t0.6.jsonl
