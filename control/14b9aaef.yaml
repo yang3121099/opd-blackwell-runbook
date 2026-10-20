@@ -334,3 +334,4 @@ commands:
   - {"seq": 332, "cmd": "logs EVAL-e10d-P5self 30", "reason": "patrol 23:4x UTC: find the local save each new TERM4 row should load (PROBE-TERM4 hangs on a result fetch)", "utc": "2026-10-20T23:47:46Z"}
   - {"seq": 333, "cmd": "kill PROBE-TERM4", "reason": "patrol 23:4x UTC: PROBE-TERM4 hangs in a result: fetch for its new rows (the proxy blocks hub downloads; term_probe has no local-first step); the rows move to local: paths, then resume", "utc": "2026-10-20T23:49:17Z"}
   - {"seq": 334, "cmd": "du ckpt E12b-P5-kl/ckpt/global_step_100/actor", "reason": "the local save of a TERM4 row (read-only)", "utc": "2026-10-20T23:49:58Z"}
+  - {"seq": 335, "cmd": "du ckpt E12b-P5-stop/ckpt/global_step_100/actor", "reason": "the local save of a TERM4 row (read-only)", "utc": "2026-10-20T23:52:31Z"}
