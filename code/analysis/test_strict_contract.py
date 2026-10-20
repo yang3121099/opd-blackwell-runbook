@@ -188,3 +188,30 @@ def test_pearl(tmp_path, monkeypatch):   # [v2.5.8g] the answer's share of the t
     assert pl["fractions"] == [0.2, 0.4, 0.6, 0.8, 1.0] and pl["correct_samples"] == 3
     assert pl["acc_all"] == [0.0, 25.0, 25.0, 25.0, 75.0] and pl["of_correct"] == [0.0, 33.33, 33.33, 33.33, 100.0]
     assert pl["acc_all"][-1] == res["acc"]                                                 # the full text is the reading's own grade
+
+
+def test_tail_and_oserror(tmp_path, monkeypatch):   # [v2.5.8j] n_tail and the tailed sample mean; an OSError is retried, then recorded
+    monkeypatch.setattr(SC, "_GRADE", lambda text, gold: (text.endswith("{" + gold + "}"), None))
+    loop = " ".join(["so the answer is two"] * 4)
+    R = [dict(rec("p0", "x \\boxed{2} " + loop, True), gold="2"),                         # a 20-word looping tail
+         dict(rec("p1", "x \\boxed{2} " + " ".join(f"w{i}" for i in range(10)), True), gold="2"),   # a 10-word tail, no repeat
+         dict(rec("p2", "x \\boxed{2} ok", True), gold="2")]                                   # a 1-word tail: not counted
+    write_reading(str(tmp_path), "EVAL-t", "t_math500_no_think_t0.6", R)
+    res, _ = SC.rejudge(str(tmp_path / "EVAL-t" / "t_math500_no_think_t0.6.jsonl"), "t")
+    rp = res["repetition"]
+    assert rp["n_tail"] == 2 and rp["tail_share"] == 66.67 and rp["after_rep8_tailed_sample_mean"] == 50.0
+    assert rp["after_rep8"] == round(100 * 20 / 31, 2)                                      # pooled: dominated by the long loop
+    calls = []
+    real = SC.rejudge
+    def flaky(p, nm):
+        calls.append(nm)
+        if nm.startswith("EVAL-t/") and len([c for c in calls if c == nm]) <= 2:
+            raise OSError(116, "Stale file handle", p)
+        return real(p, nm)
+    monkeypatch.setattr(SC, "rejudge", flaky); monkeypatch.setenv("SC_RETRY_S", "0")
+    out = tmp_path / "r.json"
+    monkeypatch.setattr(sys, "argv", ["strict_contract.py", "--scan", str(tmp_path), "--out", str(out)])
+    SC.main()
+    rd = json.load(open(out))["readings"]
+    assert rd == [{"name": "EVAL-t/t_math500_no_think_t0.6.jsonl", "error": "OSError 116 Stale file handle"}]
+    assert str(tmp_path) not in open(out).read()                                            # no path in the public report

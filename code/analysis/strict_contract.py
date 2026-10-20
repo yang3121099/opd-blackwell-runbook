@@ -30,7 +30,12 @@ check, ...; term_probe.MARKERS) per 1000 words.
 [v2.5.8g] (reviewer 17:4x UTC, DEER 2504.15895's protocol: how far into a trajectory is the answer already written?):
 answer_ready.pearl = each sample cut at 20 / 40 / 60 / 80 / 100% of its length (characters, the token share of this
 file's other positions), the last complete box before the cut graded by EVAL-v1 (no box: wrong); accuracy over all
-samples and, of the samples whose final answer is correct, the share already correct at each cut.
+samples and, of the samples whose final answer is correct, the share already correct at each cut. It places the box
+in the trajectory and forces nothing: whether an answer is already there is what the #forced curves measure.
+[v2.5.8j] (reviewer 18:4x / 22:5x UTC 10-20) repetition also gives n_tail / tail_share (samples with >= 8 words after the first
+box) and after_rep8_tailed_sample_mean (the per-sample after-box rep8 averaged over those samples: a few long loops no longer
+set the figure); a reading that raises an OSError (e.g. a stale handle on the network share while a file is rewritten) is
+retried once after 5 s, then recorded with its errno instead of ending the whole run (10-20 22:49 UTC: rc=1, no report).
 v2.5.7x (reviewer 09:3x UTC, "does P5 copy the thinking mode's two-part structure?"): answer_ready also gives, over the
 correct samples, the share with two or more boxes in the whole text all holding the same content (and with any
 content), and, for samples that close </think>, the share whose first final-answer box ends before the last </think>
@@ -50,6 +55,7 @@ import json
 import os
 import re
 import sys
+import time
 from collections import Counter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -216,6 +222,7 @@ def rejudge(path, name):
     stop_after, tails = [], Counter()   # v2.5.7ze
     bc = Counter()   # [v2.5.8d] box_change
     rp = Counter(); rp_rates, rp_long = [], []   # [v2.5.8f] repetition
+    tail_rates = []   # [v2.5.8j] the after-box rep8 of samples with a tail of >= 8 words
     pl_all, pl_c, pl_nc = [0] * len(PEARL), [0] * len(PEARL), 0   # [v2.5.8g] pearl
     for line in open(path):
         line = line.strip()
@@ -254,6 +261,8 @@ def rejudge(path, name):
         for part, seg in (("before", text[:cut]), ("after", text[cut:])):
             w = seg.split(); cov, _ = repeats(w)
             rp[part + "_words"] += len(w); rp[part + "_covered"] += sum(cov)
+            if part == "after" and allt and len(w) >= 8:   # [v2.5.8j]
+                tail_rates.append(sum(cov) / len(w))
             rp[part + "_markers"] += len(re.findall(MARKERS, seg.encode("utf-8", "ignore")))
         w = text.split(); cov, best = repeats(w)
         pv = pearl(r)   # [v2.5.8g]
@@ -302,6 +311,8 @@ def rejudge(path, name):
            "repetition": {"rep8_pooled": round(100 * (rp["before_covered"] + rp["after_covered"]) / max(1, rp["before_words"] + rp["after_words"]), 2),   # [v2.5.8f]
                           "rep8_sample_mean": round(100 * sum(rp_rates) / n, 2), "rep8_sample_p90": round(100 * q(rp_rates, .9), 2),
                           "rep8_over_20pct_share": round(100 * sum(x > 0.2 for x in rp_rates) / n, 2),
+                          "n_tail": len(tail_rates), "tail_share": round(100 * len(tail_rates) / n, 2),   # [v2.5.8j]
+                          "after_rep8_tailed_sample_mean": round(100 * sum(tail_rates) / len(tail_rates), 2) if tail_rates else None,
                           "longest_repeat_words_p50": q(rp_long, .5), "longest_repeat_words_p90": q(rp_long, .9), "longest_repeat_words_max": max(rp_long),
                           **{f"{p}_{k}": v for p in ("before", "after") for k, v in (
                               ("words", rp[p + "_words"]),
@@ -368,7 +379,14 @@ def main():
     for p in paths:
         if not os.path.isfile(p):
             res["missing"].append(name(p)); continue
-        r, probs = rejudge(p, name(p)); res["readings"].append(r)
+        for attempt in (1, 2):   # [v2.5.8j] a transient OSError on the share: once more, then recorded, not fatal
+            try:
+                r, probs = rejudge(p, name(p)); break
+            except OSError as e:
+                if attempt == 1:
+                    time.sleep(float(os.environ.get("SC_RETRY_S", "5"))); continue
+                r, probs = {"name": name(p), "error": f"OSError {e.errno} {e.strerror}"}, None   # no path: the report is public
+        res["readings"].append(r)
         if probs is not None:
             per[r["name"]] = probs
     for A, B in a.pair:
