@@ -172,6 +172,7 @@ while true; do
       pgrep -f "upload_syn[c].sh $OPD_ROOT/runs/$t\$" > /dev/null && continue
       case $t in
         E10b-P5top10|E10b-P5rand10m|E10b-P5think|E10b-P5self|E10b-P5self-s43|E10d-P5self|E10b-P2self) env UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-50} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;   # v2.5.7r: the 50-step arms
+        E10d-X1|E10d-X2) env UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-25,50} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;   # [v2.5.8i] the X arms: s25 and s50
         E10c-P5-fix4) env UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-100,150} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;   # [v2.5.8a] s100 too (the lab's 0.6B P5 reading step)
         E10b-*|E10c-*|E10d-*) env UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-150} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;
         E12b-*|E12c-*|E12d-*) case $t in E12b-P5-s44|E12d-P5) s=25,50,75,100;; E12b-P5-8k|E12b-P5-16k) s=25,50;; E12c-*|E12d-*|E12b-P0|E12b-P1|E12b-P2|E12b-P3|E12b-P5|E12b-P5-s43|E12b-P2-s43|E12b-P5self|E12b-P5self-s43|E12b-P5-kl|E12b-P5-stop) s=100;; *) s=60;; esac   # v2.5.7u: s44's mid-RL steps
