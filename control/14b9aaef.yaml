@@ -331,3 +331,4 @@ commands:
   - {"seq": 329, "cmd": "rerun PROBE-TERM4-4B", "reason": "reviewer 22:2x UTC fill6: the TERM4 row of E10d-P5self s50", "utc": "2026-10-20T23:39:43Z"}
   - {"seq": 330, "cmd": "logs PROBE-TERM4 20", "reason": "patrol 23:4x UTC: PROBE-TERM4 at 0%/0G on GPU4 for 30 min (stalled)", "utc": "2026-10-20T23:44:29Z"}
   - {"seq": 331, "cmd": "logs EVAL-e12b-P5kl 30", "reason": "patrol 23:4x UTC: find the local save each new TERM4 row should load (PROBE-TERM4 hangs on a result fetch)", "utc": "2026-10-20T23:45:27Z"}
+  - {"seq": 332, "cmd": "logs EVAL-e10d-P5self 30", "reason": "patrol 23:4x UTC: find the local save each new TERM4 row should load (PROBE-TERM4 hangs on a result fetch)", "utc": "2026-10-20T23:47:46Z"}
