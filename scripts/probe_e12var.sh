@@ -8,9 +8,13 @@
 #       start; a teacher or the bare base would give a large one), with a positive KL loss at a later step (the loss works).
 #       [v2.5.8b] And the reward is the verifier's alone: critic/rewards/mean = critic/score/mean at every step (G-OPD's
 #       reference slot must not add a teacher term to the reward; use_kl_in_reward stays off).
+#   [v2.5.8c] stop: the stop reward is the one used and behaves on the node. Fixed cases scored with the node's own
+#       grader and the start's tokenizer (the training's venv) give 1.5 / 1.0 / 1.0 / 0.0 (one box ending at once,
+#       a changed box, a long tail, a wrong box); the smoke's config names reward_stop.py; every step's score lies in
+#       [0, 1.5]; and critic/rewards/mean = critic/score/mean (nothing else added to the reward).
 set -uo pipefail
 G=$1; VAR=$2; source "$(dirname "$0")/env.sh"
-case $VAR in kl) ;; *) echo "unknown variant $VAR"; exit 2;; esac
+case $VAR in kl|stop) ;; *) echo "unknown variant $VAR"; exit 2;; esac   # [v2.5.8c] stop
 T=PROBE-E12B-$(echo $VAR | tr a-z A-Z); D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; mkdir -p $D
 [ -f $D/.done ] && { echo "TASK_ALREADY_DONE $T"; exit 0; }
 step() { echo "PROBE_E12VAR $(date -u +%T) $*" | tee -a $LOG; }
@@ -24,7 +28,7 @@ try:
     r["mem_peak_mib"] = max(vals) if vals else None
 except (OSError, ValueError, IndexError):
     r["mem_peak_mib"] = None
-for k in ("kl_loss_by_step", "ref_in_config", "reward_vs_score"):   # [v2.5.8b] reward_vs_score
+for k in ("kl_loss_by_step", "ref_in_config", "reward_vs_score", "stop_cases", "score_by_step"):   # [v2.5.8b] reward_vs_score; [v2.5.8c] stop
     p = os.path.join(d, k + ".json")
     if os.path.exists(p):
         r[k] = json.load(open(p))
@@ -91,5 +95,51 @@ PY
   why=$(cat $D/kl_check.txt)
   [ -z "$why" ] || finish FAIL "kl: $why"
   finish PASS "${PEV_STEPS:-3}-step smoke ok, peak ${peak} MiB, the reference is the start (step-1 KL $(python3 -c "import json; print(json.load(open('$D/kl_loss_by_step.json')).get('1'))"))"
+fi
+if [ $VAR = stop ]; then   # [v2.5.8c]
+  START=$(sed -n 's/^start: //p' $D/smoke/config.yaml | head -1)
+  SV=$(sed -n 's/^venv: //p' $D/smoke/config.yaml | head -1)   # the training's own venv (reviewer A1 note 07:1x UTC)
+  cases=$(OPD_REWARD_TOKENIZER=$START OPD_REWARD_MAXLEN=4096 ${PEV_PY:-$OPD_ROOT/${SV:-venv}/bin/python} - "$RUNBOOK/code/train" 2>> $LOG <<'PY'
+import json, sys
+sys.path.insert(0, sys.argv[1])
+import reward_stop as r
+cases = [("So the answer is \\boxed{2}.", "2"), ("First \\boxed{3}. Wait, let me recheck. So \\boxed{2}.", "2"),
+         ("So \\boxed{2}. " + "Let me double check this result once more. " * 20, "2"), ("So \\boxed{3}.", "2")]
+print(json.dumps([r.compute_score("math", s, g) for s, g in cases]))
+PY
+)
+  python3 - "$D" "$cases" <<'PY'
+import json, os, re, sys
+d, cases = sys.argv[1], sys.argv[2]
+log = open(os.path.join(d, "smoke", "train.log"), errors="ignore").read()
+cfg = open(os.path.join(d, "smoke", "config.yaml"), errors="ignore").read()
+sc = {}
+for line in log.splitlines():
+    m = re.search(r"(?:^|[ )\]])step:(\d+) - ", line)
+    v = {k: re.search(rf"critic/{k}:([-+0-9.eE]+)", line) for k in ("score/min", "score/max", "score/mean", "rewards/mean")}
+    if m and all(v.values()):
+        sc[int(m.group(1))] = {k: float(x.group(1)) for k, x in v.items()}
+why = []
+try:
+    got = json.loads(cases.strip().splitlines()[-1])
+except (ValueError, IndexError):
+    got = None
+json.dump(got, open(os.path.join(d, "stop_cases.json"), "w")); json.dump(sc, open(os.path.join(d, "score_by_step.json"), "w"))
+if got != [1.5, 1.0, 1.0, 0.0]:
+    why.append(f"the reward on the fixed cases is {got}, expected [1.5, 1.0, 1.0, 0.0]")
+if "reward: reward_stop.py" not in cfg:
+    why.append("the smoke's config does not name reward_stop.py")
+if not sc:
+    why.append("no critic/score and critic/rewards in the log")
+for s, v in sorted(sc.items()):
+    if v["score/min"] < 0 or v["score/max"] > 1.5 + 1e-6:
+        why.append(f"step {s}: score outside [0, 1.5]")
+    if abs(v["rewards/mean"] - v["score/mean"]) > 1e-6:
+        why.append(f"step {s}: reward differs from the score")
+open(os.path.join(d, "stop_check.txt"), "w").write("; ".join(why))
+PY
+  why=$(cat $D/stop_check.txt)
+  [ -z "$why" ] || finish FAIL "stop: $why"
+  finish PASS "${PEV_STEPS:-3}-step smoke ok, peak ${peak} MiB, the stop reward scores the fixed cases 1.5 / 1.0 / 1.0 / 0.0 on the node"
 fi
 finish PASS "${PEV_STEPS:-3}-step smoke ok, peak ${peak} MiB"

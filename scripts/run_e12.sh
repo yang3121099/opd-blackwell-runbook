@@ -81,7 +81,9 @@ task: $T
 start: $START
 algo: GRPO 64x8, 4K, T=1.0, lr 1e-6, clip 0.2/0.28, $([ "$VAR" = kl ] && echo "KL loss 0.01 low_var_kl to the start (reference = $START)" || echo "KL 0"), mini-batch 16, data.seed 4242, $STEPS steps
 variant: ${VAR:-none}
+reward: $([ "$VAR" = stop ] && echo "reward_stop.py (1 if correct, +0.5 if every box agrees and the response ends within 64 tokens after the first box)" || echo reward_mathverify.py)   # [v2.5.8c]
 attention: $ATTN (use_remove_padding=$RMPAD)
+venv: $(basename $V)
 batching: [$BATCH]
 kernels: fused=${FUSED:-0} gradient_checkpointing=$GCK
 started: $(date -u +%FT%TZ)
@@ -99,6 +101,8 @@ VALB=True; TESTF=25; [ $SM = 1 ] && { STEPS=${SMOKE_STEPS:-3}; SAVE=-1; VALB=Fal
 UW=$STEPS; case $T in E12b-P5-s44|E12d-P5) UW=25,50,75,$STEPS;; esac   # E12d-P5: the same across sizes (reviewer A1 08:0x UTC)
 # [v2.5.8b] the variant's settings (KL loss and its reference; the reward function)
 KL="actor_rollout_ref.actor.use_kl_loss=False"; REWARD=$RUNBOOK/code/train/reward_mathverify.py
+# [v2.5.8c] stop: the stop reward, counting the student's tokens (its start's tokenizer) against the 4K response limit
+[ "$VAR" = stop ] && { REWARD=$RUNBOOK/code/train/reward_stop.py; export OPD_REWARD_TOKENIZER=$START OPD_REWARD_MAXLEN=4096; }
 [ "$VAR" = kl ] && KL="actor_rollout_ref.actor.use_kl_loss=True actor_rollout_ref.actor.kl_loss_coef=0.01 actor_rollout_ref.actor.kl_loss_type=low_var_kl +actor_rollout_ref.ref.model.path=$START actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=$LOGP_MB actor_rollout_ref.ref.fsdp_config.param_offload=False"
 [ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $NAME start=$START steps=$STEPS save=$SAVE contents=$CONTENTS kern=[$KERN] gc=$GCK venv=$(basename $V) rmpad=$RMPAD upload=${UPLOAD_WEIGHTS:-$UW} vllm=${VLLM_UTIL:-0.6} var=${VAR:-none} kl=[$KL] reward=$(basename $REWARD)"; exit 0; }   # tests
 if [ $SM = 0 ]; then

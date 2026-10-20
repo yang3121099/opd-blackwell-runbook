@@ -14,6 +14,11 @@ setup() {
   cat > $T/rb/scripts/run_e12.sh <<'SH'
 echo "run_e12 $* SMOKE=$SMOKE STEPS=$SMOKE_STEPS PROBE_TASK=$PROBE_TASK" >> $CALLS
 d=$OPD_ROOT/runs/$PROBE_TASK; mkdir -p $d; S=/runs/E10b-P5/ckpt/global_step_150/actor/huggingface_bf16
+if [ $2 = E12b-P5-stop ]; then   # [v2.5.8c]
+  printf "task: E12b-P5-stop\nstart: $S\nalgo: GRPO, KL 0\nvariant: stop\nvenv: ${FAKE_VENV:-venv}\nreward: ${FAKE_REWARD:-reward_stop.py (1 if correct, +0.5 ...)}\n" > $d/config.yaml
+  for i in 1 2 3; do echo "(TaskRunner pid=1) step:$i - critic/score/mean:0.6 - critic/score/max:${FAKE_MAX:-1.5} - critic/score/min:0.0 - critic/rewards/mean:0.6 - critic/rewards/max:1.5" >> $d/train.log; done
+  exit 0
+fi
 printf "task: E12b-P5-kl\nstart: $S\nalgo: GRPO, ${FAKE_ALGO:-KL loss 0.01 low_var_kl to the start (reference = $S)}\n" > $d/config.yaml
 echo "actor_rollout_ref.model.path=$S ref.model.path=${FAKE_REF:-$S}" >> $d/train.log
 set -- ${FAKE_KL:-0.0001 0.002 0.004}; i=0
@@ -22,6 +27,8 @@ for k in "$@"; do i=$((i + 1)); r=0.5; [ "${FAKE_RW_STEP:-0}" = $i ] && r=0.7
 exit 0
 SH
   printf '#!/usr/bin/env bash\necho ${FAKE_MEM:-0}\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi
+  printf '#!/usr/bin/env bash\necho "tok=$OPD_REWARD_TOKENIZER max=$OPD_REWARD_MAXLEN $*" >> $CALLS; cat > /dev/null; echo "${FAKE_CASES:-[1.5, 1.0, 1.0, 0.0]}"\n' > $T/bin/fakepy; chmod +x $T/bin/fakepy
+  export PEV_PY=$T/bin/fakepy
   export CALLS=$T/calls PATH=$T/bin:$PATH PEV_WAIT_STEP=0; : > $CALLS
 }
 res() { python3 -c "import json, sys; print(json.load(open(sys.argv[1])).get(sys.argv[2], ''))" $T/root/runs/PROBE-E12B-KL/report.json "$1"; }
@@ -56,5 +63,33 @@ rm -rf $T
 setup
 bash $T/rb/scripts/probe_e12var.sh 2 foo > /dev/null 2>&1; rc=$?
 ok "unknown variant exits 2" '[ $rc = 2 ] && [ ! -e $T/root/runs/PROBE-E12B-FOO ]'
+rm -rf $T
+# [v2.5.8c] stop: 7. PASS (the fixed cases with the start's tokenizer, reward_stop.py in the config, scores in [0, 1.5])
+sres() { python3 -c "import json, sys; print(json.load(open(sys.argv[1])).get(sys.argv[2], ''))" $T/root/runs/PROBE-E12B-STOP/report.json "$1"; }
+setup
+bash $T/rb/scripts/probe_e12var.sh 2 stop > /dev/null 2>&1
+ok "stop PASS" '[ "$(sres result)" = PASS ] && grep -q "^run_e12 2 E12b-P5-stop SMOKE=1 STEPS=3 PROBE_TASK=PROBE-E12B-STOP-smoke" $CALLS && grep -q "^control event PROBE-E12B-STOP probe_e12var_pass" $CALLS'
+ok "stop: the fixed cases ran with the start's tokenizer and the 4K limit, on the training's code" 'grep -q "^tok=/runs/E10b-P5/ckpt/global_step_150/actor/huggingface_bf16 max=4096 - $T/rb/code/train" $CALLS && [ "$(sres stop_cases)" = "[1.5, 1.0, 1.0, 0.0]" ]'
+rm -rf $T
+# 7b. without PEV_PY the fixed cases run on the python of the venv the smoke used (here venv-fa)
+setup
+mkdir -p $T/root/venv-fa/bin; cp $T/bin/fakepy $T/root/venv-fa/bin/python; sed -i.bak 's/^echo "tok=/echo "venvfa tok=/' $T/root/venv-fa/bin/python
+env -u PEV_PY FAKE_VENV=venv-fa bash $T/rb/scripts/probe_e12var.sh 2 stop > /dev/null 2>&1
+ok "stop: the fixed cases use the smoke's own venv" '[ "$(sres result)" = PASS ] && grep -q "^venvfa tok=" $CALLS'
+rm -rf $T
+# 8. the fixed cases do not score as registered (e.g. no bonus anywhere): FAIL
+setup
+FAKE_CASES="[1.0, 1.0, 1.0, 0.0]" bash $T/rb/scripts/probe_e12var.sh 2 stop > /dev/null 2>&1
+ok "stop: wrong fixed-case scores are FAIL" '[ "$(sres result)" = FAIL ] && [[ "$(sres reason)" == *"expected [1.5, 1.0, 1.0, 0.0]"* ]]'
+rm -rf $T
+# 9. the smoke ran the plain reward: FAIL
+setup
+FAKE_REWARD=reward_mathverify.py bash $T/rb/scripts/probe_e12var.sh 2 stop > /dev/null 2>&1
+ok "stop: the plain reward in the config is FAIL" '[ "$(sres result)" = FAIL ] && [[ "$(sres reason)" == *"does not name reward_stop.py"* ]]'
+rm -rf $T
+# 10. a score above 1.5: FAIL
+setup
+FAKE_MAX=2.0 bash $T/rb/scripts/probe_e12var.sh 2 stop > /dev/null 2>&1
+ok "stop: a score outside [0, 1.5] is FAIL" '[ "$(sres result)" = FAIL ] && [[ "$(sres reason)" == *"score outside [0, 1.5]"* ]]'
 rm -rf $T
 [ $fails = 0 ] && echo "PROBE_E12VAR_TEST PASS ($n checks)" || echo "PROBE_E12VAR_TEST FAIL ($fails of $n)"
