@@ -11,7 +11,7 @@ setup() {
   T=$(mktemp -d); mkdir -p $T/rb/scripts $T/rb/code/patches $T/base/root/runs $T/base/root/venv/bin $T/ck; : > $T/base/root/venv/bin/activate
   cp $SRC/scripts/dr.sh $SRC/scripts/dr_sync.sh $SRC/scripts/run_e12.sh $T/rb/scripts/
   cat > $T/rb/scripts/env.sh <<EOF
-export OPD_ROOT=$T/base/root RUNBOOK=$T/rb CKPT_ROOT=$T/ck STUDENT_17B=$T/m17 STUDENT_4B=$T/m4
+export OPD_ROOT=$T/base/root RUNBOOK=$T/rb CKPT_ROOT=$T/ck STUDENT_17B=$T/m17 STUDENT_4B=$T/m4 STUDENT_06B=Qwen/Qwen3-0.6B
 has_weights() { ls "\$1"/*.safetensors > /dev/null 2>&1; }
 ckpt_link() { local t=\$(basename "\$1"); mkdir -p "\$CKPT_ROOT/\$t/ckpt"; [ -e "\$1/ckpt" ] || ln -s "\$CKPT_ROOT/\$t/ckpt" "\$1/ckpt"; }
 EOF
@@ -79,5 +79,22 @@ ok "E12b smoke: own dir, 3 steps, no save" '[[ "$d8" == "DRYRUN FA-SPEED-E12-fa_
 ok "P1 start from the share when the container disk lost it" '[[ "$d4" == *"start=$T/base/opd-dr/keep/SFT-P1/ckpt/global_step_283/huggingface "* ]]'
 bash $T/rb/scripts/run_e12.sh 0 E12b-P4lowlr > $T/e4 2>&1
 ok "E10b start fetched from the result repository" 'grep -q "^fetch me/pub runs/E10b-P4lowlr/global_step_150/actor/huggingface $T/ck/adhoc_models/result --task E12b-P4lowlr" $CALLS'
+# [v2.5.8a] E12b-P5self from E10b-P5self step 50 (100 steps); E12c-P0 / -P5 (0.6B) gated by PROBE-E12C, P0 from the local
+# 0.6B copy (models/, else the HF cache, else the hub id), P5 from E10c-P5-fix4 step 150 (or the result repository)
+mkdir -p $T/base/root/runs/E10b-P5self/ckpt/global_step_50/actor/huggingface_bf16; : > $T/base/root/runs/E10b-P5self/ckpt/global_step_50/actor/huggingface_bf16/model.safetensors
+a1=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P5self 2>&1 | tail -1)
+ok "[v2.5.8a] E12b-P5self: from E10b-P5self s50, 100 steps, upload the last step, venv and vLLM as E12b-P5" '[[ "$a1" == "DRYRUN E12b-P5self start=$T/base/root/runs/E10b-P5self/ckpt/global_step_50/actor/huggingface_bf16 steps=100 "*"venv=venv "*"upload=100 vllm=0.6" ]]'
+c1=$(HF_HOME=$T/hf DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12c-P0 2>&1 | tail -1)
+ok "[v2.5.8a] E12c-P0 refused before PROBE-E12C passed" '[[ "$c1" == "PROBE-E12C has not passed: E12c-P0 not started" ]] && [ ! -e $T/base/root/runs/E12c-P0/config.yaml ]'
+c2=$(HF_HOME=$T/hf SMOKE=1 PROBE_TASK=PROBE-E12C-smoke DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12c-P0 2>&1 | tail -1)
+ok "[v2.5.8a] the PROBE-E12C smoke is exempt: 3 steps, no save; the hub id when no local copy exists" '[[ "$c2" == "DRYRUN PROBE-E12C-smoke start=Qwen/Qwen3-0.6B steps=3 save=-1 "* ]]'
+mkdir -p $T/base/root/runs/PROBE-E12C $T/base/root/models/Qwen3-0.6B; echo '{"result": "PASS"}' > $T/base/root/runs/PROBE-E12C/report.json; : > $T/base/root/models/Qwen3-0.6B/model.safetensors
+c3=$(HF_HOME=$T/hf DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12c-P0 2>&1 | tail -1)
+ok "[v2.5.8a] E12c-P0 after a PASS: the local 0.6B copy, 100 steps, the last step uploaded" '[[ "$c3" == "DRYRUN E12c-P0 start=$T/base/root/models/Qwen3-0.6B steps=100 "*"upload=100 vllm=0.6" ]] && grep -q "^start: $T/base/root/models/Qwen3-0.6B$" $T/base/root/runs/E12c-P0/config.yaml'
+mkdir -p $T/base/root/runs/E10c-P5-fix4/ckpt/global_step_150/actor/huggingface_bf16; : > $T/base/root/runs/E10c-P5-fix4/ckpt/global_step_150/actor/huggingface_bf16/model.safetensors
+c4=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12c-P5 2>&1 | tail -1)
+ok "[v2.5.8a] E12c-P5: from E10c-P5-fix4 s150, 100 steps" '[[ "$c4" == "DRYRUN E12c-P5 start=$T/base/root/runs/E10c-P5-fix4/ckpt/global_step_150/actor/huggingface_bf16 steps=100 "* ]]'
+rm -rf $T/base/root/runs/E10c-P5-fix4; bash $T/rb/scripts/run_e12.sh 0 E12c-P5 > $T/c5 2>&1
+ok "[v2.5.8a] E12c-P5 start fetched from the result repository (runs/E10c-P5-fix4)" 'grep -q "^fetch me/pub runs/E10c-P5-fix4/global_step_150/actor/huggingface $T/ck/adhoc_models/result --task E12c-P5" $CALLS'
 rm -rf $T
 [ $fails = 0 ] && echo "DR_TEST PASS ($n checks)" || echo "DR_TEST FAIL ($fails of $n)"

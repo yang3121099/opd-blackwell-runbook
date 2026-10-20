@@ -167,13 +167,14 @@ while true; do
       setsid nohup bash $RUNBOOK/scripts/heartbeat.sh >> $OPD_ROOT/logs/heartbeat.log 2>&1 < /dev/null &
       python $RUNBOOK/scripts/control.py event node heartbeat_restarted > /dev/null 2>&1 &
     fi
-    for p in $(pgrep -f "task.sh [0-9]+ E1(0[bcd]|2[bd])-[A-Za-z0-9._-]+\$"); do
-      t=$(tr '\0' ' ' < /proc/$p/cmdline | grep -oE "E1(0[bcd]|2[bd])-[A-Za-z0-9._-]+" | tail -1); [ -n "$t" ] || continue
+    for p in $(pgrep -f "task.sh [0-9]+ E1(0[bcd]|2[bcd])-[A-Za-z0-9._-]+\$"); do
+      t=$(tr '\0' ' ' < /proc/$p/cmdline | grep -oE "E1(0[bcd]|2[bcd])-[A-Za-z0-9._-]+" | tail -1); [ -n "$t" ] || continue
       pgrep -f "upload_syn[c].sh $OPD_ROOT/runs/$t\$" > /dev/null && continue
       case $t in
         E10b-P5top10|E10b-P5rand10m|E10b-P5think|E10b-P5self|E10b-P2self) env UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-50} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;   # v2.5.7r: the 50-step arms
+        E10c-P5-fix4) env UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-100,150} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;   # [v2.5.8a] s100 too (the lab's 0.6B P5 reading step)
         E10b-*|E10c-*|E10d-*) env UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-150} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;
-        E12b-*|E12d-*) case $t in E12b-P5-s44|E12d-P5) s=25,50,75,100;; E12d-*|E12b-P0|E12b-P1|E12b-P2|E12b-P3|E12b-P5|E12b-P5-s43|E12b-P2-s43) s=100;; *) s=60;; esac   # v2.5.7u: s44's mid-RL steps
+        E12b-*|E12c-*|E12d-*) case $t in E12b-P5-s44|E12d-P5) s=25,50,75,100;; E12c-*|E12d-*|E12b-P0|E12b-P1|E12b-P2|E12b-P3|E12b-P5|E12b-P5-s43|E12b-P2-s43|E12b-P5self) s=100;; *) s=60;; esac   # v2.5.7u: s44's mid-RL steps
                 env KEEP_BF16=0 UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-$s} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;
       esac
       python $RUNBOOK/scripts/control.py event $t upload_sync_restarted > /dev/null 2>&1 &

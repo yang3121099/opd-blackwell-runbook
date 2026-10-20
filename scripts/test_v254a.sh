@@ -3,7 +3,7 @@
 # run_queue_eval.sh (EVAL-<name> from #eval lines of the queue). Usage: bash scripts/test_v254a.sh -> V254A_TEST PASS/FAIL
 set -u
 SRC=$(cd "$(dirname "$0")/.." && pwd); fails=0
-ok() { if eval "$2"; then :; else echo "  FAIL [$1]"; fails=$((fails + 1)); fi; }
+n=0; ok() { n=$((n + 1)); if eval "$2"; then :; else echo "  FAIL [$1]"; fails=$((fails + 1)); fi; }   # [v2.5.8a] counted (the total was a fixed 74)
 setup() {
   T=$(mktemp -d); mkdir -p $T/rb/scripts $T/rb/code/eval $T/rb/tasks $T/root/runs $T/root/logs $T/root/venv/bin
   cp $SRC/scripts/task.sh $SRC/scripts/run_queue_eval.sh $SRC/scripts/control_rules.py $SRC/scripts/dr.sh $T/rb/scripts/
@@ -229,6 +229,8 @@ ok "E10c dyn16k ignores the OOM retry key" '[[ "$d2" == *"student=$T/m06 "* && "
 d8=$(FIXED_MICRO_BSZ=4 DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10c-P4lowlr-dyn6144 | tail -1); d9=$(FIXED_MICRO_BSZ= DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10c-P4lowlr-fix4-s43 | tail -1)
 ok "v2.5.7g E10c dyn6144, fix4-s43 (data seed 43)" '[[ "$d8" == *"arm=P4 lr=6e-7 seed=42 student=$T/m06 "*"use_dynamic_bsz=True"*"ppo_max_token_len_per_gpu=6144"* && "$d9" == *"arm=P4 lr=6e-7 seed=43 student=$T/m06 "*"ppo_micro_batch_size_per_gpu=4"* ]] && [[ "$(DRYRUN=1 bash $T/rb/scripts/task.sh 0 E10c-P5-dyn6144-s43 | tail -1)" == DRYRUN* ]] && ! bash $T/rb/scripts/task.sh 0 E10c-P5-dyn6144-s44 > /dev/null 2>&1 && ! bash $T/rb/scripts/task.sh 0 E10c-P5-dyn8192 > /dev/null 2>&1'
 ok "E10b unchanged" '[[ "$d3" == *"student=$T/m17 "* && "$d3" == *"use_dynamic_bsz=True"* ]]'
+d10=$(FIXED_MICRO_BSZ= DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10c-P5-fix4 | tail -1)   # [v2.5.8a]
+ok "[v2.5.8a] E10c-P5-fix4: 0.6B P5 (lr 3e-6, fix4, 150 steps); run_arm and run_tasks upload s100 and s150" '[[ "$d10" == *"arm=P5 lr=3e-6 seed=42 student=$T/m06 "*"ppo_micro_batch_size_per_gpu=4"*"steps=150" ]] && grep -q "UW=\$NSTEPS; \[ \$TASK = E10c-P5-fix4 \] && UW=100,\$NSTEPS" $SRC/scripts/run_arm.sh && grep -q "UPLOAD_WEIGHTS=\${UPLOAD_WEIGHTS:-\$UW} setsid" $SRC/scripts/run_arm.sh && grep -q "E10c-P5-fix4) env UPLOAD_WEIGHTS=\${UPLOAD_WEIGHTS:-100,150}" $SRC/scripts/run_tasks.sh'
 d4=$(FUSED=1 GC=0 DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10b-P2 | tail -1)   # v2.5.6o: SPEED-PROBE knobs
 d5=$(GC=0 DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10d-P5 | tail -1)   # v2.5.7b: the 4B student, checkpointing on
 mkdir -p $T/root/venv-fa/bin; : > $T/root/venv-fa/bin/activate   # v2.5.7c: E10c stays on the venv in use, E10b takes venv-fa
@@ -280,7 +282,7 @@ printf 'echo "run_e12 $*"\n' > $T/rb/scripts/run_e12.sh
 cp $SRC/scripts/run_zero.sh $T/rb/scripts/run_zero.sh; mkdir -p $T/rb/code/weights
 printf 'import sys, os; open(os.environ["CALLS"], "a").write("wops " + " ".join(sys.argv[1:]) + "\\n")\n' > $T/rb/code/weights/wops.py
 ok "E12b-P5-s43 / -s44 accepted" '[[ "$(bash $T/rb/scripts/task.sh 0 E12b-P5-s43 | tail -1)" == "run_e12 0 E12b-P5-s43" ]] && [[ "$(bash $T/rb/scripts/task.sh 0 E12b-P5-s44 | tail -1)" == "run_e12 0 E12b-P5-s44" ]] && ! bash $T/rb/scripts/task.sh 0 E12b-P5-s45 > /dev/null 2>&1'
-ok "run_e12 gives P5-s43 / P5-s44 / P2-s43 100 steps" 'grep -q "P0|P1|P2|P3|P5|P5-s43|P5-s44|P2-s43) STEPS=100" $SRC/scripts/run_e12.sh'
+ok "run_e12 gives P5-s43 / P5-s44 / P2-s43 / [v2.5.8a] P5self 100 steps" 'grep -q "P0|P1|P2|P3|P5|P5-s43|P5-s44|P2-s43|P5self) STEPS=100" $SRC/scripts/run_e12.sh'
 ok "v2.5.7o E12d-P0 / P5, E12b-P2-s43 accepted" '[[ "$(bash $T/rb/scripts/task.sh 0 E12d-P0 | tail -1)" == "run_e12 0 E12d-P0" ]] && [[ "$(bash $T/rb/scripts/task.sh 0 E12d-P5 | tail -1)" == "run_e12 0 E12d-P5" ]] && [[ "$(bash $T/rb/scripts/task.sh 0 E12b-P2-s43 | tail -1)" == "run_e12 0 E12b-P2-s43" ]] && ! bash $T/rb/scripts/task.sh 0 E12d-P2 > /dev/null 2>&1 && ! bash $T/rb/scripts/task.sh 0 E12b-P2-s44 > /dev/null 2>&1'
 bash $T/rb/scripts/task.sh 0 E02-opsa17-c2 > $T/z1 2>&1; bash $T/rb/scripts/task.sh 0 E01-opsa17-think > $T/z2 2>&1
 ok "E02 OPSA name from the HF id" 'grep -q "^wops scale --base $T/m17 --ft Tuwhy/Qwen3-1.7B-OPSA --c 2 " $CALLS && grep -q "e02_opsa17_c2_aime24_nothink" $CALLS'
@@ -429,4 +431,4 @@ ok "running tasks keep their GPUs" '[[ " $got" == *" 1 "* && " $got" == *" 6 "* 
 rm -rf $T
 # v2.5.7j: no task script deletes a final bf16 copy (Runming: final weights keep a local copy after upload)
 ok "final bf16 copies are never deleted by run_e12.sh / run_arm.sh / run_eval.sh" '! grep -nE "rm -rf[^#]*huggingface_bf16" $SRC/scripts/run_e12.sh $SRC/scripts/run_arm.sh $SRC/scripts/run_eval.sh'
-[ $fails = 0 ] && echo "V254A_TEST PASS (74 checks)" || echo "V254A_TEST FAIL ($fails)"
+[ $fails = 0 ] && echo "V254A_TEST PASS ($n checks)" || echo "V254A_TEST FAIL ($fails of $n)"

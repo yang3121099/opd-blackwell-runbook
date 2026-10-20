@@ -616,7 +616,7 @@ def check_target(pid, sig, flags):
         if not (flags.get("force") and flags.get("confirm_foreign")):
             return "process outside our trees: needs force and ctl.py --confirm-foreign"
     if sig in ("STOP", "CONT"):
-        if R.TRAINING_CMD.search(now["_cmd"]) or (row.get("task") or "").startswith(("E10b", "E10d", "E12b", "E12d", "SFT")):
+        if R.TRAINING_CMD.search(now["_cmd"]) or (row.get("task") or "").startswith(("E10b", "E10c", "E10d", "E12b", "E12c", "E12d", "SFT")):   # [v2.5.8a] E10c / E12c
             return "STOP/CONT refused on training processes (use kill, pause or signal TERM)"
         if not (R.EVAL_CMD.search(now["_cmd"]) or (row.get("task") or "").startswith(("E11b", "adhoc_eval"))):
             return "STOP/CONT only on evaluation processes"
@@ -821,7 +821,7 @@ def v_reap(a, seq, flags=None, entry=None):
     if n and g >= n:
         return "rejected", f"gpu {g} does not exist (this node has {n})", {}
     live = sorted({r.get("task") for r in proc_table() if r.get("gpu") == g and r.get("ours")
-                   and re.match(r"(E10b-|E10c-|E10d-|E12b-|E12d-|SFT-|E03-|E02-)", str(r.get("task") or ""))})
+                   and re.match(r"(E10b-|E10c-|E10d-|E12b-|E12c-|E12d-|SFT-|E03-|E02-)", str(r.get("task") or ""))})
     if live:   # Ray workers are reaped only after their task ended (the design of reap); never next to a live training
         return "rejected", f"a training task is running on gpu {g} ({', '.join(live)}); reap runs after it ends", {}
     pids = reap(g, f"gpu{g}", wait_s=60)
@@ -1023,7 +1023,7 @@ def v_run(a, seq, flags=None, entry=None):
     t = a[0]
     r = subprocess.run(["bash", "-c", f'T={t}; ARMS="P2|P3|P4lowlr|P5|P6|P6r|P2noEOS|Pstop|P6rand|P6top5|P4EOSpen|P5top10|P5rand10m"; '
                         'case $T in E10b-*) [[ $T =~ ^E10b-(($ARMS)(-s(43|44))?|(P2|P5)-t14|P5think|P5self|P2self)$ ]];; E10c-*) [[ $T =~ ^E10c-($ARMS)-(fix4|dyn16k|dyn6144)(-s43)?$ ]];; E10d-*) [[ $T =~ ^E10d-(P2|P5)(-s43)?$ ]];; E11b-*) [[ $T =~ ^E11b-(P0|($ARMS)(-s(43|44))?|(P2|P5)-t14)$ ]];; '
-                        'E12b-*) [[ $T =~ ^E12b-(P0|P1|$ARMS|P5-s4[34]|P2-s43)$ ]];; E12d-*) [[ $T =~ ^E12d-(P0|P5)$ ]];; EVAL-*) [[ $T =~ ^EVAL-[A-Za-z0-9._-]+$ ]];; SFT-P1|FA-PROBE|SPEED-PROBE|PROBE-4B|PROBE-TERM|PROBE-TERM2|PROBE-TERM3|PROBE-TERM4|PROBE-TERM4-4B|PROBE-TOP10|STRICT-C1|PROBE-T14|PROBE-P5THINK|PROBE-P5SELF|PROBE-P2SELF|FA-SPEED-17|FA-SPEED-4B|FA-SPEED-E12|FA-SPEED-TWIN|E03-MI-l0.[0357]|E03-MI-l1.0|E02-opsa17-c0.5|E02-opsa17-c1.5|E02-opsa4-c-1|'
+                        'E12b-*) [[ $T =~ ^E12b-(P0|P1|$ARMS|P5-s4[34]|P2-s43|P5self)$ ]];; E12c-*) [[ $T =~ ^E12c-(P0|P5)$ ]];; E12d-*) [[ $T =~ ^E12d-(P0|P5)$ ]];; EVAL-*) [[ $T =~ ^EVAL-[A-Za-z0-9._-]+$ ]];; SFT-P1|FA-PROBE|SPEED-PROBE|PROBE-4B|PROBE-TERM|PROBE-TERM2|PROBE-TERM3|PROBE-TERM4|PROBE-TERM4-4B|PROBE-TOP10|STRICT-C1|PROBE-T14|PROBE-P5THINK|PROBE-P5SELF|PROBE-P2SELF|PROBE-E12C|FA-SPEED-17|FA-SPEED-4B|FA-SPEED-E12|FA-SPEED-TWIN|E03-MI-l0.[0357]|E03-MI-l1.0|E02-opsa17-c0.5|E02-opsa17-c1.5|E02-opsa4-c-1|'
                         'E02-opsa4-c0.5|E02-opsa4-c1.5) true;; *) false;; esac'])
     if r.returncode != 0:
         return "rejected", f"{t} is not accepted by task.sh", {}
@@ -1046,7 +1046,7 @@ def v_rerun(a, seq, flags=None, entry=None):
     d = os.path.join(ROOT, "runs", t)
     done, failed = os.path.exists(os.path.join(d, ".done")), os.path.exists(os.path.join(d, ".failed"))
     skipped = os.path.exists(os.path.join(d, ".skipped"))
-    if done and not re.fullmatch(r"FA-PROBE|SPEED-PROBE|PROBE-4B|PROBE-TERM(?:[234]|4-4B)?|PROBE-TOP10|STRICT-C1|PROBE-T14|PROBE-P5THINK|PROBE-P5SELF|PROBE-P2SELF|FA-SPEED-(17|4B|E12|TWIN)|EVAL-[A-Za-z0-9._-]+", t):
+    if done and not re.fullmatch(r"FA-PROBE|SPEED-PROBE|PROBE-4B|PROBE-TERM(?:[234]|4-4B)?|PROBE-TOP10|STRICT-C1|PROBE-T14|PROBE-P5THINK|PROBE-P5SELF|PROBE-P2SELF|PROBE-E12C|FA-SPEED-(17|4B|E12|TWIN)|EVAL-[A-Za-z0-9._-]+", t):
         return "rejected", f"{t} is done (only FA-PROBE, SPEED-PROBE and EVAL tasks are rerun after finishing)", {}
     if not (done or failed or skipped):
         return "rejected", f"{t} is neither done, failed nor skipped", {}
@@ -1764,7 +1764,7 @@ def alerts(status_path):
         t = m.group(1); lg = os.path.join(ROOT, "logs", f"{t}.log")
         if os.path.exists(lg) and time.time() - os.path.getmtime(lg) > STALL_S:
             now.add(f"stalled:{t}")
-        if re.match(r"(E10b|E10d|E12b|E12d)-", t) and f"/runs/{t}" not in ups:
+        if re.match(r"(E10b|E10c|E10d|E12b|E12c|E12d)-", t) and f"/runs/{t}" not in ups:   # [v2.5.8a] E10c / E12c
             now.add(f"upload_sync_missing:{t}")
     roots = {f"root{i}": {"free_gb": r.get("free_gb"), "current": r.get("current")} for i, r in enumerate(st.get("ckpt_roots") or [])}
     state(alerts=sorted(now))   # v2.5.8: saved first, so a failing event can never re-fire every round

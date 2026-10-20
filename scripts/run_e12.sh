@@ -9,18 +9,27 @@
 # v2.5.7o (reviewer 06:0x UTC): E12d-P0 / E12d-P5 = the same GRPO from the 4B student (P0 = base Qwen3-4B, P5 = E10d-P5 step
 # 150), 100 steps, flash-attn (a new ladder: the default for new arms), gradient checkpointing on, vLLM at 0.5 of the GPU;
 # E12b-P2-s43 (P2's second seed, from E10b-P2-s43) on flash-attn too.
-# Usage: bash run_e12.sh <gpu> <task id>      e.g. E12b-P2, E12d-P5
+# [v2.5.8a] (Q-022 / Q-023, reviewer A1, Runming 10-20): E12b-P5self = the same GRPO from E10b-P5self step 50 (the
+# self-distilled start: no outside teacher anywhere in the chain); E12c-P0 / E12c-P5 = the same GRPO for the 0.6B student
+# (P0 = base Qwen3-0.6B from its local copy, P5 = E10c-P5-fix4 step 150), gated by PROBE-E12C (a 3-step smoke of E12c-P0)
+# Usage: bash run_e12.sh <gpu> <task id>      e.g. E12b-P2, E12d-P5, E12c-P0
 set -euo pipefail
 # v2.5.7c: SMOKE=1 (FA-SPEED-E12) runs SMOKE_STEPS (3) steps in runs/$PROBE_TASK: no checkpoint, upload, DR, validation
 source "$(dirname "$0")/env.sh"; source "$(dirname "$0")/dr.sh"; G=$1; T=$2; LADDER=${T%%-*}; A=${T#*-}
 SRC=E10b; [ $LADDER = E12d ] && SRC=E10d   # v2.5.7o: the preparation run a start comes from
+SRUN=$SRC-$A; [ $LADDER = E12c ] && SRUN=E10c-$A-fix4   # [v2.5.8a] the 0.6B starts: E10c-<arm>-fix4, this node's 0.6B batching
+SS=150; [ $A = P5self ] && SS=50                          # [v2.5.8a] E10b-P5self ran 50 steps
+# [v2.5.8a] an E12c task starts only after PROBE-E12C passed (the smoke itself is exempt)
+if [ $LADDER = E12c ] && [ "${SMOKE:-0}" != 1 ]; then
+  grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-E12C/report.json 2> /dev/null || { echo "PROBE-E12C has not passed: $T not started"; exit 3; }
+fi
 SM=${SMOKE:-0}; NAME=$T; [ $SM = 1 ] && NAME=${PROBE_TASK:-smoke-$T}
 OUT=$OPD_ROOT/runs/$NAME; mkdir -p $OUT/rollouts
 [ -f $OUT/.done ] && exit 0
 case $A in
-  P0) START=$STUDENT_17B; [ $LADDER = E12d ] && START=$STUDENT_4B;;
+  P0) START=$STUDENT_17B; [ $LADDER = E12d ] && START=$STUDENT_4B; [ $LADDER = E12c ] && START=$STUDENT_06B;;   # [v2.5.8a] E12c
   P1) START=$OPD_ROOT/runs/SFT-P1/ckpt/global_step_$(cat $OPD_ROOT/runs/SFT-P1/final_step)/huggingface;;
-  *)  START=$OPD_ROOT/runs/$SRC-$A/ckpt/global_step_150/actor/huggingface_bf16   # v2.4: the fp32 copy is not kept;
+  *)  START=$OPD_ROOT/runs/$SRUN/ckpt/global_step_$SS/actor/huggingface_bf16   # [v2.5.8a] $SRUN / $SS   # v2.4: the fp32 copy is not kept;
        has_weights $START || START=${START%_bf16};;                                 # bf16 start (deviation: weight rounding)
 esac
 # v2.5.7: a start on the container disk that a rebuild removed comes from the copy that survived: P1 from
@@ -28,18 +37,24 @@ esac
 if [ $A != P0 ] && ! has_weights $START; then
   case $A in
     P1) K=$(ls -d $(dr_root)/keep/SFT-P1/ckpt/global_step_*/huggingface 2> /dev/null | sort -V | tail -1); [ -n "$K" ] && START=$K;;
-    *) R=runs/$SRC-$A/global_step_150/actor/huggingface
+    *) R=runs/$SRUN/global_step_$SS/actor/huggingface   # [v2.5.8a]
        python $RUNBOOK/scripts/fetch_model.py "$(python $RUNBOOK/scripts/remote.py repo public)" $R $CKPT_ROOT/adhoc_models/result --task $T \
          && START=$CKPT_ROOT/adhoc_models/result/$R;;
   esac
 fi
-case $A in P0|P1|P2|P3|P5|P5-s43|P5-s44|P2-s43) STEPS=100;; *) STEPS=60;; esac   # v2.5.6j: P5-s43 = the headline chain's second seed (queue v3 V3-c2); v2.5.7n: P5-s44 its third (from the flash-attn arm)
+case $A in P0|P1|P2|P3|P5|P5-s43|P5-s44|P2-s43|P5self) STEPS=100;; *) STEPS=60;; esac   # v2.5.6j: P5-s43 = the headline chain's second seed (queue v3 V3-c2); v2.5.7n: P5-s44 its third (from the flash-attn arm)
 [ $A = P0 ] || has_weights $START || { echo "missing start checkpoint $START"; exit 1; }
 # v2.5.7c: venv-fa (flash-attn, remove-padding) only with VENV=fa and E12B_FA=1: the E12b ladder stays on one attention
 V=$OPD_ROOT/venv; [ "${VENV:-}" = fa ] && [ "${E12B_FA:-0}" = 1 ] && V=$OPD_ROOT/venv-fa
 case $T in E12d-*|E12b-P2-s43) V=$OPD_ROOT/venv-fa;; esac   # v2.5.7o: new arms on flash-attn (reviewer 06:0x UTC)
 [ $LADDER = E12d ] && VLLM_UTIL=${E12D_VLLM_UTIL:-0.5}   # v2.5.7o: vLLM 0.5 for the 4B actor (a node-wide VLLM_UTIL does not reach it)
 source $V/bin/activate
+# [v2.5.8a] E12c-P0's start, the 0.6B base, from a local copy: $OPD_ROOT/models/Qwen3-0.6B, else the Hugging Face cache
+# the E10c arms loaded it from, so the hub (blocked by the node's proxy since 10-19) is not asked
+if [ $LADDER = E12c ] && [ $A = P0 ] && [ ! -d "$START" ]; then
+  if has_weights $OPD_ROOT/models/Qwen3-0.6B; then START=$OPD_ROOT/models/Qwen3-0.6B
+  else START=$(python -c "import sys; from huggingface_hub import snapshot_download as s; print(s(sys.argv[1], local_files_only=True))" $START 2> /dev/null) || START=$STUDENT_06B; fi
+fi
 export CUDA_VISIBLE_DEVICES=$G RAY_TMPDIR=/tmp/ray_gpu$G PYTHONPATH=$RUNBOOK/code/patches:${PYTHONPATH:-}
 unset OPD_VARIANT
 if python -c "import flash_attn" 2>/dev/null; then RMPAD=True; ATTN=flash_attention_2; TOK=16384; else RMPAD=False; ATTN=sdpa; TOK=6144; fi

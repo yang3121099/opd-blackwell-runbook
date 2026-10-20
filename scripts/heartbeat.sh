@@ -71,8 +71,8 @@ def live_tasks():
                     out[name] = (int(a[i + 1]) if a[i + 1].isdigit() else "cpu", start)   # [v2.5.8] the CPU lane
     return out
 def kind(name):
-    return ("train" if re.match(r"E1(0[bcd]|2[bd])-", name) else "sft" if name.startswith("SFT-") else
-            "eval" if re.match(r"E11b-|EVAL-|adhoc_eval_|E0[1-5]-", name) else "probe" if name in ("FA-PROBE", "SPEED-PROBE", "PROBE-4B", "PROBE-TERM", "PROBE-TERM2", "PROBE-TERM3", "PROBE-TERM4", "PROBE-TERM4-4B", "PROBE-TOP10", "STRICT-C1", "PROBE-T14", "PROBE-P5THINK", "PROBE-P5SELF", "PROBE-P2SELF") or name.startswith("FA-SPEED-") else "other")
+    return ("train" if re.match(r"E1(0[bcd]|2[bcd])-", name) else "sft" if name.startswith("SFT-") else
+            "eval" if re.match(r"E11b-|EVAL-|adhoc_eval_|E0[1-5]-", name) else "probe" if name in ("FA-PROBE", "SPEED-PROBE", "PROBE-4B", "PROBE-TERM", "PROBE-TERM2", "PROBE-TERM3", "PROBE-TERM4", "PROBE-TERM4-4B", "PROBE-TOP10", "STRICT-C1", "PROBE-T14", "PROBE-P5THINK", "PROBE-P5SELF", "PROBE-P2SELF", "PROBE-E12C") or name.startswith("FA-SPEED-") else "other")
 live = live_tasks()
 tasks = {}; stale = []
 queue = open(os.path.join(runbook, "tasks", "queue.txt")).read() if os.path.exists(os.path.join(runbook, "tasks", "queue.txt")) else ""
