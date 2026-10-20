@@ -305,3 +305,4 @@ commands:
   - {"seq": 303, "cmd": "rerun STRICT-C1", "reason": "patrol 12:03 UTC: EVAL-ext-E10b-P5think done; STRICT-C1 judges its five #strict lines too", "utc": "2026-10-20T12:04:43Z"}
   - {"seq": 304, "cmd": "rerun STRICT-C1", "reason": "v2.5.8d box_change (reviewer A1 13:4x UTC): the answer-change split for every MATH500 reading, and the five equal-step 32K pairs of 6324209", "utc": "2026-10-20T13:32:24Z"}
   - {"seq": 305, "cmd": "logs EVAL-e10c-P5-fix4 40", "reason": "reviewer 14:4x UTC: EVAL-e10c-P5-fix4 has run 2.5 h on GPU1; generating or stuck?", "utc": "2026-10-20T14:38:36Z"}
+  - {"seq": 306, "cmd": "rerun STRICT-C1", "reason": "v2.5.8f (reviewer A1 17:2x UTC): the repetition block for every MATH500 reading", "utc": "2026-10-20T17:23:09Z"}
