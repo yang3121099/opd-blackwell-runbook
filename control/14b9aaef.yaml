@@ -328,3 +328,4 @@ commands:
   - {"seq": 326, "cmd": "snapshot", "reason": "reviewer 23:2x UTC: idx0 free jumped from 23 TB to ~2.7 PB at 22:5x; df -h to see whether the share's mount or reporting changed (read-only)", "utc": "2026-10-20T23:14:55Z"}
   - {"seq": 327, "cmd": "rerun STRICT-C1", "reason": "v2.5.8j (reviewer A1 23:0x UTC): the run on the new code (OSError-safe, n_tail)", "utc": "2026-10-20T23:27:15Z"}
   - {"seq": 328, "cmd": "rerun STRICT-C1", "reason": "v2.5.8j (reviewer A1 23:0x UTC): the run on the new code (OSError-safe, n_tail)", "utc": "2026-10-20T23:28:05Z"}
+  - {"seq": 329, "cmd": "rerun PROBE-TERM4-4B", "reason": "reviewer 22:2x UTC fill6: the TERM4 row of E10d-P5self s50", "utc": "2026-10-20T23:39:43Z"}
