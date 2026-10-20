@@ -308,3 +308,4 @@ commands:
   - {"seq": 306, "cmd": "rerun STRICT-C1", "reason": "v2.5.8f (reviewer A1 17:2x UTC): the repetition block for every MATH500 reading", "utc": "2026-10-20T17:23:09Z"}
   - {"seq": 307, "cmd": "du opd_root models", "reason": "reviewer 17:1x UTC D: model inventory (Qwen3-VL, Qwen3-32B progress, other local models), read-only", "utc": "2026-10-20T17:26:39Z"}
   - {"seq": 308, "cmd": "du dr", "reason": "reviewer 17:1x UTC D: model inventory (Qwen3-VL, Qwen3-32B progress, other local models), read-only", "utc": "2026-10-20T17:27:14Z"}
+  - {"seq": 309, "cmd": "du old_base", "reason": "reviewer 17:1x UTC D: model inventory, read-only", "utc": "2026-10-20T17:29:15Z"}
