@@ -24,7 +24,8 @@ if step == "same":
                "template_teacher_is_student_plus_think": os.environ.get("FAKE_SAME", "1") == "1"}, open(os.path.join(out, "same.json"), "w"))
 elif step == "verdict":
     tf = float(os.environ.get("FAKE_TF", "0.84")); ps = float(os.environ.get("FAKE_PS", "0.71"))
-    json.dump({"pass": tf >= 0.7 and ps >= 0.5, "teacher_finished": tf, "teacher_acc": 0.6, "pstop_mean": ps, "pstop_n": 50}, open(os.path.join(out, "check_b.json"), "w"))
+    pe = float(os.environ.get("FAKE_PE", "0.2")); suf = "think" if ps >= 0.5 else ("empty" if pe >= 0.5 else None)
+    json.dump({"pass": tf >= 0.7 and suf is not None, "teacher_finished": tf, "teacher_acc": 0.6, "pstop": {"think": {"mean": ps}, "empty": {"mean": pe}}, "suffix": suf}, open(os.path.join(out, "check_b.json"), "w"))
 else:
     open(os.path.join(out, step + ".jsonl"), "w").write("{}\n")
 PY
@@ -40,12 +41,13 @@ SH
 }
 res() { python3 -c "import json, sys; print(json.load(open(sys.argv[1])).get(sys.argv[2], ''))" $T/root/runs/PROBE-VLM/report.json "$1"; }
 setup; bash $T/rb/scripts/probe_vlm.sh 3 > /dev/null 2>&1
-ok "PASS: unit tests, a2, b (student / teacher / pstop on GPU 3, verdict), c (1-step smoke), upload, event, .done" '[ "$(res result)" = PASS ] && grep -q "passed, 0 failed" $T/root/runs/PROBE-VLM/unit_tests.txt && grep -q "^check same CUDA=$" $CALLS && grep -q "^check student CUDA=3$" $CALLS && grep -q "^check pstop CUDA=3$" $CALLS && grep -q "^run_vlm 3 E15-VLM-P5 SMOKE=1 STEPS=1 PROBE_TASK=PROBE-VLM-smoke$" $CALLS && [[ "$(res reason)" == *"teacher finished 0.84 p(stop) 0.71; c: step 1 pg_loss 0.0213"* ]] && grep -q "^control event PROBE-VLM probe_vlm_pass" $CALLS && grep -q "^remote put $T/root/runs/PROBE-VLM/up logs/abcd1234/probe_vlm" $CALLS && [ -f $T/root/runs/PROBE-VLM/.done ]'
+ok "PASS: unit tests, a2, b (student / teacher / pstop on GPU 3, verdict), c (1-step smoke), upload, event, .done" '[ "$(res result)" = PASS ] && grep -q "passed, 0 failed" $T/root/runs/PROBE-VLM/unit_tests.txt && grep -q "^check same CUDA=$" $CALLS && grep -q "^check student CUDA=3$" $CALLS && grep -q "^check pstop CUDA=3$" $CALLS && grep -q "^run_vlm 3 E15-VLM-P5 SMOKE=1 STEPS=1 PROBE_TASK=PROBE-VLM-smoke$" $CALLS && [[ "$(res reason)" == *"teacher finished 0.84 p(stop) think 0.71 empty 0.2 -> suffix think; c: step 1 pg_loss 0.0213"* ]] && grep -q "^control event PROBE-VLM probe_vlm_pass" $CALLS && grep -q "^remote put $T/root/runs/PROBE-VLM/up logs/abcd1234/probe_vlm" $CALLS && [ -f $T/root/runs/PROBE-VLM/.done ]'
 rm -rf $T
 check() { ok "$1" '[ "$(res result)" = FAIL ] && [[ "$(res reason)" == *"'"$2"'"* ]]'; }
 setup; FAKE_SAME=0 bash $T/rb/scripts/probe_vlm.sh 3 > /dev/null 2>&1; check "a2: processors / template not as assumed is FAIL" "a2:"; ok "no GPU step after a2 fails" '! grep -q "^check student" $CALLS'; rm -rf $T
 setup; FAKE_TF=0.55 bash $T/rb/scripts/probe_vlm.sh 3 > /dev/null 2>&1; check "b: the teacher finishing 55% is FAIL" "b: "; ok "no smoke after b fails" '! grep -q "^run_vlm" $CALLS'; rm -rf $T
-setup; FAKE_PS=0.3 bash $T/rb/scripts/probe_vlm.sh 3 > /dev/null 2>&1; check "b: p(stop) 0.3 is FAIL" "b: "; rm -rf $T
+setup; FAKE_PS=0.3 bash $T/rb/scripts/probe_vlm.sh 3 > /dev/null 2>&1; check "b: p(stop) 0.3 with both suffixes is FAIL" "b: "; rm -rf $T
+setup; FAKE_PS=0.3 FAKE_PE=0.62 bash $T/rb/scripts/probe_vlm.sh 3 > /dev/null 2>&1; ok "[v2.5.9z1] b: the empty think block passing alone is PASS with suffix empty (E15-VLM-P5e)" '[ "$(res result)" = PASS ] && [[ "$(res reason)" == *"-> suffix empty"* ]]'; rm -rf $T
 setup; FAKE_LOSS=nan bash $T/rb/scripts/probe_vlm.sh 3 > /dev/null 2>&1; check "c: a NaN loss is FAIL" "no finite actor loss"; rm -rf $T
 setup; FAKE_OOM=1 bash $T/rb/scripts/probe_vlm.sh 3 > /dev/null 2>&1; check "c: out of memory is FAIL" "out of memory"; rm -rf $T
 setup; PVL_PY=$T/root/venv-vl/bin/python bash $T/rb/scripts/probe_vlm.sh 3 > /dev/null 2>&1; check "no venv-vl is FAIL" "no venv-vl"; rm -rf $T

@@ -109,6 +109,8 @@ def image_of(x):
     return Image.open(io.BytesIO(b)).convert("RGB")
 
 
+PROTOCOL = {"geo3k": "the last \\boxed{} under Math-Verify, as MATH-500",   # [v2.5.9z1] the reviewer: say what the reading is
+            "mathvista": "rule-graded, not the official LLM-extraction protocol"}
 PROC_FILES = ("preprocessor_config.json", "video_preprocessor_config.json", "chat_template.json", "chat_template.jinja")
 
 
@@ -133,7 +135,8 @@ def metrics(args, rows, recs, gen_s):
             "top_k": args.top_k, "max_tokens": args.max_tokens, "num_problems": len(rows), "avg_acc": round(100 * acc, 2),
             "pass_at_k": {k: round(100 * sum(G.pass_at_k(len(v), sum(v), k) for v in per.values()) / max(1, len(per)), 2) for k in [1, 2, 4, 8] if k <= args.n},
             "mean_tokens": round(sum(n_tok) / max(1, len(n_tok)), 1), "trunc_rate": round(sum(1 for r in recs if r["finish_reason"] == "length") / max(1, len(recs)), 4),
-            "by_level": {}, "gen_seconds": round(gen_s, 1), "source": rows[0]["source"] if rows else None, "grader": "gen_eval_vl rule grader v1"}
+            "by_level": {}, "gen_seconds": round(gen_s, 1), "source": rows[0]["source"] if rows else None, "grader": "gen_eval_vl rule grader v1",
+            "protocol": PROTOCOL[args.bench]}
 
 
 def main():

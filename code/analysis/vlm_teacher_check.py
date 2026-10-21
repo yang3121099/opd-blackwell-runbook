@@ -6,9 +6,12 @@
   student   the student answers the first N (64) Geometry3K-train problems once (T=1.0, 4096 tokens, its own template); -> student.jsonl
   teacher   the teacher answers the same problems itself (thinking template, T=0.6, TEACHER_MAX tokens): finished share and accuracy
             (Do As I Do, 2610.20989: a teacher that does not finish is not a reliable target); -> teacher.jsonl
-  pstop     the teacher scores each student answer that stopped: prompt = the teacher's own prompt + the student's answer + the end
-            token, vLLM prompt_logprobs; p(stop) = the teacher's probability of that end token where the student stopped; -> pstop.jsonl
-  verdict   PASS when the teacher's finished share >= 0.7 and the mean p(stop) >= 0.5 (both thresholds from §3c); -> check_b.json
+  pstop     the teacher scores each student answer that stopped, once per suffix ([v2.5.9z1] the reviewer 10-22): prompt = the
+            student's prompt + the suffix + the student's answer + the end token, vLLM prompt_logprobs; p(stop) = the teacher's
+            probability of that end token where the student stopped. Suffixes: think = '<think>\n' (P5's reading), empty =
+            '<think>\n\n</think>\n\n' (an empty think block: the thinking-only teacher's non-thinking reading); -> pstop.jsonl
+  verdict   PASS when the teacher's finished share >= 0.7 and either suffix's mean p(stop) >= 0.5 (thresholds from §3c); the suffix
+            for the arm: think if it passes, else empty (E15-VLM-P5e); -> check_b.json
 Usage: python vlm_teacher_check.py <step> <out dir> --student <path> --teacher <path> --data <geo3k_train.parquet> [--n 64]
 """
 import argparse
@@ -21,6 +24,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "eval"))
 
+SUFFIXES = {"think": "<think>\n", "empty": "<think>\n\n</think>\n\n"}
 FIELDS = ("patch_size", "merge_size", "temporal_patch_size", "min_pixels", "max_pixels", "image_mean", "image_std", "size")
 
 
@@ -90,29 +94,46 @@ def step_pstop(a):
     st = [json.loads(x) for x in open(os.path.join(a.out, "student.jsonl"))]
     items = [(r, s) for r, s in zip(rs, st) if s["finish_reason"] == "stop"]
     llm = vllm.LLM(model=a.teacher, seed=0, max_model_len=4096 + 4096 + 64, limit_mm_per_prompt={"image": 1}, gpu_memory_utilization=float(os.environ.get("PVL_UTIL", "0.85")))
-    prompts = [{"prompt": chat(proc, r) + s["text"] + end, "multi_modal_data": {"image": image(r)}} for r, s in items]
-    outs = llm.generate(prompts, vllm.SamplingParams(max_tokens=1, prompt_logprobs=0, temperature=0))
+    got = {}
+    for name, suf in SUFFIXES.items():
+        prompts = [{"prompt": base_prompt(proc, r) + suf + s["text"] + end, "multi_modal_data": {"image": image(r)}} for r, s in items]
+        outs = llm.generate(prompts, vllm.SamplingParams(max_tokens=1, prompt_logprobs=0, temperature=0)) if prompts else []
+        got[name] = [p_last(o, end_id) for o in outs]
     with open(os.path.join(a.out, "pstop.jsonl"), "w") as f:
-        for (r, s), o in zip(items, outs):
-            last_id = o.prompt_token_ids[-1]; lp = o.prompt_logprobs[-1] or {}
-            v = lp.get(last_id)
-            p = math.exp(v.logprob) if v is not None and last_id == end_id else None
-            f.write(json.dumps({"i": s["i"], "end_is_last": last_id == end_id, "p_stop": p, "student_tokens": s["n_tokens"]}) + "\n")
+        for j, (r, s) in enumerate(items):
+            f.write(json.dumps({"i": s["i"], "student_tokens": s["n_tokens"], **{f"p_stop_{k}": got[k][j] for k in SUFFIXES}}) + "\n")
+
+
+def base_prompt(proc, r):
+    """The student's prompt as the teacher's template renders it: the teacher's generation prompt without its '<think>\\n' opening
+    (a2 checks teacher = student + '<think>\\n'), so each suffix is added once."""
+    t = chat(proc, r)
+    return t[: -len("<think>\n")] if t.endswith("<think>\n") else t
+
+
+def p_last(o, end_id):
+    last_id = o.prompt_token_ids[-1]; lp = o.prompt_logprobs[-1] or {}
+    v = lp.get(last_id)
+    return math.exp(v.logprob) if v is not None and last_id == end_id else None
 
 
 def step_verdict(a):
     st = [json.loads(x) for x in open(os.path.join(a.out, "student.jsonl"))]
     te = [json.loads(x) for x in open(os.path.join(a.out, "teacher.jsonl"))]
     ps = [json.loads(x) for x in open(os.path.join(a.out, "pstop.jsonl"))]
-    vals = [x["p_stop"] for x in ps if x["p_stop"] is not None]
     res = {"n": len(st), "student_finished": round(sum(x["finish_reason"] == "stop" for x in st) / max(1, len(st)), 4),
            "student_acc": round(sum(x["correct"] for x in st) / max(1, len(st)), 4),
            "teacher_finished": round(sum(x["finish_reason"] == "stop" for x in te) / max(1, len(te)), 4),
-           "teacher_acc": round(sum(x["correct"] for x in te) / max(1, len(te)), 4),
-           "pstop_n": len(vals), "pstop_mean": round(sum(vals) / len(vals), 4) if vals else None,
-           "pstop_median": round(sorted(vals)[len(vals) // 2], 4) if vals else None,
+           "teacher_acc": round(sum(x["correct"] for x in te) / max(1, len(te)), 4), "pstop": {},
            "thresholds": {"teacher_finished": float(os.environ.get("PVL_FINISH_MIN", "0.7")), "pstop_mean": float(os.environ.get("PVL_PSTOP_MIN", "0.5"))}}
-    res["pass"] = bool(res["teacher_finished"] >= res["thresholds"]["teacher_finished"] and (res["pstop_mean"] or 0) >= res["thresholds"]["pstop_mean"])
+    for k in SUFFIXES:
+        vals = [x.get(f"p_stop_{k}") for x in ps if x.get(f"p_stop_{k}") is not None]
+        res["pstop"][k] = {"n": len(vals), "mean": round(sum(vals) / len(vals), 4) if vals else None,
+                           "median": round(sorted(vals)[len(vals) // 2], 4) if vals else None}
+    ok = {k: (v["mean"] or 0) >= res["thresholds"]["pstop_mean"] for k, v in res["pstop"].items()}
+    res["suffix"] = "think" if ok.get("think") else ("empty" if ok.get("empty") else None)
+    res["suffix_text"] = SUFFIXES.get(res["suffix"])
+    res["pass"] = bool(res["teacher_finished"] >= res["thresholds"]["teacher_finished"] and res["suffix"])
     return res
 
 

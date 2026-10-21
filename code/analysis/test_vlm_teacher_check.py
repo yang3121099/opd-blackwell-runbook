@@ -17,19 +17,35 @@ def args(d):
     return argparse.Namespace(out=d, student="s", teacher="t", data="", n=4)
 
 
-def test_verdict_pass_and_fail(monkeypatch):
+def test_verdict_two_suffixes(monkeypatch):
     d = tempfile.mkdtemp()
     write(d, "student.jsonl", [{"i": i, "finish_reason": "stop" if i < 3 else "length", "correct": i < 2, "n_tokens": 100} for i in range(4)])
     write(d, "teacher.jsonl", [{"i": i, "finish_reason": "stop" if i < 3 else "length", "correct": i < 3, "n_tokens": 900} for i in range(4)])
-    write(d, "pstop.jsonl", [{"i": 0, "p_stop": 0.9}, {"i": 1, "p_stop": 0.6}, {"i": 2, "p_stop": None}])
+    write(d, "pstop.jsonl", [{"i": 0, "p_stop_think": 0.9, "p_stop_empty": 0.2}, {"i": 1, "p_stop_think": 0.6, "p_stop_empty": 0.3}, {"i": 2, "p_stop_think": None, "p_stop_empty": 0.4}])
     r = C.step_verdict(args(d))
-    assert r["student_finished"] == 0.75 and r["student_acc"] == 0.5 and r["teacher_finished"] == 0.75 and r["teacher_acc"] == 0.75
-    assert r["pstop_n"] == 2 and r["pstop_mean"] == 0.75 and r["pass"]
+    assert r["student_finished"] == 0.75 and r["teacher_finished"] == 0.75 and r["teacher_acc"] == 0.75
+    assert r["pstop"]["think"] == {"n": 2, "mean": 0.75, "median": 0.9} and r["pstop"]["empty"]["n"] == 3
+    assert r["pass"] and r["suffix"] == "think" and r["suffix_text"] == "<think>\n"
+    write(d, "pstop.jsonl", [{"i": 0, "p_stop_think": 0.1, "p_stop_empty": 0.8}, {"i": 1, "p_stop_think": 0.2, "p_stop_empty": 0.7}])
+    r = C.step_verdict(args(d))
+    assert r["pass"] and r["suffix"] == "empty" and r["suffix_text"] == "<think>\n\n</think>\n\n"   # E15-VLM-P5e
+    write(d, "pstop.jsonl", [{"i": 0, "p_stop_think": 0.1, "p_stop_empty": 0.2}])
+    r = C.step_verdict(args(d))
+    assert not r["pass"] and r["suffix"] is None
+    write(d, "pstop.jsonl", [{"i": 0, "p_stop_think": 0.9, "p_stop_empty": 0.9}])
     monkeypatch.setenv("PVL_FINISH_MIN", "0.8")
-    assert not C.step_verdict(args(d))["pass"]
-    monkeypatch.setenv("PVL_FINISH_MIN", "0.7")
-    write(d, "pstop.jsonl", [{"i": 0, "p_stop": 0.2}, {"i": 1, "p_stop": 0.3}])
-    assert not C.step_verdict(args(d))["pass"]
+    assert not C.step_verdict(args(d))["pass"]                       # the teacher finishing 75% < 80%
+
+
+def test_base_prompt_strips_the_think_opening():
+    class P:
+        def __init__(self, tail):
+            self.tail = tail
+
+        def apply_chat_template(self, msgs, tokenize=False, add_generation_prompt=True):
+            return "U|A:" + self.tail
+    r = {"prompt": [{"role": "user", "content": "<image>x"}]}
+    assert C.base_prompt(P("<think>\n"), r) == "U|A:" and C.base_prompt(P(""), r) == "U|A:"
 
 
 def test_cfg_fields_and_text():

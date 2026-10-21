@@ -5,7 +5,9 @@
 #  a2. (no GPU) the student's and teacher's preprocessor configs and tokenizers equal field by field, and the teacher's prompt for the
 #     same image question = the student's + '<think>\n' (code/analysis/vlm_teacher_check.py same);
 #  b. teacher reliability on the first 64 Geometry3K-train problems: the student answers (T=1.0, 4096), the teacher answers itself
-#     (thinking, T=0.6, 16384): its finished share >= 0.7; the teacher's p(stop) where the student stopped: mean >= 0.5;
+#     (thinking, T=0.6, 16384): its finished share >= 0.7; the teacher's p(stop) where the student stopped, read with two suffixes
+#     ([v2.5.9z1] '<think>\n' and the empty think block '<think>\n\n</think>\n\n'): either mean >= 0.5; check_b.json names the
+#     suffix the arm uses (think if it passes, else empty = E15-VLM-P5e);
 #  c. a 1-step OPD smoke of E15-VLM-P5 (run_vlm.sh SMOKE=1): exit 0, no out of memory, step 1 logged with a finite actor loss.
 # report.json: each part's numbers; to logs/<node>/probe_vlm/ (private), an event, .done. PASS = all four. Usage: bash probe_vlm.sh <gpu>
 set -uo pipefail
@@ -75,7 +77,7 @@ for st in student teacher pstop; do
 done
 $PY $CHK verdict $D --student $S --teacher $TE >> $LOG 2>&1
 python3 -c "import json, sys; sys.exit(0 if json.load(open(sys.argv[1]))['pass'] else 1)" $D/check_b.json 2> /dev/null || finish FAIL "b: $(cat $D/check_b.json 2> /dev/null | tr '\n' ' ' | cut -c1-400)"
-step "b ok: $(python3 -c "import json; r = json.load(open('$D/check_b.json')); print('teacher finished', r['teacher_finished'], 'acc', r['teacher_acc'], '| p(stop) mean', r['pstop_mean'], 'n', r['pstop_n'])")"
+step "b ok: $(python3 -c "import json; r = json.load(open('$D/check_b.json')); print('teacher finished', r['teacher_finished'], 'acc', r['teacher_acc'], '| p(stop)', {k: v['mean'] for k, v in r['pstop'].items()}, '| suffix', r['suffix'])")"
 # c. a 1-step OPD smoke
 rm -rf $OPD_ROOT/runs/$T-smoke
 SMOKE=1 SMOKE_STEPS=1 PROBE_TASK=$T-smoke bash $RUNBOOK/scripts/run_vlm.sh $G E15-VLM-P5 > $D/smoke.out 2>&1; rc=$?
@@ -99,4 +101,4 @@ r["pass"] = bool(ok)
 json.dump(r, open(sys.argv[2], "w"), indent=1)
 PY
 python3 -c "import json, sys; sys.exit(0 if json.load(open(sys.argv[1]))['pass'] else 1)" $D/smoke.json || finish FAIL "c: no finite actor loss at step 1: $(cat $D/smoke.json | tr '\n' ' ')"
-finish PASS "a2 ok; b: $(python3 -c "import json; r = json.load(open('$D/check_b.json')); print('teacher finished', r['teacher_finished'], 'p(stop)', r['pstop_mean'])"); c: step 1 pg_loss $(python3 -c "import json; print(json.load(open('$D/smoke.json'))['actor/pg_loss'])")"
+finish PASS "a2 ok; b: $(python3 -c "import json; r = json.load(open('$D/check_b.json')); print('teacher finished', r['teacher_finished'], 'p(stop) think', r['pstop']['think']['mean'], 'empty', r['pstop']['empty']['mean'], '-> suffix', r['suffix'])"); c: step 1 pg_loss $(python3 -c "import json; print(json.load(open('$D/smoke.json'))['actor/pg_loss'])")"

@@ -21,8 +21,12 @@ STUDENT=${VL_STUDENT:-$OPD_ROOT/models/Qwen3-VL-2B-Instruct}; TEACHER=${VL_TEACH
 V=${VENV_VL:-$OPD_ROOT/venv-vl}; TRAIN=$OPD_ROOT/data/geo3k_train.parquet; VAL=$OPD_ROOT/data/geo3k_validation.parquet
 NSTEPS=${VLM_STEPS:-50}; TBS=${VLM_TBS:-128}; MAXP=2048; MAXR=4096; SAVE=25; UW=25,$NSTEPS; VALB=True; TESTF=25
 [ "${SMOKE:-0}" = 1 ] && { NSTEPS=${SMOKE_STEPS:-1}; SAVE=-1; VALB=False; TESTF=-1; }
-export OPD_VLM_REF=1 OPD_VLM_REF_SUFFIX=${OPD_VLM_REF_SUFFIX:-$'<think>\n'} OPD_VARIANT=P5 OPD_REF_THINK=0 OPD_SEED=${OPD_SEED:-1234}
-[ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $NAME student=$(basename $STUDENT) teacher=$(basename $TEACHER) venv=$(basename $V) train=$(basename $TRAIN) steps=$NSTEPS tbs=$TBS maxp=$MAXP maxr=$MAXR save=$SAVE upload=$UW vlmref=$OPD_VLM_REF suffix=$(printf %q "$OPD_VLM_REF_SUFFIX")"; exit 0; }   # tests
+# [v2.5.9z1] the teacher's suffix PROBE-VLM chose (check_b.json): think = '<think>\n' (P5), empty = '<think>\n\n</think>\n\n' (variant P5e,
+# the thinking-only teacher's non-thinking reading); '<think>\n' when the check is not there yet (the probe's own smoke before b)
+SUF=$(python3 -c "import json, sys; print(json.load(open(sys.argv[1])).get('suffix') or 'think')" $OPD_ROOT/runs/PROBE-VLM/check_b.json 2> /dev/null || echo think)
+case $SUF in empty) SUFTXT=$'<think>\n\n</think>\n\n'; VARIANT=P5e;; *) SUFTXT=$'<think>\n'; VARIANT=P5;; esac
+export OPD_VLM_REF=1 OPD_VLM_REF_SUFFIX=${OPD_VLM_REF_SUFFIX:-$SUFTXT} OPD_VARIANT=P5 OPD_REF_THINK=0 OPD_SEED=${OPD_SEED:-1234}
+[ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $NAME student=$(basename $STUDENT) teacher=$(basename $TEACHER) venv=$(basename $V) train=$(basename $TRAIN) steps=$NSTEPS tbs=$TBS maxp=$MAXP maxr=$MAXR save=$SAVE upload=$UW vlmref=$OPD_VLM_REF variant=$VARIANT suffix=$(printf %q "$OPD_VLM_REF_SUFFIX")"; exit 0; }   # tests
 for f in $STUDENT $TEACHER; do [ -f $f/.fetch_ok ] || { echo "MODEL_MISSING $(basename $f)"; exit 2; }; done
 [ -x $V/bin/python ] || { echo "no venv-vl"; exit 2; }
 source $V/bin/activate
@@ -34,6 +38,7 @@ if python -c "import flash_attn" 2>/dev/null; then RMPAD=True; ATTN=flash_attent
 task: $TASK
 student: $STUDENT (Qwen3-VL-2B-Instruct, its own template)
 teacher: $TEACHER (ref; Qwen3-VL-8B-Thinking on its thinking template: the student's image-expanded prompt ids + the prefix '<think>\n' + the response, opd_vlmref.py)
+variant: $VARIANT (teacher suffix $(printf %q "$OPD_VLM_REF_SUFFIX"), from PROBE-VLM's check)
 algo: OPD (reverse-KL advantages, P5's recipe), ${TBS}x1, prompts <= $MAXP tokens, responses $MAXR, lr 3e-6, $NSTEPS steps
 data: Geometry3K train ($(basename $TRAIN)), validation $(basename $VAL)
 venv: $(basename $V); attention: $ATTN (remove-padding $RMPAD)
