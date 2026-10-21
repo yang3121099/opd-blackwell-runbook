@@ -90,6 +90,8 @@ b259up   open   PROBE-POLISH
 b259u    open   E10c-P5-polish:PROBE-POLISH EVAL-polish:E10c-P5-polish EVAL-ext32k-06polish:E10c-P5-polish
 b259vp   open   PROBE-P5SELF-06B
 b259v    open   E10c-P5self:PROBE-P5SELF-06B EVAL-e10c-P5self:E10c-P5self PROBE-TERM4-06B:EVAL-polish
+b259wp   open   PROBE-E12B-R3
+b259w    open   E12b-P5-r3:PROBE-E12B-R3 EVAL-e12b-P5s44-s50 EVAL-e12b-P5r3:E12b-P5-r3+EVAL-e12b-P5s44-s50 EVAL-ext32k-17r3:E12b-P5-r3
 night1   open   EVAL-ext-06p5rl EVAL-ext-x1 EVAL-ext-x2 EVAL-ext-x4:E10d-X4 EVAL-ext32k-17p5selfrl-s43 EVAL-ext-17p5selfrl-s43 EVAL-ext-17p5self-s43 EVAL-budA-17p2rl-s43 EVAL-budA-4Bp2s43
 b259ip   open   PROBE-ROLLOUT-U60 PROBE-ROLLOUT-U85 PROBE-ROLLOUT-U75
 night2   open   EVAL-ext-17s44mid EVAL-ext-4Bmid EVAL-budA-17p2seeds
@@ -1636,3 +1638,21 @@ olpd     open   EVAL-ext32k-17olpd
 #strict STRICT-C1 EVAL-ext32k-x4/ext32k4B_X4_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4Brl/ext32k4B_E12dP5_s100_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #strict STRICT-C1 EVAL-ext32k-x4/ext32k4B_X4_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl
 #strict STRICT-C1 EVAL-ext32k-x4/ext32k4B_X4_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Brl/ext32k4B_E12dP5_s100_aime25_T0.6_aime25_no_think_t0.6.jsonl
+# b259wp / b259w (runbook v2.5.9w, Q-039 r3, the reviewer's ruling 16:30 UTC 10-21 and its revision; after b259v): E12b-P5-r3 =
+# E12b-P5 with rpp-baseline and zero-variance groups dropped (128 x 8, at most 64 groups kept), 50 steps, gated by PROBE-E12B-R3.
+# Readings at s25 / s50: MATH500 16K T0.6 and AIME24/25 avg@16 32K, s50 paired against pure GRPO s50 (the E12b-P5-s44 chain:
+# a different start seed), E12b-P5 s100 (the same start), E12b-P5-s44 s100 and the start P5 s150; s25 against the start.
+# EVAL-e12b-P5s44-s50 = pure GRPO s50's MATH500 16K reading (H3's comparison; not read before).
+#eval EVAL-e12b-P5s44-s50 e12b_P5-s44_s50_math500_T0.6 result:runs/E12b-P5-s44/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-e12b-P5r3 e12b_P5r3_s25_math500_T0.6 result:runs/E12b-P5-r3/global_step_25/actor/huggingface math500 4 0.6
+#eval EVAL-e12b-P5r3 e12b_P5r3_s50_math500_T0.6 result:runs/E12b-P5-r3/global_step_50/actor/huggingface math500 4 0.6
+#pair EVAL-e12b-P5r3 e12b_P5r3_s50_math500_T0.6 EVAL-e12b-P5s44-s50/e12b_P5-s44_s50_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e12b-P5/e12b_P5_s100_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e12b-P5-s44/e12b_P5-s44_s100_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl
+#pair EVAL-e12b-P5r3 e12b_P5r3_s25_math500_T0.6 E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl
+#eval EVAL-ext32k-17r3 ext32k17_E12bP5r3_s25_aime24_T0.6 result:runs/E12b-P5-r3/global_step_25/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-17r3 ext32k17_E12bP5r3_s25_aime25_T0.6 result:runs/E12b-P5-r3/global_step_25/actor/huggingface aime25 16 0.6 32768
+#eval EVAL-ext32k-17r3 ext32k17_E12bP5r3_s50_aime24_T0.6 result:runs/E12b-P5-r3/global_step_50/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-17r3 ext32k17_E12bP5r3_s50_aime25_T0.6 result:runs/E12b-P5-r3/global_step_50/actor/huggingface aime25 16 0.6 32768
+#pair EVAL-ext32k-17r3 ext32k17_E12bP5r3_s50_aime24_T0.6 EVAL-ext32k-17s44mid/ext32k17_E12bP5s44_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k/ext32k_E12bP5_s100_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17s44/ext32k17_E12bP5s44_s100_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#pair EVAL-ext32k-17r3 ext32k17_E12bP5r3_s25_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#pair EVAL-ext32k-17r3 ext32k17_E12bP5r3_s50_aime25_T0.6 EVAL-ext32k-17s44mid/ext32k17_E12bP5s44_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k/ext32k_E12bP5_s100_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17s44/ext32k17_E12bP5s44_s100_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl
+#pair EVAL-ext32k-17r3 ext32k17_E12bP5r3_s25_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl
