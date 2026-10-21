@@ -1,0 +1,68 @@
+"""Tail-swap OPD (runbook [v2.5.9n], T4; the reviewer 12:5x / 14:1x UTC 10-21): the full form of the stop merge (Q-038).
+
+P5's teacher (the 8B on the thinking template, '<think>\\n' appended) reads the whole non-thinking answer as if it were still
+thinking; after the answer's first complete \\boxed{...} that reading keeps wanting more thought (it stops with </think>,
+not with the answer's own end), so the student learns to keep writing after the box. Tail swap: up to and including the
+first box the teacher's log-probs are P5's (thinking reading); after it they come from a second reference pass of the same
+8B on the non-thinking template (the student's own template: P2's reading), which ends an answer the way an answer ends.
+Rows without a complete box keep P5's reading everywhere.
+
+Hooked into verl's RayPPOTrainer.fit right after the reference log-probs of the re-tokenized teacher prompt
+(tailswap_patch.py); a no-op unless OPD_TAILSWAP=1. The second pass re-uses prepare_ref_model_inputs with OPD_REF_THINK=0
+for the call (P2's prompt) and the same reference worker; P5's reference inputs are put back afterwards.
+Logged per step (metrics tail/*): rows, rows with a box, positions swapped, the mean change of the teacher's log-prob there
+(non-thinking - thinking), whether both readings are finite on every valid token, violations (swaps at or before a box);
+the same per step as JSON lines in OPD_TAILSWAP_LOG (optional).
+"""
+import json
+import os
+
+
+def active():
+    return os.environ.get("OPD_TAILSWAP") == "1"
+
+
+def swap(lp_think, lp_plain, box_end, valid, xp):
+    """(merged, stats). (B, L) log-probs of the two readings, box_end (B,) (-1: no box), valid (B, L) the response mask;
+    xp = numpy or torch. Positions after the box (index > box_end >= 0) and valid take the non-thinking reading."""
+    B, L = lp_think.shape
+    pos = xp.arange(L).reshape(1, L)
+    be = box_end.reshape(B, 1)
+    m = (pos > be) & (be >= 0) & (valid > 0)
+    out = xp.where(m, lp_plain, lp_think)
+    v = valid > 0
+    n = int(m.sum())
+    fin = (lambda a: bool(xp.isfinite(a[v]).all())) if int(v.sum()) else (lambda a: True)
+    stats = {"rows": int(B), "rows_box": int((box_end >= 0).sum()), "swapped": n, "valid": int(v.sum()),
+             "swapped_frac": round(n / max(int(v.sum()), 1), 6),
+             "delta_mean": float((lp_plain - lp_think)[m].mean()) if n else 0.0,
+             "lp_think_finite": int(fin(lp_think)), "lp_plain_finite": int(fin(lp_plain)),
+             "violations": int((m & ~((pos > be) & (be >= 0))).sum())}
+    return out, stats
+
+
+def second_pass(trainer, batch, apply_chat_template_kwargs):
+    """The hook: (batch with the swapped ref_log_prob, metrics). trainer = the RayPPOTrainer (its ref tokenizer and workers)."""
+    import torch
+    from verl.trainer.ppo.ref_input_utils import prepare_ref_model_inputs
+    import opd_stopmerge as _sm
+    responses, valid = batch.batch["responses"], batch.batch["response_mask"]
+    box = torch.tensor(_sm.box_ends(responses, valid, trainer.ref_tokenizer), dtype=torch.long)
+    lp_think = batch.batch["ref_log_prob"].clone()
+    keep = {k: batch.batch[k].clone() for k in ("ref_input_ids", "ref_attention_mask", "ref_position_ids") if k in batch.batch.keys()}
+    old = os.environ.get("OPD_REF_THINK"); os.environ["OPD_REF_THINK"] = "0"   # P2's prompt for this call only
+    try:
+        batch = prepare_ref_model_inputs(batch=batch, ref_tokenizer=trainer.ref_tokenizer, apply_chat_template_kwargs=apply_chat_template_kwargs)
+    finally:
+        os.environ.pop("OPD_REF_THINK") if old is None else os.environ.__setitem__("OPD_REF_THINK", old)
+    wg = trainer.actor_rollout_wg if trainer.ref_in_actor else trainer.ref_policy_wg
+    lp_plain = wg.compute_ref_log_prob(batch).batch["ref_log_prob"].to(lp_think.device, lp_think.dtype)
+    for k, t in keep.items():   # P5's reference inputs back (nothing later reads them, but the batch stays as P5 leaves it)
+        batch.batch[k] = t
+    merged, stats = swap(lp_think, lp_plain, box, valid, torch)
+    batch.batch["ref_log_prob"] = merged   # assigned, not union-ed (union asserts equal values on a shared key)
+    p = os.environ.get("OPD_TAILSWAP_LOG")
+    if p:
+        with open(p, "a") as f:
+            f.write(json.dumps(stats) + "\n")
+    return batch, {f"tail/{k}": float(v) for k, v in stats.items()}

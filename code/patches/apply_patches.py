@@ -118,3 +118,9 @@ from stopmerge_patch import patch_file as _sm_patch, patch_ref_text as _sm_ref, 
 _sm_patch(str(root / "verl/trainer/ppo/ref_input_utils.py"), _sm_ref, keep_orig=False)   # the pristine files are in git
 _sm_patch(str(root / "verl/workers/actor/dp_actor.py"), _sm_actor, keep_orig=False)
 print("patched", root / "verl/trainer/ppo/ref_input_utils.py", "and", root / "verl/workers/actor/dp_actor.py", "(stop-merged OPD)")
+
+# 6. [v2.5.9n] (T4) tail-swap OPD (tailswap_patch.py; a no-op unless OPD_TAILSWAP=1): after the re-tokenized reference
+#    log-probs, the non-thinking reading of the same teacher after each response's first complete box
+from tailswap_patch import patch_file as _ts_patch  # noqa: E402
+_ts_patch(str(root / "verl/trainer/ppo/ray_trainer.py"), keep_orig=False)   # the pristine file is in git
+print("patched", root / "verl/trainer/ppo/ray_trainer.py", "(tail-swap OPD)")
