@@ -403,3 +403,4 @@ commands:
   - {"seq": 401, "cmd": "snapshot models/Qwen3-VL-8B-Thinking", "reason": "parallel pull rate of Qwen3-VL-8B-Thinking: the .part.segs records (ops-lead)", "utc": "2026-10-21T15:45:21Z"}
   - {"seq": 402, "cmd": "snapshot models/Qwen3-VL-8B-Thinking", "reason": "parallel pull rate of Qwen3-VL-8B-Thinking, second sample (ops-lead)", "utc": "2026-10-21T15:51:12Z"}
   - {"seq": 403, "cmd": "snapshot runs/E12b-P5-stop2/rollout_stats.csv", "reason": "Q-034 s25 check (Fable's ruling at s10)", "utc": "2026-10-21T15:57:25Z"}
+  - {"seq": 404, "cmd": "pause E12b-P5-stop2", "reason": "Q-034 s25: bonus_mean 0.017 < 0.05 and tail p50 of correct samples 1024 (Fable's s10 rule); the run itself is not stopped, a kill waits for Fable", "utc": "2026-10-21T15:59:09Z"}
