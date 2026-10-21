@@ -84,7 +84,7 @@ passk    open   EVAL-passk-ext
 z8b      open   EVAL-ext32k-8Bthink-aime EVAL-ext32k-17base
 night1   open   EVAL-ext-06p5rl EVAL-ext-x1 EVAL-ext-x2 EVAL-ext-x4:E10d-X4 EVAL-ext32k-17p5selfrl-s43 EVAL-ext-17p5selfrl-s43 EVAL-ext-17p5self-s43 EVAL-budA-17p2rl-s43 EVAL-budA-4Bp2s43
 night2   open   EVAL-ext-17s44mid EVAL-ext-4Bmid EVAL-budA-17p2seeds
-fill14   open   EVAL-ext-4Bmid25 EVAL-ext-4Bmid75 EVAL-ext-17s44mid75 EVAL-ext-17p5l8k:E12b-P5-8k EVAL-ext-17stop2:E12b-P5-stop2 EVAL-ext-17p5l16k:E12b-P5-16k
+fill14   open   EVAL-ext-4Bmid25 EVAL-ext-4Bmid75 EVAL-ext-17s44mid75 EVAL-budA-e12bP13 EVAL-ext-17p5l8k:E12b-P5-8k EVAL-ext-17stop2:E12b-P5-stop2 EVAL-ext-17p5l16k:E12b-P5-16k
 olpd     open   EVAL-ext32k-17olpd
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T0.6 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T1.0 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 1.0
@@ -1516,3 +1516,8 @@ olpd     open   EVAL-ext32k-17olpd
 #pair EVAL-ext-17p5l16k ext_E12bP5l16k_s50_amc23_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_amc23_T0.6_amc23_no_think_t0.6.jsonl EVAL-ext-E12b-P5/ext_E12bP5_amc23_T0.6_amc23_no_think_t0.6.jsonl
 #pair EVAL-ext-17p5l16k ext_E12bP5l16k_s50_minervamath_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_minervamath_T0.6_minervamath_no_think_t0.6.jsonl EVAL-ext-E12b-P5/ext_E12bP5_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
 #pair EVAL-ext-17p5l16k ext_E12bP5l16k_s50_olympiadbench_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl EVAL-ext-E12b-P5/ext_E12bP5_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
+# fill14: EVAL-budA-e12bP13 back (its E12b-P1 / P3 s100 weights are in the node's download cache, 4.1 GB each)
+#eval EVAL-budA-e12bP13 budAe12b_E12bP1_s100_math500_T0.6_32k result:runs/E12b-P1/global_step_100/actor/huggingface math500 4 0.6 32768
+#eval EVAL-budA-e12bP13 budAe12b_E12bP3_s100_math500_T0.6_32k result:runs/E12b-P3/global_step_100/actor/huggingface math500 4 0.6 32768
+#budget EVAL-budA-e12bP13 budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12b_E12bP1_s100_math500_T0.6_32k budAe12b_E12bP3_s100_math500_T0.6_32k
+#budget EVAL-budA-e12bP13 budget_curve_vsP5rl EVAL-budA-e12b/budAe12b_E12bP5_s100_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12b_E12bP1_s100_math500_T0.6_32k budAe12b_E12bP3_s100_math500_T0.6_32k
