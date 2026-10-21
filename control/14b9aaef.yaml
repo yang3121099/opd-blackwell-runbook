@@ -433,3 +433,4 @@ commands:
   - {"seq": 431, "cmd": "rerun PROBE-STOPMERGE", "reason": "v2.5.9z4 (Fable A1): merge's positions on the GPU; the arm and its readings wait for the gate's PASS (v2.5.9z3 blocks them otherwise)", "utc": "2026-10-21T20:11:09Z"}
   - {"seq": 432, "cmd": "rerun E10b-P5stopmerge", "reason": "v2.5.9z4 (Fable A1): merge's positions on the GPU; the arm and its readings wait for the gate's PASS (v2.5.9z3 blocks them otherwise)", "utc": "2026-10-21T20:11:17Z"}
   - {"seq": 433, "cmd": "rerun EVAL-smerge", "reason": "v2.5.9z4 (Fable A1): merge's positions on the GPU; the arm and its readings wait for the gate's PASS (v2.5.9z3 blocks them otherwise)", "utc": "2026-10-21T20:11:25Z"}
+  - {"seq": 434, "cmd": "rerun EVAL-ext32k-17smerge", "reason": "v2.5.9z4 (Fable A1): merge's positions on the GPU; the arm and its readings wait for the gate's PASS (v2.5.9z3 blocks them otherwise)", "utc": "2026-10-21T20:11:33Z"}
