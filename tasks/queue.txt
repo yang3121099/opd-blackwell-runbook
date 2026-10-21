@@ -61,6 +61,7 @@ b258e    open   E10b-P5self-s43 PROBE-P5SELF-4B E10d-P5self:PROBE-P5SELF-4B E12b
 b258h    open   E12b-P5-8k:PROBE-E12B-8K E12b-P5-16k:PROBE-E12B-16K EVAL-e12b-P5-8k:E12b-P5-8k EVAL-budA-e12bP5-8k:E12b-P5-8k EVAL-ext32k-17p5l8k:E12b-P5-8k EVAL-e12b-P5-16k:E12b-P5-16k EVAL-budA-e12bP5-16k:E12b-P5-16k EVAL-ext32k-17p5l16k:E12b-P5-16k
 b258i    open   E10d-X1:PROBE-X2507-X1 E10d-X2:PROBE-X2507-X2 EVAL-ext32k-x1:E10d-X1 EVAL-ext32k-x2:E10d-X2 EVAL-budA-x1:E10d-X1+EVAL-i2507 EVAL-budA-x2:E10d-X2+EVAL-i2507 EVAL-e10d-x1:E10d-X1 EVAL-e10d-x2:E10d-X2
 b258l    open   E10d-X4:PROBE-X2507-X4 EVAL-ext32k-x4:E10d-X4 EVAL-budA-x4:E10d-X4+EVAL-i2507 EVAL-e10d-x4:E10d-X4
+b259bp   open   PROBE-TOOL
 bl       open   E10b-P5lenS:PROBE-LENSEL E10b-P5lenL:PROBE-LENSEL E10b-P5lenR:PROBE-LENSEL EVAL-len-R:E10b-P5lenR EVAL-len-S:E10b-P5lenS EVAL-len-L:E10b-P5lenL EVAL-len-cmp:EVAL-len-R+EVAL-len-S+EVAL-len-L
 fill4    open   EVAL-ext32k-17p1:E12b-P1 EVAL-ext32k-17p3:E12b-P3 EVAL-ext-E10b-P3:E10b-P3 EVAL-ext-E10b-P6r:E10b-P6r
 len      open   EVAL-budA06p5:E10c-P5-fix4 EVAL-budA06think EVAL-budA-8Bthink
@@ -1336,3 +1337,6 @@ z8b      open   EVAL-ext32k-8Bthink-aime EVAL-ext32k-17base
 # of the thinking-template student (expected non-zero) and of the 14B-teacher P5 student (expected 0); PROBE-TERM2 reads the PROBE-TERM rows
 #term PROBE-TERM 17_P5think local:runs/E10b-P5think/ckpt/global_step_50/actor/huggingface EVAL-e10b-P5think/e10b_P5think_s50_math500_T0.6_math500_think_t0.6.jsonl think
 #term PROBE-TERM 17_P5t14 result:runs/E10b-P5-t14/global_step_150/actor/huggingface E11b-P5-t14/e11b_P5-t14_math500_T0.6_math500_no_think_t0.6.jsonl
+# b259bp (runbook v2.5.9b, reviewer A1 10-21): the tool-call OPD code path end to end on the 10 synthetic samples (unit tests,
+# prep with the 1.7B / 8B tokenizers, a 3-step smoke, the student / teacher budget-curve evaluation); after E10d-X4's start,
+# ahead of z8b (Runming: CoworkEnv first); the real sets replace the synthetic file once placed
