@@ -341,3 +341,4 @@ commands:
   - {"seq": 339, "cmd": "resume PROBE-TERM4", "reason": "after d7be5d0: the new #term rows read local saves", "utc": "2026-10-20T23:57:35Z"}
   - {"seq": 340, "cmd": "resume PROBE-TERM4-4B", "reason": "after d7be5d0: the new #term rows read local saves", "utc": "2026-10-20T23:59:52Z"}
   - {"seq": 341, "cmd": "rerun PROBE-TERM4", "reason": "reviewer 00:5x UTC: TERM4 rows for the 1.7B P5self s50 starts, seeds 42 / 43 (local saves via v2.5.8k)", "utc": "2026-10-21T00:44:40Z"}
+  - {"seq": 342, "cmd": "rerun STRICT-C1", "reason": "fill7 / fill7b: the 0.6B column and E10d-P5self lines", "utc": "2026-10-21T00:57:51Z"}
