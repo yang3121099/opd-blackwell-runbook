@@ -421,3 +421,4 @@ commands:
   - {"seq": 419, "cmd": "snapshot venv-fa/lib/python3.10/site-packages/vllm/model_executor/models/qwen3_vl.py", "reason": "Q-051 VLM feasibility (a), venv-fa, read-only", "utc": "2026-10-21T17:29:32Z"}
   - {"seq": 420, "cmd": "snapshot venv-fa/lib/python3.10/site-packages/transformers/models/qwen3_vl/configuration_qwen3_vl.py", "reason": "Q-051 VLM feasibility (a), venv-fa, read-only", "utc": "2026-10-21T17:29:39Z"}
   - {"seq": 421, "cmd": "snapshot venv-fa/lib/python3.10/site-packages/vllm/model_executor/models/registry.py", "reason": "Q-051 VLM feasibility (a), venv-fa, read-only", "utc": "2026-10-21T17:30:07Z"}
+  - {"seq": 422, "cmd": "kill E12b-P5-stop2", "reason": "Q-034 s40 rule (Fable 10-21): s26-s40 mean bonus 0.0405 < 0.05 (tail_p50 < 1024 on 15/15) -> kill; DR keeps s25's resume state", "utc": "2026-10-21T17:39:52Z"}
