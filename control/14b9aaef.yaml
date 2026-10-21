@@ -352,3 +352,4 @@ commands:
   - {"seq": 350, "cmd": "rerun PROBE-TERM4-4B", "reason": "reviewer 01:5x UTC: TERM4 rows for the 2507 pair (fill10)", "utc": "2026-10-21T01:50:47Z"}
   - {"seq": 351, "cmd": "logs E12b-P5self-s43 40", "reason": "reviewer 03:2x UTC: E12b-P5self-s43 failed 03:18 and restarted; why, and from which step", "utc": "2026-10-21T03:21:05Z"}
   - {"seq": 352, "cmd": "logs E12b-P5self-s43 400", "reason": "reviewer 03:2x UTC: the end of attempt 1 of E12b-P5self-s43 (failed 03:18)", "utc": "2026-10-21T03:22:05Z"}
+  - {"seq": 353, "cmd": "logs run_tasks 80", "reason": "reviewer 03:2x UTC: what ended E12b-P5self-s43 attempt 1 at 03:18 (read-only)", "utc": "2026-10-21T03:23:19Z"}
