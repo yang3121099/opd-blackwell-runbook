@@ -45,6 +45,8 @@ case $T in
   PROBE-P5SELF-06B) bash $RUNBOOK/scripts/probe_p5self.sh $G 06b;;   # [v2.5.9v] (Q-047) the gate of E10c-P5self
   PROBE-NET) bash $RUNBOOK/scripts/probe_net.sh $G;;   # [v2.5.9c] the routes to the model hubs (the CPU lane)
   PROBE-NET2) bash $RUNBOOK/scripts/probe_net2.sh $G;;   # [v2.5.9h] per-connection or per-host limit, parallel Range connections (the CPU lane)
+  BUILD-VENV-VL) bash $RUNBOOK/scripts/build_venv_vl.sh;;   # [v2.5.9y1] (Q-051) venv-vl for the Qwen3-VL arms (the CPU lane)
+  PROBE-VLLM-VL) bash $RUNBOOK/scripts/probe_vllm_vl.sh $G;;   # [v2.5.9y1] venv-vl's GPU gate: vLLM 0.11.0 + Qwen3-VL-2B on one Geometry3K image
   PROBE-ROLLOUT-U60|PROBE-ROLLOUT-U75|PROBE-ROLLOUT-U85) bash $RUNBOOK/scripts/probe_rollout.sh $G ${T#PROBE-ROLLOUT-};;   # [v2.5.9i] vLLM memory vs E12b step time (one GPU each)
   PROBE-TOOL) bash $RUNBOOK/scripts/probe_tool.sh $G;;   # [v2.5.9b] the tool-call OPD code path on the synthetic samples
   PROBE-2GPU) bash $RUNBOOK/scripts/probe_2gpu.sh $G;;   # [v2.5.9a] the gate of the two-GPU slot (G = a,b from '#gpus PROBE-2GPU 2')

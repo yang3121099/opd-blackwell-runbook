@@ -90,7 +90,7 @@ def test_node_and_origin_mismatch(env):
 
 
 def test_setenv_pull_settings(env):   # [2.5.50] the parallel pulls' connections and day cap (Runming 10-21 23:3x Beijing)
-    for cmd in ("setenv FETCH_CONNS_NIGHT=64", "setenv FETCH_CONNS_DAY=64", "setenv FETCH_DAY_MAX_BYTES=1e13"):
+    for cmd in ("setenv FETCH_CONNS_NIGHT=64", "setenv FETCH_CONNS_DAY=64", "setenv FETCH_DAY_MAX_BYTES=1e13", "setenv VENV_VL_REBUILD=1"):   # [2.5.55] VENV_VL_REBUILD
         status, msg, _ = env.c.run_one(cmd, 1)
         assert status == "ok", (cmd, status, msg)
     txt = (env.root / "control.env").read_text()
@@ -100,6 +100,7 @@ def test_setenv_pull_settings(env):   # [2.5.50] the parallel pulls' connections
 @pytest.mark.parametrize("cmd", ["reboot", "pause T; rm -rf /", "pause $(id)", "pause ../x", "pause", "prio T x",
                                  "setenv PATH=/tmp", "setenv LD_PRELOAD=/x.so", "setenv HF_TOKEN=abc", "setenv VLLM_X=a b",
                                  "setenv FETCH_CONNS_DAY=500", "setenv FETCH_CONNS_NIGHT=x", "setenv FETCH_DAY_MAX_BYTES=lots",   # [2.5.50]
+                                 "setenv VENV_VL_REBUILD=yes",   # [2.5.55]
                                  "snapshot /etc", "snapshot ../../", "restore T runs/OTHER/global_step_20", "kill T extra"])
 def test_rejected(env, cmd):
     status, msg, _ = env.c.run_one(cmd, 1)
