@@ -57,6 +57,12 @@ XARM=""; [[ $TASK =~ ^E10d-(X1|X2|X4)$ ]] && { XARM=${BASH_REMATCH[1]}; BASE=E10
 # 128 x 1), one mini-batch, 50 steps, venv-fa; every step logs lensel/* (all 16 against the kept 4: length, truncation,
 # EOS, score) and runs/<task>/lensel.jsonl (per prompt). Gated by PROBE-LENSEL.
 LENSEL=""; [[ $TASK =~ ^E10b-P5len([SLR])$ ]] && { case ${BASH_REMATCH[1]} in S) LENSEL=short;; L) LENSEL=long;; R) LENSEL=rand;; esac; BASE=E10b-P5; }
+# [v2.5.9b] (research_program §1.7; reviewer 07:2x UTC 10-21: the tool-call OPD code path on synthetic samples first):
+# E10b-P5tool = P5's recipe on single-turn tool-call prompts (code/agent/prep_tools_parquet.py: the tool schemas as the system
+# block both chat templates write natively, so student and teacher prompts agree byte for byte), the rule grader
+# code/agent/tool_grader.py as the logged reward, prompts up to 2048 tokens. TOOL_DATA = the parquet prefix
+# (<prefix>_train.parquet / _val.parquet); for now only PROBE-TOOL's smoke runs it
+TOOL=0; [ $TASK = E10b-P5tool ] && { TOOL=1; BASE=E10b-P5; }
 case $BASE in
   E10b-P2) ARM=P2; LR=3e-6;; E10b-P3) ARM=P3; LR=3e-6;; E10b-P4lowlr) ARM=P4; LR=6e-7;; E10b-P5) ARM=P5; LR=3e-6;;
   E10b-P6) ARM=P6; LR=3e-6;; E10b-P6r) ARM=P6r; LR=3e-6;; E10b-P2noEOS) ARM=P2noEOS; LR=3e-6;;
@@ -134,6 +140,7 @@ case $ARM in P5top10|P5rand10m) export OPD_VARIANT=P6 OPD_VARIANT_OVERRIDE=$ARM 
 [ $STHINK = 1 ] && NSTEPS=${P5THINK_STEPS:-50}
 [ -n "$XARM" ] && NSTEPS=${X2507_STEPS:-50}   # [v2.5.8i]
 [ -n "$LENSEL" ] && NSTEPS=${LENSEL_STEPS:-50}   # [v2.5.8m]
+[ $TOOL = 1 ] && NSTEPS=${TOOL_STEPS:-50}   # [v2.5.9b]
 [ $SELF = 1 ] && NSTEPS=${P5SELF_STEPS:-50}   # v2.5.7v: the same point as P5 s50   # v2.5.7r: constant lr, so step 50 is the same point as in a 150-step run
 OPD_REF_THINK=0; [[ $ARM =~ ^P5(top10|rand10m)?$ ]] && OPD_REF_THINK=1; [ $STHINK = 1 ] && OPD_REF_THINK=0; [ "$XARM" = X1 ] && OPD_REF_THINK=0; [ "$XARM" = X4 ] && OPD_REF_THINK=0; export OPD_REF_THINK   # [v2.5.8i] X1: the template opens <think>
 if python -c "import flash_attn" 2>/dev/null; then RMPAD=True; ATTN=flash_attention_2; TOK_DEFAULT=16384
@@ -158,8 +165,14 @@ GCK=True; [ "${GC:-1}" = 0 ] && GCK=False
 TBS=128; RN=1; MBS=128; unset OPD_LENSEL OPD_LENSEL_K OPD_LENSEL_LOG
 if [ -n "$LENSEL" ]; then TBS=${LENSEL_PROMPTS:-32}; RN=${LENSEL_N:-16}; LK=${LENSEL_K:-4}; MBS=$(( TBS * LK / RN ))
   export OPD_LENSEL=$LENSEL OPD_LENSEL_K=$LK OPD_LENSEL_LOG=$OUT/lensel.jsonl; fi
+# [v2.5.9b] the data, prompt length and logged reward: math by default, the tool-call parquet for a tool arm
+TRAIN=$OPD_ROOT/data/dapo_train.parquet; VAL=$OPD_ROOT/data/math500_100.parquet; MAXP=1024; REWARD=$RUNBOOK/code/train/reward_mathverify.py
+if [ $TOOL = 1 ]; then
+  [ -n "${TOOL_DATA:-}" ] && [ -f ${TOOL_DATA}_train.parquet ] && [ -f ${TOOL_DATA}_val.parquet ] || { echo "TOOL_DATA_MISSING $TASK: set TOOL_DATA to a prep_tools_parquet.py prefix"; exit 2; }
+  TRAIN=${TOOL_DATA}_train.parquet; VAL=${TOOL_DATA}_val.parquet; MAXP=2048; REWARD=$RUNBOOK/code/agent/tool_grader.py
+fi
 UW=$NSTEPS; [ $TASK = E10c-P5-fix4 ] && UW=100,$NSTEPS; [ -n "$XARM" ] && UW=25,$NSTEPS   # [v2.5.8i] X arms: s25 is read too   # [v2.5.8a] (Q-023): its s100 = the step of the lab's 0.6B P5 reading (+19.2)
-[ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $TASK arm=$ARM lr=$LR seed=$SEED student=$STUDENT batch=[$BATCH] kern=[$KERN] gc=$GCK venv=$(basename ${VENV:-$OPD_ROOT/venv}) ngpu=$NG rmpad=$RMPAD lensel=${LENSEL:-none}/${TBS}x${RN}/mb$MBS sthink=$STHINK maxresp=$MAXRESP teacher=$TEACHER offload=${TEACHER_OFFLOAD:-1} variant=$OPD_VARIANT override=$OPD_VARIANT_OVERRIDE refthink=$OPD_REF_THINK steps=$NSTEPS"; exit 0; }   # tests
+[ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $TASK arm=$ARM lr=$LR seed=$SEED student=$STUDENT batch=[$BATCH] kern=[$KERN] gc=$GCK venv=$(basename ${VENV:-$OPD_ROOT/venv}) ngpu=$NG rmpad=$RMPAD tool=$TOOL maxp=$MAXP reward=$(basename $REWARD) lensel=${LENSEL:-none}/${TBS}x${RN}/mb$MBS sthink=$STHINK maxresp=$MAXRESP teacher=$TEACHER offload=${TEACHER_OFFLOAD:-1} variant=$OPD_VARIANT override=$OPD_VARIANT_OVERRIDE refthink=$OPD_REF_THINK steps=$NSTEPS"; exit 0; }   # tests
 STEPS=$NSTEPS; TEST=10; VALB=True
 # save rule (v2.4, Runming 2026-10-17): no archive of resume states. A dedicated node saves only the HF weights at the
 # pre-registered reading steps (E10b: step 150, the one checkpoint E11b and E12b read; SAVE=<n> for others), which
@@ -180,6 +193,7 @@ teacher: $TEACHER (ref; think-template=$OPD_REF_THINK; param_offload=${TEACHER_O
 student_template: $([ $STHINK = 1 ] && echo "thinking (the teacher prompt uses the same template)" || echo non-thinking), max_response_length $MAXRESP
 attention: $ATTN (use_remove_padding=$RMPAD)
 batching: ${MODE:-default} [$BATCH]
+data: $([ $TOOL = 1 ] && echo "tool calls ($(basename ${TOOL_DATA:-none})), reward $(basename $REWARD), prompts <= $MAXP" || echo "math (dapo_train), reward $(basename $REWARD)")
 rollouts: $TBS prompts x $RN per step$([ -n "$LENSEL" ] && echo ", length selection $LENSEL: $OPD_LENSEL_K kept per prompt before the log-probs (lensel.jsonl)"), mini-batch $MBS prompts
 kernels: fused=${FUSED:-0} gradient_checkpointing=$GCK
 dr: $(dr_on && echo "every $SAVE steps" || echo off)
@@ -199,8 +213,8 @@ python3 -m verl.trainer.main_ppo \
   algorithm.rollout_correction.rollout_rs=null algorithm.rollout_correction.bypass_mode=false \
   algorithm.use_kl_in_reward=False \
   actor_rollout_ref.rollout.calculate_log_probs=true \
-  data.train_files=$OPD_ROOT/data/dapo_train.parquet data.val_files=$OPD_ROOT/data/math500_100.parquet \
-  data.train_batch_size=$TBS data.max_prompt_length=1024 data.max_response_length=$MAXRESP \
+  data.train_files=$TRAIN data.val_files=$VAL \
+  data.train_batch_size=$TBS data.max_prompt_length=$MAXP data.max_response_length=$MAXRESP \
   data.filter_overlong_prompts=True data.truncation=error data.shuffle=True data.seed=$SEED data.return_raw_chat=True \
   +data.apply_chat_template_kwargs.enable_thinking=$([ $STHINK = 1 ] && echo True || echo False) \
   actor_rollout_ref.model.path=$STUDENT +actor_rollout_ref.ref.model.path=$TEACHER \
@@ -222,7 +236,7 @@ python3 -m verl.trainer.main_ppo \
   actor_rollout_ref.rollout.val_kwargs.top_p=0.8 actor_rollout_ref.rollout.val_kwargs.n=2 \
   actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=$LOGP_MB \
   actor_rollout_ref.ref.fsdp_config.param_offload=$([ "${TEACHER_OFFLOAD:-1}" = 1 ] && echo True || echo False) \
-  custom_reward_function.path=$RUNBOOK/code/train/reward_mathverify.py custom_reward_function.name=compute_score \
+  custom_reward_function.path=$REWARD custom_reward_function.name=compute_score \
   reward_model.reward_manager=naive trainer.critic_warmup=0 trainer.val_before_train=$VALB \
   trainer.logger='["console"]' trainer.project_name=opd-e10b trainer.experiment_name=$TASK \
   trainer.n_gpus_per_node=$NG trainer.nnodes=1 trainer.save_freq=$SAVE trainer.test_freq=$TEST \
