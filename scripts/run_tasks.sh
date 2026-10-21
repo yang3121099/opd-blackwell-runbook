@@ -86,7 +86,7 @@ dead() { [ "$(attempts $1)" -ge 3 ]; }
 running() { pgrep -f "task.sh ([0-9]+(,[0-9]+)*|cpu) $1\$" >/dev/null; }   # [v2.5.8] cpu: a CPU-lane task; [v2.5.9a] a,b: a #gpus task
 # [v2.5.8] (reviewer 08:5x UTC 10-19: CPU phases without a GPU slot) CPU-only tasks run in a lane of their own, "gpu" cpu,
 # at most CPU_MAX (default 1) at once; STRICT-C1 held a GPU slot for its rejudge (and three on its failed attempts)
-cpu_task() { case $1 in STRICT-C1) return 0;; esac; return 1; }
+cpu_task() { case $1 in STRICT-C1|PROBE-NET) return 0;; esac; return 1; }   # [v2.5.9c] PROBE-NET
 cpu_busy() { [ "$(pgrep -f "task.sh cpu [A-Za-z0-9._-]+\$" | wc -l | tr -d ' ')" -ge "${CPU_MAX:-1}" ]; }
 free_gpus() { for i in $(seq 0 $((NGPU-1))); do
     # v2.5.4d: a GPU given to a task stays taken while its task.sh / ad-hoc evaluation runs, also before the task touches it
@@ -102,13 +102,27 @@ gpus_of() { local n; n=$(awk -v t="$1" '$1 == "#gpus" && $2 == t {print $3}' "$Q
 # take_gpus <task>: G = its first n free GPUs (a,b), dropped from FREE. With too few free GPUs a multi-GPU task holds the
 # free ones (FREE emptied: the later tasks of this pass get none) in turns of GPUS_HOLD_MIN (default 30) minutes from its
 # first wait: held for one turn, released to the later tasks for the next, and so on, so neither side waits for ever.
+# [v2.5.9c] (reviewer 08:4x UTC 10-21: GPU7 sat held 25 min while a training waited) it holds only while another GPU is
+# about to free: a running task's ETA (the latest status) within GPUS_SOON_MIN (30) minutes; the held GPUs and the task go
+# to control/held.json for the pulse (held_for), cleared at the start of every pass
+soon_free() { python3 - "$OPD_ROOT/logs" "${GPUS_SOON_MIN:-30}" <<'PY' 2> /dev/null
+import glob, json, sys
+fs = sorted(glob.glob(sys.argv[1] + "/status_*.json"))
+t = json.load(open(fs[-1])).get("tasks", {}) if fs else {}
+sys.exit(0 if any(isinstance(v, dict) and v.get("state") in ("running", "retrying") and isinstance(v.get("eta_min"), (int, float))
+                  and v["eta_min"] <= float(sys.argv[2]) for v in t.values()) else 1)
+PY
+}
 take_gpus() {
   local n w; n=$(gpus_of $1); G=""
   if [ ${#FREE[@]} -ge $n ]; then G=$(IFS=,; echo "${FREE[*]:0:$n}"); FREE=("${FREE[@]:$n}"); rm -f $OPD_ROOT/runs/$1/.gpus_wait; return 0; fi
   if [ $n -gt 1 ] && [ ${#FREE[@]} -gt 0 ]; then
     w=$OPD_ROOT/runs/$1/.gpus_wait; mkdir -p $OPD_ROOT/runs/$1
     if [ ! -f $w ]; then date +%s > $w; echo "HOLD $(date -u +%T) gpu=$(IFS=,; echo "${FREE[*]}") for $1 (needs $n)"; fi
-    [ $(( ($(date +%s) - $(cat $w)) / (${GPUS_HOLD_MIN:-30} * 60 + 1) % 2 )) = 0 ] && FREE=()
+    if [ $(( ($(date +%s) - $(cat $w)) / (${GPUS_HOLD_MIN:-30} * 60 + 1) % 2 )) = 0 ] && soon_free; then
+      printf '{"task": "%s", "gpus": [%s], "since_utc": "%s"}\n' $1 "$(IFS=,; echo "${FREE[*]}")" "$(date -u -d @$(cat $w) +%FT%TZ 2> /dev/null || date -u +%FT%TZ)" > $OPD_ROOT/control/held.json
+      FREE=()
+    fi
   fi
   return 1; }
 # v2.5.4e: EVAL tasks get a GPU only once their models are local and checked (.inputs_ok = the hash of their #eval
@@ -153,6 +167,21 @@ fetch_pass() {
     setsid nohup bash -c "python $RUNBOOK/scripts/fetch_model.py $m '' $d --task FETCH-${m#Qwen/} >> $OPD_ROOT/logs/fetch_${m#Qwen/}.log 2>&1 && rm -f $d.fetch_fail || touch $d.fetch_fail" < /dev/null > /dev/null 2>&1 &
     return
   done; }
+# [v2.5.9c] (reviewer 10-21; Runming: "is ToolRL passed over too?") "#git <owner>/<repo> <40-hex commit>" lines of the queue = a
+# public GitHub repository at that commit onto $OPD_ROOT/data/git/<owner>__<repo> (git_fetch.sh: shallow, the commit
+# checked, sha256 manifest, a summary of its data files to the private repository, .fetch_ok = the commit), without a
+# GPU or the Mac; one at a time, a failure retried after 30 min, a changed commit fetched again
+git_pass() {
+  pgrep -f "scripts/git_fetch\.sh " > /dev/null && return
+  local r c d
+  while read -r r c; do
+    [[ $r =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ && $c =~ ^[0-9a-f]{40}$ ]] || continue
+    d=$OPD_ROOT/data/git/${r/\//__}; [ "$(cat $d/.fetch_ok 2>/dev/null)" = $c ] && continue
+    [ -n "$(find $d.git_fail -mmin -30 2>/dev/null)" ] && continue
+    mkdir -p $OPD_ROOT/data/git $OPD_ROOT/logs
+    setsid nohup bash $RUNBOOK/scripts/git_fetch.sh $r $c $d >> $OPD_ROOT/logs/git_fetch.log 2>&1 < /dev/null &
+    return
+  done <<< "$(awk '$1 == "#git" {print $2, $3}' "$Q")"; }
 launch() { # gpu task   (v2.5: start / done / killed / failed also go to status/<node>/events/ as receipts; [v2.5.8] gpu cpu: no reap)
   mkdir -p $OPD_ROOT/runs/$2
   python $RUNBOOK/scripts/control.py event $2 start "gpu=$1 attempt=$(( $(attempts $2) + 1 ))" > /dev/null 2>&1 &
@@ -200,7 +229,8 @@ while true; do
   fi
   [ "${DRY:-0}" != 1 ] && prefetch_pass
   [ "${DRY:-0}" != 1 ] && fetch_pass   # v2.5.7w
-  FREE=($(free_gpus)); earlier_finished=1
+  [ "${DRY:-0}" != 1 ] && git_pass   # [v2.5.9c]
+  FREE=($(free_gpus)); earlier_finished=1; rm -f $CDIR/held.json   # [v2.5.9c] a hold is written again by take_gpus
   verify_busy && FREE=()   # a remote rerun_verify owns the GPUs
   while read -r stage status rest; do
     case $stage in ''|\#*|version:) continue;; esac

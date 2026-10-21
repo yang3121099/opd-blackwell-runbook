@@ -30,7 +30,11 @@ hb_to() {
 python -c "import json, torch, vllm; json.dump({'torch': torch.__version__, 'torch_cuda': torch.version.cuda, 'vllm': vllm.__version__, 'arch_list': torch.cuda.get_arch_list(), 'device_capability': list(torch.cuda.get_device_capability())}, open('$OPD_ROOT/logs/stack.json', 'w'))" 2>/dev/null || echo '{}' > $OPD_ROOT/logs/stack.json
 # v2.5: run_tasks.sh restarts this loop when heartbeat.sh changes (it compares this sha with the current file)
 mkdir -p $OPD_ROOT/control; sha1sum $RUNBOOK/scripts/heartbeat.sh | cut -c1-12 > $OPD_ROOT/control/heartbeat.sha; echo $$ > $OPD_ROOT/control/heartbeat.pid
+# [v2.5.9c] our own usage (du) off the loop's path: our_du.sh in the background when control/our_du.json is older than
+# OUR_DU_MIN (30) minutes and no copy runs
+our_du_due() { [ -z "$(find $OPD_ROOT/control/our_du.json -mmin -${OUR_DU_MIN:-30} 2> /dev/null)" ] && ! pgrep -f "scripts/our_du\.s[h]" > /dev/null; }
 while true; do
+  our_du_due && setsid nohup bash $RUNBOOK/scripts/our_du.sh >> $OPD_ROOT/logs/our_du.log 2>&1 < /dev/null &
   hb_alive
   python - "$F" <<'PY'
 import glob, json, os, re, subprocess, sys, time
@@ -79,7 +83,7 @@ def live_tasks():
     return out
 def kind(name):
     return ("train" if re.match(r"E1(0[bcd]|2[bcd])-", name) else "sft" if name.startswith("SFT-") else
-            "eval" if re.match(r"E11b-|EVAL-|adhoc_eval_|E0[1-5]-", name) else "probe" if name in ("FA-PROBE", "SPEED-PROBE", "PROBE-4B", "PROBE-TERM", "PROBE-TERM2", "PROBE-TERM3", "PROBE-TERM4", "PROBE-TERM4-4B", "PROBE-TOP10", "STRICT-C1", "PROBE-T14", "PROBE-P5THINK", "PROBE-P5SELF", "PROBE-P5SELF-4B", "PROBE-P2SELF", "PROBE-E12C", "PROBE-E12B-KL", "PROBE-E12B-STOP", "PROBE-E12B-8K", "PROBE-E12B-16K", "PROBE-X2507-X1", "PROBE-X2507-X2", "PROBE-X2507-X4", "PROBE-LENSEL", "PROBE-2GPU", "PROBE-TOOL") or name.startswith("FA-SPEED-") else "other")
+            "eval" if re.match(r"E11b-|EVAL-|adhoc_eval_|E0[1-5]-", name) else "probe" if name in ("FA-PROBE", "SPEED-PROBE", "PROBE-4B", "PROBE-TERM", "PROBE-TERM2", "PROBE-TERM3", "PROBE-TERM4", "PROBE-TERM4-4B", "PROBE-TOP10", "STRICT-C1", "PROBE-T14", "PROBE-P5THINK", "PROBE-P5SELF", "PROBE-P5SELF-4B", "PROBE-P2SELF", "PROBE-E12C", "PROBE-E12B-KL", "PROBE-E12B-STOP", "PROBE-E12B-8K", "PROBE-E12B-16K", "PROBE-X2507-X1", "PROBE-X2507-X2", "PROBE-X2507-X4", "PROBE-LENSEL", "PROBE-2GPU", "PROBE-TOOL", "PROBE-NET") or name.startswith("FA-SPEED-") else "other")
 live = live_tasks()
 tasks = {}; stale = []
 queue = open(os.path.join(runbook, "tasks", "queue.txt")).read() if os.path.exists(os.path.join(runbook, "tasks", "queue.txt")) else ""
@@ -136,7 +140,13 @@ json.dump({"host": os.uname().nodename, "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ
            "ckpt_disk_free_gb": (lambda c: round(c.f_bavail * c.f_frsize / 1e9, 1))(os.statvfs(os.environ["CKPT_ROOT"])) if os.path.isdir(os.environ.get("CKPT_ROOT", "")) else None,
            "ckpt_disk_alert": (lambda c: c.f_bavail * c.f_frsize / 1e9 < float(os.environ.get("CKPT_ALERT_GB", "100")))(os.statvfs(os.environ["CKPT_ROOT"])) if os.path.isdir(os.environ.get("CKPT_ROOT", "")) else None,
            "disk_used_pct": round(100 * (1 - st.f_bavail / st.f_blocks), 1) if st.f_blocks else None,
-           "runbook_head": git("rev-parse", "--short", "HEAD"), "runbook_version": "v2.5.8",
+           # [v2.5.9c] the work disk's size and its exact free bytes (the GB reading stood still for hours on 10-21), the
+           # checkpoint disk's size, and our own usage from our_du.sh (du, every 30 min)
+           "disk_total_gb": round(st.f_blocks * st.f_frsize / 1e9, 1), "disk_free_bytes": st.f_bavail * st.f_frsize,
+           "ckpt_disk_total_gb": (lambda c: round(c.f_blocks * c.f_frsize / 1e9, 1))(os.statvfs(os.environ["CKPT_ROOT"])) if os.path.isdir(os.environ.get("CKPT_ROOT", "")) else None,
+           "our_du": json.load(open(os.path.join(root, "control", "our_du.json"))) if os.path.exists(os.path.join(root, "control", "our_du.json")) else None,
+           "held": json.load(open(os.path.join(root, "control", "held.json"))) if os.path.exists(os.path.join(root, "control", "held.json")) else None,   # [v2.5.9c] GPUs held for a #gpus task
+           "runbook_head": git("rev-parse", "--short", "HEAD"), "runbook_version": "v2.5.9",
            "run_tasks_sha": open(os.path.join(root, "control", "run_tasks.sha")).read().strip() if os.path.exists(os.path.join(root, "control", "run_tasks.sha")) else None,
            "ckpt_roots": roots_report(),   # v2.5: every candidate root: mount, free GB, writable, alert, task dirs and sizes
            "dr": dr_report(),   # v2.5.7: the disaster-recovery share: total, mirrored steps per task, kept models, cap
@@ -150,7 +160,7 @@ PY
   UP=$F
   if ! python -c "import json, sys; json.load(open(sys.argv[1]))" $F 2> /dev/null; then
     UP=/dev/shm/status_$H.json; [ -d /dev/shm ] || UP=/tmp/status_$H.json
-    printf '{"host": "%s", "utc": "%s", "error": "status JSON not written (disk full?)", "disk_free_gb": %s, "ckpt_disk_free_gb": %s, "runbook_version": "v2.5.8"}\n' \
+    printf '{"host": "%s", "utc": "%s", "error": "status JSON not written (disk full?)", "disk_free_gb": %s, "ckpt_disk_free_gb": %s, "runbook_version": "v2.5.9"}\n' \
       "$H" "$(date -u +%FT%TZ)" "$(df -Pk $OPD_ROOT | awk 'NR==2{printf "%.1f", $4/1e6}')" "$(df -Pk ${CKPT_ROOT:-$OPD_ROOT} | awk 'NR==2{printf "%.1f", $4/1e6}')" > $UP
   fi
   N=$(python $RUNBOOK/scripts/control.py node)

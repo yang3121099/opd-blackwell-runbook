@@ -139,7 +139,7 @@ def test_pulse_has_no_paths_or_names(env, monkeypatch):
     text = json.dumps(p)
     assert "/" not in text and "someuser" not in text and "gpu-host" not in text and "example-corp" not in text
     assert p["tasks"]["E10b-P2"] == {"state": "running", "step": 59, "total_steps": 150, "val": 0.79, "trunc": 0.2, "s_per_step": 135.7,
-                                     "eta_min": 196, "attempts_failed": 0, "gpu": None, "kind": None, "started_utc": None}
+                                     "eta_min": 196, "attempts_failed": 0, "gpu": None, "gpus": [], "kind": None, "started_utc": None}
     assert p["gpus"][1] == {"idx": 1, "util": 100.0, "mem_used": 121681.0, "mem_total": 275040.0}
     assert p["alerts"] == ["ckpt_root_alert", "disk_alert", "stalled:E10b-P3"] and p["node_id"] == "testnode"
     assert env.c.leak_check(p) == [] and len(text) < 2048
@@ -228,7 +228,7 @@ def test_run_accepts_fa_probe(env):
 
 
 def test_run_accepts_v258a(env):   # [v2.5.8a] E12b-P5self, the 0.6B ladder E12c (P0 / P5 only) and its gate PROBE-E12C
-    for i, t in enumerate(("E12b-P5self", "E12b-P5self-s43", "E10b-P5self-s43", "E10d-P5self", "PROBE-P5SELF-4B", "E12c-P0", "E12c-P5", "PROBE-E12C", "E12b-P5-kl", "PROBE-E12B-KL", "E12b-P5-stop", "PROBE-E12B-STOP", "E12b-P5-8k", "E12b-P5-16k", "PROBE-E12B-8K", "PROBE-E12B-16K", "E10d-X1", "E10d-X2", "PROBE-X2507-X1", "PROBE-X2507-X2", "E10d-X4", "PROBE-X2507-X4", "E10b-P5lenS", "E10b-P5lenL", "E10b-P5lenR", "PROBE-LENSEL", "PROBE-2GPU", "PROBE-TOOL")):   # [v2.5.8b] kl; [v2.5.8c] stop; [v2.5.8h] 8k / 16k
+    for i, t in enumerate(("E12b-P5self", "E12b-P5self-s43", "E10b-P5self-s43", "E10d-P5self", "PROBE-P5SELF-4B", "E12c-P0", "E12c-P5", "PROBE-E12C", "E12b-P5-kl", "PROBE-E12B-KL", "E12b-P5-stop", "PROBE-E12B-STOP", "E12b-P5-8k", "E12b-P5-16k", "PROBE-E12B-8K", "PROBE-E12B-16K", "E10d-X1", "E10d-X2", "PROBE-X2507-X1", "PROBE-X2507-X2", "E10d-X4", "PROBE-X2507-X4", "E10b-P5lenS", "E10b-P5lenL", "E10b-P5lenR", "PROBE-LENSEL", "PROBE-2GPU", "PROBE-TOOL", "PROBE-NET")):   # [v2.5.8b] kl; [v2.5.8c] stop; [v2.5.8h] 8k / 16k
         st, msg, _ = env.c.v_run([t], 30 + i)
         assert st == "accepted", (t, msg)
     for i, t in enumerate(("E12c-P2", "E12c-P5self", "E12b-P2self", "PROBE-E12D", "E12b-P2-kl", "E12b-P2-stop", "PROBE-E12B-FOO", "E10d-P2self", "E10b-P5self-s44", "E12b-P5-32k", "PROBE-E12B-32K", "E10d-X3", "PROBE-X2507-X3", "E10d-X5", "PROBE-X2507-X5", "E10b-P5lenX", "E10c-P5lenS-fix4", "PROBE-LENSEL2")):
@@ -376,7 +376,7 @@ def test_eval_verb_unchanged(cmd, ok):   # the eval verb keeps 2-4 arguments (no
         R.parse({"cmd": cmd + " 32768", "reason": "t"})
 
 
-@pytest.mark.parametrize("cmd,ok", [("rerun FA-PROBE", True), ("rerun EVAL-bridge", True), ("rerun E10b-P2", True), ("rerun SFT-P1", True), ("rerun E10c-P4lowlr-fix4", True), ("rerun PROBE-TERM", True), ("rerun E10c-P4lowlr-dyn6144", True), ("rerun E12c-P0", True), ("rerun PROBE-E12C", True), ("rerun E12b-P5self", True), ("rerun PROBE-E12B-KL", True), ("rerun E12b-P5-kl", True), ("rerun PROBE-E12B-STOP", True), ("rerun PROBE-P5SELF-4B", True), ("rerun PROBE-X2507-X1", True), ("rerun PROBE-X2507-X4", True), ("rerun PROBE-LENSEL", True), ("rerun PROBE-2GPU", True), ("rerun PROBE-TOOL", True), ("rerun PROBE-X2507-X3", False), ("rerun E10d-P5self", True), ("rerun E12b-P5-stop", True), ("rerun /etc", False),
+@pytest.mark.parametrize("cmd,ok", [("rerun FA-PROBE", True), ("rerun EVAL-bridge", True), ("rerun E10b-P2", True), ("rerun SFT-P1", True), ("rerun E10c-P4lowlr-fix4", True), ("rerun PROBE-TERM", True), ("rerun E10c-P4lowlr-dyn6144", True), ("rerun E12c-P0", True), ("rerun PROBE-E12C", True), ("rerun E12b-P5self", True), ("rerun PROBE-E12B-KL", True), ("rerun E12b-P5-kl", True), ("rerun PROBE-E12B-STOP", True), ("rerun PROBE-P5SELF-4B", True), ("rerun PROBE-X2507-X1", True), ("rerun PROBE-X2507-X4", True), ("rerun PROBE-LENSEL", True), ("rerun PROBE-2GPU", True), ("rerun PROBE-TOOL", True), ("rerun PROBE-NET", True), ("rerun PROBE-X2507-X3", False), ("rerun E10d-P5self", True), ("rerun E12b-P5-stop", True), ("rerun /etc", False),
                                     ("rerun EVAL-a;b", False), ("rerun", False), ("rerun FA-PROBE x", False)])
 def test_rules_rerun(cmd, ok):
     if ok:
@@ -837,3 +837,21 @@ def test_do_script_receipt(env, monkeypatch):
     open(s, "w").write('echo \'{"result": "FAIL", "reason": "venv copy failed"}\' > $OPD_ROOT/logs/rebuild_drill.json\n')
     c.do_script(121, "rebuild_drill.sh", "rebuild_drill.json")
     assert got["st"] == "failed" and "venv copy failed" in got["detail"]
+
+
+def test_pulse_v259c_disks_held_gpus(env):   # [v2.5.9c] disk totals and our usage, a held GPU, a task's GPU list
+    st = {"utc": "2026-10-21T08:00:00Z", "disk_free_gb": 20328.8, "disk_total_gb": 2251799.8, "disk_free_bytes": 20328812345678,
+          "ckpt_disk_free_gb": 5024.1, "ckpt_disk_total_gb": 7696.6,
+          "our_du": {"utc": "2026-10-21T07:45:00Z", "work_gb": 612.3, "ckpt_gb": 1100.1, "secs": 120, "timed_out": False},
+          "held": {"task": "PROBE-2GPU", "gpus": [7], "since_utc": "2026-10-21T08:24:43Z"},
+          "tasks": {"E12b-P5-16k": {"state": "running", "gpu": 2, "gpus": [2, 3], "kind": "train"},
+                    "EVAL-x": {"state": "running", "gpu": 1, "gpus": [1, "x", 99]}}}
+    p = env.c.build_pulse(st, "2, 90, 1000, 275040\n7, 0, 0, 275040\n")
+    d0, d1 = p["disks"]
+    assert (d0["free_gb"], d0["total_gb"], d0["free_bytes"], d0["our_gb"], d0["our_gb_utc"]) == (20328.8, 2251799.8, 20328812345678, 612.3, "2026-10-21T07:45:00Z")
+    assert (d1["free_gb"], d1["total_gb"], d1["our_gb"]) == (5024.1, 7696.6, 1100.1)
+    assert [g.get("held_for") for g in p["gpus"]] == [None, "PROBE-2GPU"]
+    assert p["tasks"]["E12b-P5-16k"]["gpus"] == [2, 3] and p["tasks"]["EVAL-x"]["gpus"] == [1]
+    p2 = env.c.build_pulse({"tasks": {}, "held": {"task": "bad;name", "gpus": [7]}}, "7, 0, 0, 275040\n")   # no our_du, a bad hold
+    assert p2["disks"][0]["our_gb"] is None and "held_for" not in p2["gpus"][0]
+    assert not env.c.leak_check(p)

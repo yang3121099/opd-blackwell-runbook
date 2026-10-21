@@ -474,16 +474,21 @@ bash $T/x/scripts/task.sh 1,2 E12b-P5-16k & P1=$!; sleep 0.5
 got=$( PATH=$T/bin:$PATH NGPU=4; eval "$(sed -n '/^free_gpus() {/,/; }$/p' $SRC/scripts/run_tasks.sh)"; free_gpus | tr '\n' ' ' )
 kill $P1 2> /dev/null
 ok "[v2.5.9a] a task on gpus 1,2 keeps both" '[ "$got" = "0 3 " ]'
-printf '#gpus A 2\n#gpus B 3\n#gpus C 9\n' > $T/q
-tg=$( Q=$T/q OPD_ROOT=$T/root; eval "$(sed -n '/^gpus_of() {/p' $SRC/scripts/run_tasks.sh)"; eval "$(sed -n '/^take_gpus() {/,/; }$/p' $SRC/scripts/run_tasks.sh)"
+printf '#gpus A 2\n#gpus B 3\n#gpus C 9\n' > $T/q; mkdir -p $T/root/logs $T/root/control
+echo '{"tasks": {"X": {"state": "running", "eta_min": 12}}}' > $T/root/logs/status_n.json   # a GPU frees within 30 min
+tg=$( Q=$T/q OPD_ROOT=$T/root; eval "$(sed -n '/^gpus_of() {/p' $SRC/scripts/run_tasks.sh)"; eval "$(sed -n '/^soon_free() {/,/^}$/p' $SRC/scripts/run_tasks.sh)"
+  eval "$(sed -n '/^take_gpus() {/,/; }$/p' $SRC/scripts/run_tasks.sh)"
   FREE=(3 5 6); take_gpus A; printf "a=$G:${FREE[*]} "
   FREE=(4 7); take_gpus C; printf "c=$G:${FREE[*]} "
   FREE=(4); take_gpus A > /dev/null; printf "hold=$?:${#FREE[@]} "; [ -f $T/root/runs/A/.gpus_wait ] && printf "wait "
+  python3 -c "import json, sys; h = json.load(open(sys.argv[1])); print('held=%s:%s' % (h['task'], h['gpus']), end=' ')" $T/root/control/held.json
   echo $(( $(date +%s) - 31 * 60 )) > $T/root/runs/A/.gpus_wait; FREE=(4); take_gpus A; printf "release=$?:${#FREE[@]} "
   echo $(( $(date +%s) - 61 * 60 )) > $T/root/runs/A/.gpus_wait; FREE=(4); take_gpus A; printf "again=${#FREE[@]} "
+  echo '{"tasks": {"X": {"state": "running", "eta_min": null}, "Y": {"state": "done", "eta_min": 5}}}' > $T/root/logs/status_n.json
+  FREE=(4); take_gpus A; printf "noeta=${#FREE[@]} "
   FREE=(4 9); take_gpus A; printf "go=$G "; [ -f $T/root/runs/A/.gpus_wait ] || printf "cleared "
   FREE=(); take_gpus B; printf "none=$?" )
-ok "[v2.5.9a] take_gpus: n GPUs, n invalid = 1, too few: held, then released, then held again; the wait cleared on start" '[ "$tg" = "a=3,5:6 c=4:7 hold=1:0 wait release=1:1 again=0 go=4,9 cleared none=1" ]'
+ok "[v2.5.9a/c] take_gpus: n GPUs, n invalid = 1; too few: held (held.json) while a GPU frees within 30 min, released in turns, not held without an ETA; the wait cleared on start" '[ "$tg" = "a=3,5:6 c=4:7 hold=1:0 wait held=A:[4] release=1:1 again=0 noeta=1 go=4,9 cleared none=1" ]'
 rm -rf $T
 # v2.5.7j: no task script deletes a final bf16 copy (Runming: final weights keep a local copy after upload)
 ok "final bf16 copies are never deleted by run_e12.sh / run_arm.sh / run_eval.sh" '! grep -nE "rm -rf[^#]*huggingface_bf16" $SRC/scripts/run_e12.sh $SRC/scripts/run_arm.sh $SRC/scripts/run_eval.sh'

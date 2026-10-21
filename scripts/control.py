@@ -944,6 +944,11 @@ def build_pulse(st, gpu_csv):
         if len(r) == 4 and r[0].isdigit():
             f = lambda v: float(v) if re.fullmatch(r"[0-9]+(\.[0-9]+)?", v) else None
             gpus.append({"idx": int(r[0]), "util": f(r[1]), "mem_used": f(r[2]), "mem_total": f(r[3])})
+    held = st.get("held") if isinstance(st.get("held"), dict) else {}   # [v2.5.9c] a free GPU held for a #gpus task
+    if R.TASK_RE.match(str(held.get("task") or "")) and isinstance(held.get("gpus"), list):
+        for g in gpus:
+            if g["idx"] in held["gpus"]:
+                g["held_for"] = held["task"]
     tasks = {}
     for name, v in (st.get("tasks") or {}).items():
         if not isinstance(v, dict) or not R.TASK_RE.match(name):
@@ -955,6 +960,7 @@ def build_pulse(st, gpu_csv):
                        "attempts_failed": _num(v.get("attempts_failed")),
                        # v2.5.5: the GPU it holds, train / sft / eval / probe / other, its start (for grouping by GPU)
                        "gpu": v.get("gpu") if isinstance(v.get("gpu"), int) and 0 <= v.get("gpu") <= 15 else None,
+                       "gpus": [g for g in v.get("gpus") or [] if isinstance(g, int) and 0 <= g <= 15],   # [v2.5.9c] all of a #gpus task's
                        "kind": v.get("kind") if v.get("kind") in ("train", "sft", "eval", "probe", "other") else None,
                        "started_utc": v.get("started_utc") if isinstance(v.get("started_utc"), str)
                        and re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", v.get("started_utc")) else None}
@@ -982,14 +988,18 @@ def build_pulse(st, gpu_csv):
     alerts += [f"gpu_orphan:{g}" for g in sorted(orphans)]
     alerts += [f"gpu_mem_high:{g['idx']}" for g in gpus if g["mem_used"] is not None and g["mem_used"] > lim and g["idx"] not in evals]
     t = lambda x: x if isinstance(x, str) and re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", x) else None
+    du = st.get("our_du") if isinstance(st.get("our_du"), dict) else {}   # [v2.5.9c]
     head = st.get("runbook_head") if isinstance(st.get("runbook_head"), str) and re.fullmatch(r"[0-9a-f]{7,40}", st.get("runbook_head")) else None
     ver = st.get("runbook_version") if isinstance(st.get("runbook_version"), str) and re.fullmatch(r"v[0-9.]+", st.get("runbook_version")) else None
     return {"schema": 1, "utc": utc(), "node_id": node_id(), "status_utc": t(st.get("utc")), "runbook_head": head,
             "runbook_version": ver, "queue_version": _num(st.get("queue_version")) if not isinstance(st.get("queue_version"), str)
             else (st.get("queue_version") if re.fullmatch(r"[0-9]+", st.get("queue_version")) else None),
             "gpus": gpus, "tasks": tasks,
-            "disks": [{"idx": 0, "free_gb": _num(st.get("disk_free_gb")), "alert": bool(st.get("disk_alert"))},
-                      {"idx": 1, "free_gb": _num(st.get("ckpt_disk_free_gb")), "alert": bool(st.get("ckpt_disk_alert"))}],
+            "disks": [{"idx": 0, "free_gb": _num(st.get("disk_free_gb")), "alert": bool(st.get("disk_alert")),   # [v2.5.9c] + total, ours
+                       "total_gb": _num(st.get("disk_total_gb")), "free_bytes": _num(st.get("disk_free_bytes")),
+                       "our_gb": _num(du.get("work_gb")), "our_gb_utc": t(du.get("utc"))},
+                      {"idx": 1, "free_gb": _num(st.get("ckpt_disk_free_gb")), "alert": bool(st.get("ckpt_disk_alert")),
+                       "total_gb": _num(st.get("ckpt_disk_total_gb")), "our_gb": _num(du.get("ckpt_gb")), "our_gb_utc": t(du.get("utc"))}],
             "alerts": sorted(set(alerts)),
             "control": {"applied_seq": _num(ctl.get("applied_seq")), "pending": _num(ctl.get("pending")),
                         "last_pull_utc": t(ctl.get("last_pull_utc"))}}
@@ -1025,7 +1035,7 @@ def v_run(a, seq, flags=None, entry=None):
     t = a[0]
     r = subprocess.run(["bash", "-c", f'T={t}; ARMS="P2|P3|P4lowlr|P5|P6|P6r|P2noEOS|Pstop|P6rand|P6top5|P4EOSpen|P5top10|P5rand10m"; '
                         'case $T in E10b-*) [[ $T =~ ^E10b-(($ARMS)(-s(43|44))?|(P2|P5)-t14|P5think|P5self|P5self-s43|P2self|P5len[SLR])$ ]];; E10c-*) [[ $T =~ ^E10c-($ARMS)-(fix4|dyn16k|dyn6144)(-s43)?$ ]];; E10d-*) [[ $T =~ ^E10d-((P2|P5)(-s43)?|P5self|X1|X2|X4)$ ]];; E11b-*) [[ $T =~ ^E11b-(P0|($ARMS)(-s(43|44))?|(P2|P5)-t14)$ ]];; '
-                        'E12b-*) [[ $T =~ ^E12b-(P0|P1|$ARMS|P5-s4[34]|P2-s43|P5self|P5self-s43|P5-kl|P5-stop|P5-8k|P5-16k)$ ]];; E12c-*) [[ $T =~ ^E12c-(P0|P5)$ ]];; E12d-*) [[ $T =~ ^E12d-(P0|P5)$ ]];; EVAL-*) [[ $T =~ ^EVAL-[A-Za-z0-9._-]+$ ]];; SFT-P1|FA-PROBE|SPEED-PROBE|PROBE-4B|PROBE-TERM|PROBE-TERM2|PROBE-TERM3|PROBE-TERM4|PROBE-TERM4-4B|PROBE-TOP10|STRICT-C1|PROBE-T14|PROBE-P5THINK|PROBE-P5SELF|PROBE-P5SELF-4B|PROBE-P2SELF|PROBE-E12C|PROBE-E12B-KL|PROBE-E12B-STOP|PROBE-E12B-8K|PROBE-E12B-16K|PROBE-X2507-X1|PROBE-X2507-X2|PROBE-X2507-X4|PROBE-LENSEL|PROBE-2GPU|PROBE-TOOL|FA-SPEED-17|FA-SPEED-4B|FA-SPEED-E12|FA-SPEED-TWIN|E03-MI-l0.[0357]|E03-MI-l1.0|E02-opsa17-c0.5|E02-opsa17-c1.5|E02-opsa4-c-1|'
+                        'E12b-*) [[ $T =~ ^E12b-(P0|P1|$ARMS|P5-s4[34]|P2-s43|P5self|P5self-s43|P5-kl|P5-stop|P5-8k|P5-16k)$ ]];; E12c-*) [[ $T =~ ^E12c-(P0|P5)$ ]];; E12d-*) [[ $T =~ ^E12d-(P0|P5)$ ]];; EVAL-*) [[ $T =~ ^EVAL-[A-Za-z0-9._-]+$ ]];; SFT-P1|FA-PROBE|SPEED-PROBE|PROBE-4B|PROBE-TERM|PROBE-TERM2|PROBE-TERM3|PROBE-TERM4|PROBE-TERM4-4B|PROBE-TOP10|STRICT-C1|PROBE-T14|PROBE-P5THINK|PROBE-P5SELF|PROBE-P5SELF-4B|PROBE-P2SELF|PROBE-E12C|PROBE-E12B-KL|PROBE-E12B-STOP|PROBE-E12B-8K|PROBE-E12B-16K|PROBE-X2507-X1|PROBE-X2507-X2|PROBE-X2507-X4|PROBE-LENSEL|PROBE-2GPU|PROBE-TOOL|PROBE-NET|FA-SPEED-17|FA-SPEED-4B|FA-SPEED-E12|FA-SPEED-TWIN|E03-MI-l0.[0357]|E03-MI-l1.0|E02-opsa17-c0.5|E02-opsa17-c1.5|E02-opsa4-c-1|'
                         'E02-opsa4-c0.5|E02-opsa4-c1.5) true;; *) false;; esac'])
     if r.returncode != 0:
         return "rejected", f"{t} is not accepted by task.sh", {}
@@ -1048,7 +1058,7 @@ def v_rerun(a, seq, flags=None, entry=None):
     d = os.path.join(ROOT, "runs", t)
     done, failed = os.path.exists(os.path.join(d, ".done")), os.path.exists(os.path.join(d, ".failed"))
     skipped = os.path.exists(os.path.join(d, ".skipped"))
-    if done and not re.fullmatch(r"FA-PROBE|SPEED-PROBE|PROBE-4B|PROBE-TERM(?:[234]|4-4B)?|PROBE-TOP10|STRICT-C1|PROBE-T14|PROBE-P5THINK|PROBE-P5SELF|PROBE-P5SELF-4B|PROBE-P2SELF|PROBE-E12C|PROBE-E12B-KL|PROBE-E12B-STOP|PROBE-E12B-8K|PROBE-E12B-16K|PROBE-X2507-X1|PROBE-X2507-X2|PROBE-X2507-X4|PROBE-LENSEL|PROBE-2GPU|PROBE-TOOL|FA-SPEED-(17|4B|E12|TWIN)|EVAL-[A-Za-z0-9._-]+", t):
+    if done and not re.fullmatch(r"FA-PROBE|SPEED-PROBE|PROBE-4B|PROBE-TERM(?:[234]|4-4B)?|PROBE-TOP10|STRICT-C1|PROBE-T14|PROBE-P5THINK|PROBE-P5SELF|PROBE-P5SELF-4B|PROBE-P2SELF|PROBE-E12C|PROBE-E12B-KL|PROBE-E12B-STOP|PROBE-E12B-8K|PROBE-E12B-16K|PROBE-X2507-X1|PROBE-X2507-X2|PROBE-X2507-X4|PROBE-LENSEL|PROBE-2GPU|PROBE-TOOL|PROBE-NET|FA-SPEED-(17|4B|E12|TWIN)|EVAL-[A-Za-z0-9._-]+", t):
         return "rejected", f"{t} is done (only FA-PROBE, SPEED-PROBE and EVAL tasks are rerun after finishing)", {}
     if not (done or failed or skipped):
         return "rejected", f"{t} is neither done, failed nor skipped", {}
