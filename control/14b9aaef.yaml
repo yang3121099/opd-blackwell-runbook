@@ -412,3 +412,4 @@ commands:
   - {"seq": 410, "cmd": "setenv FETCH_CONNS_NIGHT=64", "reason": "ops-lead 17:2x UTC: 64 connections (net2 grid 7.25 MB/s at 64; VL-8B averaged 3.6 at 32); revert to 32 if the 32B rate is not higher", "utc": "2026-10-21T17:17:36Z"}
   - {"seq": 411, "cmd": "setenv FETCH_CONNS_DAY=64", "reason": "ops-lead 17:2x UTC (Runming: day as night): 64 connections by day too, same revert rule", "utc": "2026-10-21T17:17:44Z"}
   - {"seq": 412, "cmd": "snapshot venv/lib/python3.10/site-packages/transformers/__init__.py", "reason": "Q-051 VLM feasibility (a): Qwen3-VL support on the node, read-only", "utc": "2026-10-21T17:22:50Z"}
+  - {"seq": 413, "cmd": "snapshot venv/lib/python3.10/site-packages/vllm/_version.py", "reason": "Q-051 VLM feasibility (a): Qwen3-VL support on the node, read-only", "utc": "2026-10-21T17:23:00Z"}
