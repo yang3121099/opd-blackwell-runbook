@@ -359,3 +359,4 @@ commands:
   - {"seq": 357, "cmd": "snapshot runs/PROBE-E12B-8K-smoke", "reason": "8K gate progress: its trainer log is not in logs/ (patrol URGENT 06:33)", "utc": "2026-10-21T06:35:37Z"}
   - {"seq": 358, "cmd": "snapshot runs/PROBE-E12B-16K-smoke", "reason": "16K gate progress for the reviewer (stalled alert is the probe log not moving)", "utc": "2026-10-21T06:37:14Z"}
   - {"seq": 359, "cmd": "du ckpt E10b-P5-t14/ckpt/global_step_150/actor", "reason": "Z1 TERM4 rows: local save must exist before the rerun (no hub fetch)", "utc": "2026-10-21T07:09:46Z"}
+  - {"seq": 360, "cmd": "du ckpt E10b-P2-t14/ckpt/global_step_150/actor", "reason": "Z1 TERM4 rows: local save must exist before the rerun (no hub fetch)", "utc": "2026-10-21T07:12:04Z"}
