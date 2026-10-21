@@ -7,7 +7,7 @@ SRC=$(cd "$(dirname "$0")/.." && pwd); fails=0; n=0
 ok() { n=$((n + 1)); if eval "$2"; then :; else echo "  FAIL [$1]"; fails=$((fails + 1)); fi; }
 setup() {
   T=$(mktemp -d); mkdir -p $T/rb/scripts $T/root/runs $T/bin
-  cp $SRC/scripts/probe_e12var.sh $T/rb/scripts/
+  cp $SRC/scripts/probe_e12var.sh $T/rb/scripts/; mkdir -p $T/rb/code/analysis; cp $SRC/code/analysis/e12_rollout_stats.py $T/rb/code/analysis/
   echo "export OPD_ROOT=$T/root RUNBOOK=$T/rb" > $T/rb/scripts/env.sh
   printf 'import sys, os; open(os.environ["CALLS"], "a").write("control " + " ".join(sys.argv[1:]) + "\\n"); sys.argv[1:2] == ["node"] and print("abcd1234")\n' > $T/rb/scripts/control.py
   printf 'import sys, os; open(os.environ["CALLS"], "a").write("remote " + " ".join(sys.argv[1:]) + "\\n")\n' > $T/rb/scripts/remote.py
@@ -17,6 +17,12 @@ d=$OPD_ROOT/runs/$PROBE_TASK; mkdir -p $d; S=/runs/E10b-P5/ckpt/global_step_150/
 if [ $2 = E12b-P5-16k ]; then   # [v2.5.8h]
   printf "task: E12b-P5-16k\nstart: $S\nvariant: 16k\nmax_response_length: ${FAKE_MAXR:-16384}\n" > $d/config.yaml
   for i in 1 2 3; do echo "(TaskRunner pid=1) step:$i - response_length/mean:$((9000 + i)) - critic/score/mean:0.5" >> $d/train.log; done
+  exit 0
+fi
+if [ $2 = E12b-P5-stop2 ]; then   # [v2.5.9f]
+  printf "task: E12b-P5-stop2\nstart: $S\nvariant: stop2\nvenv: venv\nreward: ${FAKE_REWARD:-reward_stop2.py (correct x (1 + 0.5 x ...))}\n" > $d/config.yaml
+  for i in 1 2 3; do echo "(TaskRunner pid=1) step:$i - critic/score/mean:0.9 - critic/score/max:1.49 - critic/score/min:0.0 - critic/rewards/mean:0.9 - critic/rewards/max:1.49" >> $d/train.log; done
+  mkdir -p $d/rollouts; for g in a a b b; do if [ "${FAKE_NOTAIL:-0}" = 1 ]; then echo '{"input": "'$g'", "output": "o", "score": 1.2}'; else echo '{"input": "'$g'", "output": "o", "score": 1.2, "acc": 1.0, "tail": 400, "cut": 0, "bonus": 0.2}'; fi; done > $d/rollouts/1.jsonl
   exit 0
 fi
 if [ $2 = E12b-P5-stop ]; then   # [v2.5.8c]
@@ -106,5 +112,23 @@ rm -rf $T
 setup
 FAKE_MAXR=4096 bash $T/rb/scripts/probe_e12var.sh 2 16k > /dev/null 2>&1
 ok "16k: a smoke at another limit is FAIL" '[ "$(lres result)" = FAIL ] && [[ "$(lres reason)" == *"max_response_length 16384"* ]]'
+rm -rf $T
+# [v2.5.9f] stop2: PASS with the fixed cases in range, the reward file named, the rollout dump carrying the tail
+s2() { python3 -c "import json, sys; print(json.load(open(sys.argv[1])).get(sys.argv[2], ''))" $T/root/runs/PROBE-E12B-STOP2/report.json "$1"; }
+setup
+FAKE_CASES="[1.4995, 1.41, 0.0, 1.0]" bash $T/rb/scripts/probe_e12var.sh 2 stop2 > /dev/null 2>&1
+ok "[v2.5.9f] stop2 PASS: fixed cases, reward_stop2.py, tail in the dump, zero-variance share reported" '[ "$(s2 result)" = PASS ] && grep -q "^run_e12 2 E12b-P5-stop2 SMOKE=1 STEPS=3 PROBE_TASK=PROBE-E12B-STOP2-smoke" $CALLS && [[ "$(s2 reason)" == *"zero-variance groups 1.0"* ]]'
+rm -rf $T
+setup
+FAKE_CASES="[1.4995, 1.41, 0.0, 1.0]" FAKE_NOTAIL=1 bash $T/rb/scripts/probe_e12var.sh 2 stop2 > /dev/null 2>&1
+ok "[v2.5.9f] stop2: a dump without the parts is FAIL" '[ "$(s2 result)" = FAIL ] && [[ "$(s2 reason)" == *"does not carry the reward"* ]]'
+rm -rf $T
+setup
+FAKE_CASES="[1.5, 1.0, 1.0, 0.0]" bash $T/rb/scripts/probe_e12var.sh 2 stop2 > /dev/null 2>&1
+ok "[v2.5.9f] stop2: the old 0 / 0.5 bonus on the fixed cases is FAIL" '[ "$(s2 result)" = FAIL ] && [[ "$(s2 reason)" == *"fixed cases"* ]]'
+rm -rf $T
+setup
+FAKE_CASES="[1.4995, 1.41, 0.0, 1.0]" FAKE_REWARD=reward_stop.py bash $T/rb/scripts/probe_e12var.sh 2 stop2 > /dev/null 2>&1
+ok "[v2.5.9f] stop2: another reward in the config is FAIL" '[ "$(s2 result)" = FAIL ] && [[ "$(s2 reason)" == *"does not name reward_stop2.py"* ]]'
 rm -rf $T
 [ $fails = 0 ] && echo "PROBE_E12VAR_TEST PASS ($n checks)" || echo "PROBE_E12VAR_TEST FAIL ($fails of $n)"

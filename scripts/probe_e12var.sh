@@ -12,11 +12,15 @@
 #       grader and the start's tokenizer (the training's venv) give 1.5 / 1.0 / 1.0 / 0.0 (one box ending at once,
 #       a changed box, a long tail, a wrong box); the smoke's config names reward_stop.py; every step's score lies in
 #       [0, 1.5]; and critic/rewards/mean = critic/score/mean (nothing else added to the reward).
+#   [v2.5.9f] stop2: the continuous stop reward on the node: fixed cases (the start's tokenizer, the node's grader): an
+#       answer that stops at once in (1.45, 1.5], a ~180-token tail in (1.0, 1.45), a wrong box 0, a tail past 1024 tokens
+#       1.0; the smoke's config names reward_stop2.py; every step's score in [0, 1.5]; rewards = score; and the smoke's
+#       rollout dump carries the reward's parts (tail), with the share of zero-variance groups reported.
 #   [v2.5.8h] 8k / 16k: the long response limits fit (the smoke's config names the limit; its response lengths and the
 #       peak are reported; the peak check above is the main one).
 set -uo pipefail
 G=$1; VAR=$2; source "$(dirname "$0")/env.sh"
-case $VAR in kl|stop|8k|16k) ;; *) echo "unknown variant $VAR"; exit 2;; esac   # [v2.5.8c] stop; [v2.5.8h] 8k / 16k
+case $VAR in kl|stop|stop2|8k|16k) ;; *) echo "unknown variant $VAR"; exit 2;; esac   # [v2.5.8c] stop; [v2.5.8h] 8k / 16k; [v2.5.9f] stop2
 T=PROBE-E12B-$(echo $VAR | tr a-z A-Z); D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; mkdir -p $D
 [ -f $D/.done ] && { echo "TASK_ALREADY_DONE $T"; exit 0; }
 step() { echo "PROBE_E12VAR $(date -u +%T) $*" | tee -a $LOG; }
@@ -97,6 +101,64 @@ PY
   why=$(cat $D/kl_check.txt)
   [ -z "$why" ] || finish FAIL "kl: $why"
   finish PASS "${PEV_STEPS:-3}-step smoke ok, peak ${peak} MiB, the reference is the start (step-1 KL $(python3 -c "import json; print(json.load(open('$D/kl_loss_by_step.json')).get('1'))"))"
+fi
+if [ $VAR = stop2 ]; then   # [v2.5.9f]
+  START=$(sed -n 's/^start: //p' $D/smoke/config.yaml | head -1)
+  SV=$(sed -n 's/^venv: //p' $D/smoke/config.yaml | head -1)
+  cases=$(OPD_REWARD_TOKENIZER=$START OPD_REWARD_MAXLEN=4096 ${PEV_PY:-$OPD_ROOT/${SV:-venv}/bin/python} - "$RUNBOOK/code/train" 2>> $LOG <<'PY'
+import json, sys
+sys.path.insert(0, sys.argv[1])
+import reward_stop2 as r
+tail = "Let me double check this result once more. "
+cases = [("So the answer is \\boxed{2}.", "2"), ("So \\boxed{2}. " + tail * 20, "2"), ("So \\boxed{3}.", "2"), ("So \\boxed{2}. " + tail * 150, "2")]
+print(json.dumps([r.compute_score("math", s, g)["score"] for s, g in cases]))
+PY
+)
+  cp $OPD_ROOT/runs/$T-smoke/rollouts/1.jsonl $D/smoke/rollouts_1.jsonl 2> /dev/null
+  python3 - "$D" "$cases" "$RUNBOOK" <<'PY'
+import json, os, re, sys
+d, cases, rb = sys.argv[1], sys.argv[2], sys.argv[3]
+log = open(os.path.join(d, "smoke", "train.log"), errors="ignore").read()
+cfg = open(os.path.join(d, "smoke", "config.yaml"), errors="ignore").read()
+sc = {}
+for line in log.splitlines():
+    m = re.search(r"(?:^|[ )\]])step:(\d+) - ", line)
+    v = {k: re.search(rf"critic/{k}:([-+0-9.eE]+)", line) for k in ("score/min", "score/max", "score/mean", "rewards/mean")}
+    if m and all(v.values()):
+        sc[int(m.group(1))] = {k: float(x.group(1)) for k, x in v.items()}
+why = []
+try:
+    got = json.loads(cases.strip().splitlines()[-1])
+except (ValueError, IndexError):
+    got = None
+json.dump(got, open(os.path.join(d, "stop_cases.json"), "w")); json.dump(sc, open(os.path.join(d, "score_by_step.json"), "w"))
+if not (got and 1.45 < got[0] <= 1.5 and 1.0 < got[1] < 1.45 and got[2] == 0.0 and got[3] == 1.0):
+    why.append(f"the reward on the fixed cases is {got}, expected (1.45, 1.5] / (1.0, 1.45) / 0 / 1.0")
+if "reward: reward_stop2.py" not in cfg:
+    why.append("the smoke's config does not name reward_stop2.py")
+if not sc:
+    why.append("no critic/score and critic/rewards in the log")
+for s, v in sorted(sc.items()):
+    if v["score/min"] < 0 or v["score/max"] > 1.5 + 1e-6:
+        why.append(f"step {s}: score outside [0, 1.5]")
+    if abs(v["rewards/mean"] - v["score/mean"]) > 1e-6:
+        why.append(f"step {s}: reward differs from the score")
+rp = os.path.join(d, "smoke", "rollouts_1.jsonl")
+recs = [json.loads(x) for x in open(rp)] if os.path.exists(rp) else []
+if not recs or "tail" not in recs[0]:
+    why.append("the smoke's rollout dump does not carry the reward's parts (tail)")
+else:
+    try:
+        sys.path.insert(0, os.path.join(rb, "code", "analysis")); import e12_rollout_stats as E
+        json.dump(E.step_stats(1, recs, lambda t: len(t.split())), open(os.path.join(d, "stop2_step1_stats.json"), "w"))
+    except Exception as e:
+        why.append(f"the rollout statistics failed ({type(e).__name__})")
+open(os.path.join(d, "stop_check.txt"), "w").write("; ".join(why))
+PY
+  [ -f $D/stop_check.txt ] || finish FAIL "stop2: the checks did not run"
+  why=$(cat $D/stop_check.txt)
+  [ -z "$why" ] || finish FAIL "stop2: $why"
+  finish PASS "${PEV_STEPS:-3}-step smoke ok, peak ${peak} MiB, the continuous stop reward scores the fixed cases $(python3 -c "import json; print(json.load(open('$D/stop_cases.json')))" ) on the node; step-1 zero-variance groups $(python3 -c "import json; print(json.load(open('$D/stop2_step1_stats.json')).get('zero_var_groups'))")"
 fi
 if [ $VAR = stop ]; then   # [v2.5.8c]
   START=$(sed -n 's/^start: //p' $D/smoke/config.yaml | head -1)

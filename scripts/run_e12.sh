@@ -18,7 +18,8 @@ set -euo pipefail
 source "$(dirname "$0")/env.sh"; source "$(dirname "$0")/dr.sh"; G=$1; T=$2; LADDER=${T%%-*}; A=${T#*-}
 # [v2.5.8b] (Q-020, reviewer 22:0x UTC 10-19): E12b-P5-<variant> = E12b-P5 with one change: kl = a KL loss to the start (coef
 # 0.01, low_var_kl, the reference policy = the start P5 s150), stop = the stop reward ([v2.5.8c]). Everything else is E12b-P5's.
-VAR=""; case $A in P5-kl|P5-stop|P5-8k|P5-16k) VAR=${A#P5-}; A=P5;; esac
+# [v2.5.9f] (T1, reviewer 07:4x UTC 10-21): stop2 = the continuous stop reward (code/train/reward_stop2.py), 100 steps as stop
+VAR=""; case $A in P5-kl|P5-stop|P5-stop2|P5-8k|P5-16k) VAR=${A#P5-}; A=P5;; esac
 # [v2.5.8h] (Runming 10-20 17:5x UTC via the reviewer, Q-028: the 4K limit costs too much): E12b-P5-8k / -16k = E12b-P5 with
 # max_response_length 8192 / 16384 and what the length forces: flash-attn with remove-padding (an SDPA micro-batch is
 # padded to its longest sequence), a token budget of at least prompt + response, vLLM batching above the model length
@@ -91,7 +92,7 @@ start: $START
 algo: GRPO 64x8, $((MAXR / 1024))K, T=1.0, lr 1e-6, clip 0.2/0.28, $([ "$VAR" = kl ] && echo "KL loss 0.01 low_var_kl to the start (reference = $START)" || echo "KL 0"), mini-batch 16, data.seed 4242, $STEPS steps
 variant: ${VAR:-none}
 max_response_length: $MAXR
-reward: $([ "$VAR" = stop ] && echo "reward_stop.py (1 if correct, +0.5 if every box agrees and the response ends within 64 tokens after the first box)" || echo reward_mathverify.py)   # [v2.5.8c]
+reward: $(case $VAR in (stop) echo "reward_stop.py (1 if correct, +0.5 if every box agrees and the response ends within 64 tokens after the first box)";; (stop2) echo "reward_stop2.py (correct x (1 + 0.5 x clip(1 - tail / 1024, 0, 1)), tail = tokens after the first box, a cut response counts 1024)";; (*) echo reward_mathverify.py;; esac)   # [v2.5.8c] [v2.5.9f]
 attention: $ATTN (use_remove_padding=$RMPAD)
 venv: $(basename $V)
 batching: [$BATCH]
@@ -114,6 +115,7 @@ UW=$STEPS; case $T in E12b-P5-s44|E12d-P5) UW=25,50,75,$STEPS;; E12b-P5-8k|E12b-
 KL="actor_rollout_ref.actor.use_kl_loss=False"; REWARD=$RUNBOOK/code/train/reward_mathverify.py
 # [v2.5.8c] stop: the stop reward, counting the student's tokens (its start's tokenizer) against the 4K response limit
 [ "$VAR" = stop ] && { REWARD=$RUNBOOK/code/train/reward_stop.py; export OPD_REWARD_TOKENIZER=$START OPD_REWARD_MAXLEN=4096; }
+[ "$VAR" = stop2 ] && { REWARD=$RUNBOOK/code/train/reward_stop2.py; export OPD_REWARD_TOKENIZER=$START OPD_REWARD_MAXLEN=4096; }   # [v2.5.9f]
 [ "$VAR" = kl ] && KL="actor_rollout_ref.actor.use_kl_loss=True actor_rollout_ref.actor.kl_loss_coef=0.01 actor_rollout_ref.actor.kl_loss_type=low_var_kl +actor_rollout_ref.ref.model.path=$START actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=$LOGP_MB actor_rollout_ref.ref.fsdp_config.param_offload=False"
 [ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $NAME start=$START steps=$STEPS save=$SAVE contents=$CONTENTS kern=[$KERN] gc=$GCK venv=$(basename $V) ngpu=$NG rmpad=$RMPAD upload=${UPLOAD_WEIGHTS:-$UW} vllm=${VLLM_UTIL:-0.6} var=${VAR:-none} kl=[$KL] reward=$(basename $REWARD)"; exit 0; }   # tests
 if [ $SM = 0 ]; then

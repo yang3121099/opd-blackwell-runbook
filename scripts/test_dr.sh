@@ -129,5 +129,7 @@ ok "[v2.5.8c] E12b-P5-stop refused before PROBE-E12B-STOP passed" '[[ "$t1" == "
 mkdir -p $T/base/root/runs/PROBE-E12B-STOP; echo '{"result": "PASS"}' > $T/base/root/runs/PROBE-E12B-STOP/report.json
 t2=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P5-stop 2>&1 | tail -1)
 ok "[v2.5.8c] E12b-P5-stop: start P5 s150, 100 steps, KL off, the stop reward; config names it" '[[ "$t2" == "DRYRUN E12b-P5-stop start=$S5 steps=100 "*"upload=100 "*"var=stop kl=[actor_rollout_ref.actor.use_kl_loss=False] reward=reward_stop.py" ]] && grep -q "^reward: reward_stop.py " $T/base/root/runs/E12b-P5-stop/config.yaml && grep -q "^reward: reward_mathverify.py" $T/base/root/runs/E12b-P5-kl/config.yaml && grep -q "^venv: venv$" $T/base/root/runs/E12b-P5-stop/config.yaml'
+t3=$(SMOKE=1 PROBE_TASK=PROBE-E12B-STOP2-smoke DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P5-stop2 2>&1 | tail -1); ( bash $T/rb/scripts/run_e12.sh 0 E12b-P5-stop2 > $T/g11 2>&1 ); r11=$?   # [v2.5.9f]
+ok "[v2.5.9f] E12b-P5-stop2: start P5 s150, var stop2, reward_stop2.py; gated on PROBE-E12B-STOP2" '[[ "$t3" == "DRYRUN PROBE-E12B-STOP2-smoke start=$S5 "*"var=stop2 kl=[actor_rollout_ref.actor.use_kl_loss=False] reward=reward_stop2.py" ]] && [ $r11 = 3 ] && grep -q "PROBE-E12B-STOP2 has not passed" $T/g11'
 rm -rf $T
 [ $fails = 0 ] && echo "DR_TEST PASS ($n checks)" || echo "DR_TEST FAIL ($fails of $n)"
