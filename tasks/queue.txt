@@ -1372,8 +1372,11 @@ olpd     open   EVAL-ext32k-17olpd
 # 10-21 (reviewer): EVAL-e10c-dyn16k's lines removed (its training failed for good on 10-18, the reading stayed skipped)
 # v2.5.9e pulls (reviewer 10:3x UTC 10-21): DAPO-Math-17k (299 MB, ~2-3 h at the proxy's 0.03-0.05 MB/s) first, then Qwen3-VL-2B-Instruct
 # (4.3 GB, ~1-1.5 days), one at a time, niced; ClawEnvKit (MIT) code at a fixed commit, file list only
-#fetch dataset:BytedTsinghua-SIA/DAPO-Math-17k
+# [v2.5.9q] (Fable 10-21 22:5x Beijing, ops-lead): the pulls in this order, one at a time; large files only at night (22:00-08:00
+# Beijing), in parallel segments (FETCH_PARALLEL); Qwen3-32B after VL-8B is in (the second-tier teacher-scale probe, not urgent)
+#fetch Qwen/Qwen3-VL-8B-Thinking
 #fetch Qwen/Qwen3-VL-2B-Instruct
+#fetch dataset:BytedTsinghua-SIA/DAPO-Math-17k
 #git xirui-li/ClawEnvKit e7003442030e15c5e85f4c5f28a5e54774c6a21a code
 # b259fp / b259f (runbook v2.5.9f, T1, reviewer A1 10-21): E12b-P5-stop2 = E12b-P5 with the graded stop reward (reward_stop2.py:
 # acc x (1 + 0.5 clip(1 - tail/1024, 0, 1)), tail = student tokens after the first \boxed{}, a cut response tail 1024), from P5
