@@ -457,6 +457,17 @@ rows1=$(awk 'NR > 1' $R/rollout_stats.csv 2> /dev/null | grep -c .); up1=$(cat $
 echo "finished: now" >> $R/config.yaml; sleep 7
 ok "[v2.5.9g] upload_sync: E12 stats while training (settled s1-s12, uploaded at >= 10 rows), complete at the end (13 rows), no tokenizer" '[ "$rows1" = 12 ] && [ "$up1" = 12 ] && grep -q "STATS_UP E12b-T 12 steps" $T/up.log && [ "$(awk "NR > 1" $R/rollout_stats.csv | grep -c .)" = 13 ] && grep -q "UPLOAD_DONE E12b-T" $T/up.log && ! grep -q STATS_ERR $T/up.log'
 pkill -f "upload_sync.sh $R" 2> /dev/null; rm -rf $T
+# 3h3. [v2.5.9i] net2_unfreeze: a pull a killed PROBE-NET2 left stopped is resumed, but not while probe_net2.sh runs (pgrep is a
+#      stub reading $T/probe_running, so no timing; the stopped process is a real one this test starts)
+T=$(mktemp -d); mkdir -p $T/root/runs/PROBE-NET2 $T/rb/scripts $T/bin; printf 'import sys\n' > $T/rb/scripts/control.py
+printf '#!/usr/bin/env bash\n[ "$*" = "-f scripts/probe_net2\\\\.sh" ] && [ -f %s/probe_running ]\n' $T > $T/bin/pgrep; chmod +x $T/bin/pgrep
+sleep 300 & SP=$!; kill -STOP $SP; echo $SP > $T/root/runs/PROBE-NET2/paused_pids
+uf() { ( PATH=$T/bin:$PATH OPD_ROOT=$T/root RUNBOOK=$T/rb; eval "$(sed -n '/^net2_unfreeze() {/,/; }$/p' $SRC/scripts/run_tasks.sh)"; net2_unfreeze ); }
+touch $T/probe_running; uf; s1=$(ps -o stat= -p $SP | cut -c1)
+rm -f $T/probe_running; uf; for _i in $(seq 30); do s2=$(ps -o stat= -p $SP | cut -c1); [ "$s2" != T ] && break; sleep 0.1; done
+left=$(cat $T/root/runs/PROBE-NET2/paused_pids)
+ok "[v2.5.9i] net2_unfreeze: left alone while probe_net2.sh runs, resumed after; paused_pids emptied (s1=$s1 s2=$s2 left=$left)" '[ "$s1" = T ] && [ "$s2" != T ] && [ -z "$left" ]'
+kill -CONT $SP 2> /dev/null; kill $SP 2> /dev/null; wait $SP 2> /dev/null; rm -rf $T   # only the process this test started
 # 3i. [v2.5.8] no_fetch(): an EVAL task with only Qwen/ and local: models needs no prefetch; one with a ckpts or
 #     result: model does
 T=$(mktemp -d); printf 'version: 2\n#eval EVAL-a a local:runs/X/ckpt/global_step_1/actor/huggingface math500 4 0.6\n#eval EVAL-a b Qwen/Qwen3-1.7B math500 4 0.6\n#eval EVAL-b c yang31210999/opd-lab-ckpts/runs/Y/global_step_1/actor/huggingface math500 4 0.6\n#eval EVAL-c d result:runs/Z/global_step_1/actor/huggingface math500 4 0.6\n' > $T/q.txt

@@ -58,4 +58,10 @@ ok "a crashed call is a row with the tool error, the grid goes on" '[[ "$(r "[x 
 ok "aria2c x16 per source from the bytes written" '[ "$(r "len([x for x in v[\"latest\"][\"rows\"] if x[\"tool\"] == \"aria2c\"])")" = 3 ] && python3 -c "import json, sys; v = json.load(open(sys.argv[1])); a = [x for x in v[\"latest\"][\"rows\"] if x[\"tool\"] == \"aria2c\"]; sys.exit(0 if all(1.9 < x[\"MBps\"] < 2.2 for x in a) else 1)" $T/root/runs/PROBE-NET2/report.json && [ ! -d $T/root/runs/PROBE-NET2/aria2 ]'
 ok "pids an earlier killed run left stopped are resumed before measuring" 'grep -q "resumed pids left by an earlier run: $FP" $T/root/runs/PROBE-NET2/probe.log && ! grep "^par " $CALLS | grep -vq "fetch=T"'
 teardown
+# 4. [v2.5.9i] result uploads timed out in the last hour: the probe waits (here 1 check of 0 s), then measures anyway
+setup
+mkdir -p $T/root/logs; echo "UPLOAD_TIMEOUT runs/X 600 s" > $T/root/logs/heartbeat.err
+PN2_UPLOAD_CHECKS=1 PN2_UPLOAD_WAIT_STEP=0 bash $T/rb/scripts/probe_net2.sh cpu > /dev/null 2>&1
+ok "uploads timing out: waits, then measures anyway" 'grep -q "result uploads timed out in the last hour: waiting" $T/root/runs/PROBE-NET2/probe.log && grep -q "measuring anyway" $T/root/runs/PROBE-NET2/probe.log && [ "$(r "len(v[\"latest\"][\"rows\"])")" = 12 ]'
+teardown
 [ $fails = 0 ] && echo "PROBE_NET2_TEST PASS ($n checks)" || echo "PROBE_NET2_TEST FAIL ($fails of $n)"

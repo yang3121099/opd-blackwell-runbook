@@ -30,6 +30,14 @@ declare -a SOURCES=(
   "hf|https://huggingface.co/Qwen/Qwen3-32B/resolve/main/model-00001-of-00017.safetensors"
   "hf_mirror|https://hf-mirror.com/Qwen/Qwen3-32B/resolve/main/model-00001-of-00017.safetensors"
   "modelscope|$MS/models/Qwen/Qwen3-32B/repo?Revision=master&FilePath=model-00001-of-00017.safetensors")
+# [v2.5.9i] (ops-lead's A1 of 9h) not while result uploads time out (the proxy is shared and results go first, as in fetch_pass):
+# checked every PN2_UPLOAD_WAIT_STEP (300 s) up to PN2_UPLOAD_CHECKS (24) times, then measured anyway
+for _w in $(seq 0 ${PN2_UPLOAD_CHECKS:-24}); do
+  { [ -n "$(find $OPD_ROOT/logs/heartbeat.err -mmin -60 2> /dev/null)" ] && tail -20 $OPD_ROOT/logs/heartbeat.err | grep -q UPLOAD_TIMEOUT; } || break
+  [ $_w = 0 ] && step "result uploads timed out in the last hour: waiting"
+  [ $_w = ${PN2_UPLOAD_CHECKS:-24} ] && { step "uploads still timing out after the wait: measuring anyway"; break; }
+  sleep ${PN2_UPLOAD_WAIT_STEP:-300}
+done
 # 3. the slow pull: resume what an earlier, killed run may have left stopped, then pause the current one
 [ -s $D/paused_pids ] && { kill -CONT $(cat $D/paused_pids) 2> /dev/null; step "resumed pids left by an earlier run: $(cat $D/paused_pids)"; }
 : > $D/paused_pids

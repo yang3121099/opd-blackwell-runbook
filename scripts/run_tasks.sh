@@ -153,6 +153,11 @@ prefetch_pass() {
     setsid nohup bash -c "$PTO bash $RUNBOOK/scripts/run_queue_eval.sh prefetch $t >> $OPD_ROOT/logs/prefetch_$t.log 2>&1 || touch $OPD_ROOT/runs/$t/.prefetch_fail" < /dev/null > /dev/null 2>&1 &
     n=$((n + 1))
   done; }
+net2_unfreeze() {   # [v2.5.9i] (ops-lead's A1 of 9h) the slow pull a PROBE-NET2 stopped and could not resume (SIGKILL: no trap) runs again
+  local f=$OPD_ROOT/runs/PROBE-NET2/paused_pids
+  [ -s $f ] || return 0; pgrep -f "scripts/probe_net2\.sh" > /dev/null && return 0
+  kill -CONT $(cat $f) 2> /dev/null; python3 $RUNBOOK/scripts/control.py event PROBE-NET2 pulls_resumed_by_run_tasks "$(cat $f)" > /dev/null 2>&1 &
+  : > $f; }
 # v2.5.7w (reviewer 08:5x UTC): "#fetch Qwen/Qwen3-<n>B" lines of the queue = a model fetched to $OPD_ROOT/models/<name> in the
 # background, without a GPU (fetch_model.py: every file by size and sha256, .fetch_ok, events fetch_done / fetch_failed);
 # one model at a time, a failure retried after 30 min
@@ -258,6 +263,7 @@ while true; do
     done
   fi
   [ "${DRY:-0}" != 1 ] && prefetch_pass
+  [ "${DRY:-0}" != 1 ] && net2_unfreeze   # [v2.5.9i]
   [ "${DRY:-0}" != 1 ] && fetch_pass   # v2.5.7w
   [ "${DRY:-0}" != 1 ] && git_pass   # [v2.5.9c]
   FREE=($(free_gpus)); earlier_finished=1; rm -f $CDIR/held.json   # [v2.5.9c] a hold is written again by take_gpus
