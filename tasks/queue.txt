@@ -63,6 +63,7 @@ fill9    open   EVAL-ext32k-17s44mid:E12b-P5-s44 EVAL-ext32k-4Bmid:E12d-P5
 fill10   open   EVAL-ext-17kl:E12b-P5-kl
 fill11   open   EVAL-ext-17p5selfrl:E12b-P5self EVAL-ext-17stop:E12b-P5-stop
 fill12   open   EVAL-ext-4Bp5self:E10d-P5self
+fill13   open   EVAL-ext32k-17sets-a EVAL-ext32k-17sets-b:E12b-P5-kl
 budF     open   EVAL-budF-4B EVAL-budF-06:EVAL-budA06p5+EVAL-budA06think
 passk    open   EVAL-passk-ext
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T0.6 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
@@ -1180,3 +1181,20 @@ passk    open   EVAL-passk-ext
 #pair EVAL-ext-4Bp5self ext_E10dP5self_amc23_T0.6 EVAL-ext-E10d-P5/ext_E10dP5_amc23_T0.6_amc23_no_think_t0.6.jsonl EVAL-ext-E10d-P0/ext_E10dP0_amc23_T0.6_amc23_no_think_t0.6.jsonl
 #pair EVAL-ext-4Bp5self ext_E10dP5self_minervamath_T0.6 EVAL-ext-E10d-P5/ext_E10dP5_minervamath_T0.6_minervamath_no_think_t0.6.jsonl EVAL-ext-E10d-P0/ext_E10dP0_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
 #pair EVAL-ext-4Bp5self ext_E10dP5self_olympiadbench_T0.6 EVAL-ext-E10d-P5/ext_E10dP5_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl EVAL-ext-E10d-P0/ext_E10dP0_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
+# fill13 (reviewer 03:5x UTC): the KL arm's ceiling beyond AIME, at 32K: P5 s150 (the start), E12b-P5 s100 (pure GRPO) and
+# E12b-P5-kl s100 on AMC23 avg@8 / Minerva / OlympiadBench avg@4; -a holds the start, -b the two RL models and the pairs
+#eval EVAL-ext32k-17sets-a ext32k17_E10bP5_s150_amc23_T0.6 result:runs/E10b-P5/global_step_150/actor/huggingface amc23 8 0.6 32768
+#eval EVAL-ext32k-17sets-a ext32k17_E10bP5_s150_minervamath_T0.6 result:runs/E10b-P5/global_step_150/actor/huggingface minervamath 4 0.6 32768
+#eval EVAL-ext32k-17sets-a ext32k17_E10bP5_s150_olympiadbench_T0.6 result:runs/E10b-P5/global_step_150/actor/huggingface olympiadbench 4 0.6 32768
+#eval EVAL-ext32k-17sets-b ext32k17_E12bP5_s100_amc23_T0.6 result:runs/E12b-P5/global_step_100/actor/huggingface amc23 8 0.6 32768
+#eval EVAL-ext32k-17sets-b ext32k17_E12bP5_s100_minervamath_T0.6 result:runs/E12b-P5/global_step_100/actor/huggingface minervamath 4 0.6 32768
+#eval EVAL-ext32k-17sets-b ext32k17_E12bP5_s100_olympiadbench_T0.6 result:runs/E12b-P5/global_step_100/actor/huggingface olympiadbench 4 0.6 32768
+#eval EVAL-ext32k-17sets-b ext32k17_E12bP5kl_s100_amc23_T0.6 result:runs/E12b-P5-kl/global_step_100/actor/huggingface amc23 8 0.6 32768
+#eval EVAL-ext32k-17sets-b ext32k17_E12bP5kl_s100_minervamath_T0.6 result:runs/E12b-P5-kl/global_step_100/actor/huggingface minervamath 4 0.6 32768
+#eval EVAL-ext32k-17sets-b ext32k17_E12bP5kl_s100_olympiadbench_T0.6 result:runs/E12b-P5-kl/global_step_100/actor/huggingface olympiadbench 4 0.6 32768
+#pair EVAL-ext32k-17sets-b ext32k17_E12bP5kl_s100_amc23_T0.6 EVAL-ext32k-17sets-a/ext32k17_E10bP5_s150_amc23_T0.6_amc23_no_think_t0.6.jsonl EVAL-ext32k-17sets-b/ext32k17_E12bP5_s100_amc23_T0.6_amc23_no_think_t0.6.jsonl
+#pair EVAL-ext32k-17sets-b ext32k17_E12bP5_s100_amc23_T0.6 EVAL-ext32k-17sets-a/ext32k17_E10bP5_s150_amc23_T0.6_amc23_no_think_t0.6.jsonl
+#pair EVAL-ext32k-17sets-b ext32k17_E12bP5kl_s100_minervamath_T0.6 EVAL-ext32k-17sets-a/ext32k17_E10bP5_s150_minervamath_T0.6_minervamath_no_think_t0.6.jsonl EVAL-ext32k-17sets-b/ext32k17_E12bP5_s100_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
+#pair EVAL-ext32k-17sets-b ext32k17_E12bP5_s100_minervamath_T0.6 EVAL-ext32k-17sets-a/ext32k17_E10bP5_s150_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
+#pair EVAL-ext32k-17sets-b ext32k17_E12bP5kl_s100_olympiadbench_T0.6 EVAL-ext32k-17sets-a/ext32k17_E10bP5_s150_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl EVAL-ext32k-17sets-b/ext32k17_E12bP5_s100_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
+#pair EVAL-ext32k-17sets-b ext32k17_E12bP5_s100_olympiadbench_T0.6 EVAL-ext32k-17sets-a/ext32k17_E10bP5_s150_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
