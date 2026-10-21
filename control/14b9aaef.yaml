@@ -375,3 +375,4 @@ commands:
   - {"seq": 373, "cmd": "resume EVAL-e10d-x1", "reason": "requeued after E12b-P5-16k took GPU2 + GPU7 at 10:11 UTC (two-GPU restart); readings keep their generations, the arms start again from step 0", "utc": "2026-10-21T10:12:02Z"}
   - {"seq": 374, "cmd": "resume EVAL-e10d-x2", "reason": "requeued after E12b-P5-16k took GPU2 + GPU7 at 10:11 UTC (two-GPU restart); readings keep their generations, the arms start again from step 0", "utc": "2026-10-21T10:12:11Z"}
   - {"seq": 375, "cmd": "resume E10b-P5lenS", "reason": "requeued after E12b-P5-16k took GPU2 + GPU7 at 10:11 UTC (two-GPU restart); readings keep their generations, the arms start again from step 0", "utc": "2026-10-21T10:12:20Z"}
+  - {"seq": 376, "cmd": "resume E10b-P5lenL", "reason": "requeued after E12b-P5-16k took GPU2 + GPU7 at 10:11 UTC (two-GPU restart); readings keep their generations, the arms start again from step 0", "utc": "2026-10-21T10:12:28Z"}
