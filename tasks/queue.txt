@@ -61,11 +61,12 @@ q2507    open   EVAL-i2507 EVAL-t2507 EVAL-i2507-aime EVAL-t2507-aime
 b258e    open   E10b-P5self-s43 PROBE-P5SELF-4B E10d-P5self:PROBE-P5SELF-4B E12b-P5self-s43:E10b-P5self-s43 EVAL-e10b-P5self-s43:E10b-P5self-s43 EVAL-budA-P5self-s43:E10b-P5self-s43 EVAL-e10d-P5self:E10d-P5self EVAL-budA-e10dP5self:E10d-P5self EVAL-e12b-P5self-s43:E12b-P5self-s43 EVAL-budA-e12bP5self-s43:E12b-P5self-s43+EVAL-budA-P5self-s43
 b258h    open   E12b-P5-8k:PROBE-E12B-8K E12b-P5-16k:PROBE-E12B-16K EVAL-e12b-P5-8k:E12b-P5-8k EVAL-budA-e12bP5-8k:E12b-P5-8k EVAL-ext32k-17p5l8k:E12b-P5-8k EVAL-e12b-P5-16k:E12b-P5-16k EVAL-budA-e12bP5-16k:E12b-P5-16k EVAL-ext32k-17p5l16k:E12b-P5-16k
 b258i    open   E10d-X1:PROBE-X2507-X1 E10d-X2:PROBE-X2507-X2 EVAL-ext32k-x1:E10d-X1 EVAL-ext32k-x2:E10d-X2 EVAL-budA-x1:E10d-X1+EVAL-i2507 EVAL-budA-x2:E10d-X2+EVAL-i2507 EVAL-e10d-x1:E10d-X1 EVAL-e10d-x2:E10d-X2
+b259f    open   E12b-P5-stop2:PROBE-E12B-STOP2 EVAL-e12b-P5stop2:E12b-P5-stop2 EVAL-budA-e12bP5stop2:E12b-P5-stop2 EVAL-ext32k-17stop2:E12b-P5-stop2
 b258l    open   E10d-X4:PROBE-X2507-X4 EVAL-ext32k-x4:E10d-X4 EVAL-budA-x4:E10d-X4+EVAL-i2507 EVAL-e10d-x4:E10d-X4
 b259bp   open   PROBE-TOOL
 b259cp   open   PROBE-NET
+b259hp   open   PROBE-NET2
 b259fp   open   PROBE-E12B-STOP2
-b259f    open   E12b-P5-stop2:PROBE-E12B-STOP2 EVAL-e12b-P5stop2:E12b-P5-stop2 EVAL-budA-e12bP5stop2:E12b-P5-stop2 EVAL-ext32k-17stop2:E12b-P5-stop2
 bl       open   E10b-P5lenS:PROBE-LENSEL E10b-P5lenL:PROBE-LENSEL E10b-P5lenR:PROBE-LENSEL EVAL-len-R:E10b-P5lenR EVAL-len-S:E10b-P5lenS EVAL-len-L:E10b-P5lenL EVAL-len-cmp:EVAL-len-R+EVAL-len-S+EVAL-len-L
 fill4    open   EVAL-ext32k-17p1:E12b-P1 EVAL-ext32k-17p3:E12b-P3 EVAL-ext-E10b-P3:E10b-P3 EVAL-ext-E10b-P6r:E10b-P6r
 len      open   EVAL-budA06p5:E10c-P5-fix4 EVAL-budA06think EVAL-budA-8Bthink
@@ -1464,3 +1465,6 @@ night2   open   EVAL-ext-17s44mid EVAL-ext-4Bmid EVAL-budA-17p2seeds EVAL-ext32k
 #eval EVAL-budA-17p2seeds budA17_E10bP2s44_s150_math500_T0.6_32k result:runs/E10b-P2-s44/global_step_150/actor/huggingface math500 4 0.6 32768
 #budget EVAL-budA-17p2seeds budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl budA17_E10bP2s43_s150_math500_T0.6_32k budA17_E10bP2s44_s150_math500_T0.6_32k
 #budget EVAL-budA-17p2seeds budget_curve_vsP2 EVAL-budA17b/budA_E10bP2_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budA17_E10bP2s43_s150_math500_T0.6_32k budA17_E10bP2s44_s150_math500_T0.6_32k
+# b259hp (runbook v2.5.9h, Runming via the reviewer 12:1x UTC 10-21; ops-lead's A1): PROBE-NET2 in the CPU lane, 1/4/16/32 parallel
+# Range connections to the three hubs, the slow pull paused while it measures (~25 min); reruns at 15:00 and 19:00 UTC for the
+# night comparison (`rerun PROBE-NET2`); report private
