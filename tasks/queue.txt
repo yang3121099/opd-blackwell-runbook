@@ -94,6 +94,7 @@ b259wp   open   PROBE-E12B-R3
 b259w    open   E12b-P5-r3:PROBE-E12B-R3 EVAL-e12b-P5s44-s50 EVAL-e12b-P5r3:E12b-P5-r3+EVAL-e12b-P5s44-s50 EVAL-ext32k-17r3:E12b-P5-r3
 b259f2   open   E12b-P5-stop2:PROBE-E12B-STOP2
 b259y    open   E12b-P5-16k-kl:EVAL-e12b-P5-16k EVAL-e12b-P5-16k-kl:E12b-P5-16k-kl EVAL-budA-e12bP5-16k-kl:E12b-P5-16k-kl EVAL-ext32k-17p5l16kkl:E12b-P5-16k-kl
+b259y1   open   BUILD-VENV-VL PROBE-VLLM-VL:BUILD-VENV-VL
 night1   open   EVAL-ext-06p5rl EVAL-ext-x1 EVAL-ext-x2 EVAL-ext-x4:E10d-X4 EVAL-ext32k-17p5selfrl-s43 EVAL-ext-17p5selfrl-s43 EVAL-ext-17p5self-s43 EVAL-budA-17p2rl-s43 EVAL-budA-4Bp2s43
 b259ip   open   PROBE-ROLLOUT-U60 PROBE-ROLLOUT-U85 PROBE-ROLLOUT-U75
 night2   open   EVAL-ext-17s44mid EVAL-ext-4Bmid EVAL-budA-17p2seeds
@@ -1693,3 +1694,5 @@ olpd     open   EVAL-ext32k-17olpd
 # b259f2 (Fable 10-21 17:5x UTC, Q-034 re-ruled): stop2 resumed from its s25 resume state (DR) and rerun, a formal task after
 # tonight's OPD arms (b259l..b259w) and before every pad; its readings stay in b259f behind it. New rule at s60 (rollout_stats.csv):
 # s41-s60 mean bonus_mean >= 0.08 and tail_p50_correct < 800 on each of the last 5 steps, else killed for good; else to s100.
+# b259y1 (runbook v2.5.9y1, Q-051, ops-lead's A1): BUILD-VENV-VL in the CPU lane now (venv-vl for the Qwen3-VL arms; venv and venv-fa
+# untouched), then PROBE-VLLM-VL on the first GPU free after the formal stages (about a minute; needs Qwen3-VL-2B-Instruct and Geometry3K in)
