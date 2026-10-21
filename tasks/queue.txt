@@ -1333,6 +1333,6 @@ z8b      open   EVAL-ext32k-8Bthink-aime EVAL-ext32k-17base
 #eval EVAL-ext32k-17base ext32k17_base17_aime24_T0.6 local:models/Qwen3-1.7B aime24 16 0.6 32768
 #eval EVAL-ext32k-17base ext32k17_base17_aime25_T0.6 local:models/Qwen3-1.7B aime25 16 0.6 32768
 # TERM2 rows (reviewer 10-21, after TERM4's 17_P5t14 / 17_P5think): the 8B teacher's p(stop) after the box on the trajectories
-# of the thinking-template student (expected non-zero) and of the 14B-teacher P5 student (expected 0); picked up at TERM2's next rerun
-#term PROBE-TERM2 17_P5think local:runs/E10b-P5think/ckpt/global_step_50/actor/huggingface EVAL-e10b-P5think/e10b_P5think_s50_math500_T0.6_math500_think_t0.6.jsonl think
-#term PROBE-TERM2 17_P5t14 result:runs/E10b-P5-t14/global_step_150/actor/huggingface E11b-P5-t14/e11b_P5-t14_math500_T0.6_math500_no_think_t0.6.jsonl
+# of the thinking-template student (expected non-zero) and of the 14B-teacher P5 student (expected 0); PROBE-TERM2 reads the PROBE-TERM rows
+#term PROBE-TERM 17_P5think local:runs/E10b-P5think/ckpt/global_step_50/actor/huggingface EVAL-e10b-P5think/e10b_P5think_s50_math500_T0.6_math500_think_t0.6.jsonl think
+#term PROBE-TERM 17_P5t14 result:runs/E10b-P5-t14/global_step_150/actor/huggingface E11b-P5-t14/e11b_P5-t14_math500_T0.6_math500_no_think_t0.6.jsonl
