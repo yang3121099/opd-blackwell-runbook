@@ -349,3 +349,4 @@ commands:
   - {"seq": 347, "cmd": "du ckpt E12d-P5/ckpt/global_step_25/actor", "reason": "reviewer 01:3x UTC: which mid-RL steps have a local save (the proxy blocks downloads), read-only", "utc": "2026-10-21T01:34:50Z"}
   - {"seq": 348, "cmd": "du ckpt E12d-P5/ckpt/global_step_50/actor", "reason": "reviewer 01:3x UTC: which mid-RL steps have a local save (the proxy blocks downloads), read-only", "utc": "2026-10-21T01:36:03Z"}
   - {"seq": 349, "cmd": "du ckpt E12d-P5/ckpt/global_step_75/actor", "reason": "reviewer 01:3x UTC: which mid-RL steps have a local save (the proxy blocks downloads), read-only", "utc": "2026-10-21T01:37:01Z"}
+  - {"seq": 350, "cmd": "rerun PROBE-TERM4-4B", "reason": "reviewer 01:5x UTC: TERM4 rows for the 2507 pair (fill10)", "utc": "2026-10-21T01:50:47Z"}
