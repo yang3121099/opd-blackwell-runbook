@@ -449,3 +449,4 @@ commands:
   - {"seq": 447, "cmd": "rerun PROBE-NET2", "reason": "night rerun 2 of 2 (deferred from 19:00 UTC while the 32B / MathVista pulls ran; both in by 20:37 UTC, no pull running)", "utc": "2026-10-21T21:34:54Z"}
   - {"seq": 448, "cmd": "snapshot runs/E10b-P5stopmerge/stopmerge.jsonl", "reason": "Q-038 s10 aggregates for the reviewer (the file uploads only at the end)", "utc": "2026-10-21T22:07:33Z"}
   - {"seq": 449, "cmd": "snapshot runs/E10b-P5stopmerge/train.log", "reason": "Q-038: per-step score / length / clip ratio (stopmerge.jsonl shows boxes 126 -> 14 per step, stops 126 -> 2)", "utc": "2026-10-21T22:09:08Z"}
+  - {"seq": 450, "cmd": "snapshot runs/EVAL-len-S/e10b_P5lenS_s50_math500_T0.6_math500_no_think_t0.6.metrics.json", "reason": "EVAL-len-S slow (ops-lead): its 16K row's length / truncation", "utc": "2026-10-21T23:32:15Z"}
