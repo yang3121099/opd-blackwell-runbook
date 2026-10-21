@@ -444,3 +444,4 @@ commands:
   - {"seq": 442, "cmd": "snapshot data/hf/AI4Math__MathVista/.fetch_ok", "reason": "arrival check 2", "utc": "2026-10-21T20:46:08Z"}
   - {"seq": 443, "cmd": "rerun READINGS-EXTRA", "reason": "v2.5.9z5 (ops-lead A1): publish split / frontier / pairs to the public repository; 8B vs 4B thinking AIME pairs", "utc": "2026-10-21T20:48:33Z"}
   - {"seq": 444, "cmd": "rerun READINGS-EXTRA", "reason": "v2.5.9z7 (ops-lead A1): Q-052 (b) coverage rows q052_aime24 / q052_aime25", "utc": "2026-10-21T21:08:17Z"}
+  - {"seq": 445, "cmd": "rerun PROBE-STOPMERGE", "reason": "v2.5.9z6 (reviewer A1): the gate's self-check PROBE-STOPMERGE-UNIT passed (10 passed, 0 failed, 0 skipped); the GPU smoke now", "utc": "2026-10-21T21:09:03Z"}
