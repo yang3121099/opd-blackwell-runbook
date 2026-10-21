@@ -9,6 +9,7 @@ so re-running after a patch change is safe.
    - the policy loss uses `_opd_loss_mask`; entropy/KL keep the full response_mask (R-001 item 2)
 2) ref_input_utils.prepare_ref_model_inputs: if env OPD_REF_THINK=1, render the teacher prompt in
    think mode and append '<think>\\n' (as in 2610.14270's think-likeness judge) -> arm P5.
+4) ray_trainer.RayPPOTrainer.fit: [v2.5.8m] the length-selection hook (lensel_patch.py; a no-op unless OPD_LENSEL is set).
 Usage: python apply_patches.py $OPD_ROOT/G-OPD/verl
 """
 import subprocess
@@ -17,7 +18,8 @@ from pathlib import Path
 
 root = Path(sys.argv[1]).resolve()
 repo = root.parent
-FILES = ["verl/verl/workers/actor/dp_actor.py", "verl/verl/trainer/ppo/ref_input_utils.py", "verl/verl/trainer/fsdp_sft_trainer.py"]
+FILES = ["verl/verl/workers/actor/dp_actor.py", "verl/verl/trainer/ppo/ref_input_utils.py", "verl/verl/trainer/fsdp_sft_trainer.py",
+         "verl/verl/trainer/ppo/ray_trainer.py"]
 subprocess.run(["git", "-C", str(repo), "checkout", "--", *FILES], check=True)
 MARK = "# [opd-variants patch v2]"
 
@@ -102,3 +104,10 @@ s = sub_once(s, 'attn_implementation="flash_attention_2",',
              "sft attn_implementation")
 sft.write_text(s)
 print("patched", sft)
+
+# 4. [v2.5.8m] (Q-030) length-selected OPD: k of n rollouts per prompt kept before the log-probs (lensel_patch.py,
+#    a no-op unless OPD_LENSEL is set)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from lensel_patch import patch_file as _lensel_patch  # noqa: E402
+_lensel_patch(str(root / "verl/trainer/ppo/ray_trainer.py"))
+print("patched", root / "verl/trainer/ppo/ray_trainer.py")
