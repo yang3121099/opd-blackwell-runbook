@@ -1273,7 +1273,7 @@ z8b      open   EVAL-ext32k-8Bthink-aime EVAL-ext32k-17base
 #strict STRICT-C1 EVAL-budA-x1/budAX1_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-i2507/i2507_math500_T0.6_32k_math500_no_think_t0.6.jsonl
 #strict STRICT-C1 EVAL-budA-x2/budAX2_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-i2507/i2507_math500_T0.6_32k_math500_no_think_t0.6.jsonl
 # 06:0x UTC 10-21: the dyn6144 reading's lines turned off (it was in no stage; the pulse listed it as queued from these lines;
-# its training E10c-P4lowlr-dyn6144 has been paused since its out-of-memory at step 105 on 10-18, so it could never start)
+# its training (the E10c P4lowlr dyn6144 run) had been paused since its out-of-memory at step 105 on 10-18, so it could never start)
 # b258l (runbook v2.5.8l, Q-032, Runming via the reviewer 06:4x UTC 10-21): E10d-X4 = the hybrid Qwen3-4B student (non-thinking
 # template, as E10d-P5) taught by Qwen3-4B-Instruct-2507 in its own template (think-template 0), P5's recipe, 4K rollouts, 50 steps;
 # the teacher already has thinking-level accuracy with non-thinking termination. AIME at s25 and s50 first, then MATH500 32K with
