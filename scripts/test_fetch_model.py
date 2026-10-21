@@ -142,3 +142,55 @@ def test_dataset_flag_reaches_the_child(monkeypatch, tmp_path):   # [v2.5.9e] th
     monkeypatch.setattr(F, "REPO_TYPE", "dataset")
     F.locked_fetch("own/ds", "", str(tmp_path))
     assert seen["args"][-1] == "--dataset" and seen["args"][2] == "--child"
+
+
+@pytest.fixture
+def par(hub, monkeypatch):   # [v2.5.9q] FETCH_PARALLEL=1 with par_fetch.download replaced (it writes the right bytes)
+    import par_fetch
+    calls = []
+
+    def fake(url, dst, size, conns, may_run=None, stop=None, **kw):
+        calls.append({"url": url, "conns": conns, "size": size, "may_run": may_run(), "stop": stop()})
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        open(dst, "wb").write(C if dst.endswith(".json") else W)
+        return {"bytes": size, "segments": 1, "resumed": 0, "seconds": 0.0}
+    monkeypatch.setattr(par_fetch, "download", fake)
+    monkeypatch.setenv("FETCH_PARALLEL", "1")
+    monkeypatch.delenv("FETCH_CONNS_DAY", raising=False); monkeypatch.delenv("FETCH_CONNS_NIGHT", raising=False)
+    return calls
+
+
+def test_parallel_by_day_defers_a_large_file(hub, par, monkeypatch, tmp_path):
+    monkeypatch.setattr(F, "night", lambda t=None: False); monkeypatch.setattr(F, "DAY_MAX", 100)
+    r = F.fetch("Qwen/Qwen3-1.7B", "m", str(tmp_path))
+    assert r["ok"] is False and r["deferred"] is True and r["errors"][-1]["error"] == "Deferred"
+    assert [c["size"] for c in par] == [len(C)] and par[0]["conns"] == 8   # the small file only, with the day's connections
+    assert hub["calls"] == [] and not os.path.exists(tmp_path / "m" / ".fetch_ok")   # nothing through hf_hub_download
+
+
+def test_parallel_at_night(hub, par, monkeypatch, tmp_path):
+    monkeypatch.setattr(F, "night", lambda t=None: True); monkeypatch.setattr(F, "DAY_MAX", 100)
+    r = F.fetch("Qwen/Qwen3-1.7B", "m", str(tmp_path))
+    assert r["ok"] is True and os.path.exists(tmp_path / "m" / ".fetch_ok") and hub["calls"] == []
+    assert [c["conns"] for c in par] == [32, 32] and all(c["may_run"] and not c["stop"] for c in par)   # small file first
+    assert par[0]["size"] == len(C) and "/Qwen/Qwen3-1.7B/resolve/main/m/config.json" in par[0]["url"]
+
+
+def test_parallel_waits_for_uploads_and_counts_from_the_environment(hub, par, monkeypatch, tmp_path):
+    monkeypatch.setattr(F, "night", lambda t=None: False); monkeypatch.setenv("FETCH_CONNS_DAY", "5")
+    monkeypatch.setattr(F, "uploads_timing_out", lambda: True)
+    r = F.fetch("Qwen/Qwen3-1.7B", "m", str(tmp_path))
+    assert r["ok"] is True and [c["conns"] for c in par] == [5, 5] and not any(c["may_run"] for c in par)   # may_run says wait
+
+
+def test_night_window_and_upload_check(tmp_path, monkeypatch):
+    import calendar
+    t = lambda h: calendar.timegm((2026, 10, 21, h, 30, 0))
+    assert [F.night(t(h)) for h in (13, 14, 23, 0)] == [False, True, True, False]   # 21:30 / 22:30 / 07:30 / 08:30 Beijing
+    monkeypatch.setenv("OPD_ROOT", str(tmp_path)); os.makedirs(tmp_path / "logs")
+    assert F.uploads_timing_out() is False
+    (tmp_path / "logs" / "heartbeat.err").write_text("x\nUPLOAD_TIMEOUT runs/A\n")
+    assert F.uploads_timing_out() is True
+    old = os.path.getmtime(tmp_path / "logs" / "heartbeat.err") - 7200
+    os.utime(tmp_path / "logs" / "heartbeat.err", (old, old))
+    assert F.uploads_timing_out() is False   # more than an hour ago

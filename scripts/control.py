@@ -964,6 +964,8 @@ def build_pulse(st, gpu_csv):
                        "kind": v.get("kind") if v.get("kind") in ("train", "sft", "eval", "probe", "other") else None,
                        "started_utc": v.get("started_utc") if isinstance(v.get("started_utc"), str)
                        and re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", v.get("started_utc")) else None}
+        if v.get("pad") is True:   # [v2.5.9q] a padding reading (#pad stages, v2.5.9m): only when true, like the monitor page reads it
+            tasks[name]["pad"] = True
     ctl = st.get("control") if isinstance(st.get("control"), dict) else {}
     alerts = []
     for a in ctl.get("alerts") or []:

@@ -178,7 +178,7 @@ fetch_pass() {
     # [v2.5.9e] slow background pulls (0.03-0.05 MB/s through the proxy, PROBE-NET 10-21): niced, idle I/O class, each call
     # bounded by FETCH_TIMEOUT_BG (6 h; the partial files stay and the next call goes on), retried after FETCH_RETRY_MIN (10)
     io=""; command -v ionice > /dev/null && io="ionice -c3"
-    setsid nohup bash -c "FETCH_TIMEOUT=${FETCH_TIMEOUT_BG:-21600} nice -n 19 $io python $RUNBOOK/scripts/fetch_model.py $r '' $d $ds --task FETCH-$nm >> $OPD_ROOT/logs/fetch_$nm.log 2>&1 && rm -f $d.fetch_fail || touch $d.fetch_fail" < /dev/null > /dev/null 2>&1 &
+    setsid nohup bash -c "FETCH_TIMEOUT=${FETCH_TIMEOUT_BG:-21600} FETCH_PARALLEL=${FETCH_PARALLEL_BG:-1} nice -n 19 $io python $RUNBOOK/scripts/fetch_model.py $r '' $d $ds --task FETCH-$nm >> $OPD_ROOT/logs/fetch_$nm.log 2>&1 && rm -f $d.fetch_fail || touch $d.fetch_fail" < /dev/null > /dev/null 2>&1 &
     date +%s > ${CDIR:-$OPD_ROOT/control}/fetch_progress.t
     return
   done; }

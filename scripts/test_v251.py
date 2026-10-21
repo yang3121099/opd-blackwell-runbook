@@ -156,6 +156,16 @@ def test_leak_check_catches(env, monkeypatch):
         assert env.c.leak_check({"k": ok}, toks) == [], ok
 
 
+def test_pulse_marks_padding_tasks(env, monkeypatch):   # [v2.5.9q] pad: true reaches the public pulse, only when true
+    import copy
+    st = copy.deepcopy(STATUS)
+    st["tasks"]["EVAL-fill"] = {"state": "queued", "step": 0, "pad": True}
+    st["tasks"]["EVAL-odd"] = {"state": "queued", "step": 0, "pad": "yes"}   # anything but true is dropped
+    monkeypatch.setenv("OPD_ROOT", str(env.root))
+    p = env.c.build_pulse(st, GPU)
+    assert p["tasks"]["EVAL-fill"]["pad"] is True and "pad" not in p["tasks"]["EVAL-odd"] and "pad" not in p["tasks"]["E10b-P2"]
+
+
 def test_pulse_refused_and_not_uploaded(env, monkeypatch):
     monkeypatch.setenv("HOME", "/home/running")   # a forbidden word that the pulse contains (the state "running")
     st = env.root / "status.json"; st.write_text(json.dumps(STATUS))

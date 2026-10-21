@@ -117,6 +117,42 @@ def missing(files, local):
     return bad
 
 
+def night(t=None):   # [v2.5.9q] the window large pulls run in: 22:00-08:00 Beijing (UTC+8)
+    h = (time.gmtime(t).tm_hour + 8) % 24
+    return h >= 22 or h < 8
+
+
+def uploads_timing_out():   # [v2.5.9e/9q] as fetch_pass: a result upload timed out in the last hour (results go first)
+    p = os.path.join(os.environ.get("OPD_ROOT", ""), "logs", "heartbeat.err")
+    try:
+        if time.time() - os.path.getmtime(p) > 3600:
+            return False
+        return "UPLOAD_TIMEOUT" in "".join(open(p, errors="ignore").readlines()[-20:])
+    except OSError:
+        return False
+
+
+DAY_MAX = int(float(os.environ.get("FETCH_DAY_MAX_BYTES", "1e9")))
+
+
+def parallel_download(repo, path, size, local, ep):
+    """[v2.5.9q] (FETCH_PARALLEL=1: run_tasks.sh's background pulls; Fable's rule 10-21 22:5x Beijing) one file in parallel
+    Range segments (par_fetch.py), FETCH_CONNS_NIGHT (32) connections at night and FETCH_CONNS_DAY (8) by day; a file over
+    FETCH_DAY_MAX_BYTES (1 GB) only at night (outside it: not started, or stopped at the end of the window, Deferred);
+    every segment waits while result uploads time out. No token is sent (public repositories)."""
+    from huggingface_hub import hf_hub_url
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import par_fetch
+    big = size > DAY_MAX
+    if big and not night():
+        raise par_fetch.Deferred(f"{path}: {size / 1e9:.1f} GB waits for the night window (22:00-08:00 Beijing)")
+    conns = int(os.environ.get("FETCH_CONNS_NIGHT" if night() else "FETCH_CONNS_DAY", "32" if night() else "8"))
+    dst = os.path.join(local, path); os.makedirs(os.path.dirname(dst) or ".", exist_ok=True)
+    return par_fetch.download(hf_hub_url(repo, path, repo_type=REPO_TYPE, endpoint=ep), dst, size, conns,
+                              may_run=lambda: not uploads_timing_out(), stop=lambda: big and not night(),
+                              log=lambda m: print(f"PAR_FETCH {path}: {m}", file=sys.stderr, flush=True))
+
+
 def fetch(repo, prefix, local):
     from huggingface_hub import HfApi, hf_hub_download
     from huggingface_hub import constants as K
@@ -140,12 +176,23 @@ def fetch(repo, prefix, local):
                     errors.append({"endpoint": ep, "attempt": attempt, "error": "NoFiles", "detail": f"nothing under {prefix}"})
                     break
                 todo = missing(files, local)
-                for path, size, sha in todo:
+                deferred = []
+                for path, size, sha in sorted(todo, key=lambda x: x[1]):   # [v2.5.9q] small files first
                     p = os.path.join(local, path)
                     if os.path.isfile(p):
                         os.remove(p)      # wrong size or sha256: fetch again (only our own download directory)
-                    hf_hub_download(repo, filename=path, local_dir=local, endpoint=ep, token=tok, repo_type=REPO_TYPE)
-                    got += size
+                    if os.environ.get("FETCH_PARALLEL") == "1":   # [v2.5.9q]
+                        import par_fetch
+                        try:
+                            got += parallel_download(repo, path, size, local, ep)["bytes"]
+                        except par_fetch.Deferred as e:
+                            deferred.append(str(e)); continue
+                    else:
+                        hf_hub_download(repo, filename=path, local_dir=local, endpoint=ep, token=tok, repo_type=REPO_TYPE)
+                        got += size
+                if deferred:   # [v2.5.9q] not a failure of this endpoint: the next call (after FETCH_RETRY_MIN) goes on
+                    return {"ok": False, "deferred": True, "files": len(files), "bytes": got, "seconds": round(time.time() - t0, 1),
+                            "errors": errors + [{"endpoint": ep, "error": "Deferred", "detail": "; ".join(deferred)[:300]}]}
                 todo = missing(files, local)
                 if not todo:
                     os.makedirs(os.path.dirname(ok_file), exist_ok=True)
@@ -253,7 +300,7 @@ def main():
         except Exception:
             pass
     print(json.dumps(r), flush=True)
-    if task and not r.get("cached"):
+    if task and not r.get("cached") and not r.get("deferred"):   # [v2.5.9q] a deferral (large file by day) is no event
         brief = {k: r.get(k) for k in ("endpoint", "hf_transfer", "files", "bytes", "seconds", "mb_s", "lock_wait_s")}
         errs = "; ".join(f"{e['endpoint'].split('//')[-1]}#{e['attempt']} {e['error']}" for e in r.get("errors", []))[:400]
         subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "control.py"), "event", task,
