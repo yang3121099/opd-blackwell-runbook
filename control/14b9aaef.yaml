@@ -442,3 +442,4 @@ commands:
   - {"seq": 440, "cmd": "snapshot logs/fetch_AI4Math__MathVista.log", "reason": "MathVista pull: why not in", "utc": "2026-10-21T20:17:07Z"}
   - {"seq": 441, "cmd": "snapshot models/Qwen3-32B/.fetch_ok", "reason": "arrival check 2", "utc": "2026-10-21T20:46:00Z"}
   - {"seq": 442, "cmd": "snapshot data/hf/AI4Math__MathVista/.fetch_ok", "reason": "arrival check 2", "utc": "2026-10-21T20:46:08Z"}
+  - {"seq": 443, "cmd": "rerun READINGS-EXTRA", "reason": "v2.5.9z5 (ops-lead A1): publish split / frontier / pairs to the public repository; 8B vs 4B thinking AIME pairs", "utc": "2026-10-21T20:48:33Z"}
