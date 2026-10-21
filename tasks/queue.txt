@@ -98,6 +98,7 @@ b259y1   open   BUILD-VENV-VL PROBE-VLLM-VL:BUILD-VENV-VL
 b259xp   open   PROBE-DIFF17 PROBE-ROUTE:PROBE-DIFF17
 b259x    open   E10b-P5route:PROBE-ROUTE E10b-P5mix:PROBE-ROUTE EVAL-e10b-P5route:E10b-P5route EVAL-e10b-P5mix:E10b-P5mix+EVAL-e10b-P5route EVAL-budA-P5route:E10b-P5route EVAL-budA-P5mix:E10b-P5mix
 diff4b   open   PROBE-DIFF17-4B:PROBE-DIFF17
+rx       open   READINGS-EXTRA
 night1   open   EVAL-ext-06p5rl EVAL-ext-x1 EVAL-ext-x2 EVAL-ext-x4:E10d-X4 EVAL-ext32k-17p5selfrl-s43 EVAL-ext-17p5selfrl-s43 EVAL-ext-17p5self-s43 EVAL-budA-17p2rl-s43 EVAL-budA-4Bp2s43
 b259ip   open   PROBE-ROLLOUT-U60 PROBE-ROLLOUT-U85 PROBE-ROLLOUT-U75
 night2   open   EVAL-ext-17s44mid EVAL-ext-4Bmid EVAL-budA-17p2seeds
@@ -105,7 +106,7 @@ fill14   open   EVAL-ext-4Bmid25 EVAL-ext-4Bmid75 EVAL-ext-17s44mid75 EVAL-budA-
 olpd     open   EVAL-ext32k-17olpd
 # [v2.5.9m] padding stages (ops-lead, Runming 10-21 21:2x Beijing): dispatched after every other stage, each group in file order;
 # every later fill list gets a #pad line too (a #pad line holds stage names only)
-#pad night1 night2 fill14 olpd diff4b
+#pad night1 night2 fill14 olpd diff4b rx
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T0.6 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T1.0 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 1.0
 #eval EVAL-e10c-fix4-s43 e10c_P4lowlr-fix4-s43_s150_math500_T0.6 result:runs/E10c-P4lowlr-fix4-s43/global_step_150/actor/huggingface math500 4 0.6
@@ -1726,3 +1727,36 @@ olpd     open   EVAL-ext32k-17olpd
 #budget EVAL-budA-P5mix budget_curve_vsP5s150 EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5mix_s50_math500_T0.6_32k
 #budget EVAL-budA-P5mix budget_curve_vsP2s150 EVAL-budA17b/budA_E10bP2_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5mix_s50_math500_T0.6_32k
 #term PROBE-TERM4 17_P5mix result:runs/E10b-P5mix/global_step_50/actor/huggingface EVAL-e10b-P5mix/e10b_P5mix_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+# rx (runbook v2.5.9x1, a CPU pad; ops-lead's / the reviewer's batch 10-22): READINGS-EXTRA. MATH-500 16K readings of the headline arms split
+# by problems 1-100 (the in-training validation set) / 101-500, and easy / hard once PROBE-DIFF17's labels exist (`rerun READINGS-EXTRA`
+# then, and after E10b-P5route / -P5mix's readings with their #split lines); the cost frontier's missing 16K mean lengths. The lab's
+# 0.6B E10-P6 / P6r and E12-P0s2 / P5s2 readings are not on this node (lab machines) and are left to the archive.
+#split READINGS-EXTRA 17_base E11b-P0/e11b_P0_math500_T0.6_math500_no_think_t0.6.jsonl
+#split READINGS-EXTRA 17_P5s150 E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl
+#split READINGS-EXTRA 17_P5RL_s100 EVAL-e12b-P5/e12b_P5_s100_math500_T0.6_math500_no_think_t0.6.jsonl
+#split READINGS-EXTRA 17_P5RLkl_s100 EVAL-e12b-P5kl/e12b_P5kl_s100_math500_T0.6_math500_no_think_t0.6.jsonl
+#split READINGS-EXTRA 17_P5self_s50 EVAL-e10b-P5self/e10b_P5self_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#split READINGS-EXTRA 17_P5selfRL_s100 EVAL-e12b-P5self/e12b_P5self_s100_math500_T0.6_math500_no_think_t0.6.jsonl
+#split READINGS-EXTRA 4B_base EVAL-e10d-P0/e10d_P0_math500_T0.6_math500_no_think_t0.6.jsonl
+#split READINGS-EXTRA 4B_P5s150 EVAL-e10d-P5/e10d_P5_s150_math500_T0.6_math500_no_think_t0.6.jsonl
+#split READINGS-EXTRA 4B_P5RL_s100 EVAL-e12d-P5/e12d_P5_s100_math500_T0.6_math500_no_think_t0.6.jsonl
+#split READINGS-EXTRA 4B_X4_s50 EVAL-e10d-x4/e10d_X4_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#split READINGS-EXTRA 06_base EVAL-e10c-base06/e10c_base06_math500_T0.6_math500_no_think_t0.6.jsonl
+#split READINGS-EXTRA 06_P5fix4_s150 EVAL-e10c-P5-fix4/e10c_P5-fix4_s150_math500_T0.6_math500_no_think_t0.6.jsonl
+#split READINGS-EXTRA 06_P5RL_s100 EVAL-e12c-P5/e12c_P5_s100_math500_T0.6_math500_no_think_t0.6.jsonl
+#split READINGS-EXTRA 06_P0RL_s100 EVAL-e12c-P0/e12c_P0_s100_math500_T0.6_math500_no_think_t0.6.jsonl
+#frontier READINGS-EXTRA 06_base_think EVAL-budA06think/budget_curve.json budA06_P0think_math500_T0.6_32k_math500_think_t0.6
+#frontier READINGS-EXTRA 4B_base_think EVAL-budA-4Bthink/budget_curve.json budA4B_P0think_math500_T0.6_32k_math500_think_t0.6
+#frontier READINGS-EXTRA 4B_i2507 EVAL-i2507/budget_curve.json i2507_math500_T0.6_32k_math500_no_think_t0.6
+#frontier READINGS-EXTRA 4B_t2507 EVAL-t2507/budget_curve.json t2507_math500_T0.6_32k_math500_think_t0.6
+#frontier READINGS-EXTRA 17_P2_s43 E11b-P2-s43/e11b_P2-s43_math500_T0.6_math500_no_think_t0.6.metrics.json
+#frontier READINGS-EXTRA 17_P2_s44 E11b-P2-s44/e11b_P2-s44_math500_T0.6_math500_no_think_t0.6.metrics.json
+#frontier READINGS-EXTRA 17_P6r_s43 E11b-P6r-s43/e11b_P6r-s43_math500_T0.6_math500_no_think_t0.6.metrics.json
+#frontier READINGS-EXTRA 17_P6r_s44 E11b-P6r-s44/e11b_P6r-s44_math500_T0.6_math500_no_think_t0.6.metrics.json
+#frontier READINGS-EXTRA 17_Pstop E11b-Pstop/e11b_Pstop_math500_T0.6_math500_no_think_t0.6.metrics.json
+#frontier READINGS-EXTRA 17_P6rand E11b-P6rand/e11b_P6rand_math500_T0.6_math500_no_think_t0.6.metrics.json
+#frontier READINGS-EXTRA 17_P6top5 E11b-P6top5/e11b_P6top5_math500_T0.6_math500_no_think_t0.6.metrics.json
+#frontier READINGS-EXTRA 17_P4EOSpen E11b-P4EOSpen/e11b_P4EOSpen_math500_T0.6_math500_no_think_t0.6.metrics.json
+#frontier READINGS-EXTRA 17_E12b_P2noEOS_s60 EVAL-e12b-P2noEOS/e12b_P2noEOS_s60_math500_T0.6_math500_no_think_t0.6.metrics.json
+#frontier READINGS-EXTRA 17_E12b_P6_s60 EVAL-e12b-P6/e12b_P6_s60_math500_T0.6_math500_no_think_t0.6.metrics.json
+#frontier READINGS-EXTRA 17_E12b_P6r_s60 EVAL-e12b-P6r/e12b_P6r_s60_math500_T0.6_math500_no_think_t0.6.metrics.json
