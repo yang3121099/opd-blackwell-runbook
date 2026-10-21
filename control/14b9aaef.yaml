@@ -394,3 +394,4 @@ commands:
   - {"seq": 392, "cmd": "logs prefetch_EVAL-ext-4Bmid75 20", "reason": "fill14 prefetch check (ops-lead A1 13:0x UTC)", "utc": "2026-10-21T13:18:52Z"}
   - {"seq": 393, "cmd": "logs prefetch_EVAL-ext-17s44mid75 20", "reason": "fill14 prefetch check (ops-lead A1 13:0x UTC)", "utc": "2026-10-21T13:19:02Z"}
   - {"seq": 394, "cmd": "logs prefetch_EVAL-budA-e12bP13 20", "reason": "fill14 prefetch check (ops-lead A1 13:0x UTC)", "utc": "2026-10-21T13:19:10Z"}
+  - {"seq": 395, "cmd": "logs prefetch_EVAL-ext-x4 20", "reason": "night1 prefetch check for EVAL-ext-x4 now that E10d-X4 is done (reviewer A1 11:09 UTC)", "utc": "2026-10-21T14:43:08Z"}
