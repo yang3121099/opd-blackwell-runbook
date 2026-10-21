@@ -58,6 +58,8 @@ case $T in
   PROBE-DIFF17) bash $RUNBOOK/scripts/probe_diff17.sh $G;;   # [v2.5.9x] (Q-041) difficulty labels, the 1.7B base
   PROBE-DIFF17-4B) bash $RUNBOOK/scripts/probe_diff17.sh $G 4b;;   # [v2.5.9x] the k_4b column (Q-050), a pad
   PROBE-ROUTE) bash $RUNBOOK/scripts/probe_route.sh $G;;   # [v2.5.9x] the gate of E10b-P5route / -P5mix
+  PROBE-VLM) bash $RUNBOOK/scripts/probe_vlm.sh $G;;   # [v2.5.9z] (Q-051) the gate of E15-VLM-P5
+  E15-VLM-P5) bash $RUNBOOK/scripts/run_vlm.sh $G $T;;   # [v2.5.9z] (Q-051) P5's OPD for Qwen3-VL-2B-Instruct from Qwen3-VL-8B-Thinking, venv-vl
   PROBE-X2507-X1|PROBE-X2507-X2|PROBE-X2507-X4) bash $RUNBOOK/scripts/probe_x2507.sh $G ${T#PROBE-X2507-};;   # [v2.5.8i] (Q-029): the gates of E10d-X1 / X2
   PROBE-P5SELF) bash $RUNBOOK/scripts/probe_p5self.sh $G;;   # v2.5.7v (Q-017): the self-teacher's gate   # v2.5.7o: C1 strict-contract rejudge of the MATH500 readings, CPU only   # v2.5.7g: termination-quality probe, forward passes only (#term lines)
   PROBE-TOP10) bash $RUNBOOK/scripts/probe_top10.sh $G;;   # v2.5.7h: gate of E10b-P5top10 / P5rand10m (unit tests + smokes)
