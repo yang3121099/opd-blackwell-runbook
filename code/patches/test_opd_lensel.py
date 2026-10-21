@@ -140,6 +140,10 @@ def test_patch_file_atomic():
     p = os.path.join(tempfile.mkdtemp(), "ray_trainer.py"); open(p, "w").write(SNIPPET)
     assert LP.patch_file(p) is True and LP.patch_file(p) is False
     assert not os.path.exists(p + ".opd_tmp") and open(p).read().count(LP.MARK) == 1
+    assert open(p + ".orig").read() == SNIPPET   # the rollback copy holds the unpatched file
+    open(p, "w").write(SNIPPET); assert LP.patch_file(p) is True and open(p + ".orig").read() == SNIPPET   # kept once
+    q = os.path.join(tempfile.mkdtemp(), "ray_trainer.py"); open(q, "w").write(SNIPPET)
+    assert LP.patch_file(q, keep_orig=False) is True and not os.path.exists(q + ".orig")   # apply_patches: git has it
 
 
 def test_patch_real_trainer():   # the anchor is found once in G-OPD's ray_trainer.py (GOPD_RAY_TRAINER) and the result compiles

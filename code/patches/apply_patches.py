@@ -109,5 +109,5 @@ print("patched", sft)
 #    a no-op unless OPD_LENSEL is set)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from lensel_patch import patch_file as _lensel_patch  # noqa: E402
-_lensel_patch(str(root / "verl/trainer/ppo/ray_trainer.py"))
+_lensel_patch(str(root / "verl/trainer/ppo/ray_trainer.py"), keep_orig=False)   # the pristine file is in git
 print("patched", root / "verl/trainer/ppo/ray_trainer.py")

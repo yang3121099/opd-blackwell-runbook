@@ -4,10 +4,13 @@ before the old / reference log-probs. A no-op unless OPD_LENSEL is set, so every
 
 apply_patches.py installs it with the other patches; run_arm.sh calls `python lensel_patch.py` before a length-selected arm
 (the node's G-OPD was installed before this patch): idempotent, the file verl imports, written atomically (trainings that
-are running keep the module they imported). Prints LENSEL_HOOK_OK (already there) or LENSEL_HOOK_PATCHED.
+are running keep the module they imported); before the first change the unpatched file is kept once as
+ray_trainer.py.orig next to it (reviewer A1 08:2x UTC 10-21: a rollback copy). Prints LENSEL_HOOK_OK (already there) or
+LENSEL_HOOK_PATCHED.
 """
 import importlib.util
 import os
+import shutil
 import sys
 
 MARK = "# [opd-variants patch v2] Q-030 length-selected OPD"
@@ -30,10 +33,12 @@ def patch_text(s):
     return s.replace(ANCHOR, ANCHOR + HOOK), True
 
 
-def patch_file(path):
+def patch_file(path, keep_orig=True):
     s = open(path).read()
     new, changed = patch_text(s)
     if changed:
+        if keep_orig and not os.path.exists(path + ".orig"):   # the rollback copy, kept once
+            shutil.copy2(path, path + ".orig")
         tmp = path + ".opd_tmp"
         with open(tmp, "w") as f:
             f.write(new)
