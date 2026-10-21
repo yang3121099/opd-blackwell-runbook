@@ -414,3 +414,4 @@ commands:
   - {"seq": 412, "cmd": "snapshot venv/lib/python3.10/site-packages/transformers/__init__.py", "reason": "Q-051 VLM feasibility (a): Qwen3-VL support on the node, read-only", "utc": "2026-10-21T17:22:50Z"}
   - {"seq": 413, "cmd": "snapshot venv/lib/python3.10/site-packages/vllm/_version.py", "reason": "Q-051 VLM feasibility (a): Qwen3-VL support on the node, read-only", "utc": "2026-10-21T17:23:00Z"}
   - {"seq": 414, "cmd": "snapshot venv/lib/python3.10/site-packages/vllm/model_executor/models/qwen3_vl.py", "reason": "Q-051 VLM feasibility (a): Qwen3-VL support on the node, read-only", "utc": "2026-10-21T17:23:09Z"}
+  - {"seq": 415, "cmd": "snapshot venv/lib/python3.10/site-packages/transformers/models/qwen3_vl/configuration_qwen3_vl.py", "reason": "Q-051 VLM feasibility (a): Qwen3-VL support on the node, read-only", "utc": "2026-10-21T17:23:18Z"}
