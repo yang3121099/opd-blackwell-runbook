@@ -438,3 +438,4 @@ commands:
   - {"seq": 436, "cmd": "snapshot models/Qwen3-VL-2B-Instruct/.fetch_ok", "reason": "arrival check: Qwen3-VL-2B-Instruct", "utc": "2026-10-21T20:13:59Z"}
   - {"seq": 437, "cmd": "snapshot data/hf/hiyouga__geometry3k/.fetch_ok", "reason": "arrival check: hiyouga__geometry3k", "utc": "2026-10-21T20:14:07Z"}
   - {"seq": 438, "cmd": "snapshot data/hf/AI4Math__MathVista/.fetch_ok", "reason": "arrival check: AI4Math__MathVista", "utc": "2026-10-21T20:14:15Z"}
+  - {"seq": 439, "cmd": "snapshot models/Qwen3-32B", "reason": "32B progress", "utc": "2026-10-21T20:15:56Z"}
