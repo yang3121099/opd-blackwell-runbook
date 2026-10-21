@@ -7,6 +7,8 @@ sets `_think` per sample (route_patch.py; a no-op unless OPD_ROUTE is set):
          otherwise (hard) -> thinking teacher;
   mix:   a fixed coin per prompt (sha1 of OPD_SEED and the prompt's key, p = 0.5): heads -> thinking teacher; the same prompt always
          gets the same teacher, independent of the labels.
+  count: [v2.5.9z9] (Q-053, PROBE-T32's smoke) the template unchanged (the P5 patch's own choice, OPD_REF_THINK), the call only
+         logged: the teacher's input rows per call against the batch.
 A prompt without a label is routed to the thinking teacher (P5's default) and counted as unknown; PROBE-ROUTE requires none.
 Logged per call (one call per training step: the reference inputs of the whole batch), OPD_ROUTE_LOG JSON lines: rows, think,
 plain, unknown, and per row [key, r, think].
@@ -19,7 +21,7 @@ import json
 import os
 import time
 
-MODES = ("route", "mix")
+MODES = ("route", "mix", "count")
 _labels = None
 _rows = []
 _calls = 0
@@ -69,7 +71,10 @@ def think_for(messages):
         p = os.environ.get("OPD_ROUTE_LABELS", "")
         _labels = load_labels(p) if mode == "route" or (p and os.path.exists(p)) else {}
     k = key(messages)
-    think, r = decide(k, mode, _labels, float(os.environ.get("OPD_ROUTE_THRESH", "0.5")), int(os.environ.get("OPD_SEED", "1234")))
+    if mode == "count":   # [v2.5.9z9] P5's template as without the hook
+        think, r = os.environ.get("OPD_REF_THINK") == "1", None
+    else:
+        think, r = decide(k, mode, _labels, float(os.environ.get("OPD_ROUTE_THRESH", "0.5")), int(os.environ.get("OPD_SEED", "1234")))
     _rows.append([k, r, bool(think)])
     return think
 

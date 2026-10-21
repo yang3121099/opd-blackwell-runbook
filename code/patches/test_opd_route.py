@@ -90,6 +90,24 @@ def test_think_for_and_flush_log():
     assert rec["unknown"] == 0 and rec["decisions"][0][2] == R.coin(R.key(msgs("easy")), 7)
 
 
+
+def test_count_mode_keeps_the_template():   # [v2.5.9z9] (Q-053) PROBE-T32: P5's own choice (OPD_REF_THINK), the rows only counted
+    d = tempfile.mkdtemp(); log = os.path.join(d, "route.jsonl")
+    for ref_think, want in (("1", True), ("0", False)):
+        with env(OPD_ROUTE="count", OPD_ROUTE_LABELS=None, OPD_ROUTE_LOG=log, OPD_REF_THINK=ref_think):
+            fresh()
+            got = [R.think_for(msgs(t)) for t in ("easy", "hard", "x")]
+            rec = R.flush(3)
+        assert got == [want] * 3 and rec["mode"] == "count" and rec["rows"] == rec["batch"] == 3 and rec["unknown"] == 0
+        assert rec["think"] == (3 if want else 0) and rec["plain"] == (0 if want else 3)
+    lines = [json.loads(x) for x in open(log).read().splitlines()]
+    assert len(lines) == 2 and [x["think"] for x in lines] == [3, 0]
+    try:
+        R.decide("k", "other", {}); raise RuntimeError("an unknown mode passed")
+    except ValueError:
+        pass
+
+
 SNIPPET = (
     "import torch\n\n\ndef prepare_ref_model_inputs(\n    batch,\n    ref_tokenizer,\n    apply_chat_template_kwargs=None,\n):\n"
     "    batch_size = len(batch)\n    for i in range(batch_size):\n        messages = list(batch[i])\n"

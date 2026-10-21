@@ -100,6 +100,9 @@ b259xp   open   PROBE-DIFF17 PROBE-ROUTE:PROBE-DIFF17
 b259x    open   E10b-P5route:PROBE-ROUTE E10b-P5mix:PROBE-ROUTE EVAL-e10b-P5route:E10b-P5route EVAL-e10b-P5mix:E10b-P5mix+EVAL-e10b-P5route EVAL-budA-P5route:E10b-P5route EVAL-budA-P5mix:E10b-P5mix
 b259zp   open   PROBE-VLM:PROBE-VLLM-VL EVAL-e15-base:BUILD-VENV-VL
 b259z    open   E15-VLM-P5:PROBE-VLM EVAL-e15-vlm:E15-VLM-P5+EVAL-e15-base
+b259z9r  open   EVAL-ext32k-32Bthink-aime EVAL-32Bthink-math500
+b259z9p  open   PROBE-T32
+b259z9   open   E10d-P5-t32:PROBE-T32 EVAL-e10d-P5t32:E10d-P5-t32 EVAL-budA-e10dP5t32:E10d-P5-t32 EVAL-ext32k-4Bt32:E10d-P5-t32+EVAL-ext32k-32Bthink-aime
 b259q028 open   EVAL-ext32k-17p5l8k-s25
 diff4b   open   PROBE-DIFF17-4B:PROBE-DIFF17
 rx       open   READINGS-EXTRA
@@ -1801,3 +1804,30 @@ olpd     open   EVAL-ext32k-17olpd
 # teacher's and 4B P5self s50's counts (READINGS-EXTRA's #coverq rows, CPU, readings already on the node; coverage.json)
 #coverq READINGS-EXTRA q052_aime24 EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4Bthink/ext32k4B_P0think_aime24_T0.6_aime24_think_t0.6.jsonl 8Bthink=EVAL-ext32k-8Bthink-aime/ext32k8B_think_aime24_T0.6_aime24_think_t0.6.jsonl P5self=EVAL-ext32k-4Bp5self/ext32k4B_E10dP5self_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #coverq READINGS-EXTRA q052_aime25 EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Bthink/ext32k4B_P0think_aime25_T0.6_aime25_think_t0.6.jsonl 8Bthink=EVAL-ext32k-8Bthink-aime/ext32k8B_think_aime25_T0.6_aime25_think_t0.6.jsonl P5self=EVAL-ext32k-4Bp5self/ext32k4B_E10dP5self_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
+# b259z9r / b259z9p / b259z9 (runbook v2.5.9z9, Q-053; the reviewer's pre-registration research_program §3c 10-22): the 32B teacher.
+# b259z9r first: Qwen3-32B's own thinking mode as the reference rows and the prediction target, AIME24 / AIME25 avg@16 32K T0.6
+# with pass@k (budget_curve) next to the 8B teacher, the 4B base thinking, 4B P5 s150 and P5self s50; MATH-500 16K avg@4 T0.6.
+# Then PROBE-T32 (3-step smoke: no OOM, peak, step time, 128 teacher rows a step on the thinking template, the config naming the
+# 32B and its template) and E10d-P5-t32 (the 4B student, P5's recipe, 50 steps, s25 / s50). Readings at s50: MATH-500 16K T0.6 /
+# T1.0 paired against the 4B base, P5 s150 and P5self s50 (+ TWR); 32K with three budget curves (vs the base, the base thinking,
+# P5 s150); AIME24 / AIME25 avg@16 32K paired against P5 s150, P5self s50, the 4B base thinking and the 32B teacher; a TERM4 row
+# 4B_P5t32 (rerun PROBE-TERM4-4B after EVAL-e10d-P5t32). The 1.7B arm E10b-P5-t32 is not written yet (the reviewer).
+#eval EVAL-ext32k-32Bthink-aime ext32k32B_think_aime24_T0.6 local:models/Qwen3-32B aime24 16 0.6 32768 think
+#eval EVAL-ext32k-32Bthink-aime ext32k32B_think_aime25_T0.6 local:models/Qwen3-32B aime25 16 0.6 32768 think
+#budget EVAL-ext32k-32Bthink-aime passk32B_aime24 ext32k32B_think_aime24_T0.6 EVAL-ext32k-8Bthink-aime/ext32k8B_think_aime24_T0.6_aime24_think_t0.6.jsonl EVAL-ext32k-4Bthink/ext32k4B_P0think_aime24_T0.6_aime24_think_t0.6.jsonl EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4Bp5self/ext32k4B_E10dP5self_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#budget EVAL-ext32k-32Bthink-aime passk32B_aime25 ext32k32B_think_aime25_T0.6 EVAL-ext32k-8Bthink-aime/ext32k8B_think_aime25_T0.6_aime25_think_t0.6.jsonl EVAL-ext32k-4Bthink/ext32k4B_P0think_aime25_T0.6_aime25_think_t0.6.jsonl EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Bp5self/ext32k4B_E10dP5self_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
+#eval EVAL-32Bthink-math500 m500_32B_think_T0.6_16k local:models/Qwen3-32B math500 4 0.6 16384 think
+#eval EVAL-e10d-P5t32 e10d_P5t32_s50_math500_T0.6 result:runs/E10d-P5-t32/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-e10d-P5t32 e10d_P5t32_s50_math500_T1.0 result:runs/E10d-P5-t32/global_step_50/actor/huggingface math500 4 1.0
+#pair EVAL-e10d-P5t32 e10d_P5t32_s50_math500_T0.6 EVAL-e10d-P0/e10d_P0_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e10d-P5/e10d_P5_s150_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e10d-P5self/e10d_P5self_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#pair EVAL-e10d-P5t32 e10d_P5t32_s50_math500_T1.0 EVAL-e10d-P0/e10d_P0_math500_T1.0_math500_no_think_t1.0.jsonl EVAL-e10d-P5/e10d_P5_s150_math500_T1.0_math500_no_think_t1.0.jsonl EVAL-e10d-P5self/e10d_P5self_s50_math500_T1.0_math500_no_think_t1.0.jsonl
+#twr EVAL-e10d-P5t32 e10d_P5t32_s50_math500_T0.6 Qwen/Qwen3-4B EVAL-e10d-P0/e10d_P0_math500_T0.6_math500_no_think_t0.6.jsonl
+#eval EVAL-budA-e10dP5t32 budA4B_E10dP5t32_s50_math500_T0.6_32k result:runs/E10d-P5-t32/global_step_50/actor/huggingface math500 4 0.6 32768
+#budget EVAL-budA-e10dP5t32 budget_curve EVAL-budA-4B/budA4B_base4B_math500_T0.6_32k_math500_no_think_t0.6.jsonl budA4B_E10dP5t32_s50_math500_T0.6_32k
+#budget EVAL-budA-e10dP5t32 budget_curve_vs4Bthink EVAL-budA-4Bthink/budA4B_P0think_math500_T0.6_32k_math500_think_t0.6.jsonl budA4B_E10dP5t32_s50_math500_T0.6_32k
+#budget EVAL-budA-e10dP5t32 budget_curve_vsE10dP5 EVAL-budA-4B/budA4B_E10dP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budA4B_E10dP5t32_s50_math500_T0.6_32k
+#eval EVAL-ext32k-4Bt32 ext32k4B_E10dP5t32_s50_aime24_T0.6 result:runs/E10d-P5-t32/global_step_50/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-4Bt32 ext32k4B_E10dP5t32_s50_aime25_T0.6 result:runs/E10d-P5-t32/global_step_50/actor/huggingface aime25 16 0.6 32768
+#pair EVAL-ext32k-4Bt32 ext32k4B_E10dP5t32_s50_aime24_T0.6 EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4Bp5self/ext32k4B_E10dP5self_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4Bthink/ext32k4B_P0think_aime24_T0.6_aime24_think_t0.6.jsonl EVAL-ext32k-32Bthink-aime/ext32k32B_think_aime24_T0.6_aime24_think_t0.6.jsonl
+#pair EVAL-ext32k-4Bt32 ext32k4B_E10dP5t32_s50_aime25_T0.6 EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Bp5self/ext32k4B_E10dP5self_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Bthink/ext32k4B_P0think_aime25_T0.6_aime25_think_t0.6.jsonl EVAL-ext32k-32Bthink-aime/ext32k32B_think_aime25_T0.6_aime25_think_t0.6.jsonl
+#term PROBE-TERM4-4B 4B_P5t32 result:runs/E10d-P5-t32/global_step_50/actor/huggingface EVAL-e10d-P5t32/e10d_P5t32_s50_math500_T0.6_math500_no_think_t0.6.jsonl

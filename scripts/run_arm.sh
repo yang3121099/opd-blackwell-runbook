@@ -60,6 +60,11 @@ SIZE=""; [[ $TASK =~ ^E10d-(P2|P5)(-s43)?$ ]] && { BASE=E10b-${BASH_REMATCH[1]};
 # (non-thinking template, as E10d-P5) taught by Qwen3-4B-Instruct-2507 in its own template (no <think> anywhere,
 # OPD_REF_THINK=0): a teacher with thinking-level accuracy and non-thinking termination
 XARM=""; [[ $TASK =~ ^E10d-(X1|X2|X4)$ ]] && { XARM=${BASH_REMATCH[1]}; BASE=E10b-P5; SIZE=4B; }
+# [v2.5.9z9] (Q-053; the reviewer's pre-registration research_program §3c, 10-22): E10d-P5-t32 = P5's recipe with the 4B student
+# (E10d's batching and venv) taught by Qwen3-32B on its thinking template (P5's teacher prompt '<think>\n'; $TEACHER_32B, default
+# $OPD_ROOT/models/Qwen3-32B), the teacher's parameters offloaded; 50 steps, s25 / s50 saved and uploaded. Gated by PROBE-T32, whose
+# smoke logs the teacher's input rows per call (opd_route.py's count mode, OPD_ROUTE=count: the template unchanged, smoke only).
+T32=0; [ $TASK = E10d-P5-t32 ] && { T32=1; BASE=E10b-P5; SIZE=4B; }
 # [v2.5.8m] (Q-030, Runming's question 4; reviewer pre-registration 17:5x UTC 10-20): E10b-P5len<S|L|R> = P5's recipe with
 # 16 rollouts per prompt of which only the shortest / longest / a random 4 are kept before the old and reference log-probs
 # (code/patches/opd_lensel.py through the trainer hook lensel_patch.py): 32 prompts x 4 = 128 sequences per update (P5:
@@ -107,6 +112,7 @@ if [ $POLISH = 1 ]; then   # [v2.5.9u] the start: P5-fix4's s150 on this node (t
 fi
 [ "$SIZE" = 4B ] && { STUDENT=$STUDENT_4B; GC=1; }
 [ $T14 = 1 ] && { TEACHER=$TEACHER_14B; TEACHER_OFFLOAD=0; }   # v2.5.7p: a node-wide TEACHER_OFFLOAD does not reach it
+[ $T32 = 1 ] && { TEACHER=${TEACHER_32B:-$OPD_ROOT/models/Qwen3-32B}; TEACHER_OFFLOAD=1; }   # [v2.5.9z9] offloaded whatever the node's setting
 [ $SELF = 1 ] && { TEACHER=$STUDENT_17B; [ "$SIZE" = 4B ] && TEACHER=$STUDENT_4B; [ -n "$MODE" ] && TEACHER=$STUDENT_06B; }   # v2.5.7v; [v2.5.8e] the 4B student's own base; [v2.5.9v] the 0.6B one's
 [ $POLISH = 1 ] && TEACHER=$STUDENT_06B   # [v2.5.9u] the 0.6B base on its thinking template
 if [ -n "$XARM" ]; then   # [v2.5.8i] hub ids, resolved to the local HF cache after the venv is active
@@ -137,6 +143,11 @@ fi
 if [ $TAIL = 1 ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
   grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-TAIL/report.json 2> /dev/null || { echo "PROBE-TAIL has not passed: $TASK not started"; exit 3; }
 fi
+# [v2.5.9z9] the 32B-teacher arm starts only after PROBE-T32 passed (a 3-step smoke), and waits (no attempt) while the 32B is not in
+if [ $T32 = 1 ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
+  grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-T32/report.json 2> /dev/null || { echo "PROBE-T32 has not passed: $TASK not started"; exit 3; }
+fi
+if [ $T32 = 1 ] && [ "${DRYRUN:-0}" != 1 ] && [ ! -f $TEACHER/.fetch_ok ]; then echo "WAIT_INPUTS $TASK: Qwen3-32B not in (no .fetch_ok)"; exit 1; fi
 # v2.5.7v: E10b-P5self starts only after PROBE-P5SELF passed (a 3-step smoke); v2.5.7zg: E10b-P2self after PROBE-P2SELF
 if [ $SELF = 1 ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
   SA=${TASK#E10[bcd]-}; PG=PROBE-$(echo ${SA%-s4[34]} | tr a-z A-Z); [ "$SIZE" = 4B ] && PG=$PG-4B; [ -n "$MODE" ] && PG=$PG-06B   # [v2.5.8e] -s43 shares its arm's gate; 4B: PROBE-P5SELF-4B; [v2.5.9v] 0.6B: PROBE-P5SELF-06B
@@ -191,6 +202,7 @@ case $ARM in P5top10|P5rand10m) export OPD_VARIANT=P6 OPD_VARIANT_OVERRIDE=$ARM 
 [ -n "$ROUTE" ] && NSTEPS=${ROUTE_STEPS:-50}   # [v2.5.9x]
 [ $POLISH = 1 ] && NSTEPS=${POLISH_STEPS:-20}   # [v2.5.9u]
 [ $TOOL = 1 ] && NSTEPS=${TOOL_STEPS:-50}   # [v2.5.9b]
+[ $T32 = 1 ] && NSTEPS=${T32_STEPS:-50}   # [v2.5.9z9]
 [ $SELF = 1 ] && NSTEPS=${P5SELF_STEPS:-50}   # v2.5.7v: the same point as P5 s50   # v2.5.7r: constant lr, so step 50 is the same point as in a 150-step run
 OPD_REF_THINK=0; [[ $ARM =~ ^P5(top10|rand10m)?$ ]] && OPD_REF_THINK=1; [ $STHINK = 1 ] && OPD_REF_THINK=0; [ "$XARM" = X1 ] && OPD_REF_THINK=0; [ "$XARM" = X4 ] && OPD_REF_THINK=0; export OPD_REF_THINK   # [v2.5.8i] X1: the template opens <think>
 if python -c "import flash_attn" 2>/dev/null; then RMPAD=True; ATTN=flash_attention_2; TOK_DEFAULT=16384
@@ -219,6 +231,7 @@ if [ -n "$LENSEL" ]; then TBS=${LENSEL_PROMPTS:-32}; RN=${LENSEL_N:-16}; LK=${LE
 unset OPD_STOPMERGE OPD_STOPMERGE_LOG; [ $SMERGE = 1 ] && export OPD_STOPMERGE=1 OPD_STOPMERGE_LOG=$OUT/stopmerge.jsonl   # [v2.5.9l]
 unset OPD_TAILSWAP OPD_TAILSWAP_LOG; [ $TAIL = 1 ] && export OPD_TAILSWAP=1 OPD_TAILSWAP_LOG=$OUT/tailswap.jsonl   # [v2.5.9n]
 unset OPD_ROUTE OPD_ROUTE_LABELS OPD_ROUTE_LOG; [ -n "$ROUTE" ] && export OPD_ROUTE=$ROUTE OPD_ROUTE_LABELS=${ROUTE_LABELS:-$OPD_ROOT/runs/PROBE-DIFF17/labels_17.jsonl} OPD_ROUTE_LOG=$OUT/route.jsonl   # [v2.5.9x]
+[ $T32 = 1 ] && [ "${SMOKE:-0}" = 1 ] && export OPD_ROUTE=count OPD_ROUTE_LOG=$OUT/route.jsonl   # [v2.5.9z9] PROBE-T32: the teacher's rows per call
 # [v2.5.9b] the data, prompt length and logged reward: math by default, the tool-call parquet for a tool arm
 TRAIN=$OPD_ROOT/data/dapo_train.parquet; VAL=$OPD_ROOT/data/math500_100.parquet; MAXP=1024; REWARD=$RUNBOOK/code/train/reward_mathverify.py
 if [ $TOOL = 1 ]; then
@@ -226,9 +239,11 @@ if [ $TOOL = 1 ]; then
   TRAIN=${TOOL_DATA}_train.parquet; VAL=${TOOL_DATA}_val.parquet; MAXP=2048; REWARD=$RUNBOOK/code/agent/tool_grader.py
 fi
 UW=$NSTEPS; [ $TASK = E10c-P5-fix4 ] && UW=100,$NSTEPS; [ -n "$XARM" ] && UW=25,$NSTEPS   # [v2.5.8i] X arms: s25 is read too   # [v2.5.8a] (Q-023): its s100 = the step of the lab's 0.6B P5 reading (+19.2)
+[ $T32 = 1 ] && { UW=25,$NSTEPS; SAVE=${SAVE:-25}; }   # [v2.5.9z9] s25 and s50 saved and uploaded
 [ "${DRYRUN:-0}" = 1 ] && [ $SMERGE = 1 ] && echo "DRYRUN_STOPMERGE OPD_STOPMERGE=${OPD_STOPMERGE:-} log=$(basename ${OPD_STOPMERGE_LOG:-none}) kern=[$KERN]"   # [v2.5.9l] tests
 [ "${DRYRUN:-0}" = 1 ] && [ $POLISH = 1 ] && echo "DRYRUN_POLISH student=$(echo $STUDENT | sed 's|.*/runs/|runs/|') teacher=$TEACHER"   # [v2.5.9u] tests
 [ "${DRYRUN:-0}" = 1 ] && [ -n "$ROUTE" ] && echo "DRYRUN_ROUTE OPD_ROUTE=${OPD_ROUTE:-} labels=$(echo ${OPD_ROUTE_LABELS:-none} | sed 's|.*/runs/|runs/|') log=$(basename ${OPD_ROUTE_LOG:-none})"   # [v2.5.9x] tests
+[ "${DRYRUN:-0}" = 1 ] && [ $T32 = 1 ] && echo "DRYRUN_T32 teacher=$(echo $TEACHER | sed 's|.*/models/|models/|') offload=$TEACHER_OFFLOAD save=$SAVE upload=$UW route=${OPD_ROUTE:-none} log=$(basename ${OPD_ROUTE_LOG:-none})"   # [v2.5.9z9] tests
 [ "${DRYRUN:-0}" = 1 ] && [ $TAIL = 1 ] && echo "DRYRUN_TAILSWAP OPD_TAILSWAP=${OPD_TAILSWAP:-} log=$(basename ${OPD_TAILSWAP_LOG:-none})"   # [v2.5.9n] tests
 [ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $TASK arm=$ARM lr=$LR seed=$SEED student=$STUDENT batch=[$BATCH] kern=[$KERN] gc=$GCK venv=$(basename ${VENV:-$OPD_ROOT/venv}) ngpu=$NG rmpad=$RMPAD tool=$TOOL maxp=$MAXP reward=$(basename $REWARD) lensel=${LENSEL:-none}/${TBS}x${RN}/mb$MBS sthink=$STHINK maxresp=$MAXRESP teacher=$TEACHER offload=${TEACHER_OFFLOAD:-1} variant=$OPD_VARIANT override=$OPD_VARIANT_OVERRIDE refthink=$OPD_REF_THINK steps=$NSTEPS"; exit 0; }   # tests
 STEPS=$NSTEPS; TEST=10; VALB=True
@@ -247,7 +262,7 @@ lr: $LR
 data_seed: $SEED
 steps: $STEPS
 student: $STUDENT (no_think)
-teacher: $TEACHER (ref; think-template=$OPD_REF_THINK; param_offload=${TEACHER_OFFLOAD:-1})$([ $SMERGE = 1 ] && echo '; stop-merged after the first box (opd_stopmerge.py)')$([ $TAIL = 1 ] && echo '; tail-swapped: the non-thinking reading after the first box (opd_tailswap.py)')$([ $POLISH = 1 ] && echo '; polish: the 0.6B base on its thinking template, from E10c-P5-fix4 s150')$([ -n "$ROUTE" ] && echo "; template per prompt: $ROUTE (opd_route.py; route: PROBE-DIFF17 r >= 0.5 -> non-thinking, else thinking; mix: a fixed p = 0.5 coin)")
+teacher: $TEACHER (ref; think-template=$OPD_REF_THINK; param_offload=${TEACHER_OFFLOAD:-1})$([ $SMERGE = 1 ] && echo '; stop-merged after the first box (opd_stopmerge.py)')$([ $TAIL = 1 ] && echo '; tail-swapped: the non-thinking reading after the first box (opd_tailswap.py)')$([ $POLISH = 1 ] && echo '; polish: the 0.6B base on its thinking template, from E10c-P5-fix4 s150')$([ $T32 = 1 ] && echo '; the 32B teacher (Qwen3-32B) on its thinking template, offloaded')$([ -n "$ROUTE" ] && echo "; template per prompt: $ROUTE (opd_route.py; route: PROBE-DIFF17 r >= 0.5 -> non-thinking, else thinking; mix: a fixed p = 0.5 coin)")
 student_template: $([ $STHINK = 1 ] && echo "thinking (the teacher prompt uses the same template)" || echo non-thinking), max_response_length $MAXRESP
 attention: $ATTN (use_remove_padding=$RMPAD)
 batching: ${MODE:-default} [$BATCH]
@@ -266,7 +281,7 @@ CFG
 if [ -n "$LENSEL" ]; then python $RUNBOOK/code/patches/lensel_patch.py || { echo "LENSEL_PATCH_FAILED $TASK"; exit 1; }; fi   # [v2.5.8m] idempotent
 if [ $SMERGE = 1 ]; then python $RUNBOOK/code/patches/stopmerge_patch.py || { echo "STOPMERGE_PATCH_FAILED $TASK"; exit 1; }; fi   # [v2.5.9l] idempotent
 if [ $TAIL = 1 ]; then python $RUNBOOK/code/patches/tailswap_patch.py || { echo "TAILSWAP_PATCH_FAILED $TASK"; exit 1; }; fi   # [v2.5.9n] idempotent
-if [ -n "$ROUTE" ]; then python $RUNBOOK/code/patches/route_patch.py || { echo "ROUTE_PATCH_FAILED $TASK"; exit 1; }; fi   # [v2.5.9x] idempotent
+if [ -n "$ROUTE" ] || [ "${OPD_ROUTE:-}" = count ]; then python $RUNBOOK/code/patches/route_patch.py || { echo "ROUTE_PATCH_FAILED $TASK"; exit 1; }; fi   # [v2.5.9x] idempotent; [v2.5.9z9] PROBE-T32's count
 cd $OPD_ROOT/G-OPD/verl
 python3 -m verl.trainer.main_ppo \
   algorithm.adv_estimator=grpo \
