@@ -425,3 +425,4 @@ commands:
   - {"seq": 423, "cmd": "resume E12b-P5-stop2", "reason": "Fable 17:5x UTC: Q-034 re-ruled, continue from the s25 resume state", "utc": "2026-10-21T17:44:12Z"}
   - {"seq": 424, "cmd": "rerun E12b-P5-stop2", "reason": "Fable 17:5x UTC: Q-034 re-ruled; resumes from s25 (DR), queued in b259f2 after tonight's OPD arms; new s60 rule", "utc": "2026-10-21T17:44:20Z"}
   - {"seq": 425, "cmd": "logs BUILD-VENV-VL 40", "reason": "venv-vl build progress (running since ~18:00 UTC)", "utc": "2026-10-21T18:28:44Z"}
+  - {"seq": 426, "cmd": "snapshot models/Qwen3-32B", "reason": "32B rate sample 1", "utc": "2026-10-21T18:42:10Z"}
