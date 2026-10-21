@@ -18,7 +18,7 @@ term     open   PROBE-TERM
 budAe12b open   EVAL-budA-e12b
 term2    open   PROBE-TERM2
 v3c1b    open   E10c-P4lowlr-dyn6144 E10c-P4lowlr-fix4-s43 EVAL-e10c-fix4-s43:E10c-P4lowlr-fix4-s43
-# v3c1b: E10c-P4lowlr-dyn6144 ran out of memory at step 105 (2026-10-18 23:4x UTC; paused, not retried: a feasibility probe, reviewer 23:3x UTC), so its reading EVAL-e10c-dyn6144 is not queued
+# v3c1b: E10c-P4lowlr-dyn6144 ran out of memory at step 105 (2026-10-18 23:4x UTC; paused, not retried: a feasibility probe, reviewer 23:3x UTC), so its reading the dyn6144 reading is not queued
 e12bs43  open   EVAL-e12b-P5-s43:E12b-P5-s43
 top10    open   PROBE-TOP10 E10b-P5top10:PROBE-TOP10 E10b-P5rand10m:PROBE-TOP10 E11b-P5top10:E10b-P5top10+E11b-P0 E11b-P5rand10m:E10b-P5rand10m+E11b-P0
 evals    open   EVAL-bridge E11b-P5-s43:E10b-P5-s43+E11b-P0 EVAL-p5s43-s20 EVAL-p5s43-s40
@@ -1265,5 +1265,5 @@ passk    open   EVAL-passk-ext
 #eval EVAL-e10d-x2 e10d_X2_s50_math500_T0.6 result:runs/E10d-X2/global_step_50/actor/huggingface math500 4 0.6
 #strict STRICT-C1 EVAL-budA-x1/budAX1_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-i2507/i2507_math500_T0.6_32k_math500_no_think_t0.6.jsonl
 #strict STRICT-C1 EVAL-budA-x2/budAX2_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-i2507/i2507_math500_T0.6_32k_math500_no_think_t0.6.jsonl
-# 06:0x UTC 10-21: EVAL-e10c-dyn6144's lines turned off (it was in no stage; the pulse listed it as queued from these lines;
+# 06:0x UTC 10-21: the dyn6144 reading's lines turned off (it was in no stage; the pulse listed it as queued from these lines;
 # its training E10c-P4lowlr-dyn6144 has been paused since its out-of-memory at step 105 on 10-18, so it could never start)
