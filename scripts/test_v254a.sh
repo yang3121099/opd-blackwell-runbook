@@ -434,13 +434,14 @@ sl() { ( eval "$(sed -n '/^stage_lines() {/,/; }$/p' $SRC/scripts/run_tasks.sh)"
 o1=$(sl $T/q.txt); o0=$(sl $T/q0.txt)
 ok "[v2.5.9m] stage_lines: formal stages first (file order), then the padding ones (file order); no #pad = the file order (o1=$o1 o0=$o0)" '[ "$o1" = "a b c p1 p2 " ] && [ "$o0" = "a p1 b p2 c " ] && grep -q "done < <(stage_lines \"\$Q\")" $SRC/scripts/run_tasks.sh'
 rm -rf $T
-T=$(mktemp -d); mkdir -p $T/root/runs/{E12d-P0,EVAL-pad1,EVAL-wait,EVAL-formal} $T/root/logs $T/root/control $T/rb/tasks $T/bin
-printf 'version: 9\ne12 open E12d-P0\nfill open EVAL-pad1 EVAL-wait:E12d-P0\nlate open EVAL-formal\n#pad fill\n' > $T/rb/tasks/queue.txt
+T=$(mktemp -d); mkdir -p $T/root/runs/{E12d-P0,EVAL-pad1,EVAL-wait,EVAL-formal,EVAL-cmt,E10b-old} $T/root/logs $T/root/control $T/rb/tasks $T/bin
+printf 'version: 9\ne12 open E12d-P0 E10b-old\nfill open EVAL-pad1 EVAL-wait:E12d-P0\nlate open EVAL-formal\n#pad fill\n# EVAL-cmt was removed (only this comment names it)\n' > $T/rb/tasks/queue.txt
+echo '(TaskRunner pid=1) step:0 - starting' > $T/root/runs/E10b-old/train.log   # [v2.5.9o] a killed run's log, no process
 printf '#!/usr/bin/env bash\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi; cp -r $SRC/scripts $T/rb/
 sed -n "/^  python - \"\$F\" <<'PY'$/,/^PY$/p" $SRC/scripts/heartbeat.sh | sed '1d;$d' > $T/hb.py
 ( cd $T && PATH=$T/bin:$PATH OPD_ROOT=$T/root RUNBOOK=$T/rb python3 hb.py $T/out.json > /dev/null 2>&1 )
-got=$(python3 -c "import json; d = json.load(open('$T/out.json')); t = d['tasks']; print(' '.join(sorted(t)), '|', ' '.join(sorted(n for n in t if t[n].get('pad'))), '|', ' '.join(d['stale_task_dirs']))" 2>&1)
-ok "[v2.5.9m] heartbeat: tasks of #pad stages carry pad true; a name:dep task is listed, not stale (got=$got)" '[ "$got" = "E12d-P0 EVAL-formal EVAL-pad1 EVAL-wait | EVAL-pad1 EVAL-wait | " ]'
+got=$(python3 -c "import json; d = json.load(open('$T/out.json')); t = d['tasks']; print(' '.join(sorted(t)), '|', ' '.join(sorted(n for n in t if t[n].get('pad'))), '|', ' '.join(d['stale_task_dirs']), '|', t['E10b-old']['state'])" 2>&1)
+ok "[v2.5.9m/9o] heartbeat: pad true on #pad stages; name:dep listed; a name only in a comment is stale; a train.log without a process is queued (got=$got)" '[ "$got" = "E10b-old E12d-P0 EVAL-formal EVAL-pad1 EVAL-wait | EVAL-pad1 EVAL-wait | EVAL-cmt | queued" ]'
 rm -rf $T
 # 3h. [v2.5.8] upload_sync ends for a paused / finally failed task that no longer runs (nothing pending); a paused task
 #     still running (pause does not stop it) keeps its loop

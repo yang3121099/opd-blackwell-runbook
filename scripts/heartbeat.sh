@@ -87,8 +87,9 @@ def kind(name):
 live = live_tasks()
 tasks = {}; stale = []
 queue = open(os.path.join(runbook, "tasks", "queue.txt")).read() if os.path.exists(os.path.join(runbook, "tasks", "queue.txt")) else ""
+queue_defs = "\n".join(l for l in queue.splitlines() if not l.lstrip().startswith("#"))   # [v2.5.9o] stage lines only: a name in a comment is no entry
 def in_queue(name):   # [v2.5.9m] "name:dep" entries count too (a task waiting on a dependency was missed and called stale)
-    return re.search(r"(^|\s)" + re.escape(name) + r"(\s|$|:)", queue, re.M) is not None
+    return re.search(r"(^|\s)" + re.escape(name) + r"(\s|$|:)", queue_defs, re.M) is not None
 pad_stages = {s for m in re.finditer(r"^#pad\s+(.*)$", queue, re.M) for s in m.group(1).split()}   # [v2.5.9m] padding stages
 pad_tasks = {t.split(":")[0] for m in re.finditer(r"^(\S+)\s+(?:open|auto|locked)\s+(.*)$", queue, re.M) if m.group(1) in pad_stages for t in m.group(2).split()}
 for d in sorted(x for x in glob.glob(os.path.join(root, "runs", "*")) if os.path.isdir(x) and not os.path.basename(x).startswith("smoke")):
@@ -101,7 +102,7 @@ for d in sorted(x for x in glob.glob(os.path.join(root, "runs", "*")) if os.path
     att = re.search(r"attempts: (\d+)", failed)
     tasks[os.path.basename(d)] = {
         "state": "done" if os.path.exists(os.path.join(d, ".done")) else ("skipped" if os.path.exists(os.path.join(d, ".skipped")) else
-                 ("failed" if failed and int(att.group(1)) >= 3 else ("retrying" if failed else ("running" if text else "queued")))),
+                 ("failed" if failed and int(att.group(1)) >= 3 else ("retrying" if failed else ("running" if text and n in live else "queued")))),   # [v2.5.9o] a train.log alone (a killed run waiting for its GPU) is no running task
         "attempts_failed": int(att.group(1)) if att else 0, "last_failure_tail": failed.splitlines()[-3:] if failed else [],
         "step": int(steps[-1]) if steps else 0,
         "val_math500": last(r"val-core/math500/reward/mean@\d+:([0-9.]+)", text),   # mean@2 (E10b) or mean@4 (E12b); v2.3
