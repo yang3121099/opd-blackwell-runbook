@@ -1265,5 +1265,5 @@ passk    open   EVAL-passk-ext
 #eval EVAL-e10d-x2 e10d_X2_s50_math500_T0.6 result:runs/E10d-X2/global_step_50/actor/huggingface math500 4 0.6
 #strict STRICT-C1 EVAL-budA-x1/budAX1_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-i2507/i2507_math500_T0.6_32k_math500_no_think_t0.6.jsonl
 #strict STRICT-C1 EVAL-budA-x2/budAX2_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-i2507/i2507_math500_T0.6_32k_math500_no_think_t0.6.jsonl
-# 06:0x UTC 10-21: EVAL-e10c-dyn6144 taken out of stage  (its training E10c-P4lowlr-dyn6144 has been paused since its out-of-memory
-# at step 105 on 10-18, so the reading could never start; its #eval lines stay for a later run)
+# 06:0x UTC 10-21: EVAL-e10c-dyn6144's lines turned off (it was in no stage; the pulse listed it as queued from these lines;
+# its training E10c-P4lowlr-dyn6144 has been paused since its out-of-memory at step 105 on 10-18, so it could never start)
