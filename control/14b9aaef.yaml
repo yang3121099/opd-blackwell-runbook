@@ -452,3 +452,4 @@ commands:
   - {"seq": 450, "cmd": "snapshot runs/EVAL-len-S/e10b_P5lenS_s50_math500_T0.6_math500_no_think_t0.6.metrics.json", "reason": "EVAL-len-S slow (ops-lead): its 16K row's length / truncation", "utc": "2026-10-21T23:32:15Z"}
   - {"seq": 451, "cmd": "snapshot data/hf/AIcell__Auto-ClawEval-mini/.fetch_ok", "reason": "asset check for ops-lead (Runming's question via the monitor page): link + .fetch_ok of AIcell__Auto-ClawEval-mini", "utc": "2026-10-21T23:43:16Z"}
   - {"seq": 452, "cmd": "snapshot data/hf/AIcell__Auto-ClawEval/.fetch_ok", "reason": "asset check for ops-lead (Runming's question via the monitor page): link + .fetch_ok of AIcell__Auto-ClawEval", "utc": "2026-10-21T23:43:24Z"}
+  - {"seq": 453, "cmd": "snapshot data/hf/Team-ACE__ToolACE/.fetch_ok", "reason": "asset check for ops-lead (Runming's question via the monitor page): link + .fetch_ok of Team-ACE__ToolACE", "utc": "2026-10-21T23:43:33Z"}
