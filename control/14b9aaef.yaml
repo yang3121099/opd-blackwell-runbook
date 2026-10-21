@@ -441,3 +441,4 @@ commands:
   - {"seq": 439, "cmd": "snapshot models/Qwen3-32B", "reason": "32B progress", "utc": "2026-10-21T20:15:56Z"}
   - {"seq": 440, "cmd": "snapshot logs/fetch_AI4Math__MathVista.log", "reason": "MathVista pull: why not in", "utc": "2026-10-21T20:17:07Z"}
   - {"seq": 441, "cmd": "snapshot models/Qwen3-32B/.fetch_ok", "reason": "arrival check 2", "utc": "2026-10-21T20:46:00Z"}
+  - {"seq": 442, "cmd": "snapshot data/hf/AI4Math__MathVista/.fetch_ok", "reason": "arrival check 2", "utc": "2026-10-21T20:46:08Z"}
