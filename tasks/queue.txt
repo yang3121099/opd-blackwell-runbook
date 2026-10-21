@@ -1382,6 +1382,8 @@ olpd     open   EVAL-ext32k-17olpd
 # Beijing), in parallel segments (FETCH_PARALLEL); Qwen3-32B after VL-8B is in (the second-tier teacher-scale probe, not urgent)
 #fetch Qwen/Qwen3-VL-8B-Thinking
 #fetch Qwen/Qwen3-VL-2B-Instruct
+# 10-22 01:2x Beijing (Fable's Q-051, ops-lead): Geometry3K (verl's example set, ~100 MB, open licence) before Qwen3-32B, for PROBE-VLM / E15-VLM
+#fetch dataset:hiyouga/geometry3k
 #fetch dataset:BytedTsinghua-SIA/DAPO-Math-17k
 # 10-22 01:02 Beijing (17:02 UTC): Qwen3-VL-8B-Thinking in (.fetch_ok, 17.55 GB, ~3.6 MB/s); Qwen3-32B next (ops-lead's standing A1)
 #fetch Qwen/Qwen3-32B
