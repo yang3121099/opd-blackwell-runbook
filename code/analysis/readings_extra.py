@@ -62,6 +62,11 @@ def frontier(path, reading=None):
             "how": f"metrics.json (max_tokens {d.get('max_tokens')})"}
 
 
+def safe(rel):
+    """[v2.5.9z3] a row's path: relative, no '..', under runs/ (anything else is refused and listed as missing)."""
+    return bool(rel) and not os.path.isabs(rel) and ".." not in rel.split("/") and "\\" not in rel
+
+
 def queue_rows(qfile, kind):
     rows = []
     for line in open(qfile):
@@ -83,12 +88,16 @@ def main(runs, qfile, out):
     summary = {"split": {}, "frontier": {}, "missing": []}
     for label, rel in (r[:2] for r in queue_rows(qfile, "split")):
         p = os.path.join(runs, rel)
-        if not (os.path.exists(p) and ".." not in rel):
+        if not safe(rel):
+            summary["missing"].append(f"{rel}: refused path"); continue
+        if not os.path.exists(p):
             summary["missing"].append(rel); continue
         s = split(read_records(p), easy)
         mp = p[:-len(".jsonl")] + ".metrics.json"
         if os.path.exists(mp):
             s["metrics_avg_acc"] = json.load(open(mp)).get("avg_acc")
+            if s["metrics_avg_acc"] is not None and abs(s["all"]["acc"] - float(s["metrics_avg_acc"])) > 0.01:   # [v2.5.9z3] pid parsing check
+                summary.setdefault("mismatch", []).append(f"{label}: all {s['all']['acc']} vs metrics {s['metrics_avg_acc']}")
         dst = os.path.join(out, "up", "runs", os.path.dirname(rel)); os.makedirs(dst, exist_ok=True)
         stem = os.path.basename(rel)[:-len(".jsonl")]
         json.dump(dict(s, reading=rel), open(os.path.join(dst, stem + ".split.json"), "w"), indent=1)
@@ -96,6 +105,8 @@ def main(runs, qfile, out):
         summary["split"][label] = {**{k: s[k] for k in s if k in ("1-100", "101-500", "all", "easy", "hard", "metrics_avg_acc")}, "reading": rel}
     for row in queue_rows(qfile, "frontier"):
         label, rel, reading = row[0], row[1], (row[2] if len(row) > 2 else None)
+        if not safe(rel):
+            summary["missing"].append(f"{rel}: refused path"); continue
         p = os.path.join(runs, rel)
         try:
             summary["frontier"][label] = dict(frontier(p, reading), source=rel + (f" [{reading}]" if reading else ""))
@@ -112,6 +123,7 @@ def main(runs, qfile, out):
     lines.append("frontier: label | 16K mean tokens | 16K trunc | source")
     lines += [f"{k} | {v['mean_tokens_16k']} | {v['trunc_16k']} | {v['source']}" for k, v in summary["frontier"].items()]
     lines.append("missing: " + (", ".join(summary["missing"]) or "none"))
+    lines.append("all-500 vs metrics mismatch: " + ("; ".join(summary.get("mismatch", [])) or "none"))
     open(os.path.join(out, "summary.txt"), "w").write("\n".join(lines) + "\n")
     print("\n".join(lines))
     return summary

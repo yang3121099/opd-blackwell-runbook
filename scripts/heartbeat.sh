@@ -150,6 +150,11 @@ for d in sorted(x for x in glob.glob(os.path.join(root, "runs", "*")) if os.path
         t["state"] = "running"            # FA-PROBE, SFT's teacher traces, evaluations: running without a train.log
     if not lv and os.path.exists(os.path.join(d, ".paused")) and t["state"] not in ("done", "skipped"):
         t["state"] = "paused"             # [v2.5.8] pause / kill / move-ckpt leave .paused; was shown as running or retrying
+    if not lv and t["state"] in ("queued", "retrying") and os.path.exists(os.path.join(d, ".blocked")):   # [v2.5.9z3] held by a failed gate
+        bm = re.search(r"blocked_by: (\S+)", open(os.path.join(d, ".blocked"), errors="ignore").read())
+        t["state"] = "blocked"; t["blocked_by"] = bm.group(1) if bm else None
+    elif not lv and t["state"] in ("queued", "retrying") and os.path.exists(os.path.join(d, ".waiting")):   # [v2.5.9z3] its inputs not in yet
+        t["state"] = "waiting"
     t["gpu"] = lv[0] if lv else None; t["kind"] = kind(os.path.basename(d))
     t["gpus"] = lv[2] if lv else []   # [v2.5.9a] every GPU of the task (two for a #gpus 2 task); "gpu" stays the first
     t["started_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(lv[1])) if lv else None

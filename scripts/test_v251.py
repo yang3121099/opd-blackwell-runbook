@@ -166,6 +166,17 @@ def test_pulse_marks_padding_tasks(env, monkeypatch):   # [v2.5.9q] pad: true re
     assert p["tasks"]["EVAL-fill"]["pad"] is True and "pad" not in p["tasks"]["EVAL-odd"] and "pad" not in p["tasks"]["E10b-P2"]
 
 
+def test_pulse_blocked_by(env, monkeypatch):   # [v2.5.9z3] a blocked task's gate reaches the public pulse, a task name only
+    import copy
+    st = copy.deepcopy(STATUS)
+    st["tasks"]["E10b-P5x"] = {"state": "blocked", "step": 0, "blocked_by": "PROBE-STOPMERGE"}
+    st["tasks"]["E10b-P5y"] = {"state": "blocked", "step": 0, "blocked_by": "PROBE-X /etc/passwd"}   # not a task name: dropped
+    monkeypatch.setenv("OPD_ROOT", str(env.root))
+    p = env.c.build_pulse(st, GPU)
+    assert p["tasks"]["E10b-P5x"]["state"] == "blocked" and p["tasks"]["E10b-P5x"]["blocked_by"] == "PROBE-STOPMERGE"
+    assert "blocked_by" not in p["tasks"]["E10b-P5y"] and "blocked_by" not in p["tasks"]["E10b-P2"]
+
+
 def test_pulse_refused_and_not_uploaded(env, monkeypatch):
     monkeypatch.setenv("HOME", "/home/running")   # a forbidden word that the pulse contains (the state "running")
     st = env.root / "status.json"; st.write_text(json.dumps(STATUS))

@@ -34,7 +34,8 @@ PY
   step "$1 $2"; touch $D/.done; exit 0
 }
 [ -x "$PY" ] || { [[ $PY != */* ]] && command -v "$PY" > /dev/null; } || finish FAIL "no venv-vl (BUILD-VENV-VL first)"
-for m in $S $TE; do [ -f $m/.fetch_ok ] || finish FAIL "$(basename $m) not in (no .fetch_ok)"; done
+for m in $S $TE; do [ -f $m/.fetch_ok ] || { echo "WAIT_INPUTS $T: $(basename $m) not in (no .fetch_ok)"; exit 1; }; done   # [v2.5.9z3] waiting, no attempt
+[ -f $DATA ] || [ -f $OPD_ROOT/data/hf/hiyouga__geometry3k/.fetch_ok ] || { echo "WAIT_INPUTS $T: Geometry3K not in (no .fetch_ok)"; exit 1; }
 # 0. unit tests
 RU=$($PY -c "import importlib.util as u; print(u.find_spec('verl.trainer.ppo.ref_input_utils').origin)" 2> /dev/null)
 [ -n "$RU" ] && [ -f "$RU" ] || finish FAIL "verl's ref_input_utils.py not found by venv-vl"

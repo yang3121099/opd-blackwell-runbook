@@ -34,15 +34,16 @@ PY
   step "$1 $2"; touch $D/.done; exit 0
 }
 [ -x "$PY" ] || finish FAIL "no venv-vl (BUILD-VENV-VL first)"
-[ -f $M/.fetch_ok ] || finish FAIL "Qwen3-VL-2B-Instruct not in (no .fetch_ok)"
-[ -f $DS/.fetch_ok ] || finish FAIL "Geometry3K not in (no .fetch_ok)"
+# [v2.5.9z3] inputs still downloading: waiting (run_tasks launches it again later, no attempt counted, no .done)
+[ -f $M/.fetch_ok ] || { echo "WAIT_INPUTS $T: Qwen3-VL-2B-Instruct not in (no .fetch_ok)"; exit 1; }
+[ -f $DS/.fetch_ok ] || { echo "WAIT_INPUTS $T: Geometry3K not in (no .fetch_ok)"; exit 1; }
 for _w in $(seq 19); do
   used=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $G 2>/dev/null | tr -d ' ')
   [ "${used:-1}" -le 1024 ] && break; [ $_w = 19 ] && finish FAIL "gpu $G not empty after 180 s"; sleep ${PVV_WAIT_STEP:-10}
 done
 step "start gpu=$G model=$(basename $M)"
 ( while true; do echo "$(date -u +%s),$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $G | tr -d ' ')" >> $D/mem.csv; sleep 2; done ) &
-MP=$!
+MP=$!; trap 'kill $MP 2> /dev/null' EXIT   # [v2.5.9z3] the sampler never outlives the probe
 CUDA_VISIBLE_DEVICES=$G timeout ${PVV_TIMEOUT:-900} $PY - "$M" "$DS" "$D/gen.json" > $D/gen.out 2>&1 <<'PY'
 import glob, io, json, os, sys, time
 m, ds, out = sys.argv[1:4]

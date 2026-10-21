@@ -81,6 +81,27 @@ done_() { [ -f $OPD_ROOT/runs/$1/.done ] && return 0
   touch $m
   python $RUNBOOK/scripts/remote.py done $1 2>/dev/null && { mkdir -p $OPD_ROOT/runs/$1; touch $OPD_ROOT/runs/$1/.done; }; }
 skipped() { [ -f $OPD_ROOT/runs/$1/.skipped ]; }
+# [v2.5.9z3] (ops-lead 10-21 19:5x UTC, after Q-038's gate failed and its arm failed three times on the gate check): a gate dependency
+# (PROBE-*) counts only when its report.json says PASS (a gate without a report or without a "result" field counts by .done, as
+# before: the older probes). A task held by a failed gate is blocked: runs/<task>/.blocked (blocked_by, reason), events blocked and,
+# once per gate report, gate_failed; it stays queued, is not launched or skipped, its attempts do not change, and it goes on (event
+# unblocked) once the gate is rerun and passes. A task whose own gate check refused it ("<gate> has not passed: <task> not started")
+# is blocked the same way by launch() instead of counting a failed attempt.
+gate_result() { python3 -c "import json, sys; print(json.load(open(sys.argv[1])).get('result', ''))" $OPD_ROOT/runs/$1/report.json 2> /dev/null; }
+gate_ok() { case $1 in PROBE-*) local r; r=$(gate_result $1); [ -z "$r" ] || [ "$r" = PASS ];; *) return 0;; esac; }
+block() {   # $1 the task, $2 the gate holding it
+  mkdir -p $OPD_ROOT/runs/$1
+  [ "$(sed -n 's/^blocked_by: //p' $OPD_ROOT/runs/$1/.blocked 2> /dev/null)" = "$2" ] || {
+    printf 'blocked_by: %s\nreason: %s FAIL\nsince: %s\n' $2 $2 "$(date -u +%FT%TZ)" > $OPD_ROOT/runs/$1/.blocked
+    python $RUNBOOK/scripts/control.py event $1 blocked "by $2 FAIL" > /dev/null 2>&1 & }
+  local f=$OPD_ROOT/runs/$2/.gate_failed_seen m
+  m=$(python3 -c "import os, sys; print(int(os.path.getmtime(sys.argv[1])))" $OPD_ROOT/runs/$2/report.json 2> /dev/null)
+  [ "$(cat $f 2> /dev/null)" = "$m" ] || { echo "$m" > $f
+    python $RUNBOOK/scripts/control.py event $2 gate_failed "$(python3 -c "import json, sys; print(str(json.load(open(sys.argv[1])).get('reason', ''))[:200])" $OPD_ROOT/runs/$2/report.json 2> /dev/null)" > /dev/null 2>&1 & }; }
+unblock() { [ -f $OPD_ROOT/runs/$1/.blocked ] || return 0; rm -f $OPD_ROOT/runs/$1/.blocked; python $RUNBOOK/scripts/control.py event $1 unblocked > /dev/null 2>&1 & }
+# [v2.5.9z3] a task that exited with "WAIT_INPUTS <task>: <reason>" (its inputs not in yet: a download, a dataset) is waiting: no attempt
+# counted, launched again WAIT_RETRY_MIN (10) minutes after it said so
+waiting() { [ -n "$(find $OPD_ROOT/runs/$1/.waiting -mmin -${WAIT_RETRY_MIN:-10} 2> /dev/null)" ]; }
 attempts() { sed -n 's/^attempts: //p' $OPD_ROOT/runs/$1/.failed 2>/dev/null || echo 0; }
 dead() { [ "$(attempts $1)" -ge 3 ]; }
 running() { pgrep -f "task.sh ([0-9]+(,[0-9]+)*|cpu) $1\$" >/dev/null; }   # [v2.5.8] cpu: a CPU-lane task; [v2.5.9a] a,b: a #gpus task
@@ -218,12 +239,19 @@ git_pass() {
     return
   done <<< "$(awk '$1 == "#git" {print $2, $3, $4}' "$Q")"; }
 launch() { # gpu task   (v2.5: start / done / killed / failed also go to status/<node>/events/ as receipts; [v2.5.8] gpu cpu: no reap)
+  # [v2.5.9z3] logs/<task>.log is written with '>' at each attempt (truncated), so the blocked / waiting checks below read this
+  # attempt's output only: a line left by an earlier attempt never turns a real failure into blocked / waiting
   mkdir -p $OPD_ROOT/runs/$2
   python $RUNBOOK/scripts/control.py event $2 start "gpu=$1 attempt=$(( $(attempts $2) + 1 ))" > /dev/null 2>&1 &
   setsid nohup bash -c "bash $RUNBOOK/scripts/task.sh $1 $2 > $OPD_ROOT/logs/$2.log 2>&1
     [ $1 = cpu ] || for _g in \$(echo $1 | tr , ' '); do python $RUNBOOK/scripts/control.py reap \$_g $2 > /dev/null 2>&1; done   # v2.5.4b: the task's orphaned vLLM / Ray processes off its GPU(s)
     if [ -f $OPD_ROOT/runs/$2/.done ]; then python $RUNBOOK/scripts/control.py event $2 done gpu=$1
     elif [ -f $OPD_ROOT/runs/$2/.killed ]; then python $RUNBOOK/scripts/control.py event $2 killed gpu=$1
+    elif G=\$(grep -m1 -oE '^PROBE-[A-Z0-9-]+ has not passed: $2 not started' $OPD_ROOT/logs/$2.log | cut -d' ' -f1) && [ -n \"\$G\" ]; then   # [v2.5.9z3] its own gate check: blocked, no attempt
+      printf 'blocked_by: %s\\nreason: %s has not passed (the task'\\''s own gate check)\\nsince: %s\\n' \$G \$G \"\$(date -u +%FT%TZ)\" > $OPD_ROOT/runs/$2/.blocked
+      python $RUNBOOK/scripts/control.py event $2 blocked \"by \$G (its own gate check)\"
+    elif W=\$(grep -m1 -oE '^WAIT_INPUTS $2: .*' $OPD_ROOT/logs/$2.log) && [ -n \"\$W\" ]; then   # [v2.5.9z3] inputs not in yet: waiting, no attempt
+      { echo \"\$W\"; date -u +%FT%TZ; } > $OPD_ROOT/runs/$2/.waiting; python $RUNBOOK/scripts/control.py event $2 waiting \"\${W#*: }\"
     else a=\$(( \$(sed -n 's/^attempts: //p' $OPD_ROOT/runs/$2/.failed 2>/dev/null || echo 0) + 1 ))
       { echo \"attempts: \$a\"; echo \"last: \$(date -u +%FT%TZ)\"; tail -20 $OPD_ROOT/logs/$2.log; } > $OPD_ROOT/runs/$2/.failed
       python $RUNBOOK/scripts/control.py event $2 failed \"attempt=\$a\"
@@ -295,6 +323,13 @@ while true; do
       paused $t && continue
       ok=1; for d in $deps; do done_ $d || ok=0; done
       [ $ok = 1 ] || continue
+      g=""; for d in $deps; do gate_ok $d || g=$d; done   # [v2.5.9z3] a failed gate holds its dependents
+      if [ -n "$g" ]; then block $t $g; continue; fi
+      if [ -f $OPD_ROOT/runs/$t/.blocked ]; then   # [v2.5.9z3] held by its own gate check: only that gate's PASS lets it go
+        b=$(sed -n 's/^blocked_by: //p' $OPD_ROOT/runs/$t/.blocked); [ "$(gate_result $b)" = PASS ] || continue
+      fi
+      unblock $t
+      waiting $t && continue   # [v2.5.9z3]
       case $t in EVAL-*) inputs_ok $t || result_only $t || no_fetch $t || continue;; esac   # v2.5.4e: no GPU while its models are being fetched ([v2.5.8] no_fetch)
       if cpu_task $t; then   # [v2.5.8] the CPU lane: no GPU taken
         cpu_busy && continue

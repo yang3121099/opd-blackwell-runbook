@@ -51,6 +51,6 @@ setup; FAKE_PS=0.3 FAKE_PE=0.62 bash $T/rb/scripts/probe_vlm.sh 3 > /dev/null 2>
 setup; FAKE_LOSS=nan bash $T/rb/scripts/probe_vlm.sh 3 > /dev/null 2>&1; check "c: a NaN loss is FAIL" "no finite actor loss"; rm -rf $T
 setup; FAKE_OOM=1 bash $T/rb/scripts/probe_vlm.sh 3 > /dev/null 2>&1; check "c: out of memory is FAIL" "out of memory"; rm -rf $T
 setup; PVL_PY=$T/root/venv-vl/bin/python bash $T/rb/scripts/probe_vlm.sh 3 > /dev/null 2>&1; check "no venv-vl is FAIL" "no venv-vl"; rm -rf $T
-setup; rm $T/root/models/Qwen3-VL-8B-Thinking/.fetch_ok; bash $T/rb/scripts/probe_vlm.sh 3 > /dev/null 2>&1; check "the teacher not in is FAIL" "Qwen3-VL-8B-Thinking not in"; rm -rf $T
+setup; rm $T/root/models/Qwen3-VL-8B-Thinking/.fetch_ok; bash $T/rb/scripts/probe_vlm.sh 3 > $T/o 2>&1; ok "[v2.5.9z3] the teacher not in: WAIT_INPUTS, no .done" 'grep -q "^WAIT_INPUTS PROBE-VLM: Qwen3-VL-8B-Thinking not in" $T/o && [ ! -f $T/root/runs/PROBE-VLM/.done ]'; rm -rf $T
 unset PYTHONPATH
 [ $fails = 0 ] && echo "PROBE_VLM_TEST PASS ($n checks)" || echo "PROBE_VLM_TEST FAIL ($fails of $n)"

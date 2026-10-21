@@ -45,10 +45,11 @@ def test_slow_probe_sends_the_large_wheel_through_par_fetch(tmp_path):
     meta, single, par, clock, calls, data = _env(tmp_path, {"transformers": 12_000_000, "vllm": 40_000_000, "mathruler": 15_000})
     r = W.fetch_all(str(tmp_path), ["transformers==4.57.1", "vllm==0.11.0", "mathruler==0.1.0"], single, par, meta, lambda: 64, clock)
     assert r["ok"] and r["probe_MBps"] < 1.0
-    assert [c[0] for c in calls] == ["single", "par", "single"] and calls[1][2] == 64
+    assert [c[0] for c in calls] == ["single", "single", "par"] and calls[2][2] == 64   # [v2.5.9z3] probe, then smallest first
     w = {x["name"]: x for x in r["wheels"]}
     assert w["vllm"]["conns"] == 64 and w["transformers"]["conns"] == 1 and w["vllm"]["host"] == "files.pythonhosted.org"
-    assert json.load(open(tmp_path / "manifest.json"))["wheels"][1]["sha256"] == hashlib.sha256(data["vllm"]).hexdigest()
+    man = {w["name"]: w for w in json.load(open(tmp_path / "manifest.json"))["wheels"]}
+    assert man["vllm"]["sha256"] == hashlib.sha256(data["vllm"]).hexdigest()
 
 
 def test_fast_probe_keeps_one_connection(tmp_path):
@@ -84,3 +85,10 @@ def test_a_download_error_is_reported(tmp_path):
         raise OSError("proxy said no")
     r = W.fetch_all(str(tmp_path), ["transformers==4.57.1"], boom, par, meta, lambda: 8, clock)
     assert not r["ok"] and "proxy said no" in r["wheels"][0]["error"] and r["probe_MBps"] is None
+
+
+def test_the_probe_is_a_small_wheel_even_when_listed_last(tmp_path):   # [v2.5.9z3] 10-21: vllm listed first was its own probe
+    meta, single, par, clock, calls, data = _env(tmp_path, {"vllm": 40_000_000, "mathruler": 15_000, "transformers": 12_000_000})
+    r = W.fetch_all(str(tmp_path), ["vllm==0.11.0", "mathruler==0.1.0", "transformers==4.57.1"], single, par, meta, lambda: 64, clock)
+    assert [w["name"] for w in r["wheels"]] == ["transformers", "mathruler", "vllm"] and r["probe_MBps"] < 1.0
+    assert [c[0] for c in calls] == ["single", "single", "par"]

@@ -23,7 +23,7 @@ setup() {
   printf '__version__ = "0.10.2"\n' > $SP/vllm/__init__.py; : > $SP/vllm/model_executor/__init__.py; : > $SP/vllm/model_executor/models/__init__.py
   printf 'class ModelRegistry:\n    @staticmethod\n    def get_supported_archs():\n        return ["Qwen2VLForConditionalGeneration"]\n' > $SP/vllm/model_executor/models/registry.py
   : > $SP/verl/__init__.py; : > $SP/verl/models/__init__.py; : > $SP/verl/models/transformers/__init__.py; : > $SP/verl/models/transformers/qwen3_vl.py
-  : > $SP/pip/__init__.py
+  : > $SP/pip/__init__.py; mkdir -p $SP/flash_attn; printf '__version__ = "2.8.3.post2"\n' > $SP/flash_attn/__init__.py
   cat > $SP/pip/__main__.py <<'PY'
 import os, sys
 open(os.environ["CALLS"], "a").write("pip " + " ".join(sys.argv[1:]) + " in " + sys.prefix + "\n")
@@ -70,6 +70,10 @@ ok "vllm still 0.10.2 after the install: FAIL on the checks, no venv-vl, event v
 # 5. a wheel that fails its sha256: FAIL before any install
 : > $CALLS; FAKE_WHEEL_FAIL=1 bash $T/rb/scripts/build_venv_vl.sh > /dev/null 2>&1
 ok "a wheel failing its sha256: FAIL, nothing installed; the leftover venv-vl.tmp of the run before was removed and rebuilt" '[ "$(res result)" = FAIL ] && [[ "$(res reason)" == wheels:* ]] && ! grep -q "^pip install" $CALLS'
+cd $SRC; rm -rf $T
+# [v2.5.9z3] no flash_attn in the copy: FAIL on the checks
+setup; rm -rf $SP/flash_attn; bash $T/rb/scripts/build_venv_vl.sh > /dev/null 2>&1
+ok "[v2.5.9z3] flash_attn missing: FAIL (flash_attn version)" '[ "$(res result)" = FAIL ] && [[ "$(res reason)" == *"flash_attn"* ]] && [ ! -e $T/root/$VL ]'
 cd $SRC; rm -rf $T
 # 6. venv-vl.tmp is a link to elsewhere: refused, the link target kept
 setup; mkdir -p $T/elsewhere; echo precious > $T/elsewhere/f; ln -s $T/elsewhere $T/root/$VL.tmp

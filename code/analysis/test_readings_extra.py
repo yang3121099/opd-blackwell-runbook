@@ -53,3 +53,12 @@ def test_no_labels_no_easy_rows():
     os.remove(os.path.join(runs, "PROBE-DIFF17", "labels_17.jsonl"))
     a = X.main(runs, q, out)["split"]["17_A"]
     assert "easy" not in a and a["1-100"]["acc"] == 100.0
+
+
+def test_refused_paths_and_the_metrics_mismatch():   # [v2.5.9z3] ops-lead's A1 notes on 9x1
+    runs, out, q = setup()
+    json.dump({"avg_acc": 61.0}, open(os.path.join(runs, "EVAL-a", "a_math500.metrics.json"), "w"))   # all 500 is 60.0
+    open(q, "a").write("#split READINGS-EXTRA bad ../etc/x.jsonl\n#frontier READINGS-EXTRA bad2 /abs/m.metrics.json\n")
+    s = X.main(runs, q, out)
+    assert "../etc/x.jsonl: refused path" in s["missing"] and "/abs/m.metrics.json: refused path" in s["missing"]
+    assert s["mismatch"] == ["17_A: all 60.0 vs metrics 61.0"] and "mismatch: 17_A" in open(os.path.join(out, "summary.txt")).read()

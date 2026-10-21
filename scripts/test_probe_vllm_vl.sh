@@ -31,8 +31,9 @@ ok "PASS: the model and the dataset given, on GPU 5; versions, capability, answe
 rm -rf $T
 check() { ok "$1" '[ "$(res result)" = FAIL ] && [[ "$(res reason)" == *"'"$2"'"* ]]'; }
 setup; PVV_PY=$T/root/venv-vl/bin/python bash $T/rb/scripts/probe_vllm_vl.sh 5 > /dev/null 2>&1; check "no venv-vl is FAIL" "no venv-vl"; rm -rf $T
-setup; rm $T/root/models/Qwen3-VL-2B-Instruct/.fetch_ok; bash $T/rb/scripts/probe_vllm_vl.sh 5 > /dev/null 2>&1; check "VL-2B not in is FAIL" "Qwen3-VL-2B-Instruct not in"; ok "no generation without the model" '! grep -q "^fakepy" $CALLS'; rm -rf $T
-setup; rm $T/root/data/hf/hiyouga__geometry3k/.fetch_ok; bash $T/rb/scripts/probe_vllm_vl.sh 5 > /dev/null 2>&1; check "Geometry3K not in is FAIL" "Geometry3K not in"; rm -rf $T
+setup; rm $T/root/models/Qwen3-VL-2B-Instruct/.fetch_ok; bash $T/rb/scripts/probe_vllm_vl.sh 5 > $T/o 2>&1; rc=$?
+ok "[v2.5.9z3] VL-2B not in: WAIT_INPUTS, exit 1, no report or .done, no generation" '[ $rc = 1 ] && grep -q "^WAIT_INPUTS PROBE-VLLM-VL: Qwen3-VL-2B-Instruct not in" $T/o && [ ! -f $T/root/runs/PROBE-VLLM-VL/.done ] && [ ! -f $T/root/runs/PROBE-VLLM-VL/report.json ] && ! grep -q "^fakepy" $CALLS'; rm -rf $T
+setup; rm $T/root/data/hf/hiyouga__geometry3k/.fetch_ok; bash $T/rb/scripts/probe_vllm_vl.sh 5 > $T/o 2>&1; ok "[v2.5.9z3] Geometry3K not in: WAIT_INPUTS, no .done" 'grep -q "^WAIT_INPUTS PROBE-VLLM-VL: Geometry3K not in" $T/o && [ ! -f $T/root/runs/PROBE-VLLM-VL/.done ]'; rm -rf $T
 setup; FAKE_ANSWER="" bash $T/rb/scripts/probe_vllm_vl.sh 5 > /dev/null 2>&1; check "an empty answer is FAIL" "an empty answer"; rm -rf $T
 setup; FAKE_OOM=1 bash $T/rb/scripts/probe_vllm_vl.sh 5 > /dev/null 2>&1; check "out of memory is FAIL" "out of memory"; rm -rf $T
 setup; FAKE_RC=1 bash $T/rb/scripts/probe_vllm_vl.sh 5 > /dev/null 2>&1; check "an unsupported architecture is FAIL with its message" "not supported"; rm -rf $T

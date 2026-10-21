@@ -103,6 +103,7 @@ def verl_vl():
     import verl.models.transformers.qwen3_vl  # noqa: F401
     return True
 chk("verl_qwen3_vl", verl_vl)
+chk("flash_attn", lambda: __import__("flash_attn").__version__)   # [v2.5.9z3] the copied one, not replaced
 def proc():
     if not os.path.exists(os.path.join(vl8, ".fetch_ok")):
         return "skipped (Qwen3-VL-8B-Thinking not in)"
@@ -119,6 +120,7 @@ if not str(c.get("vllm", "")).startswith("0.11.0"): bad.append("vllm version")
 if not str(c.get("transformers", "")).startswith("4.57"): bad.append("transformers version")
 if not str(c.get("torch", "")).startswith("2.8.0"): bad.append("torch version")
 if str(c.get("torch_cuda")) != "12.8": bad.append("torch cuda")
+if not str(c.get("flash_attn", "")).startswith("2.8.3"): bad.append("flash_attn version")
 print(" ".join(bad))
 PY
 [ -s $D/checks.json ] || finish FAIL "the checks did not run: $(tail -c 300 $LOG | tr '\n' ' ')"

@@ -447,6 +447,16 @@ sed -n "/^  python - \"\$F\" <<'PY'$/,/^PY$/p" $SRC/scripts/heartbeat.sh | sed '
 got=$(python3 -c "import json; d = json.load(open('$T/out.json')); print(' '.join(sorted(d['tasks'])), '|', ' '.join(d['stale_task_dirs']), '|', d['tasks']['EVAL-paused']['state'])" 2>&1)
 ok "[v2.5.8] heartbeat: paused state, stale directories counted not listed" '[ "$got" = "E12d-P0 EVAL-old-done EVAL-paused adhoc_eval_7 | EVAL-gone | paused" ]'
 rm -rf $T
+# 3g1. [v2.5.9z3] heartbeat: .blocked (a failed gate) -> "blocked" with blocked_by; .waiting (inputs not in) -> "waiting"
+T=$(mktemp -d); mkdir -p $T/root/runs/{E10b-P5x,PROBE-VLX,EVAL-q} $T/root/logs $T/root/control $T/rb/tasks $T/bin
+printf 'blocked_by: PROBE-GX\nreason: PROBE-GX FAIL\n' > $T/root/runs/E10b-P5x/.blocked; printf 'WAIT_INPUTS PROBE-VLX: x not in\n' > $T/root/runs/PROBE-VLX/.waiting
+printf 'version: 9\ns open E10b-P5x PROBE-VLX EVAL-q\n' > $T/rb/tasks/queue.txt
+printf '#!/usr/bin/env bash\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi; cp -r $SRC/scripts $T/rb/
+sed -n "/^  python - \"\$F\" <<'PY'$/,/^PY$/p" $SRC/scripts/heartbeat.sh | sed '1d;$d' > $T/hb.py
+( cd $T && PATH=$T/bin:$PATH OPD_ROOT=$T/root RUNBOOK=$T/rb python3 hb.py $T/out.json > /dev/null 2>&1 )
+got=$(python3 -c "import json; t = json.load(open('$T/out.json'))['tasks']; print(t['E10b-P5x']['state'], t['E10b-P5x'].get('blocked_by'), t['PROBE-VLX']['state'], t['EVAL-q']['state'])" 2>&1)
+ok "[v2.5.9z3] heartbeat: blocked (blocked_by PROBE-GX), waiting, queued (got: $got)" '[ "$got" = "blocked PROBE-GX waiting queued" ] && grep -q "tasks\[name\]\[\"blocked_by\"\] = v\[\"blocked_by\"\]" $SRC/scripts/control.py'
+rm -rf $T
 # 3g2. [v2.5.9m] padding stages: run_tasks dispatches every stage not on a "#pad" line first, then the padding stages, each
 #      in file order (without #pad lines: the file order); the heartbeat marks their tasks pad: true and lists a task
 #      written as name:dep (it was called stale before)

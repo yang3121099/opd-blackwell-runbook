@@ -3,8 +3,9 @@
     python wheel_fetch.py <out dir> <name==version> ...      e.g. vllm==0.11.0 transformers==4.57.1
 
 For each pin the wheel is picked from PyPI's JSON (https://pypi.org/pypi/<name>/<version>/json): a CPython 3.10 / abi3 /
-py3-none-any build for Linux x86_64 (or any platform), with its size and the sha256 PyPI publishes. The first pin is fetched over
-ONE connection and timed (the probe of the node's proxy, reported as probe_MBps); a later wheel larger than PAR_MIN_MB (32) goes
+py3-none-any build for Linux x86_64 (or any platform), with its size and the sha256 PyPI publishes. [v2.5.9z3] The probe of the node's
+proxy is the smallest wheel of at least PROBE_MIN_MB (4; else the first), fetched first over ONE connection and timed (probe_MBps):
+10-21 vllm, listed first, was its own 438 MB probe at 0.24 MB/s. A later wheel larger than PAR_MIN_MB (32) goes
 through par_fetch.download over FETCH_CONNS connections when that probe is under PAR_BELOW_MBPS (1.0), else over one connection
 too. Every file is checked against PyPI's sha256 (a mismatch removes nothing but the file just written and fails); a file already
 there with the right sha256 is kept. <out dir>/manifest.json: per wheel name, version, file, size, sha256, url host, seconds, MB/s,
@@ -67,12 +68,19 @@ def conns():
         return int(os.environ.get("FETCH_CONNS", "32"))
 
 
+def order(metas):
+    """[v2.5.9z3] the probe (smallest wheel >= PROBE_MIN_MB, else the first) first, then the others smallest first."""
+    pmin = float(os.environ.get("PROBE_MIN_MB", "4")) * 1e6
+    big = [m for m in metas if m["size"] >= pmin]
+    probe = min(big, key=lambda m: m["size"]) if big else metas[0]
+    return [probe] + sorted((m for m in metas if m is not probe), key=lambda m: m["size"])
+
+
 def fetch_all(out, pins, single_fn=single, par_fn=None, meta_fn=meta, conns_fn=conns, clock=time.time):
     os.makedirs(out, exist_ok=True)
     res = {"wheels": [], "probe_MBps": None, "ok": True}
-    for i, pin in enumerate(pins):
-        name, _, version = pin.partition("==")
-        m = meta_fn(name, version)
+    metas = order([meta_fn(*pin.split("==", 1)) for pin in pins])
+    for i, m in enumerate(metas):
         dst = os.path.join(out, m["file"])
         row = dict(m, host=re.sub(r"^https?://([^/]+)/.*$", r"\1", m["url"]), conns=1, seconds=0.0, MBps=None, kept=False)
         del row["url"]
