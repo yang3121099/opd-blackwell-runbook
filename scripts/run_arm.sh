@@ -47,7 +47,10 @@ SIZE=""; [[ $TASK =~ ^E10d-(P2|P5)(-s43)?$ ]] && { BASE=E10b-${BASH_REMATCH[1]};
 # (so OPD_REF_THINK=0); E10d-X2 = the same student taught by the hybrid Qwen3-4B on the thinking template (as P5). 50 steps;
 # both 2507 models from the node's HF cache. G-OPD renders the teacher prompt with the teacher's own tokenizer and template
 # (main_ppo loads ref_tokenizer from ref.model.path); the four Qwen3 tokenizer.json files are identical (sha256 aeb13307)
-XARM=""; [[ $TASK =~ ^E10d-(X1|X2)$ ]] && { XARM=${BASH_REMATCH[1]}; BASE=E10b-P5; SIZE=4B; }
+# [v2.5.8l] (Q-032, Runming via the reviewer 06:4x UTC 10-21): E10d-X4 = P5's recipe with the hybrid Qwen3-4B student
+# (non-thinking template, as E10d-P5) taught by Qwen3-4B-Instruct-2507 in its own template (no <think> anywhere,
+# OPD_REF_THINK=0): a teacher with thinking-level accuracy and non-thinking termination
+XARM=""; [[ $TASK =~ ^E10d-(X1|X2|X4)$ ]] && { XARM=${BASH_REMATCH[1]}; BASE=E10b-P5; SIZE=4B; }
 case $BASE in
   E10b-P2) ARM=P2; LR=3e-6;; E10b-P3) ARM=P3; LR=3e-6;; E10b-P4lowlr) ARM=P4; LR=6e-7;; E10b-P5) ARM=P5; LR=3e-6;;
   E10b-P6) ARM=P6; LR=3e-6;; E10b-P6r) ARM=P6r; LR=3e-6;; E10b-P2noEOS) ARM=P2noEOS; LR=3e-6;;
@@ -66,8 +69,9 @@ STUDENT=${STUDENT:-$STUDENT_17B}   # the verification smoke uses $STUDENT_06B
 [ $SELF = 1 ] && { TEACHER=$STUDENT_17B; [ "$SIZE" = 4B ] && TEACHER=$STUDENT_4B; }   # v2.5.7v; [v2.5.8e] the 4B student's own base
 if [ -n "$XARM" ]; then   # [v2.5.8i] hub ids, resolved to the local HF cache after the venv is active
   STUDENT=${STUDENT_I2507:-Qwen/Qwen3-4B-Instruct-2507}; TEACHER=${TEACHER_T2507:-Qwen/Qwen3-4B-Thinking-2507}; [ $XARM = X2 ] && TEACHER=$STUDENT_4B
+  [ $XARM = X4 ] && { STUDENT=$STUDENT_4B; TEACHER=${STUDENT_I2507:-Qwen/Qwen3-4B-Instruct-2507}; }   # [v2.5.8l]
 fi
-# [v2.5.8i] an X arm starts only after its gate PROBE-X2507-<X1|X2> passed (prompt templates + a 3-step smoke)
+# [v2.5.8i] an X arm starts only after its gate PROBE-X2507-<X1|X2|X4> passed (prompt templates + a 3-step smoke)
 if [ -n "$XARM" ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
   grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-X2507-$XARM/report.json 2> /dev/null || { echo "PROBE-X2507-$XARM has not passed: $TASK not started"; exit 3; }
 fi
@@ -118,7 +122,7 @@ case $ARM in P5top10|P5rand10m) export OPD_VARIANT=P6 OPD_VARIANT_OVERRIDE=$ARM 
 [ $STHINK = 1 ] && NSTEPS=${P5THINK_STEPS:-50}
 [ -n "$XARM" ] && NSTEPS=${X2507_STEPS:-50}   # [v2.5.8i]
 [ $SELF = 1 ] && NSTEPS=${P5SELF_STEPS:-50}   # v2.5.7v: the same point as P5 s50   # v2.5.7r: constant lr, so step 50 is the same point as in a 150-step run
-OPD_REF_THINK=0; [[ $ARM =~ ^P5(top10|rand10m)?$ ]] && OPD_REF_THINK=1; [ $STHINK = 1 ] && OPD_REF_THINK=0; [ "$XARM" = X1 ] && OPD_REF_THINK=0; export OPD_REF_THINK   # [v2.5.8i] X1: the template opens <think>
+OPD_REF_THINK=0; [[ $ARM =~ ^P5(top10|rand10m)?$ ]] && OPD_REF_THINK=1; [ $STHINK = 1 ] && OPD_REF_THINK=0; [ "$XARM" = X1 ] && OPD_REF_THINK=0; [ "$XARM" = X4 ] && OPD_REF_THINK=0; export OPD_REF_THINK   # [v2.5.8i] X1: the template opens <think>
 if python -c "import flash_attn" 2>/dev/null; then RMPAD=True; ATTN=flash_attention_2; TOK_DEFAULT=16384
 else RMPAD=False; ATTN=sdpa; TOK_DEFAULT=6144; fi
 # without remove-padding every micro-batch is padded to its longest sequence, so the fp32 logits grow with the token

@@ -12,7 +12,8 @@ setup() {
   cat > $T/rb/scripts/run_arm.sh <<'S2'
 echo "run_arm $* SMOKE=$SMOKE STEPS=$SMOKE_STEPS PROBE_TASK=$PROBE_TASK" >> $CALLS
 d=$OPD_ROOT/runs/$PROBE_TASK; mkdir -p $d; RT=0; TT=/hf/models--Qwen--Qwen3-4B-Thinking-2507/snapshots/r; [ $2 = E10d-X2 ] && { RT=1; TT=/m/Qwen3-4B; }
-printf "task: $2\nstudent: ${FAKE_STUDENT:-/hf/models--Qwen--Qwen3-4B-Instruct-2507/snapshots/r} (no_think)\nteacher: $TT (ref; think-template=$RT; param_offload=1)\n" > $d/config.yaml
+SD=/hf/models--Qwen--Qwen3-4B-Instruct-2507/snapshots/r; [ $2 = E10d-X4 ] && { SD=/m/Qwen3-4B; TT=/hf/models--Qwen--Qwen3-4B-Instruct-2507/snapshots/r; }
+printf "task: $2\nstudent: ${FAKE_STUDENT:-$SD} (no_think)\nteacher: $TT (ref; think-template=$RT; param_offload=1)\n" > $d/config.yaml
 for i in 1 2 3; do echo "(TaskRunner pid=1) step:$i - timing_s/step:300" >> $d/train.log; done
 [ "${FAKE_OOM:-0}" = 1 ] && { echo "torch.OutOfMemoryError: CUDA out of memory" >> $d/train.log; exit 1; }; exit 0
 S2
@@ -47,6 +48,15 @@ rm -rf $T
 setup
 FAKE_OOM=1 bash $T/rb/scripts/probe_x2507.sh 3 X2 > /dev/null 2>&1
 ok "OOM is FAIL" '[ "$(res X2 result)" = FAIL ] && [[ "$(res X2 reason)" == *"out of memory"* || "$(res X2 reason)" == *"exited"* ]]'
+rm -rf $T
+# [v2.5.8l] X4 PASS: the hybrid student and the Instruct-2507 teacher, think-template 0, the arm passed to the template check
+setup
+bash $T/rb/scripts/probe_x2507.sh 3 X4 > /dev/null 2>&1
+ok "X4 PASS: hybrid student, Instruct-2507 teacher, ref_think 0" '[ "$(res X4 result)" = PASS ] && grep -q "^py - /m/Qwen3-4B Qwen/Qwen3-4B-Instruct-2507 0 .* X4$" $CALLS && grep -q "^run_arm 3 E10d-X4 SMOKE=1 STEPS=3 PROBE_TASK=PROBE-X2507-X4-smoke" $CALLS'
+rm -rf $T
+setup
+FAKE_STUDENT=/hf/models--Qwen--Qwen3-4B-Instruct-2507/snapshots/r bash $T/rb/scripts/probe_x2507.sh 3 X4 > /dev/null 2>&1
+ok "X4 with the 2507 student in the smoke is FAIL" '[ "$(res X4 result)" = FAIL ] && [[ "$(res X4 reason)" == *"not the hybrid 4B"* ]]'
 rm -rf $T
 setup
 bash $T/rb/scripts/probe_x2507.sh 3 X3 > /dev/null 2>&1; rc=$?

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PROBE-X2507-<X1|X2> (runbook [v2.5.8i], Q-029; reviewer 17:4x UTC 10-20): the gate of E10d-X1 / E10d-X2 (the student
+# PROBE-X2507-<X1|X2|X4> (runbook [v2.5.8i], Q-029; reviewer 17:4x UTC 10-20): the gate of E10d-X1 / E10d-X2 (the student
 # Qwen3-4B-Instruct-2507 taught by Qwen3-4B-Thinking-2507 / by the hybrid Qwen3-4B on the thinking template).
 # 1. Templates, CPU, in the training's venv: both prompts rendered as G-OPD does (the student's with its tokenizer and
 #    enable_thinking=False; the teacher's with the teacher's own tokenizer, plus enable_thinking=True and '<think>\n' when
@@ -7,10 +7,13 @@
 #    student prompt none, and the two vocabularies to be identical (the student's response ids are fed to the teacher).
 # 2. A 3-step smoke of the arm on ONE GPU (no checkpoint, upload, validation; nvidia-smi every 5 s): exit 0, no OOM, peak
 #    < 260 GB, and the smoke's config naming the 2507 student (and for X1 the 2507 teacher).
-# report.json, to logs/<node>/probe_x2507/<task> (private), an event, .done. Usage: bash probe_x2507.sh <gpu> <X1|X2>
+# [v2.5.8l] (Q-032) X4: the hybrid Qwen3-4B student on its non-thinking template (its prompt ends with the empty block
+#    '<think>\n\n</think>\n\n', the only <think> in it) taught by Instruct-2507 in its own template (no <think> at all,
+#    OPD_REF_THINK=0); the smoke's config must name the hybrid student and the Instruct-2507 teacher.
+# report.json, to logs/<node>/probe_x2507/<task> (private), an event, .done. Usage: bash probe_x2507.sh <gpu> <X1|X2|X4>
 set -uo pipefail
 G=$1; X=$2; source "$(dirname "$0")/env.sh"
-case $X in X1|X2) ;; *) echo "unknown arm $X"; exit 2;; esac
+case $X in X1|X2|X4) ;; *) echo "unknown arm $X"; exit 2;; esac
 T=PROBE-X2507-$X; D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; mkdir -p $D
 [ -f $D/.done ] && { echo "TASK_ALREADY_DONE $T"; exit 0; }
 step() { echo "PROBE_X2507 $(date -u +%T) $*" | tee -a $LOG; }
@@ -38,9 +41,11 @@ PY
 V=$OPD_ROOT/venv; [ "${E10D_FA:-0}" = 1 ] && V=$OPD_ROOT/venv-fa
 SM=${STUDENT_I2507:-Qwen/Qwen3-4B-Instruct-2507}; TM=${TEACHER_T2507:-Qwen/Qwen3-4B-Thinking-2507}; RT=0
 [ $X = X2 ] && { TM=$STUDENT_4B; RT=1; }
-${PXT_PY:-$V/bin/python} - "$SM" "$TM" "$RT" "$D/templates.json" >> $LOG 2>&1 <<'PY'
+[ $X = X4 ] && { SM=$STUDENT_4B; TM=${STUDENT_I2507:-Qwen/Qwen3-4B-Instruct-2507}; RT=0; }   # [v2.5.8l]
+${PXT_PY:-$V/bin/python} - "$SM" "$TM" "$RT" "$D/templates.json" "$X" >> $LOG 2>&1 <<'PY'
 import json, os, sys
 sm, tm, rt, out = sys.argv[1], sys.argv[2], sys.argv[3] == "1", sys.argv[4]
+arm = sys.argv[5] if len(sys.argv) > 5 else "X1"
 from huggingface_hub import snapshot_download
 from transformers import AutoTokenizer
 loc = lambda m: m if os.path.isdir(m) else snapshot_download(m, local_files_only=True)
@@ -49,19 +54,26 @@ msgs = [{"role": "user", "content": "What is 1 + 1? Please reason step by step, 
 sp = st.apply_chat_template(msgs, add_generation_prompt=True, tokenize=False, enable_thinking=False)
 tp = tt.apply_chat_template(msgs, add_generation_prompt=True, tokenize=False, enable_thinking=rt) + ("<think>\n" if rt else "")
 why = []
-if tp.count("<think>") != 1 or not tp.endswith("<think>\n"):
-    why.append(f"the teacher prompt holds {tp.count('<think>')} <think> and ends with {tp[-20:]!r}")
-if "<think>" in sp:
-    why.append("the student prompt holds <think>")
+if arm == "X4":   # [v2.5.8l] the hybrid student's non-thinking prompt; a teacher prompt without any think tag
+    if "<think>" in tp:
+        why.append(f"the teacher prompt holds {tp.count('<think>')} <think>")
+    if sp.count("<think>") != 1 or not sp.endswith("<think>\n\n</think>\n\n"):
+        why.append(f"the student prompt holds {sp.count('<think>')} <think> and ends with {sp[-24:]!r}")
+else:
+    if tp.count("<think>") != 1 or not tp.endswith("<think>\n"):
+        why.append(f"the teacher prompt holds {tp.count('<think>')} <think> and ends with {tp[-20:]!r}")
+    if "<think>" in sp:
+        why.append("the student prompt holds <think>")
 if st.get_vocab() != tt.get_vocab():
     why.append("student and teacher vocabularies differ")
-json.dump({"student_prompt_tail": sp[-60:], "teacher_prompt_tail": tp[-60:], "ref_think": rt, "vocab_size": len(st.get_vocab()), "problems": why},
+json.dump({"arm": arm, "student_prompt_tail": sp[-60:], "teacher_prompt_tail": tp[-60:], "ref_think": rt, "vocab_size": len(st.get_vocab()), "problems": why},
           open(out, "w"), indent=1)
 PY
 [ -f $D/templates.json ] || finish FAIL "the template check did not run (see probe.log)"
 why=$(python3 -c "import json, sys; print('; '.join(json.load(open(sys.argv[1]))['problems']))" $D/templates.json)
 [ -z "$why" ] || finish FAIL "templates: $why"
-step "templates ok (teacher prompt ends with one <think>, student none, same vocabulary)"
+[ $X = X4 ] && step "templates ok (student prompt ends with the empty think block, teacher none, same vocabulary)" || \
+  step "templates ok (teacher prompt ends with one <think>, student none, same vocabulary)"
 # 2. the 3-step smoke
 for _w in $(seq 19); do
   used=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $G 2>/dev/null | tr -d ' ')
@@ -78,6 +90,11 @@ peak=$(cut -d, -f2 $D/mem.csv 2> /dev/null | sort -n | tail -1)
 [ $rc = 0 ] || finish FAIL "smoke exited $rc: $(tail -c 300 $D/smoke.out | tr '\n' ' ')"
 grep -q "CUDA out of memory\|OutOfMemoryError" $D/smoke/train.log 2> /dev/null && finish FAIL "out of memory in the smoke"
 [ "${peak:-0}" -lt ${PXT_PEAK_MIB:-266240} ] || finish FAIL "peak ${peak} MiB >= 260 GB"
+if [ $X = X4 ]; then   # [v2.5.8l]
+  grep -qF "student: $STUDENT_4B (no_think)" $D/smoke/config.yaml || finish FAIL "the smoke's student is not the hybrid 4B"
+  grep -q "^teacher: .*Instruct-2507.* (ref; think-template=0;" $D/smoke/config.yaml || finish FAIL "the smoke's teacher is not Instruct-2507 with think-template 0"
+  finish PASS "templates ok; ${PXT_STEPS:-3}-step smoke ok, peak ${peak} MiB"
+fi
 grep -q "^student: .*Instruct-2507.* (no_think)$" $D/smoke/config.yaml || finish FAIL "the smoke's student is not Instruct-2507"
 [ $X = X2 ] || grep -q "^teacher: .*Thinking-2507.* (ref; think-template=0;" $D/smoke/config.yaml || finish FAIL "the smoke's teacher is not Thinking-2507 with think-template 0"
 finish PASS "templates ok; ${PXT_STEPS:-3}-step smoke ok, peak ${peak} MiB"
