@@ -406,3 +406,4 @@ commands:
   - {"seq": 404, "cmd": "pause E12b-P5-stop2", "reason": "Q-034 s25: bonus_mean 0.017 < 0.05 and tail p50 of correct samples 1024 (Fable's s10 rule); the run itself is not stopped, a kill waits for Fable", "utc": "2026-10-21T15:59:09Z"}
   - {"seq": 405, "cmd": "du ckpt runs/E12b-P5-stop2/ckpt", "reason": "does stop2 hold an s25 resume state (Q-034 s25 check)", "utc": "2026-10-21T15:59:18Z"}
   - {"seq": 406, "cmd": "du opd_root runs/E12b-P5-stop2", "reason": "does stop2 hold an s25 resume state (Q-034 s25 check)", "utc": "2026-10-21T16:01:02Z"}
+  - {"seq": 407, "cmd": "resume E12b-P5-stop2", "reason": "Fable's Q-034 s25 ruling: continue to s40 (the .paused marker of seq 404 cleared)", "utc": "2026-10-21T16:04:01Z"}
