@@ -1,6 +1,7 @@
 """[v2.5.9l] (Q-038) unit tests of stop-merged OPD: the box position, the merge (numpy; torch when installed) and the
 stop-set log-prob (torch). Run: python -m pytest -q test_opd_stopmerge.py, or any plain runner of the test_ functions
 (PROBE-STOPMERGE runs them on the node, with torch)."""
+import json
 import math
 import os
 import unittest
@@ -52,6 +53,31 @@ def test_merge_numpy():
     assert stats2["merged"] == 4
 
 
+
+def test_after_box_detail_numpy():   # [v2.5.9z10] logging only: offset bins, each boxed row's max stop mass and first stop after the box
+    r, lp, st, be = _case(np)
+    valid = np.array([[1, 1, 1, 1, 1], [1, 1, 1, 1, 0], [1, 1, 1, 1, 0]])
+    out, stats = S.merge(lp, st, r, be, S.eos_ids(), np, valid)
+    assert out[0].tolist() == [-1.0, -1.0, -0.1, -1.0, -0.1]                     # the merge itself unchanged
+    mean15, k15 = stats["stop_mass_by_offset"]["1-5"]
+    assert k15 == 4 and math.isclose(mean15, (3 * math.exp(-0.1) + math.exp(-0.3)) / 4)   # row 0: offsets 1-3, row 2: offset 1 (4 is padding)
+    assert stats["stop_mass_by_offset"]["6-50"] == [None, 0] and stats["stop_mass_by_offset"][">50"] == [None, 0]
+    assert stats["row_max_stop_mass"] == [round(math.exp(-0.1), 5), round(math.exp(-0.3), 5)]   # rows 0 and 2 (row 1: no box)
+    assert stats["eos_offset_after_box"] == [1, 1] and stats["utc"].endswith("Z")
+    json.dumps(stats)   # one JSON line
+
+
+def test_after_box_detail_far_offsets_no_stop_box_at_the_end():
+    L = 60
+    r = np.full((3, L), 11); r[0, 55] = S.IM_END                                  # row 0: box at 0, its stop at offset 55
+    st = np.full((3, L), -2.0); st[0, 1:6] = -0.5; st[1, 30] = -0.05              # row 1: box at 2, no stop after it; a peak at 30
+    out, stats = S.merge(np.full((3, L), -9.0), st, r, np.array([0, 2, L - 1]), S.eos_ids(), np)   # row 2: box on the last token
+    b = stats["stop_mass_by_offset"]
+    assert b["1-5"][1] == 5 + 5 and math.isclose(b["1-5"][0], (5 * math.exp(-0.5) + 5 * math.exp(-2.0)) / 10)
+    assert b["6-50"][1] == 45 + 45 and b[">50"][1] == 9 + 7                         # offsets 51-59 (row 0), 51-57 (row 1)
+    assert stats["eos_offset_after_box"] == [55, -1, -1] and stats["row_max_stop_mass"] == [round(math.exp(-0.5), 5), round(math.exp(-0.05), 5), None]
+
+
 def test_merge_at_the_box_token_itself_is_not_merged():
     r = np.array([[S.IM_END, S.IM_END]]); lp = np.array([[-5.0, -5.0]]); st = np.array([[-1.0, -1.0]])
     out, stats = S.merge(lp, st, r, np.array([0]), S.eos_ids(), np)
@@ -92,6 +118,21 @@ def test_torch_merge_and_stop_logprob():
     assert torch.allclose(got, want, atol=1e-5), (got, want)
     one = S.stop_logprob(logits, labels, log_probs, [5])
     assert torch.allclose(one, ref[..., 5], atol=1e-5)
+
+
+def test_torch_after_box_detail_matches_numpy():   # [v2.5.9z10] node only (torch): the same fields as the numpy path
+    try:
+        import torch
+    except ImportError:
+        return
+    r, lp, st, be = _case(np)
+    valid = np.array([[1, 1, 1, 1, 1], [1, 1, 1, 1, 0], [1, 1, 1, 1, 0]])
+    _, a = S.merge(lp, st, r, be, S.eos_ids(), np, valid)
+    t = lambda x: torch.tensor(x)
+    _, b = S.merge(t(lp).float(), t(st).float(), t(r), t(be), S.eos_ids(), torch, t(valid))
+    assert a["eos_offset_after_box"] == b["eos_offset_after_box"] and a["stop_mass_by_offset"]["1-5"][1] == b["stop_mass_by_offset"]["1-5"][1]
+    assert all(math.isclose(x, y, rel_tol=1e-5) for x, y in zip(a["row_max_stop_mass"], b["row_max_stop_mass"]))
+    assert math.isclose(a["stop_mass_by_offset"]["1-5"][0], b["stop_mass_by_offset"]["1-5"][0], rel_tol=1e-5)
 
 
 def test_torch_positions_on_the_responses_device():   # [v2.5.9z4] the unit tests have no GPU: the device argument is checked

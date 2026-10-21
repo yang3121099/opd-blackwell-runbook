@@ -20,6 +20,7 @@ reference forward pass for the merge); OPD_STOPMERGE_IDS (STOP_IDS), OPD_STOPMER
 """
 import json
 import os
+import time
 
 THINK_CLOSE, IM_END, ENDOFTEXT = 151668, 151645, 151643
 
@@ -106,7 +107,32 @@ def merge(log_probs, stop_lp, responses, box_end, eos, xp, valid=None):
              "gain_mean": float(gain.mean()) if n else None, "gain_min": float(gain.min()) if n else None,
              "violations": int((m & ~after).sum()),
              "stop_mass_after_box_mean": float(xp.exp(stop_lp[after]).mean()) if int(after.sum()) else None}
+    stats.update(after_box_detail(stop_lp, after, m, pos - be, box_end >= 0, xp))
     return out, stats
+
+
+def after_box_detail(stop_lp, after, m, off, has_box, xp):
+    """[v2.5.9z10] (Q-038, the reviewer 10-21 21:4x UTC) logging only, nothing merged changes. off (B, L) = position - box end
+    (1 = the first token after the box's closing brace). The teacher's stop mass exp(stop_lp) after the box by offset 1-5 / 6-50 /
+    >50 ([mean or None, positions]); per row with a box, its largest stop mass after the box (None: nothing after it) and its first
+    student stop after the box (offset; -1: none) - the share of offsets 1-5 is the student's stop right after the box."""
+    B, L = stop_lp.shape
+    sm = xp.exp(stop_lp)
+    bins = {}
+    for name, lo, hi in (("1-5", 1, 5), ("6-50", 6, 50), (">50", 51, L)):
+        sel = after & (off >= lo) & (off <= hi)
+        k = int(sel.sum())
+        bins[name] = [float(sm[sel].mean()) if k else None, k]
+    npy = xp.__name__ == "numpy"
+    rmax = xp.where(after, sm, xp.full_like(sm, -1.0))
+    rmax = rmax.max(axis=1) if npy else rmax.amax(dim=1)
+    first = xp.where(m, off, xp.full_like(off, L + 1))
+    first = first.min(axis=1) if npy else first.amin(dim=1)
+    rows = [i for i, h in enumerate(has_box.tolist()) if h]
+    rmax, first = rmax.tolist(), first.tolist()
+    return {"stop_mass_by_offset": bins, "row_max_stop_mass": [round(rmax[i], 5) if rmax[i] >= 0 else None for i in rows],
+            "eos_offset_after_box": [int(first[i]) if first[i] <= L else -1 for i in rows],
+            "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
 
 
 def log_stats(stats):
