@@ -408,3 +408,4 @@ commands:
   - {"seq": 406, "cmd": "du opd_root runs/E12b-P5-stop2", "reason": "does stop2 hold an s25 resume state (Q-034 s25 check)", "utc": "2026-10-21T16:01:02Z"}
   - {"seq": 407, "cmd": "resume E12b-P5-stop2", "reason": "Fable's Q-034 s25 ruling: continue to s40 (the .paused marker of seq 404 cleared)", "utc": "2026-10-21T16:04:01Z"}
   - {"seq": 408, "cmd": "rerun PROBE-TERM4-4B", "reason": "v2.5.9v (Fable A1): TERM4-4B rows for X1 / X2 / X4 s50", "utc": "2026-10-21T16:47:17Z"}
+  - {"seq": 409, "cmd": "snapshot models/Qwen3-VL-8B-Thinking", "reason": "VL-8B arrival check (parallel pull since 15:41 UTC)", "utc": "2026-10-21T17:13:25Z"}
