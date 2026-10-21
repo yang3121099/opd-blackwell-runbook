@@ -400,3 +400,4 @@ commands:
   - {"seq": 398, "cmd": "snapshot data/hf/BytedTsinghua-SIA__DAPO-Math-17k/.fetch_ok", "reason": "is DAPO-Math-17k complete before the old pull is stopped", "utc": "2026-10-21T15:41:38Z"}
   - {"seq": 399, "cmd": "logs fetch_Qwen3-VL-8B-Thinking 8", "reason": "which pull runs after PROBE-NET2 resumed the old one (ops-lead)", "utc": "2026-10-21T15:42:56Z"}
   - {"seq": 400, "cmd": "logs fetch_Qwen3-VL-2B-Instruct 8", "reason": "which pull runs after PROBE-NET2 resumed the old one (ops-lead)", "utc": "2026-10-21T15:43:06Z"}
+  - {"seq": 401, "cmd": "snapshot models/Qwen3-VL-8B-Thinking", "reason": "parallel pull rate of Qwen3-VL-8B-Thinking: the .part.segs records (ops-lead)", "utc": "2026-10-21T15:45:21Z"}
