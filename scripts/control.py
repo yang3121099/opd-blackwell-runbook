@@ -933,7 +933,8 @@ def leak_check(obj, toks=None):
 
 def _progress(p):
     """[v2.5.9s] the public form of a task's progress: numbers as they are; the strings without "/" ("900/2000" -> "900 of
-    2000", "it/s" -> "it per s"), at most 200 characters, and dropped when leak_check still finds anything in them."""
+    2000", "it/s" -> "it per s", [v2.5.9t] "toks/s" / "tokens/s" -> "... per s"; no general x/y rewrite, which would let a path
+    through), at most 200 characters, and dropped when leak_check still finds anything in them."""
     if not isinstance(p, dict):
         return None
     out = {k: _num(p.get(k)) for k in ("done", "total", "rate", "eta_s") if _num(p.get(k)) is not None}
@@ -944,6 +945,7 @@ def _progress(p):
     for k in ("part", "tqdm"):
         s = p.get(k)
         if isinstance(s, str):
+            s = s.replace("toks/s", "toks per s").replace("tokens/s", "tokens per s")   # [v2.5.9t] vLLM's speed suffix; only these two
             s = re.sub(r"(\d+)/(\d+)", r"\1 of \2", s).replace("it/s", "it per s").replace("s/it", "s per it")[:200]
             if not leak_check(s):
                 out[k] = s

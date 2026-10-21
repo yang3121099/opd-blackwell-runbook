@@ -911,3 +911,16 @@ def test_pulse_progress_public_form(env, monkeypatch):
     assert (a["done"], a["total"], a["rate"], a["eta_s"], a["unit"]) == (900, 2000, 1.5, 732, "prompts")
     assert "tqdm" not in b and "unit" not in b and b["done"] == 900   # a path in the line: dropped; the numbers stay
     assert env.c.leak_check(p) == [] and len(json.dumps(p)) - base < 900   # two tasks with progress add < 900 bytes
+
+
+def test_pulse_progress_keeps_vllm_speed_suffix(env, monkeypatch):   # [v2.5.9t] "toks/s" no longer drops the line
+    import copy
+    st = copy.deepcopy(STATUS)
+    line = "Processed prompts:  45%| 900/2000 [10:00<12:12,  1.50it/s, est. speed input: 100.0 toks/s, output: 50.0 tokens/s]"
+    st["tasks"]["EVAL-a"] = {"state": "running", "step": 0, "progress": {"done": 900, "tqdm": line}}
+    st["tasks"]["EVAL-b"] = {"state": "running", "step": 0, "progress": {"done": 1, "tqdm": "speed 3.0 toks/s from a/b/c"}}
+    monkeypatch.setenv("OPD_ROOT", str(env.root))
+    p = env.c.build_pulse(st, GPU)
+    assert p["tasks"]["EVAL-a"]["progress"]["tqdm"].endswith("input: 100.0 toks per s, output: 50.0 tokens per s]")
+    assert "tqdm" not in p["tasks"]["EVAL-b"]["progress"] and env.c.leak_check(p) == []   # other slashes still drop it
+
