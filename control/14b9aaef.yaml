@@ -370,3 +370,4 @@ commands:
   - {"seq": 368, "cmd": "kill EVAL-e10d-x2", "reason": "reviewer ruling 09:4x: E12b-P5-16k restarts now on GPU2 + GPU7; this reading took one of them during the restart (generations kept, resumed right after 16k starts)", "utc": "2026-10-21T09:56:30Z"}
   - {"seq": 369, "cmd": "kill EVAL-e10d-x1", "reason": "reviewer ruling 09:4x: E12b-P5-16k restarts now on GPU2 + GPU7; this reading took one of them during the restart (generations kept, resumed right after 16k starts)", "utc": "2026-10-21T09:57:12Z"}
   - {"seq": 370, "cmd": "logs run_tasks 15", "reason": "16k not started after the two readings were stopped", "utc": "2026-10-21T10:06:56Z"}
+  - {"seq": 371, "cmd": "kill E10b-P5lenS", "reason": "Runming's rule via the reviewer 10:1x: free two GPUs at once for E12b-P5-16k (#gpus 2); this arm started 09:59, no progress kept; requeued after 16k starts", "utc": "2026-10-21T10:09:14Z"}
