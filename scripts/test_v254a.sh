@@ -587,7 +587,7 @@ kill $P1 2> /dev/null
 ok "[v2.5.9a] a task on gpus 1,2 keeps both" '[ "$got" = "0 3 " ]'
 printf '#gpus A 2\n#gpus B 3\n#gpus C 9\n' > $T/q; mkdir -p $T/root/logs $T/root/control
 echo '{"tasks": {"X": {"state": "running", "eta_min": 12}}}' > $T/root/logs/status_n.json   # a GPU frees within 30 min
-tg=$( Q=$T/q OPD_ROOT=$T/root; eval "$(sed -n '/^gpus_of() {/p' $SRC/scripts/run_tasks.sh)"; eval "$(sed -n '/^soon_free() {/,/^}$/p' $SRC/scripts/run_tasks.sh)"
+tg=$( Q=$T/q OPD_ROOT=$T/root; eval "$(sed -n '/^gpus_of() {/p' $SRC/scripts/run_tasks.sh)"; eval "$(sed -n '/^cenv() {/p' $SRC/scripts/run_tasks.sh)"; eval "$(sed -n '/^soon_free() {/,/^}$/p' $SRC/scripts/run_tasks.sh)"
   eval "$(sed -n '/^take_gpus() {/,/; }$/p' $SRC/scripts/run_tasks.sh)"
   FREE=(3 5 6); take_gpus A; printf "a=$G:${FREE[*]} "
   FREE=(4 7); take_gpus C; printf "c=$G:${FREE[*]} "

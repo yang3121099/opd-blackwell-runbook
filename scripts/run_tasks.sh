@@ -126,12 +126,17 @@ gpus_of() { local n; n=$(awk -v t="$1" '$1 == "#gpus" && $2 == t {print $3}' "$Q
 # [v2.5.9c] (reviewer 08:4x UTC 10-21: GPU7 sat held 25 min while a training waited) it holds only while another GPU is
 # about to free: a running task's ETA (the latest status) within GPUS_SOON_MIN (30) minutes; the held GPUs and the task go
 # to control/held.json for the pulse (held_for), cleared at the start of every pass
-soon_free() { python3 - "$OPD_ROOT/logs" "${GPUS_SOON_MIN:-30}" <<'PY' 2> /dev/null
+# [v2.5.9z12a] (ops-lead 10-22: hold a GPU for E12b-P5-16k-kl) the hold's two settings are read from control.env on every call, so
+# `setenv GPUS_HOLD_MIN=<m>` / `GPUS_SOON_MIN=<m>` apply at once (this loop sources control.env only when it starts); GPUS_SOON_MIN >= 1440
+# makes any running task count as freeing soon, one without an ETA too (evaluations have none), so a #gpus task always holds in its turns
+cenv() { local v; v=$(sed -n "s/^export $1=\([0-9][0-9]*\)\$/\1/p" $OPD_ROOT/control.env 2> /dev/null | tail -1); echo ${v:-$2}; }
+soon_free() { python3 - "$OPD_ROOT/logs" "$(cenv GPUS_SOON_MIN ${GPUS_SOON_MIN:-30})" <<'PY' 2> /dev/null
 import glob, json, sys
 fs = sorted(glob.glob(sys.argv[1] + "/status_*.json"))
 t = json.load(open(fs[-1])).get("tasks", {}) if fs else {}
-sys.exit(0 if any(isinstance(v, dict) and v.get("state") in ("running", "retrying") and isinstance(v.get("eta_min"), (int, float))
-                  and v["eta_min"] <= float(sys.argv[2]) for v in t.values()) else 1)
+lim = float(sys.argv[2])   # [v2.5.9z12a] >= 1440 (a day): any running task counts, also one without an ETA (evaluations have none)
+sys.exit(0 if any(isinstance(v, dict) and v.get("state") in ("running", "retrying")
+                  and (lim >= 1440 or (isinstance(v.get("eta_min"), (int, float)) and v["eta_min"] <= lim)) for v in t.values()) else 1)
 PY
 }
 take_gpus() {
@@ -140,7 +145,7 @@ take_gpus() {
   if [ $n -gt 1 ] && [ ${#FREE[@]} -gt 0 ]; then
     w=$OPD_ROOT/runs/$1/.gpus_wait; mkdir -p $OPD_ROOT/runs/$1
     if [ ! -f $w ]; then date +%s > $w; echo "HOLD $(date -u +%T) gpu=$(IFS=,; echo "${FREE[*]}") for $1 (needs $n)"; fi
-    if [ $(( ($(date +%s) - $(cat $w)) / (${GPUS_HOLD_MIN:-30} * 60 + 1) % 2 )) = 0 ] && soon_free; then
+    if [ $(( ($(date +%s) - $(cat $w)) / ($(cenv GPUS_HOLD_MIN ${GPUS_HOLD_MIN:-30}) * 60 + 1) % 2 )) = 0 ] && soon_free; then
       printf '{"task": "%s", "gpus": [%s], "since_utc": "%s"}\n' $1 "$(IFS=,; echo "${FREE[*]}")" "$(date -u -d @$(cat $w) +%FT%TZ 2> /dev/null || date -u +%FT%TZ)" > $OPD_ROOT/control/held.json
       FREE=()
     fi

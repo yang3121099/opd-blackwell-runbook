@@ -1090,3 +1090,40 @@ def test_alerts_carry_reserve_low(env, tmp_path):
     assert ev and json.loads(ev[0]["detail"]) == {"ready": 0, "free_gpus": 2, "need": 4, "ready_tasks": [], "held_by_disk": ["E10b-P5"]}
     json.dump({"t": now, "low_since": None}, open(env.c._p("reserve.json"), "w"))
     assert "reserve_low" not in env.c.alerts(str(s)) and _events(env, "reserve_low_cleared")
+
+
+@pytest.mark.parametrize("kv,ok", [("GPUS_HOLD_MIN=45", True), ("GPUS_SOON_MIN=1440", True), ("GPUS_SOON_MIN=", True), ("GPUS_HOLD_MIN=0", False),
+                                   ("GPUS_HOLD_MIN=1441", False), ("GPUS_SOON_MIN=abc", False), ("GPUS_FOO=1", False)])
+def test_setenv_gpu_hold_v2512a(kv, ok):   # [2.5.61] the hold's minutes
+    if ok:
+        R.parse({"cmd": f"setenv {kv}", "reason": "t"})
+    else:
+        with pytest.raises(R.Reject):
+            R.parse({"cmd": f"setenv {kv}", "reason": "t"})
+
+
+def test_run_tasks_reads_the_hold_from_control_env_v2512a(tmp_path):   # [v2.5.9z12a] a setenv applies without a loop restart
+    src = open(os.path.join(HERE, "run_tasks.sh")).read()
+    fn = next(l for l in src.splitlines() if l.startswith("cenv() {"))
+    (tmp_path / "control.env").write_text("# x\nexport GPUS_HOLD_MIN=45\nexport VENV=fa\nexport GPUS_SOON_MIN=x9\n")
+    import subprocess as sp
+    out = sp.run(["bash", "-c", f'OPD_ROOT={tmp_path}; {fn}; echo "$(cenv GPUS_HOLD_MIN 30) $(cenv GPUS_SOON_MIN 30) $(cenv CPU_MAX 1)"'],
+                 capture_output=True, text=True).stdout.split()
+    assert out == ["45", "30", "1"]                         # a non-integer is ignored (the default)
+    assert "$(cenv GPUS_HOLD_MIN ${GPUS_HOLD_MIN:-30})" in src and "$(cenv GPUS_SOON_MIN ${GPUS_SOON_MIN:-30})" in src
+
+
+@pytest.mark.parametrize("soon,eta,held", [("1440", None, True), ("", None, False), ("30", None, False), ("30", 12, True), ("30", 45, False), ("1440", 900, True)])
+def test_take_gpus_holds_with_soon_1440_without_eta_v2512a(tmp_path, soon, eta, held):   # [v2.5.9z12a] evaluations have no ETA
+    src = os.path.join(HERE, "run_tasks.sh")
+    (tmp_path / "logs").mkdir(); (tmp_path / "control").mkdir(); (tmp_path / "runs").mkdir()
+    json.dump({"tasks": {"EVAL-x": {"state": "running", "eta_min": eta}, "Y": {"state": "done", "eta_min": 1}}}, open(tmp_path / "logs" / "status_n.json", "w"))
+    (tmp_path / "control.env").write_text(f"export GPUS_SOON_MIN={soon}\n" if soon else "# none\n")
+    (tmp_path / "q").write_text("#gpus A 2\n")
+    import subprocess as sp
+    script = (f'Q={tmp_path}/q OPD_ROOT={tmp_path}; unset GPUS_SOON_MIN GPUS_HOLD_MIN\n'
+              f'eval "$(sed -n \'/^gpus_of() {{/p\' {src})"; eval "$(sed -n \'/^cenv() {{/p\' {src})"\n'
+              f'eval "$(sed -n \'/^soon_free() {{/,/^}}$/p\' {src})"; eval "$(sed -n \'/^take_gpus() {{/,/; }}$/p\' {src})"\n'
+              'FREE=(4); take_gpus A > /dev/null; echo "${#FREE[@]}"')
+    out = sp.run(["bash", "-c", script], capture_output=True, text=True)
+    assert out.stdout.strip() == ("0" if held else "1"), (out.stdout, out.stderr)

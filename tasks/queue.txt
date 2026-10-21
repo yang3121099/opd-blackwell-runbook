@@ -82,6 +82,7 @@ fill13   open   EVAL-ext32k-17sets-a EVAL-ext32k-17sets-b:E12b-P5-kl
 budF     open   EVAL-budF-4B EVAL-budF-06:EVAL-budA06p5+EVAL-budA06think
 passk    open   EVAL-passk-ext
 z8b      open   EVAL-ext32k-8Bthink-aime EVAL-ext32k-17base
+b259ykl  open   E12b-P5-16k-kl:EVAL-e12b-P5-16k
 b259lp   open   PROBE-STOPMERGE
 b259z6   open   PROBE-STOPMERGE-UNIT
 b259l    open   E10b-P5stopmerge:PROBE-STOPMERGE EVAL-smerge:E10b-P5stopmerge EVAL-ext32k-17smerge:E10b-P5stopmerge
@@ -94,7 +95,7 @@ b259v    open   E10c-P5self:PROBE-P5SELF-06B EVAL-e10c-P5self:E10c-P5self PROBE-
 b259wp   open   PROBE-E12B-R3
 b259w    open   E12b-P5-r3:PROBE-E12B-R3 EVAL-e12b-P5s44-s50:EVAL-e12b-P5-8k EVAL-e12b-P5r3:E12b-P5-r3+EVAL-e12b-P5s44-s50 EVAL-ext32k-17r3:E12b-P5-r3
 b259f2   open   E12b-P5-stop2:PROBE-E12B-STOP2
-b259y    open   E12b-P5-16k-kl:EVAL-e12b-P5-16k EVAL-e12b-P5-16k-kl:E12b-P5-16k-kl EVAL-budA-e12bP5-16k-kl:E12b-P5-16k-kl EVAL-ext32k-17p5l16kkl:E12b-P5-16k-kl
+b259y    open   EVAL-e12b-P5-16k-kl:E12b-P5-16k-kl EVAL-budA-e12bP5-16k-kl:E12b-P5-16k-kl EVAL-ext32k-17p5l16kkl:E12b-P5-16k-kl
 b259y1   open   BUILD-VENV-VL PROBE-VLLM-VL:BUILD-VENV-VL
 b259xp   open   PROBE-DIFF17 PROBE-ROUTE:PROBE-DIFF17
 b259x    open   E10b-P5route:PROBE-ROUTE E10b-P5mix:PROBE-ROUTE EVAL-e10b-P5route:E10b-P5route EVAL-e10b-P5mix:E10b-P5mix+EVAL-e10b-P5route EVAL-budA-P5route:E10b-P5route EVAL-budA-P5mix:E10b-P5mix
@@ -1841,3 +1842,6 @@ olpd     open   EVAL-ext32k-17olpd
 #after EVAL-polish rerun STRICT-C1
 #after EVAL-ext32k-x4 rerun STRICT-C1
 #after EVAL-e10d-P5t32 rerun PROBE-TERM4-4B
+# b259ykl (runbook v2.5.9z12a, ops-lead 10-22 07:2x Beijing): E12b-P5-16k-kl (#gpus 2) moved ahead of the formal tasks that were
+# ready behind it (EVAL-ext32k-17smerge, PROBE-TERM4-06B, PROBE-E12B-R3, EVAL-e12b-P5s44-s50, E12b-P5-stop2), so the first GPUs
+# that free after EVAL-e12b-P5-16k go to it; with one GPU free it holds it (setenv GPUS_SOON_MIN / GPUS_HOLD_MIN, run_tasks.sh's hold).
