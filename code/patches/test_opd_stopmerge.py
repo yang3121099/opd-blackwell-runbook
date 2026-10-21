@@ -75,7 +75,10 @@ def test_torch_merge_and_stop_logprob():
     r, lp, st, be = _case(torch)
     valid = torch.tensor([[1, 1, 1, 1, 1], [1, 1, 1, 1, 0], [1, 1, 1, 1, 0]])
     out, stats = S.merge(lp, st, r, be, S.eos_ids(), torch, valid)
-    assert out[0].tolist() == [-1.0, -1.0, -0.1, -1.0, -0.1] and stats["merged"] == 3 and stats["violations"] == 0
+    # [v2.5.9z2] float32 (torch's default): -0.1 reads back as -0.10000000149..., so compared with a tolerance (the numpy test,
+    # float64, keeps the exact one); this exact comparison failed PROBE-STOPMERGE on the node 10-21 19:24 UTC
+    assert torch.allclose(out[0], torch.tensor([-1.0, -1.0, -0.1, -1.0, -0.1], dtype=out.dtype), atol=1e-6), out[0]
+    assert stats["merged"] == 3 and stats["violations"] == 0
     g = torch.Generator().manual_seed(0)
     logits = (torch.randn(2, 3, 50, generator=g) * 3).to(torch.bfloat16)
     labels = torch.randint(0, 50, (2, 3), generator=g)
