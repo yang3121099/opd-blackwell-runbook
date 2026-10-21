@@ -357,3 +357,4 @@ commands:
   - {"seq": 355, "cmd": "logs E12b-P5self-s43 2000", "reason": "reviewer 03:2x UTC: the end of attempt 1 of E12b-P5self-s43", "utc": "2026-10-21T03:25:37Z"}
   - {"seq": 356, "cmd": "logs PROBE-E12B-8K 40", "reason": "patrol URGENT 06:33: 8K gate 33 min, stalled alert; compare with the 16K gate", "utc": "2026-10-21T06:34:45Z"}
   - {"seq": 357, "cmd": "snapshot runs/PROBE-E12B-8K-smoke", "reason": "8K gate progress: its trainer log is not in logs/ (patrol URGENT 06:33)", "utc": "2026-10-21T06:35:37Z"}
+  - {"seq": 358, "cmd": "snapshot runs/PROBE-E12B-16K-smoke", "reason": "16K gate progress for the reviewer (stalled alert is the probe log not moving)", "utc": "2026-10-21T06:37:14Z"}
