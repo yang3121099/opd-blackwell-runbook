@@ -1549,6 +1549,6 @@ olpd     open   EVAL-ext32k-17olpd
 #eval EVAL-ext32k-17smerge ext32k17_P5smerge_s50_aime25_T0.6 result:runs/E10b-P5stopmerge/global_step_50/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-17smerge ext32k17_P5smerge_s50_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #pair EVAL-ext32k-17smerge ext32k17_P5smerge_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
-# 10-21 (ops-lead, Runming: special states handled promptly): E10c-P4lowlr-dyn16k left the v3c1 stage line (its 10-19 OOM feasibility
+# 10-21 (ops-lead, Runming: special states handled promptly): the 0.6B P4lowlr dynamic-16K arm left the v3c1 stage line (its 10-19 OOM feasibility
 # result, ruled not to be retried; no task depends on it; its runs/ directory stays). It had reappeared as failed once the
 # heartbeat counted name:dep entries (v2.5.9m).
