@@ -1349,3 +1349,7 @@ z8b      open   EVAL-ext32k-8Bthink-aime EVAL-ext32k-17base
 # Auto-ClawEval-mini / Auto-ClawEval (MIT) and BFCL v3 (Apache-2.0) unmodified at pinned revisions, files with key-shaped fixture
 # strings left out (LEFT_OUT.txt); onto the node at data/git/yang3121099__opd-lab-assets
 #git yang3121099/opd-lab-assets dd96e0ec684d31fc4b155ea4d23982b9dee55873
+# E12b-P5-16k on two GPUs (reviewer ruling 09:4x UTC 10-21, Q-028's two-GPU rule: PROBE-2GPU PASS at 1.86x step time, 1.88x per token):
+# the one-GPU run was stopped at s4 (seq 365, its train.log kept as the reference, seq 366) and starts again from step 0 on
+# two GPUs (FSDP shards follow the GPU count, so no resume from s4)
+#gpus E12b-P5-16k 2
