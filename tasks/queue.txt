@@ -50,6 +50,7 @@ b258hp   open   PROBE-E12B-8K PROBE-E12B-16K
 b258ip   open   PROBE-X2507-X1 PROBE-X2507-X2
 b258lp   open   PROBE-X2507-X4
 blp      open   PROBE-LENSEL
+b259ap   open   PROBE-2GPU
 fill2    open   EVAL-ext32k-4Bp2:E10d-P2 EVAL-ext32k-4Bp2s43:E10d-P2-s43 EVAL-ext32k-17p2s:E10b-P2-s43 EVAL-ext32k-17p2srl:E12b-P2-s43 EVAL-ext-E10b-P2s43:E10b-P2-s43 EVAL-ext-E10b-P2s44:E10b-P2-s44
 b258a    open   E10c-P5-fix4 E12c-P0:PROBE-E12C E12b-P5self EVAL-e10c-P5-fix4:E10c-P5-fix4+EVAL-e10c-base06 E12c-P5:PROBE-E12C+E10c-P5-fix4 EVAL-e12b-P5self:E12b-P5self EVAL-budA-e12bP5self:E12b-P5self EVAL-e12c-P0:E12c-P0+EVAL-e10c-base06 EVAL-e12c-P5:E12c-P5+EVAL-e12c-P0+EVAL-e10c-P5-fix4 EVAL-budA-e12c:E12c-P0+E12c-P5+EVAL-budA06p5
 fill3    open   EVAL-ext32k-17p5self:E10b-P5self EVAL-ext32k-17p2self:E10b-P2self EVAL-ext32k-17think:E10b-P5think EVAL-ext-E10b-P5self:E10b-P5self EVAL-ext-E10b-P2self:E10b-P2self EVAL-ext-E10b-P5think:E10b-P5think EVAL-ext32k-17p2s44:E10b-P2-s44
@@ -1325,3 +1326,6 @@ z8b      open   EVAL-ext32k-8Bthink-aime
 #budget EVAL-len-cmp budget_curve_vsP5s50 EVAL-budA-top10c/budAtop10_E10P5_17B_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-len-R/budAlenR_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-len-S/budAlenS_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-len-L/budAlenL_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl
 #strict STRICT-C1 EVAL-len-S/budAlenS_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-len-R/budAlenR_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl
 #strict STRICT-C1 EVAL-len-L/budAlenL_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-len-R/budAlenR_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+# b259ap (runbook v2.5.9a, reviewer A1 09:2x UTC): the gate of the two-GPU slot on two GPUs (#gpus); its report (speedup,
+# worth_it) decides which arms take two GPUs; E12b-P5-16k restarts on two only if two GPUs are free and it is before s15
+#gpus PROBE-2GPU 2
