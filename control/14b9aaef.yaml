@@ -396,3 +396,4 @@ commands:
   - {"seq": 394, "cmd": "logs prefetch_EVAL-budA-e12bP13 20", "reason": "fill14 prefetch check (ops-lead A1 13:0x UTC)", "utc": "2026-10-21T13:19:10Z"}
   - {"seq": 395, "cmd": "logs prefetch_EVAL-ext-x4 20", "reason": "night1 prefetch check for EVAL-ext-x4 now that E10d-X4 is done (reviewer A1 11:09 UTC)", "utc": "2026-10-21T14:43:08Z"}
   - {"seq": 396, "cmd": "rerun PROBE-NET2", "reason": "PROBE-NET2 night slot 15:00 UTC (23:00 Beijing), day/night comparison", "utc": "2026-10-21T15:02:35Z"}
+  - {"seq": 397, "cmd": "logs PROBE-NET2 12", "reason": "confirm PROBE-NET2 resumed the slow pull before stopping it (ops-lead, Runming 23:3x Beijing)", "utc": "2026-10-21T15:41:30Z"}
