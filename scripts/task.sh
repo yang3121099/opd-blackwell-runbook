@@ -46,6 +46,7 @@ case $T in
   PROBE-NET) bash $RUNBOOK/scripts/probe_net.sh $G;;   # [v2.5.9c] the routes to the model hubs (the CPU lane)
   PROBE-NET2) bash $RUNBOOK/scripts/probe_net2.sh $G;;   # [v2.5.9h] per-connection or per-host limit, parallel Range connections (the CPU lane)
   BUILD-VENV-VL) bash $RUNBOOK/scripts/build_venv_vl.sh;;   # [v2.5.9y1] (Q-051) venv-vl for the Qwen3-VL arms (the CPU lane)
+  READINGS-EXTRA) bash $RUNBOOK/scripts/readings_extra.sh;;   # [v2.5.9x1] MATH-500 splits and the frontier fill (the CPU lane)
   PROBE-VLLM-VL) bash $RUNBOOK/scripts/probe_vllm_vl.sh $G;;   # [v2.5.9y1] venv-vl's GPU gate: vLLM 0.11.0 + Qwen3-VL-2B on one Geometry3K image
   PROBE-ROLLOUT-U60|PROBE-ROLLOUT-U75|PROBE-ROLLOUT-U85) bash $RUNBOOK/scripts/probe_rollout.sh $G ${T#PROBE-ROLLOUT-};;   # [v2.5.9i] vLLM memory vs E12b step time (one GPU each)
   PROBE-TOOL) bash $RUNBOOK/scripts/probe_tool.sh $G;;   # [v2.5.9b] the tool-call OPD code path on the synthetic samples
