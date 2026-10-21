@@ -87,8 +87,10 @@ def kind(name):
 live = live_tasks()
 tasks = {}; stale = []
 queue = open(os.path.join(runbook, "tasks", "queue.txt")).read() if os.path.exists(os.path.join(runbook, "tasks", "queue.txt")) else ""
-def in_queue(name):
-    return re.search(r"(^|\s)" + re.escape(name) + r"(\s|$)", queue, re.M) is not None
+def in_queue(name):   # [v2.5.9m] "name:dep" entries count too (a task waiting on a dependency was missed and called stale)
+    return re.search(r"(^|\s)" + re.escape(name) + r"(\s|$|:)", queue, re.M) is not None
+pad_stages = {s for m in re.finditer(r"^#pad\s+(.*)$", queue, re.M) for s in m.group(1).split()}   # [v2.5.9m] padding stages
+pad_tasks = {t.split(":")[0] for m in re.finditer(r"^(\S+)\s+(?:open|auto|locked)\s+(.*)$", queue, re.M) if m.group(1) in pad_stages for t in m.group(2).split()}
 for d in sorted(x for x in glob.glob(os.path.join(root, "runs", "*")) if os.path.isdir(x) and not os.path.basename(x).startswith("smoke")):
     n = os.path.basename(d)   # [v2.5.8] a directory of a task no longer in the queue, not running and not done: counted, not listed
     if queue and not in_queue(n) and n not in live and not n.startswith("adhoc_eval_") and not os.path.exists(os.path.join(d, ".done")):
@@ -127,6 +129,8 @@ for line in subprocess.run(["nvidia-smi", "--query-gpu=index,name,utilization.gp
 git = lambda *a: subprocess.run(["git", "-C", runbook, *a], capture_output=True, text=True).stdout.strip()
 st = os.statvfs(root)
 ver = re.search(r"^version:\s*(\S+)", queue, re.M)
+for _n in pad_tasks & set(tasks):   # [v2.5.9m] tasks[].pad: a padding reading (sched-preempt, the monitor page, the patrol)
+    tasks[_n]["pad"] = True
 stages = {m.group(1): m.group(2) for m in re.finditer(r"^(\S+)\s+(open|auto|locked)\s", queue, re.M)}   # v2.3: stage -> status
 json.dump({"host": os.uname().nodename, "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
            "queue_version": ver.group(1) if ver else None, "stages": stages,

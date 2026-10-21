@@ -231,6 +231,14 @@ launch() { # gpu task   (v2.5: start / done / killed / failed also go to status/
         python $RUNBOOK/scripts/control.py event $2 oom_retry_fixed_micro \"next attempt with FIXED_MICRO_BSZ=4\"; fi; fi" < /dev/null > /dev/null 2>&1 &
 }
 # deps of a task id as written in the queue (task:dep+dep), for `run` requests (v2.5)
+stage_lines() {   # [v2.5.9m] (Runming 10-21 21:2x Beijing via ops-lead: padding readings yield to formal work) the queue's
+  # stage lines in dispatch order: every stage not named on a "#pad <stage> [<stage> ...]" line first, then the padding
+  # stages, each group in file order; comments dropped (the loop skipped them). Without #pad lines: the file order.
+  awk 'NR == FNR { if ($1 == "#pad") for (i = 2; i <= NF; i++) pad[$i] = 1; next }
+       $1 == "" || $1 ~ /^#/ || $1 == "version:" { next }
+       ($1 in pad) { tail = tail $0 "\n"; next }
+       { print }
+       END { printf "%s", tail }' "$1" "$1"; }
 deps_of() { local s=$(grep -v '^#' "$Q" | tr ' ' '\n' | grep -E "^$1(:|\$)" | head -1); [ "$s" != "${s#*:}" ] && echo ${s#*:} | tr '+' ' '; }
 while true; do
   date -u +%s > $CDIR/loop_run_tasks   # v2.5.7zb: liveness for the watchdog (local, every round)
@@ -299,7 +307,7 @@ while true; do
     done
     [ "$status" = locked ] && stage_finished=0
     [ $stage_finished = 1 ] || earlier_finished=0
-  done < "$Q"
+  done < <(stage_lines "$Q")   # [v2.5.9m] padding stages last
   # v2.5: ad-hoc `run` / `eval` requests (control.py) take only the GPUs this pass left free: the queue goes first
   if [ "${DRY:-0}" != 1 ] && ! verify_busy; then
     while [ ${#FREE[@]} -gt 0 ]; do

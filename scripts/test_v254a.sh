@@ -425,6 +425,23 @@ sed -n "/^  python - \"\$F\" <<'PY'$/,/^PY$/p" $SRC/scripts/heartbeat.sh | sed '
 got=$(python3 -c "import json; d = json.load(open('$T/out.json')); print(' '.join(sorted(d['tasks'])), '|', ' '.join(d['stale_task_dirs']), '|', d['tasks']['EVAL-paused']['state'])" 2>&1)
 ok "[v2.5.8] heartbeat: paused state, stale directories counted not listed" '[ "$got" = "E12d-P0 EVAL-old-done EVAL-paused adhoc_eval_7 | EVAL-gone | paused" ]'
 rm -rf $T
+# 3g2. [v2.5.9m] padding stages: run_tasks dispatches every stage not on a "#pad" line first, then the padding stages, each
+#      in file order (without #pad lines: the file order); the heartbeat marks their tasks pad: true and lists a task
+#      written as name:dep (it was called stale before)
+T=$(mktemp -d); printf 'version: 2\n# a comment\na  open X1\np1 open P1a P1b\nb  auto Y1\np2 open P2a\nc  open Z1:Y1\n#pad p1\n#pad p2 p9\n' > $T/q.txt
+grep -v '^#pad' $T/q.txt > $T/q0.txt
+sl() { ( eval "$(sed -n '/^stage_lines() {/,/; }$/p' $SRC/scripts/run_tasks.sh)"; stage_lines "$1" | cut -d' ' -f1 | tr '\n' ' ' ); }
+o1=$(sl $T/q.txt); o0=$(sl $T/q0.txt)
+ok "[v2.5.9m] stage_lines: formal stages first (file order), then the padding ones (file order); no #pad = the file order (o1=$o1 o0=$o0)" '[ "$o1" = "a b c p1 p2 " ] && [ "$o0" = "a p1 b p2 c " ] && grep -q "done < <(stage_lines \"\$Q\")" $SRC/scripts/run_tasks.sh'
+rm -rf $T
+T=$(mktemp -d); mkdir -p $T/root/runs/{E12d-P0,EVAL-pad1,EVAL-wait,EVAL-formal} $T/root/logs $T/root/control $T/rb/tasks $T/bin
+printf 'version: 9\ne12 open E12d-P0\nfill open EVAL-pad1 EVAL-wait:E12d-P0\nlate open EVAL-formal\n#pad fill\n' > $T/rb/tasks/queue.txt
+printf '#!/usr/bin/env bash\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi; cp -r $SRC/scripts $T/rb/
+sed -n "/^  python - \"\$F\" <<'PY'$/,/^PY$/p" $SRC/scripts/heartbeat.sh | sed '1d;$d' > $T/hb.py
+( cd $T && PATH=$T/bin:$PATH OPD_ROOT=$T/root RUNBOOK=$T/rb python3 hb.py $T/out.json > /dev/null 2>&1 )
+got=$(python3 -c "import json; d = json.load(open('$T/out.json')); t = d['tasks']; print(' '.join(sorted(t)), '|', ' '.join(sorted(n for n in t if t[n].get('pad'))), '|', ' '.join(d['stale_task_dirs']))" 2>&1)
+ok "[v2.5.9m] heartbeat: tasks of #pad stages carry pad true; a name:dep task is listed, not stale (got=$got)" '[ "$got" = "E12d-P0 EVAL-formal EVAL-pad1 EVAL-wait | EVAL-pad1 EVAL-wait | " ]'
+rm -rf $T
 # 3h. [v2.5.8] upload_sync ends for a paused / finally failed task that no longer runs (nothing pending); a paused task
 #     still running (pause does not stop it) keeps its loop
 T=$(mktemp -d); mkdir -p $T/rb/scripts $T/root/venv/bin $T/root/runs/A $T/root/runs/B $T/root/runs/C $T/x/scripts
