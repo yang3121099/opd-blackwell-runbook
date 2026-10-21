@@ -865,3 +865,49 @@ def test_pulse_v259c_disks_held_gpus(env):   # [v2.5.9c] disk totals and our usa
     p2 = env.c.build_pulse({"tasks": {}, "held": {"task": "bad;name", "gpus": [7]}}, "7, 0, 0, 275040\n")   # no our_du, a bad hold
     assert p2["disks"][0]["our_gb"] is None and "held_for" not in p2["gpus"][0]
     assert not env.c.leak_check(p)
+
+
+def _hb_progress():   # [v2.5.9s] heartbeat.sh's progress(), from its embedded Python (between _hms and last)
+    src = open(os.path.join(HERE, "heartbeat.sh")).read()
+    i = src.index("def _hms(x):"); j = src.index("def last(pat, text):")
+    g = {"re": __import__("re"), "time": __import__("time")}
+    exec(src[i:j], g)
+    return g["progress"]
+
+
+Q9S = "version: 2\ne open EVAL-p\n#eval EVAL-p t1 m math500 4 0.6\n#eval EVAL-p t2 m aime24 16 0.6\n#eval EVAL-p t3 m aime25 16 0.6\n"
+
+
+def test_progress_from_a_vllm_tqdm_line():
+    prog = _hb_progress()
+    lines = ["EVAL_DONE 10:00:00 t1", "EVAL_START 10:00:01 t2",
+             "Processed prompts:  45%|\x1b[32m####5     \x1b[0m| 900/2000 [10:00<12:12,  1.50it/s, est. speed input: 100.0 toks/s]"]
+    p = prog("EVAL-p", lines, Q9S)
+    assert (p["done"], p["total"], p["unit"], p["rate"], p["eta_s"], p["part"]) == (900, 2000, "prompts", 1.5, 732, "2/3 t2")
+    assert p["tqdm"].startswith("Processed prompts:") and "\x1b" not in p["tqdm"] and len(p["tqdm"]) <= 200 and p["utc"].endswith("Z")
+
+
+def test_progress_seconds_per_item_and_without_tqdm():
+    prog = _hb_progress()
+    p = prog("EVAL-p", ["EVAL_START 10:00:01 t3", "x | 3/16 [00:40<, 13.33s/it]"], Q9S)
+    assert (p["rate"], p["eta_s"], p["part"]) == (round(1 / 13.33, 3), round(13 * 13.33), "3/3 t3")   # no eta in the line: from the rate
+    p = prog("EVAL-p", ["EVAL_START 10:00:01 t1", "LOCAL_FIRST result:runs/X ..."], Q9S)
+    assert set(p) == {"part", "utc"} and p["part"] == "1/3 t1"
+    assert prog("EVAL-p", ["loading weights"], Q9S) is None and prog("EVAL-zz", ["EVAL_START 1 tq"], Q9S) is None
+
+
+def test_pulse_progress_public_form(env, monkeypatch):
+    import copy
+    st = copy.deepcopy(STATUS)
+    pr = {"done": 900, "total": 2000, "unit": "prompts", "rate": 1.5, "eta_s": 732, "part": "2/3 ext32k4B_X4_s50_aime24_T0.6",
+          "tqdm": "Processed prompts:  45%| 900/2000 [10:00<12:12,  1.50it/s]", "utc": "2026-10-21T16:00:00Z"}
+    st["tasks"]["EVAL-a"] = {"state": "running", "step": 0, "progress": pr}
+    st["tasks"]["EVAL-b"] = {"state": "running", "step": 0, "progress": dict(pr, tqdm="loading /mnt/shared9/someuser/m.bin", unit="BAD UNIT")}
+    monkeypatch.setenv("OPD_ROOT", str(env.root))
+    base = len(json.dumps(env.c.build_pulse(STATUS, GPU)))
+    p = env.c.build_pulse(st, GPU)
+    a, b = p["tasks"]["EVAL-a"]["progress"], p["tasks"]["EVAL-b"]["progress"]
+    assert a["part"] == "2 of 3 ext32k4B_X4_s50_aime24_T0.6" and a["tqdm"] == "Processed prompts:  45%| 900 of 2000 [10:00<12:12,  1.50it per s]"
+    assert (a["done"], a["total"], a["rate"], a["eta_s"], a["unit"]) == (900, 2000, 1.5, 732, "prompts")
+    assert "tqdm" not in b and "unit" not in b and b["done"] == 900   # a path in the line: dropped; the numbers stay
+    assert env.c.leak_check(p) == [] and len(json.dumps(p)) - base < 900   # two tasks with progress add < 900 bytes

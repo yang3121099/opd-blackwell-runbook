@@ -931,6 +931,25 @@ def leak_check(obj, toks=None):
     return bad
 
 
+def _progress(p):
+    """[v2.5.9s] the public form of a task's progress: numbers as they are; the strings without "/" ("900/2000" -> "900 of
+    2000", "it/s" -> "it per s"), at most 200 characters, and dropped when leak_check still finds anything in them."""
+    if not isinstance(p, dict):
+        return None
+    out = {k: _num(p.get(k)) for k in ("done", "total", "rate", "eta_s") if _num(p.get(k)) is not None}
+    if isinstance(p.get("unit"), str) and re.fullmatch(r"[a-z]{1,12}", p["unit"]):
+        out["unit"] = p["unit"]
+    if isinstance(p.get("utc"), str) and re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", p["utc"]):
+        out["utc"] = p["utc"]
+    for k in ("part", "tqdm"):
+        s = p.get(k)
+        if isinstance(s, str):
+            s = re.sub(r"(\d+)/(\d+)", r"\1 of \2", s).replace("it/s", "it per s").replace("s/it", "s per it")[:200]
+            if not leak_check(s):
+                out[k] = s
+    return out or None
+
+
 def _num(x):
     return x if isinstance(x, (int, float)) and not isinstance(x, bool) else None
 
@@ -966,6 +985,9 @@ def build_pulse(st, gpu_csv):
                        and re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", v.get("started_utc")) else None}
         if v.get("pad") is True:   # [v2.5.9q] a padding reading (#pad stages, v2.5.9m): only when true, like the monitor page reads it
             tasks[name]["pad"] = True
+        pr = _progress(v.get("progress"))   # [v2.5.9s] a running evaluation's progress for the monitor page
+        if pr:
+            tasks[name]["progress"] = pr
     ctl = st.get("control") if isinstance(st.get("control"), dict) else {}
     alerts = []
     for a in ctl.get("alerts") or []:

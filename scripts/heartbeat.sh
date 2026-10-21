@@ -57,6 +57,39 @@ def tail(path, n=20):
         return [redact(x) for x in open(path, errors="ignore").read()[-20000:].splitlines()[-n:]]
     except OSError:
         return []
+def _hms(x):   # "12:34" / "1:02:03" -> seconds; "?" or empty -> None
+    try:
+        v = 0
+        for part in x.split(":"):
+            v = v * 60 + int(part)
+        return v
+    except (ValueError, AttributeError):
+        return None
+def progress(name, lines, queue):
+    """[v2.5.9s] (ops-lead / Runming 10-21: the monitor page shows how far an evaluation is) a running evaluation's or probe's
+    progress from its log tail (the 20 lines tail() reads, no further reading): the latest vLLM tqdm line (done, total,
+    unit, rate per second, eta_s, the line itself) and, with several #eval rows, which one runs (part "k/n <tag>"); None
+    when there is nothing to show."""
+    p = {}
+    for l in reversed(lines):
+        l2 = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", l).strip()
+        m = re.search(r"(\d+)/(\d+) \[([\d:]+)<([\d:?]*),\s*([0-9.]+)\s*(it/s|s/it)", l2)
+        if m:
+            done, total, r = int(m.group(1)), int(m.group(2)), float(m.group(5))
+            rate = r if m.group(6) == "it/s" else (1 / r if r else 0.0)
+            eta = _hms(m.group(4))
+            if eta is None and rate:
+                eta = (total - done) / rate
+            p.update(done=done, total=total, unit="prompts" if "prompt" in l2.lower() else "it", rate=round(rate, 3),
+                     eta_s=round(eta) if eta is not None else None, tqdm=l2[-200:])
+            break
+    tags = re.findall(r"^#eval " + re.escape(name) + r" (\S+)", queue, re.M)
+    cur = next((x.split()[2] for x in reversed(lines) if x.startswith("EVAL_START ") and len(x.split()) > 2), None)
+    if cur and cur in tags:
+        p["part"] = f"{tags.index(cur) + 1}/{len(tags)} {cur}"
+    if p:
+        p["utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    return p or None
 def last(pat, text):
     m = re.findall(pat, text); return float(m[-1]) if m else None
 def live_tasks():
@@ -120,6 +153,13 @@ for d in sorted(x for x in glob.glob(os.path.join(root, "runs", "*")) if os.path
     t["gpu"] = lv[0] if lv else None; t["kind"] = kind(os.path.basename(d))
     t["gpus"] = lv[2] if lv else []   # [v2.5.9a] every GPU of the task (two for a #gpus 2 task); "gpu" stays the first
     t["started_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(lv[1])) if lv else None
+    if t["state"] == "running" and t["kind"] in ("eval", "probe"):   # [v2.5.9s] never fails the heartbeat
+        try:
+            pr = progress(os.path.basename(d), t["log_tail"], queue)
+            if pr:
+                t["progress"] = pr
+        except Exception:
+            pass
 gpu = []
 for line in subprocess.run(["nvidia-smi", "--query-gpu=index,name,utilization.gpu,memory.used,memory.total", "--format=csv,noheader,nounits"],
                            capture_output=True, text=True).stdout.strip().splitlines():
