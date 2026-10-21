@@ -362,3 +362,4 @@ commands:
   - {"seq": 360, "cmd": "du ckpt E10b-P2-t14/ckpt/global_step_150/actor", "reason": "Z1 TERM4 rows: local save must exist before the rerun (no hub fetch)", "utc": "2026-10-21T07:12:04Z"}
   - {"seq": 361, "cmd": "du ckpt E10b-P5-t14/ckpt/global_step_150/actor/huggingface", "reason": "Z1: the hf weights inside the t14 local save", "utc": "2026-10-21T07:13:40Z"}
   - {"seq": 362, "cmd": "rerun PROBE-TERM4", "reason": "Z1: three new rows (17_P5t14, 17_P2t14, 17_P5think), all from local saves", "utc": "2026-10-21T07:14:55Z"}
+  - {"seq": 363, "cmd": "snapshot", "reason": "reviewer: df of the work disk next to the pulse's disks[0] free_gb (constant 20328.8 GB since 02:13 UTC)", "utc": "2026-10-21T08:36:22Z"}
