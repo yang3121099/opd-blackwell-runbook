@@ -17,8 +17,9 @@ budB     open   EVAL-budB:EVAL-budA17a+EVAL-budA17b
 term     open   PROBE-TERM
 budAe12b open   EVAL-budA-e12b
 term2    open   PROBE-TERM2
-v3c1b    open   E10c-P4lowlr-dyn6144 E10c-P4lowlr-fix4-s43 EVAL-e10c-fix4-s43:E10c-P4lowlr-fix4-s43
-# v3c1b: E10c-P4lowlr-dyn6144 ran out of memory at step 105 (2026-10-18 23:4x UTC; paused, not retried: a feasibility probe, reviewer 23:3x UTC), so its reading the dyn6144 reading is not queued
+v3c1b    open   E10c-P4lowlr-fix4-s43 EVAL-e10c-fix4-s43:E10c-P4lowlr-fix4-s43
+# v3c1b: the E10c P4lowlr dyn6144 run ran out of memory at step 105 (2026-10-18 23:4x UTC; paused, not retried: a feasibility probe,
+# reviewer 23:3x UTC); cancelled 10-21 (reviewer): out of the queue, its directory no longer listed
 e12bs43  open   EVAL-e12b-P5-s43:E12b-P5-s43
 top10    open   PROBE-TOP10 E10b-P5top10:PROBE-TOP10 E10b-P5rand10m:PROBE-TOP10 E11b-P5top10:E10b-P5top10+E11b-P0 E11b-P5rand10m:E10b-P5rand10m+E11b-P0
 evals    open   EVAL-bridge E11b-P5-s43:E10b-P5-s43+E11b-P0 EVAL-p5s43-s20 EVAL-p5s43-s40
@@ -27,7 +28,7 @@ evals    open   EVAL-bridge E11b-P5-s43:E10b-P5-s43+E11b-P0 EVAL-p5s43-s20 EVAL-
 #eval EVAL-p5s43-s40 e12_P5s43_s40_math500_T0.6 yang31210999/opd-lab-ckpts/runs/E12-P5s43/global_step_40/actor/huggingface math500 4 0.6
 E12bread open   EVAL-e12b-P0:E12b-P0 SPEED-PROBE EVAL-e12b-P2:E12b-P2 EVAL-e12b-P5:E12b-P5 EVAL-e12b-P3:E12b-P3 EVAL-e12b-P1:E12b-P1
 E10b2read open   E11b-P2-s43:E10b-P2-s43+E11b-P0 E11b-P2-s44:E10b-P2-s44+E11b-P0 E11b-P6r-s43:E10b-P6r-s43+E11b-P0 E11b-P6r-s44:E10b-P6r-s44+E11b-P0 E11b-Pstop:E10b-Pstop+E11b-P0 E11b-P6rand:E10b-P6rand+E11b-P0 E11b-P6top5:E10b-P6top5+E11b-P0 E11b-P4EOSpen:E10b-P4EOSpen+E11b-P0
-v3c1     open   E10c-P4lowlr-fix4:E12b-P0+E12b-P2+E12b-P3+E12b-P5+E12b-P1 E10c-P4lowlr-dyn16k:E12b-P0+E12b-P2+E12b-P3+E12b-P5+E12b-P1 EVAL-e10c-fix4:E10c-P4lowlr-fix4 EVAL-e10c-dyn16k:E10c-P4lowlr-dyn16k
+v3c1     open   E10c-P4lowlr-fix4:E12b-P0+E12b-P2+E12b-P3+E12b-P5+E12b-P1 E10c-P4lowlr-dyn16k:E12b-P0+E12b-P2+E12b-P3+E12b-P5+E12b-P1 EVAL-e10c-fix4:E10c-P4lowlr-fix4
 E12bRest open   E12b-P4lowlr:E10b-P4lowlr+E12b-P0+E12b-P2+E12b-P3+E12b-P5+E12b-P1 E12b-P6:E10b-P6+E12b-P0+E12b-P2+E12b-P3+E12b-P5+E12b-P1 E12b-P6r:E10b-P6r+E12b-P0+E12b-P2+E12b-P3+E12b-P5+E12b-P1 E12b-P2noEOS:E10b-P2noEOS+E12b-P0+E12b-P2+E12b-P3+E12b-P5+E12b-P1
 E12bRestRead open   EVAL-e12b-P4lowlr:E12b-P4lowlr EVAL-e12b-P6:E12b-P6 EVAL-e12b-P6r:E12b-P6r EVAL-e12b-P2noEOS:E12b-P2noEOS
 E10b2    open   E10b-P2-s43 E10b-P2-s44 E10b-P6r-s43 E10b-P6r-s44 E10b-Pstop E10b-P6rand E10b-P6top5 E10b-P4EOSpen
@@ -80,8 +81,6 @@ passk    open   EVAL-passk-ext
 z8b      open   EVAL-ext32k-8Bthink-aime EVAL-ext32k-17base
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T0.6 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T1.0 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 1.0
-#eval EVAL-e10c-dyn16k e10c_P4lowlr-dyn16k_s150_math500_T0.6 local:runs/E10c-P4lowlr-dyn16k/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
-#eval EVAL-e10c-dyn16k e10c_P4lowlr-dyn16k_s150_math500_T1.0 local:runs/E10c-P4lowlr-dyn16k/ckpt/global_step_150/actor/huggingface_bf16 math500 4 1.0
 #eval EVAL-e10c-fix4-s43 e10c_P4lowlr-fix4-s43_s150_math500_T0.6 result:runs/E10c-P4lowlr-fix4-s43/global_step_150/actor/huggingface math500 4 0.6
 #eval EVAL-e10c-fix4-s43 e10c_P4lowlr-fix4-s43_s150_math500_T1.0 result:runs/E10c-P4lowlr-fix4-s43/global_step_150/actor/huggingface math500 4 1.0
 #pair EVAL-e10c-fix4-s43 e10c_P4lowlr-fix4-s43_s150_math500_T0.6 EVAL-e10c-fix4/e10c_P4lowlr-fix4_s150_math500_T0.6_math500_no_think_t0.6.jsonl
@@ -1348,8 +1347,11 @@ z8b      open   EVAL-ext32k-8Bthink-aime EVAL-ext32k-17base
 # opd-lab-assets (Runming confirmed in the executor's window 10-21: public assets repository, ~64 MB through the Mac's proxy):
 # Auto-ClawEval-mini / Auto-ClawEval (MIT) and BFCL v3 (Apache-2.0) unmodified at pinned revisions, files with key-shaped fixture
 # strings left out (LEFT_OUT.txt); onto the node at data/git/yang3121099__opd-lab-assets
-#git yang3121099/opd-lab-assets dd96e0ec684d31fc4b155ea4d23982b9dee55873
+# 10-21 (reviewer A1): commit 20608a5 brings back the 74 left-out files and ToolACE with key-shaped strings replaced by FAKE
+# placeholders (REPLACED.md); all four datasets complete
+#git yang3121099/opd-lab-assets 20608a55f42b449a3e362d4f0fbf3124b8784331
 # E12b-P5-16k on two GPUs (reviewer ruling 09:4x UTC 10-21, Q-028's two-GPU rule: PROBE-2GPU PASS at 1.86x step time, 1.88x per token):
 # the one-GPU run was stopped at s4 (seq 365, its train.log kept as the reference, seq 366) and starts again from step 0 on
 # two GPUs (FSDP shards follow the GPU count, so no resume from s4)
 #gpus E12b-P5-16k 2
+# 10-21 (reviewer): EVAL-e10c-dyn16k's lines removed (its training failed for good on 10-18, the reading stayed skipped)
