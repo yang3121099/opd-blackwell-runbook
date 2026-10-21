@@ -340,3 +340,4 @@ commands:
   - {"seq": 338, "cmd": "kill PROBE-TERM4-4B", "reason": "same as PROBE-TERM4: its new E10d-P5self row would hang in a result: fetch; moves to a local: path, then resume", "utc": "2026-10-20T23:56:36Z"}
   - {"seq": 339, "cmd": "resume PROBE-TERM4", "reason": "after d7be5d0: the new #term rows read local saves", "utc": "2026-10-20T23:57:35Z"}
   - {"seq": 340, "cmd": "resume PROBE-TERM4-4B", "reason": "after d7be5d0: the new #term rows read local saves", "utc": "2026-10-20T23:59:52Z"}
+  - {"seq": 341, "cmd": "rerun PROBE-TERM4", "reason": "reviewer 00:5x UTC: TERM4 rows for the 1.7B P5self s50 starts, seeds 42 / 43 (local saves via v2.5.8k)", "utc": "2026-10-21T00:44:40Z"}
