@@ -49,6 +49,7 @@ b258cp   open   PROBE-E12B-STOP
 b258hp   open   PROBE-E12B-8K PROBE-E12B-16K
 b258ip   open   PROBE-X2507-X1 PROBE-X2507-X2
 b258lp   open   PROBE-X2507-X4
+blp      open   PROBE-LENSEL
 fill2    open   EVAL-ext32k-4Bp2:E10d-P2 EVAL-ext32k-4Bp2s43:E10d-P2-s43 EVAL-ext32k-17p2s:E10b-P2-s43 EVAL-ext32k-17p2srl:E12b-P2-s43 EVAL-ext-E10b-P2s43:E10b-P2-s43 EVAL-ext-E10b-P2s44:E10b-P2-s44
 b258a    open   E10c-P5-fix4 E12c-P0:PROBE-E12C E12b-P5self EVAL-e10c-P5-fix4:E10c-P5-fix4+EVAL-e10c-base06 E12c-P5:PROBE-E12C+E10c-P5-fix4 EVAL-e12b-P5self:E12b-P5self EVAL-budA-e12bP5self:E12b-P5self EVAL-e12c-P0:E12c-P0+EVAL-e10c-base06 EVAL-e12c-P5:E12c-P5+EVAL-e12c-P0+EVAL-e10c-P5-fix4 EVAL-budA-e12c:E12c-P0+E12c-P5+EVAL-budA06p5
 fill3    open   EVAL-ext32k-17p5self:E10b-P5self EVAL-ext32k-17p2self:E10b-P2self EVAL-ext32k-17think:E10b-P5think EVAL-ext-E10b-P5self:E10b-P5self EVAL-ext-E10b-P2self:E10b-P2self EVAL-ext-E10b-P5think:E10b-P5think EVAL-ext32k-17p2s44:E10b-P2-s44
@@ -59,6 +60,7 @@ b258e    open   E10b-P5self-s43 PROBE-P5SELF-4B E10d-P5self:PROBE-P5SELF-4B E12b
 b258h    open   E12b-P5-8k:PROBE-E12B-8K E12b-P5-16k:PROBE-E12B-16K EVAL-e12b-P5-8k:E12b-P5-8k EVAL-budA-e12bP5-8k:E12b-P5-8k EVAL-ext32k-17p5l8k:E12b-P5-8k EVAL-e12b-P5-16k:E12b-P5-16k EVAL-budA-e12bP5-16k:E12b-P5-16k EVAL-ext32k-17p5l16k:E12b-P5-16k
 b258i    open   E10d-X1:PROBE-X2507-X1 E10d-X2:PROBE-X2507-X2 EVAL-ext32k-x1:E10d-X1 EVAL-ext32k-x2:E10d-X2 EVAL-budA-x1:E10d-X1+EVAL-i2507 EVAL-budA-x2:E10d-X2+EVAL-i2507 EVAL-e10d-x1:E10d-X1 EVAL-e10d-x2:E10d-X2
 b258l    open   E10d-X4:PROBE-X2507-X4 EVAL-ext32k-x4:E10d-X4 EVAL-budA-x4:E10d-X4+EVAL-i2507 EVAL-e10d-x4:E10d-X4
+bl       open   E10b-P5lenS:PROBE-LENSEL E10b-P5lenL:PROBE-LENSEL E10b-P5lenR:PROBE-LENSEL EVAL-len-R:E10b-P5lenR EVAL-len-S:E10b-P5lenS EVAL-len-L:E10b-P5lenL EVAL-len-cmp:EVAL-len-R+EVAL-len-S+EVAL-len-L
 fill4    open   EVAL-ext32k-17p1:E12b-P1 EVAL-ext32k-17p3:E12b-P3 EVAL-ext-E10b-P3:E10b-P3 EVAL-ext-E10b-P6r:E10b-P6r
 len      open   EVAL-budA06p5:E10c-P5-fix4 EVAL-budA06think EVAL-budA-8Bthink
 fill5    open   EVAL-ext-E10c-P0 EVAL-ext32k-06think EVAL-ext-E10c-P5-fix4:E10c-P5-fix4+EVAL-ext-E10c-P0 EVAL-ext32k-06:E10c-P5-fix4+EVAL-ext32k-06think EVAL-ext-E12c-P0:E12c-P0+EVAL-ext-E10c-P0+EVAL-ext-E10c-P5-fix4
@@ -1302,3 +1304,24 @@ z8b      open   EVAL-ext32k-8Bthink-aime
 #term PROBE-TERM4 17_P5t14 result:runs/E10b-P5-t14/global_step_150/actor/huggingface E11b-P5-t14/e11b_P5-t14_math500_T0.6_math500_no_think_t0.6.jsonl
 #term PROBE-TERM4 17_P2t14 result:runs/E10b-P2-t14/global_step_150/actor/huggingface E11b-P2-t14/e11b_P2-t14_math500_T0.6_math500_no_think_t0.6.jsonl
 #term PROBE-TERM4 17_P5think local:runs/E10b-P5think/ckpt/global_step_50/actor/huggingface EVAL-e10b-P5think/e10b_P5think_s50_math500_T0.6_math500_think_t0.6.jsonl think
+# bl (runbook v2.5.8m, Q-030 as pre-registered by the reviewer 17:5x UTC 10-20): length-selected OPD, P5's recipe with 16
+# rollouts per prompt of which the shortest (S) / longest (L) / a random (R, the control) 4 are kept before the log-probs,
+# 32 prompts x 4 = 128 per update, 50 steps. Readings per arm at s50: MATH500 16K (T0.6 avg@4) and 32K with forced answers;
+# EVAL-len-cmp (a tiny anchor) holds the comparisons: budget curves (accuracy, truncation, paired bootstrap per budget
+# 2K-32K) of S and L against R at 32K and 16K, and against P5 s50 (lab run) / P5 s150; STRICT lines S, L vs R. The training
+# logs carry all 16 against the kept 4 (lensel/*, lensel.jsonl); TERM4 rows (p(EOS)) follow once s50 exists.
+#eval EVAL-len-R e10b_P5lenR_s50_math500_T0.6 result:runs/E10b-P5lenR/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-len-R budAlenR_s50_math500_T0.6_32k result:runs/E10b-P5lenR/global_step_50/actor/huggingface math500 4 0.6 32768
+#forced EVAL-len-R EVAL-len-R/budAlenR_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl result:runs/E10b-P5lenR/global_step_50/actor/huggingface no_think
+#eval EVAL-len-S e10b_P5lenS_s50_math500_T0.6 result:runs/E10b-P5lenS/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-len-S budAlenS_s50_math500_T0.6_32k result:runs/E10b-P5lenS/global_step_50/actor/huggingface math500 4 0.6 32768
+#forced EVAL-len-S EVAL-len-S/budAlenS_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl result:runs/E10b-P5lenS/global_step_50/actor/huggingface no_think
+#eval EVAL-len-L e10b_P5lenL_s50_math500_T0.6 result:runs/E10b-P5lenL/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-len-L budAlenL_s50_math500_T0.6_32k result:runs/E10b-P5lenL/global_step_50/actor/huggingface math500 4 0.6 32768
+#forced EVAL-len-L EVAL-len-L/budAlenL_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl result:runs/E10b-P5lenL/global_step_50/actor/huggingface no_think
+#eval EVAL-len-cmp lencmp_anchor_math500_T0.6 local:models/Qwen3-0.6B math500 1 0.6 2048
+#budget EVAL-len-cmp budget_curve_vsR EVAL-len-R/budAlenR_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-len-S/budAlenS_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-len-L/budAlenL_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#budget EVAL-len-cmp budget16_vsR EVAL-len-R/e10b_P5lenR_s50_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-len-S/e10b_P5lenS_s50_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-len-L/e10b_P5lenL_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#budget EVAL-len-cmp budget_curve_vsP5s50 EVAL-budA-top10c/budAtop10_E10P5_17B_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-len-R/budAlenR_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-len-S/budAlenS_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-len-L/budAlenL_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#strict STRICT-C1 EVAL-len-S/budAlenS_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-len-R/budAlenR_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#strict STRICT-C1 EVAL-len-L/budAlenL_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-len-R/budAlenR_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl
