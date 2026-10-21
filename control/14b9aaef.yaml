@@ -423,3 +423,4 @@ commands:
   - {"seq": 421, "cmd": "snapshot venv-fa/lib/python3.10/site-packages/vllm/model_executor/models/registry.py", "reason": "Q-051 VLM feasibility (a), venv-fa, read-only", "utc": "2026-10-21T17:30:07Z"}
   - {"seq": 422, "cmd": "kill E12b-P5-stop2", "reason": "Q-034 s40 rule (Fable 10-21): s26-s40 mean bonus 0.0405 < 0.05 (tail_p50 < 1024 on 15/15) -> kill; DR keeps s25's resume state", "utc": "2026-10-21T17:39:52Z"}
   - {"seq": 423, "cmd": "resume E12b-P5-stop2", "reason": "Fable 17:5x UTC: Q-034 re-ruled, continue from the s25 resume state", "utc": "2026-10-21T17:44:12Z"}
+  - {"seq": 424, "cmd": "rerun E12b-P5-stop2", "reason": "Fable 17:5x UTC: Q-034 re-ruled; resumes from s25 (DR), queued in b259f2 after tonight's OPD arms; new s60 rule", "utc": "2026-10-21T17:44:20Z"}
