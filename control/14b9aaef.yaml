@@ -368,3 +368,4 @@ commands:
   - {"seq": 366, "cmd": "snapshot runs/E12b-P5-16k", "reason": "keep the one-GPU run's train.log (s1-s4) as the reference before the two-GPU restart", "utc": "2026-10-21T09:46:51Z"}
   - {"seq": 367, "cmd": "resume E12b-P5-16k", "reason": "restart on two GPUs (#gpus E12b-P5-16k 2) from step 0", "utc": "2026-10-21T09:52:18Z"}
   - {"seq": 368, "cmd": "kill EVAL-e10d-x2", "reason": "reviewer ruling 09:4x: E12b-P5-16k restarts now on GPU2 + GPU7; this reading took one of them during the restart (generations kept, resumed right after 16k starts)", "utc": "2026-10-21T09:56:30Z"}
+  - {"seq": 369, "cmd": "kill EVAL-e10d-x1", "reason": "reviewer ruling 09:4x: E12b-P5-16k restarts now on GPU2 + GPU7; this reading took one of them during the restart (generations kept, resumed right after 16k starts)", "utc": "2026-10-21T09:57:12Z"}
