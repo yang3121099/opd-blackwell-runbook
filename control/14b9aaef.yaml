@@ -365,3 +365,4 @@ commands:
   - {"seq": 363, "cmd": "snapshot", "reason": "reviewer: df of the work disk next to the pulse's disks[0] free_gb (constant 20328.8 GB since 02:13 UTC)", "utc": "2026-10-21T08:36:22Z"}
   - {"seq": 364, "cmd": "logs run_tasks 30", "reason": "GPU7 idle since 08:25: HOLD for PROBE-2GPU?", "utc": "2026-10-21T08:40:00Z"}
   - {"seq": 365, "cmd": "kill E12b-P5-16k", "reason": "reviewer ruling (Q-028 two-GPU rule): PROBE-2GPU PASS at 1.86x; restart E12b-P5-16k from scratch on two GPUs (FSDP shards follow the GPU count)", "utc": "2026-10-21T09:45:53Z"}
+  - {"seq": 366, "cmd": "snapshot runs/E12b-P5-16k", "reason": "keep the one-GPU run's train.log (s1-s4) as the reference before the two-GPU restart", "utc": "2026-10-21T09:46:51Z"}
