@@ -89,6 +89,9 @@ b259ip   open   PROBE-ROLLOUT-U60 PROBE-ROLLOUT-U85 PROBE-ROLLOUT-U75
 night2   open   EVAL-ext-17s44mid EVAL-ext-4Bmid EVAL-budA-17p2seeds
 fill14   open   EVAL-ext-4Bmid25 EVAL-ext-4Bmid75 EVAL-ext-17s44mid75 EVAL-budA-e12bP13 EVAL-ext-17p5l8k:E12b-P5-8k EVAL-ext-17stop2:E12b-P5-stop2 EVAL-ext-17p5l16k:E12b-P5-16k
 olpd     open   EVAL-ext32k-17olpd
+# [v2.5.9m] padding stages (ops-lead, Runming 10-21 21:2x Beijing): dispatched after every other stage, each group in file order;
+# every later fill list gets a #pad line too (a #pad line holds stage names only)
+#pad night1 night2 fill14 olpd
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T0.6 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T1.0 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 1.0
 #eval EVAL-e10c-fix4-s43 e10c_P4lowlr-fix4-s43_s150_math500_T0.6 result:runs/E10c-P4lowlr-fix4-s43/global_step_150/actor/huggingface math500 4 0.6
