@@ -386,3 +386,4 @@ commands:
   - {"seq": 384, "cmd": "logs prefetch_EVAL-budA-4Bp2s43 20", "reason": "night1 prefetch check: are the models local (reviewer A1 11:09 UTC)", "utc": "2026-10-21T11:22:06Z"}
   - {"seq": 385, "cmd": "logs prefetch_EVAL-ext-17s44mid 20", "reason": "night2 prefetch check: are the models local (reviewer A1 11:27 UTC)", "utc": "2026-10-21T11:32:56Z"}
   - {"seq": 386, "cmd": "logs prefetch_EVAL-ext-4Bmid 20", "reason": "night2 prefetch check: are the models local (reviewer A1 11:27 UTC)", "utc": "2026-10-21T11:33:05Z"}
+  - {"seq": 387, "cmd": "logs prefetch_EVAL-budA-17p2seeds 20", "reason": "night2 prefetch check: are the models local (reviewer A1 11:27 UTC)", "utc": "2026-10-21T11:33:13Z"}
