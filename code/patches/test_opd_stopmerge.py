@@ -92,6 +92,25 @@ def test_torch_merge_and_stop_logprob():
     assert torch.allclose(one, ref[..., 5], atol=1e-5)
 
 
+def test_torch_positions_on_the_responses_device():   # [v2.5.9z4] the unit tests have no GPU: the device argument is checked
+    try:
+        import torch
+    except ImportError:   # the Mac has no torch; PROBE-STOPMERGE runs this on the node
+        return
+    seen, orig = [], torch.arange
+
+    def rec(*a, **k):
+        seen.append(k.get("device"))
+        return orig(*a, **k)
+    r, lp, st, be = _case(torch)
+    torch.arange = rec
+    try:
+        S.merge(lp, st, r, be, S.eos_ids(), torch)
+    finally:
+        torch.arange = orig
+    assert seen and all(d == r.device for d in seen), seen
+
+
 def test_patch_texts_on_the_real_files():   # GOPD_VERL=<G-OPD's verl package dir> (the node: the installed one; PROBE-STOPMERGE)
     import os
     import stopmerge_patch as P

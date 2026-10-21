@@ -85,7 +85,9 @@ def merge(log_probs, stop_lp, responses, box_end, eos, xp, valid=None):
     padding is never merged nor counted). Positions merged: valid, after the box (index > box_end, box_end >= 0), the
     student's token in eos."""
     B, L = responses.shape
-    pos = xp.arange(L).reshape(1, L)
+    # [v2.5.9z4] torch: the positions on the responses' device (10-21 20:0x UTC the smoke failed in the reference pass: arange on the CPU,
+    # opd_box_end on cuda:0, "Expected all tensors to be on the same device")
+    pos = (xp.arange(L) if xp.__name__ == "numpy" else xp.arange(L, device=responses.device)).reshape(1, L)
     be = box_end.reshape(B, 1)
     after = (pos > be) & (be >= 0)
     if valid is not None:
