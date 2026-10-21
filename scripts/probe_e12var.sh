@@ -18,9 +18,15 @@
 #       rollout dump carries the reward's parts (tail), with the share of zero-variance groups reported.
 #   [v2.5.8h] 8k / 16k: the long response limits fit (the smoke's config names the limit; its response lengths and the
 #       peak are reported; the peak check above is the main one).
+#   [v2.5.9w] r3 (Q-039): first the unit tests of code/patches/test_opd_vardrop.py with the training's python and
+#       GOPD_RAY_TRAINER = the installed ray_trainer.py (both hook anchors found once, the patched file compiles); then, at
+#       every smoke step: 128 groups scored, 0 < kept groups <= 64, kept rows = update rows = 8 x kept groups, update
+#       prompts = kept groups, the PPO mini-batch count = ceil(rows / 128), the advantages' mean ~ 0 and variance ~ 1 over
+#       the kept tokens (the batch whitening ran on the kept rows only), the rollout dump holds the kept rows only, and
+#       vardrop.jsonl has every group (kept ones with a spread); the config names reinforce_plus_plus_baseline 128x8.
 set -uo pipefail
 G=$1; VAR=$2; source "$(dirname "$0")/env.sh"
-case $VAR in kl|stop|stop2|8k|16k) ;; *) echo "unknown variant $VAR"; exit 2;; esac   # [v2.5.8c] stop; [v2.5.8h] 8k / 16k; [v2.5.9f] stop2
+case $VAR in kl|stop|stop2|8k|16k|r3) ;; *) echo "unknown variant $VAR"; exit 2;; esac   # [v2.5.8c] stop; [v2.5.8h] 8k / 16k; [v2.5.9f] stop2
 T=PROBE-E12B-$(echo $VAR | tr a-z A-Z); D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; mkdir -p $D
 [ -f $D/.done ] && { echo "TASK_ALREADY_DONE $T"; exit 0; }
 step() { echo "PROBE_E12VAR $(date -u +%T) $*" | tee -a $LOG; }
@@ -34,17 +40,41 @@ try:
     r["mem_peak_mib"] = max(vals) if vals else None
 except (OSError, ValueError, IndexError):
     r["mem_peak_mib"] = None
-for k in ("kl_loss_by_step", "ref_in_config", "reward_vs_score", "stop_cases", "score_by_step"):   # [v2.5.8b] reward_vs_score; [v2.5.8c] stop
+for k in ("kl_loss_by_step", "ref_in_config", "reward_vs_score", "stop_cases", "score_by_step", "r3_by_step"):   # [v2.5.8b] reward_vs_score; [v2.5.8c] stop
     p = os.path.join(d, k + ".json")
     if os.path.exists(p):
         r[k] = json.load(open(p))
 json.dump(r, open(os.path.join(d, "report.json"), "w"), indent=1)
 PY
-  mkdir -p $D/up; cp $D/report.json $D/probe.log $D/up/ 2> /dev/null; [ -f $D/smoke/train.log ] && tail -c 200000 $D/smoke/train.log > $D/up/train_tail.log
+  mkdir -p $D/up; cp $D/report.json $D/probe.log $D/up/ 2> /dev/null; cp $D/unit_tests.txt $D/smoke/vardrop.jsonl $D/up/ 2> /dev/null   # [v2.5.9w] r3's
+  [ -f $D/smoke/train.log ] && tail -c 200000 $D/smoke/train.log > $D/up/train_tail.log
   python3 $RUNBOOK/scripts/remote.py put $D/up logs/$(python3 $RUNBOOK/scripts/control.py node)/probe_e12var/$T >> $LOG 2>&1 || step "report upload failed (kept in $D)"
   python3 $RUNBOOK/scripts/control.py event $T "probe_e12var_$(echo $1 | tr A-Z a-z)" "$2" > /dev/null 2>&1
   step "$1 $2"; touch $D/.done; exit 0
 }
+if [ $VAR = r3 ]; then   # [v2.5.9w] the unit tests with the training's python, before the GPU is taken
+  PY=${PEV_PY:-$OPD_ROOT/venv/bin/python}; [ -x "$PY" ] || PY=python3
+  RT=$($PY -c "import importlib.util as u; print(u.find_spec('verl.trainer.ppo.ray_trainer').origin)" 2> /dev/null)
+  [ -n "$RT" ] && [ -f "$RT" ] || finish FAIL "r3: verl's ray_trainer.py not found by $PY"
+  ( cd $RUNBOOK/code/patches && CUDA_VISIBLE_DEVICES= GOPD_RAY_TRAINER=$RT $PY - > $D/unit_tests.txt 2>&1 <<'PY'
+import importlib, inspect, sys, traceback
+sys.path.insert(0, ".")
+n = fails = 0
+mod = importlib.import_module("test_opd_vardrop")
+for name, f in inspect.getmembers(mod, inspect.isfunction):
+    if name.startswith("test_") and f.__module__ == "test_opd_vardrop":
+        n += 1
+        try:
+            f()
+        except Exception:
+            fails += 1; print("FAILED", name); traceback.print_exc()
+print(f"{n - fails} passed, {fails} failed")
+sys.exit(1 if fails or not n else 0)
+PY
+  ); rc=$?
+  step "r3 unit tests: $(tail -1 $D/unit_tests.txt)"
+  [ $rc = 0 ] || finish FAIL "r3 unit tests: $(tail -1 $D/unit_tests.txt)"
+fi
 for _w in $(seq 19); do
   used=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $G 2>/dev/null | tr -d ' ')
   [ "${used:-1}" -le 1024 ] && break; [ $_w = 19 ] && finish FAIL "gpu $G not empty after 180 s"; sleep ${PEV_WAIT_STEP:-10}
@@ -205,6 +235,63 @@ PY
   why=$(cat $D/stop_check.txt)
   [ -z "$why" ] || finish FAIL "stop: $why"
   finish PASS "${PEV_STEPS:-3}-step smoke ok, peak ${peak} MiB, the stop reward scores the fixed cases 1.5 / 1.0 / 1.0 / 0.0 on the node"
+fi
+if [ $VAR = r3 ]; then   # [v2.5.9w]
+  SD=$OPD_ROOT/runs/$T-smoke; cp $SD/vardrop.jsonl $D/smoke/ 2> /dev/null
+  for f in $SD/rollouts/*.jsonl; do [ -f "$f" ] && cp "$f" $D/smoke/rollouts_$(basename "$f"); done
+  grep -q "VARDROP_HOOK_PATCHED\|VARDROP_HOOK_OK" $D/smoke.out || finish FAIL "r3: vardrop_patch.py did not run before the smoke"
+  python3 - "$D" "${PEV_R3_K:-64}" "${PEV_R3_GROUPS:-128}" <<'PY'
+import json, math, os, re, sys
+d, k, ng = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+log = open(os.path.join(d, "smoke", "train.log"), errors="ignore").read()
+cfg = open(os.path.join(d, "smoke", "config.yaml"), errors="ignore").read()
+keys = ("groups", "nonzero_groups", "kept_groups", "kept_rows", "update_rows", "update_prompts", "ppo_mini_batches",
+        "adv_mean", "adv_var", "empty", "gen_tokens", "kept_tokens", "zero_var_frac")
+st = {}
+for line in log.splitlines():
+    m = re.search(r"(?:^|[ )\]])step:(\d+) - ", line)
+    v = {x: re.search(rf"r3/{x}:([-+0-9.eE]+)", line) for x in keys}
+    if m and all(v.values()):
+        st[int(m.group(1))] = {x: float(y.group(1)) for x, y in v.items()}
+groups = {}
+try:
+    for line in open(os.path.join(d, "smoke", "vardrop.jsonl")):
+        r = json.loads(line); groups.setdefault(r["step"], []).append(r)
+except (OSError, ValueError):
+    pass
+why, dump = [], {}
+if "algo: reinforce_plus_plus_baseline" not in cfg or f"{ng}x8" not in cfg:
+    why.append(f"the smoke's config does not name reinforce_plus_plus_baseline {ng}x8")
+if not st:
+    why.append("no r3/* metrics in the log")
+for s, v in sorted(st.items()):
+    kg, kr = v["kept_groups"], v["kept_rows"]
+    if v["groups"] != ng:
+        why.append(f"step {s}: {v['groups']:.0f} groups scored, expected {ng}")
+    if not 0 < kg <= k:
+        why.append(f"step {s}: {kg:.0f} kept groups (1..{k})")
+    if kr != 8 * kg or v["update_rows"] != kr or v["update_prompts"] != kg:
+        why.append(f"step {s}: kept rows {kr:.0f}, update rows {v['update_rows']:.0f}, update prompts {v['update_prompts']:.0f} for {kg:.0f} groups")
+    if v["ppo_mini_batches"] != math.ceil(kr / 128):
+        why.append(f"step {s}: {v['ppo_mini_batches']:.0f} PPO mini-batches for {kr:.0f} rows")
+    if v["empty"] == 0 and (abs(v["adv_mean"]) > 1e-3 or abs(v["adv_var"] - 1) > 0.02):
+        why.append(f"step {s}: advantage mean {v['adv_mean']} / variance {v['adv_var']} over the kept tokens (not whitened on the kept rows)")
+    g = groups.get(s, [])
+    if len(g) != ng or sum(r["kept"] for r in g) != kg or sum(r["spread"] for r in g) != v["nonzero_groups"] or any(r["kept"] and not r["spread"] for r in g if not r["empty_step"]):
+        why.append(f"step {s}: vardrop.jsonl has {len(g)} groups, {sum(r['kept'] for r in g)} kept, {sum(r['spread'] for r in g)} with a spread")
+    rp = os.path.join(d, "smoke", f"rollouts_{s}.jsonl")
+    dump[s] = sum(1 for _ in open(rp)) if os.path.exists(rp) else None
+    if dump[s] != kr:
+        why.append(f"step {s}: the rollout dump has {dump[s]} rows, expected the {kr:.0f} kept")
+json.dump({"by_step": st, "dump_rows": dump}, open(os.path.join(d, "r3_by_step.json"), "w"))
+open(os.path.join(d, "r3_check.txt"), "w").write("; ".join(why))
+PY
+  [ -f $D/r3_check.txt ] || finish FAIL "r3: the checks did not run"
+  why=$(cat $D/r3_check.txt)
+  [ -z "$why" ] || finish FAIL "r3: $why"
+  KG=$(python3 -c "import json, sys; s = json.load(open(sys.argv[1]))['by_step']; print('/'.join(f\"{v['kept_groups']:.0f}\" for _, v in sorted(s.items(), key=lambda x: int(x[0]))))" $D/r3_by_step.json)
+  ZV=$(python3 -c "import json, sys; s = json.load(open(sys.argv[1]))['by_step']; print('/'.join(f\"{v['zero_var_frac']:.2f}\" for _, v in sorted(s.items(), key=lambda x: int(x[0]))))" $D/r3_by_step.json)
+  finish PASS "${PEV_STEPS:-3}-step smoke ok, peak ${peak} MiB; kept groups by step $KG of ${PEV_R3_GROUPS:-128} (zero-variance share $ZV); rows, the whitening, the rollout dump and vardrop.jsonl checked"
 fi
 if [ $VAR = 8k ] || [ $VAR = 16k ]; then   # [v2.5.8h]
   N=$(( ${VAR%k} * 1024 ))

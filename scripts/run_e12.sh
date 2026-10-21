@@ -19,7 +19,12 @@ source "$(dirname "$0")/env.sh"; source "$(dirname "$0")/dr.sh"; G=$1; T=$2; LAD
 # [v2.5.8b] (Q-020, reviewer 22:0x UTC 10-19): E12b-P5-<variant> = E12b-P5 with one change: kl = a KL loss to the start (coef
 # 0.01, low_var_kl, the reference policy = the start P5 s150), stop = the stop reward ([v2.5.8c]). Everything else is E12b-P5's.
 # [v2.5.9f] (T1, reviewer 07:4x UTC 10-21): stop2 = the continuous stop reward (code/train/reward_stop2.py), 100 steps as stop
-VAR=""; case $A in P5-kl|P5-stop|P5-stop2|P5-8k|P5-16k) VAR=${A#P5-}; A=P5;; esac
+# [v2.5.9w] (Q-039, the reviewer 16:30 / 16:4x UTC 10-21): r3 = E12b-P5 with the advantage reinforce_plus_plus_baseline
+# (group mean subtracted, then whitened over the batch) and zero-variance groups dropped before the update, with x2
+# oversampling: 128 prompts x 8 a step, of the groups whose scores differ at most 64 kept (all if fewer; a seeded random 64
+# otherwise), their rows only going on to the old log-probs, the advantage and the update (code/patches/opd_vardrop.py through
+# vardrop_patch.py's hooks in RayPPOTrainer.fit; per-group log vardrop.jsonl). 50 steps, 4K, s25 / s50 uploaded
+VAR=""; case $A in P5-kl|P5-stop|P5-stop2|P5-8k|P5-16k|P5-r3) VAR=${A#P5-}; A=P5;; esac
 # [v2.5.8h] (Runming 10-20 17:5x UTC via the reviewer, Q-028: the 4K limit costs too much): E12b-P5-8k / -16k = E12b-P5 with
 # max_response_length 8192 / 16384 and what the length forces: flash-attn with remove-padding (an SDPA micro-batch is
 # padded to its longest sequence), a token budget of at least prompt + response, vLLM batching above the model length
@@ -55,8 +60,9 @@ if [ $A != P0 ] && ! has_weights $START; then
   esac
 fi
 case $A in P0|P1|P2|P3|P5|P5-s43|P5-s44|P2-s43|P5self|P5self-s43) STEPS=100;; *) STEPS=60;; esac   # v2.5.6j: P5-s43 = the headline chain's second seed (queue v3 V3-c2); v2.5.7n: P5-s44 its third (from the flash-attn arm)
-case $VAR in 8k|16k) STEPS=${E12B_LONG_STEPS:-50};; esac   # [v2.5.8h] reviewer 17:4x UTC: 50 steps (constant lr: extendable)
+case $VAR in 8k|16k) STEPS=${E12B_LONG_STEPS:-50};; r3) STEPS=${E12B_R3_STEPS:-50};; esac   # [v2.5.8h] reviewer 17:4x UTC: 50 steps (constant lr: extendable)
 [ $A = P0 ] || has_weights $START || { echo "missing start checkpoint $START"; exit 1; }
+TBS=64; ADV=grpo; [ "$VAR" = r3 ] && { TBS=128; ADV=reinforce_plus_plus_baseline; }   # [v2.5.9w]
 # v2.5.7c: venv-fa (flash-attn, remove-padding) only with VENV=fa and E12B_FA=1: the E12b ladder stays on one attention
 V=$OPD_ROOT/venv; [ "${VENV:-}" = fa ] && [ "${E12B_FA:-0}" = 1 ] && V=$OPD_ROOT/venv-fa
 case $T in E12d-*|E12b-P2-s43|E12b-P5-8k|E12b-P5-16k) V=$OPD_ROOT/venv-fa;; esac   # v2.5.7o: new arms on flash-attn (reviewer 06:0x UTC); [v2.5.8h] the long limits
@@ -89,7 +95,7 @@ GCK=True; [ "${GC:-1}" = 0 ] && [ "${E12B_GC:-0}" = 1 ] && GCK=False
 [ -f $OUT/config.yaml ] && echo "resumed: $(date -u +%FT%TZ)" >> $OUT/config.yaml || cat > $OUT/config.yaml <<CFG
 task: $T
 start: $START
-algo: GRPO 64x8, $((MAXR / 1024))K, T=1.0, lr 1e-6, clip 0.2/0.28, $([ "$VAR" = kl ] && echo "KL loss 0.01 low_var_kl to the start (reference = $START)" || echo "KL 0"), mini-batch 16, data.seed 4242, $STEPS steps
+algo: $([ "$VAR" = r3 ] && echo "reinforce_plus_plus_baseline (group mean, batch whitening) ${TBS}x8, zero-variance groups dropped before the update (at most ${R3_KEEP_GROUPS:-64} groups kept, opd_vardrop.py; seed OPD_SEED ${OPD_SEED:-1234} x 100003 + step)" || echo "GRPO 64x8"), $((MAXR / 1024))K, T=1.0, lr 1e-6, clip 0.2/0.28, $([ "$VAR" = kl ] && echo "KL loss 0.01 low_var_kl to the start (reference = $START)" || echo "KL 0"), mini-batch 16, data.seed 4242, $STEPS steps
 variant: ${VAR:-none}
 max_response_length: $MAXR
 reward: $(case $VAR in (stop) echo "reward_stop.py (1 if correct, +0.5 if every box agrees and the response ends within 64 tokens after the first box)";; (stop2) echo "reward_stop2.py (correct x (1 + 0.5 x clip(1 - tail / 1024, 0, 1)), tail = tokens after the first box, a cut response counts 1024)";; (*) echo reward_mathverify.py;; esac)   # [v2.5.8c] [v2.5.9f]
@@ -110,27 +116,31 @@ VALB=True; TESTF=25; [ $SM = 1 ] && { STEPS=${SMOKE_STEPS:-3}; SAVE=-1; VALB=Fal
 # v2.5.7u (reviewer ruling 07:5x UTC, readings budA-p5s44rl): E12b-P5-s44's mid-RL steps 25 / 50 / 75 are registered
 # readings (where does P5 -> RL lose the 32K ceiling), so they are uploaded as bf16 like the last step; until now
 # upload_sync deleted every step not uploaded (E12b-P5-s43 lost s25 / s50 / s75 that way)
-UW=$STEPS; case $T in E12b-P5-s44|E12d-P5) UW=25,50,75,$STEPS;; E12b-P5-8k|E12b-P5-16k) UW=25,$STEPS;; esac   # [v2.5.8h] the long limits: s25 too   # E12d-P5: the same across sizes (reviewer A1 08:0x UTC)
+UW=$STEPS; case $T in E12b-P5-s44|E12d-P5) UW=25,50,75,$STEPS;; E12b-P5-8k|E12b-P5-16k|E12b-P5-r3) UW=25,$STEPS;; esac   # [v2.5.8h] the long limits: s25 too   # E12d-P5: the same across sizes (reviewer A1 08:0x UTC)
 # [v2.5.8b] the variant's settings (KL loss and its reference; the reward function)
 KL="actor_rollout_ref.actor.use_kl_loss=False"; REWARD=$RUNBOOK/code/train/reward_mathverify.py
 # [v2.5.8c] stop: the stop reward, counting the student's tokens (its start's tokenizer) against the 4K response limit
 [ "$VAR" = stop ] && { REWARD=$RUNBOOK/code/train/reward_stop.py; export OPD_REWARD_TOKENIZER=$START OPD_REWARD_MAXLEN=4096; }
 [ "$VAR" = stop2 ] && { REWARD=$RUNBOOK/code/train/reward_stop2.py; export OPD_REWARD_TOKENIZER=$START OPD_REWARD_MAXLEN=4096; }   # [v2.5.9f]
 [ "$VAR" = kl ] && KL="actor_rollout_ref.actor.use_kl_loss=True actor_rollout_ref.actor.kl_loss_coef=0.01 actor_rollout_ref.actor.kl_loss_type=low_var_kl +actor_rollout_ref.ref.model.path=$START actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=$LOGP_MB actor_rollout_ref.ref.fsdp_config.param_offload=False"
+# [v2.5.9w] r3's group drop on (OPD_VARDROP), off for every other run
+export OPD_VARDROP= OPD_VARDROP_LOG=; [ "$VAR" = r3 ] && export OPD_VARDROP=1 OPD_VARDROP_K=${R3_KEEP_GROUPS:-64} OPD_VARDROP_LOG=$OUT/vardrop.jsonl OPD_SEED=${OPD_SEED:-1234}
+[ "${DRYRUN:-0}" = 1 ] && [ "$VAR" = r3 ] && echo "DRYRUN_R3 adv=$ADV tbs=$TBS vardrop=$OPD_VARDROP k=$OPD_VARDROP_K log=$(basename $OPD_VARDROP_LOG) seed=$OPD_SEED"   # tests
 [ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $NAME start=$START steps=$STEPS save=$SAVE contents=$CONTENTS kern=[$KERN] gc=$GCK venv=$(basename $V) ngpu=$NG rmpad=$RMPAD upload=${UPLOAD_WEIGHTS:-$UW} vllm=${VLLM_UTIL:-0.6} var=${VAR:-none} kl=[$KL] reward=$(basename $REWARD)"; exit 0; }   # tests
 if [ $SM = 0 ]; then
   ckpt_link $OUT
   dr_restore $OUT || echo "DR_RESTORE_FAILED $T"; dr_start_sync $OUT   # v2.5.7
   pgrep -f "upload_syn[c].sh $OUT\$" >/dev/null || KEEP_BF16=0 UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-$UW} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OUT > $OUT/upload.log 2>&1 < /dev/null &
 fi
+if [ "$VAR" = r3 ]; then python $RUNBOOK/code/patches/vardrop_patch.py || { echo "VARDROP_PATCH_FAILED $T"; exit 1; }; fi   # [v2.5.9w] idempotent
 cd $OPD_ROOT/G-OPD/verl
 python3 -m verl.trainer.main_ppo \
-  algorithm.adv_estimator=grpo algorithm.use_kl_in_reward=False \
+  algorithm.adv_estimator=$ADV algorithm.use_kl_in_reward=False \
   algorithm.rollout_correction.rollout_is=token algorithm.rollout_correction.rollout_is_threshold=5.0 \
   algorithm.rollout_correction.rollout_rs=null algorithm.rollout_correction.bypass_mode=false \
   actor_rollout_ref.rollout.calculate_log_probs=true \
   data.train_files=$OPD_ROOT/data/dapo_train.parquet data.val_files=$OPD_ROOT/data/math500_100.parquet \
-  data.train_batch_size=64 data.max_prompt_length=1024 data.max_response_length=$MAXR \
+  data.train_batch_size=$TBS data.max_prompt_length=1024 data.max_response_length=$MAXR \
   data.filter_overlong_prompts=True data.truncation=error data.shuffle=True data.seed=4242 data.return_raw_chat=True \
   +data.apply_chat_template_kwargs.enable_thinking=False \
   actor_rollout_ref.model.path=$START +actor_rollout_ref.model.override_config.attn_implementation=$ATTN \

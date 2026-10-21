@@ -14,6 +14,24 @@ setup() {
   cat > $T/rb/scripts/run_e12.sh <<'SH'
 echo "run_e12 $* SMOKE=$SMOKE STEPS=$SMOKE_STEPS PROBE_TASK=$PROBE_TASK" >> $CALLS
 d=$OPD_ROOT/runs/$PROBE_TASK; mkdir -p $d; S=/runs/E10b-P5/ckpt/global_step_150/actor/huggingface_bf16
+if [ $2 = E12b-P5-r3 ]; then   # [v2.5.9w] 128 groups scored a step, FAKE_R3_KEPT kept, their rows in the update and the dump
+  echo "${FAKE_R3_HOOK-VARDROP_HOOK_PATCHED}"
+  printf "task: E12b-P5-r3\nstart: $S\nalgo: ${FAKE_R3_ALGO:-reinforce_plus_plus_baseline (group mean, batch whitening) 128x8, zero-variance groups dropped}, 4K\nvariant: r3\n" > $d/config.yaml
+  python3 - $d <<'PY'
+import json, math, os, sys
+d = sys.argv[1]; kept = int(os.environ.get('FAKE_R3_KEPT', '20')); var = float(os.environ.get('FAKE_R3_VAR', '1.0'))
+extra = int(os.environ.get('FAKE_R3_DUMP_EXTRA', '0')); os.makedirs(os.path.join(d, 'rollouts'), exist_ok=True)
+with open(os.path.join(d, 'train.log'), 'a') as lg, open(os.path.join(d, 'vardrop.jsonl'), 'w') as vd:
+    for s in (1, 2, 3):
+        nz = max(kept, 26)
+        for g in range(128):
+            vd.write(json.dumps({'step': s, 'group': g, 'rng_seed': 123400000 + s, 'score': [1.0] * 8, 'len': [9] * 8, 'trunc': [0] * 8, 'spread': g < nz, 'kept': g < kept, 'empty_step': False}) + '\n')
+        r = 8 * kept
+        open(os.path.join(d, 'rollouts', f'{s}.jsonl'), 'w').write('{"score": 1.0}\n' * (r + extra))
+        lg.write(f'(TaskRunner pid=1) step:{s} - r3/groups:128.000 - r3/nonzero_groups:{nz}.000 - r3/kept_groups:{kept}.000 - r3/kept_rows:{r}.000 - r3/gen_tokens:900000.000 - r3/kept_tokens:200000.000 - r3/zero_var_frac:{1 - nz / 128:.3f} - r3/empty:0.000 - r3/rng_seed:123400001.000 - r3/adv_mean:0.000 - r3/adv_var:{var:.3f} - r3/update_rows:{r}.000 - r3/update_prompts:{kept}.000 - r3/ppo_mini_batches:{math.ceil(r / 128)}.000 - critic/score/mean:0.5\n')
+PY
+  exit 0
+fi
 if [ $2 = E12b-P5-16k ]; then   # [v2.5.8h]
   printf "task: E12b-P5-16k\nstart: $S\nvariant: 16k\nmax_response_length: ${FAKE_MAXR:-16384}\n" > $d/config.yaml
   for i in 1 2 3; do echo "(TaskRunner pid=1) step:$i - response_length/mean:$((9000 + i)) - critic/score/mean:0.5" >> $d/train.log; done
@@ -131,4 +149,24 @@ setup
 FAKE_CASES="[1.4995, 1.41, 0.0, 1.0]" FAKE_REWARD=reward_stop.py bash $T/rb/scripts/probe_e12var.sh 2 stop2 > /dev/null 2>&1
 ok "[v2.5.9f] stop2: another reward in the config is FAIL" '[ "$(s2 result)" = FAIL ] && [[ "$(s2 reason)" == *"does not name reward_stop2.py"* ]]'
 rm -rf $T
+# [v2.5.9w] r3: the unit tests with the training's python (a fake verl ray_trainer.py with both anchors), then the smoke's checks
+r3setup() {
+  setup; mkdir -p $T/rb/code/patches $T/py/verl/trainer/ppo
+  cp $SRC/code/patches/opd_vardrop.py $SRC/code/patches/opd_lensel.py $SRC/code/patches/lensel_patch.py $SRC/code/patches/vardrop_patch.py $SRC/code/patches/test_opd_vardrop.py $T/rb/code/patches/
+  : > $T/py/verl/__init__.py; : > $T/py/verl/trainer/__init__.py; : > $T/py/verl/trainer/ppo/__init__.py
+  printf 'class RayPPOTrainer:\n    def fit(self):\n        for epoch in range(3):\n            for batch_dict in []:\n                metrics = {}\n                with marked_timer("step", timing_raw):\n                    batch = batch.union(gen_batch_output)\n                    with marked_timer("adv", timing_raw):\n                        batch = compute_advantage(\n                            batch,\n                            config=self.config.algorithm,\n                        )\n' > $T/py/verl/trainer/ppo/ray_trainer.py
+  export PEV_PY=python3 PYTHONPATH=$T/py
+}
+r3res() { python3 -c "import json, sys; print(json.load(open(sys.argv[1])).get(sys.argv[2], ''))" $T/root/runs/PROBE-E12B-R3/report.json "$1"; }
+r3setup; bash $T/rb/scripts/probe_e12var.sh 2 r3 > /dev/null 2>&1
+ok "[v2.5.9w] r3 PASS: unit tests on the node's python, 3-step smoke of E12b-P5-r3, kept groups by step, upload + event" '[ "$(r3res result)" = PASS ] && [[ "$(r3res reason)" == *"kept groups by step 20/20/20 of 128"* ]] && grep -q "passed, 0 failed" $T/root/runs/PROBE-E12B-R3/unit_tests.txt && grep -q "^run_e12 2 E12b-P5-r3 SMOKE=1 STEPS=3 PROBE_TASK=PROBE-E12B-R3-smoke" $CALLS && grep -q "^remote put $T/root/runs/PROBE-E12B-R3/up logs/abcd1234/probe_e12var/PROBE-E12B-R3" $CALLS && grep -q "^control event PROBE-E12B-R3 probe_e12var_pass" $CALLS && [ -f $T/root/runs/PROBE-E12B-R3/up/vardrop.jsonl ] && [[ "$(r3res r3_by_step)" == *"dump_rows"* ]]'
+rm -rf $T
+r3fail() { ok "$1" '[ "$(r3res result)" = FAIL ] && [[ "$(r3res reason)" == *"'"$2"'"* ]]'; }
+r3setup; FAKE_R3_VAR=2.2 bash $T/rb/scripts/probe_e12var.sh 2 r3 > /dev/null 2>&1; r3fail "[v2.5.9w] r3: a variance of 2.2 over the kept tokens (the whitening saw dropped rows) is FAIL" "not whitened on the kept rows"; rm -rf $T
+r3setup; FAKE_R3_DUMP_EXTRA=8 bash $T/rb/scripts/probe_e12var.sh 2 r3 > /dev/null 2>&1; r3fail "[v2.5.9w] r3: dropped rows in the rollout dump is FAIL" "the rollout dump has 168 rows"; rm -rf $T
+r3setup; FAKE_R3_KEPT=70 bash $T/rb/scripts/probe_e12var.sh 2 r3 > /dev/null 2>&1; r3fail "[v2.5.9w] r3: 70 kept groups (over 64) is FAIL" "70 kept groups"; rm -rf $T
+r3setup; FAKE_R3_ALGO="GRPO 64x8" bash $T/rb/scripts/probe_e12var.sh 2 r3 > /dev/null 2>&1; r3fail "[v2.5.9w] r3: a GRPO 64x8 config is FAIL" "does not name reinforce_plus_plus_baseline 128x8"; rm -rf $T
+r3setup; FAKE_R3_HOOK="" bash $T/rb/scripts/probe_e12var.sh 2 r3 > /dev/null 2>&1; r3fail "[v2.5.9w] r3: no hook install before the smoke is FAIL" "vardrop_patch.py did not run"; rm -rf $T
+r3setup; printf 'x = 1\n' > $T/py/verl/trainer/ppo/ray_trainer.py; bash $T/rb/scripts/probe_e12var.sh 2 r3 > /dev/null 2>&1; r3fail "[v2.5.9w] r3: the unit tests fail on a ray_trainer.py without the anchors (no smoke)" "r3 unit tests"; ok "[v2.5.9w] r3: no smoke after failed unit tests" '! grep -q "^run_e12" $CALLS'; rm -rf $T
+unset PYTHONPATH
 [ $fails = 0 ] && echo "PROBE_E12VAR_TEST PASS ($n checks)" || echo "PROBE_E12VAR_TEST FAIL ($fails of $n)"

@@ -10,6 +10,7 @@ so re-running after a patch change is safe.
 2) ref_input_utils.prepare_ref_model_inputs: if env OPD_REF_THINK=1, render the teacher prompt in
    think mode and append '<think>\\n' (as in 2610.14270's think-likeness judge) -> arm P5.
 4) ray_trainer.RayPPOTrainer.fit: [v2.5.8m] the length-selection hook (lensel_patch.py; a no-op unless OPD_LENSEL is set).
+   [v2.5.9w] and r3's group drop (vardrop_patch.py; a no-op unless OPD_VARDROP is set).
 Usage: python apply_patches.py $OPD_ROOT/G-OPD/verl
 """
 import subprocess
@@ -124,3 +125,9 @@ print("patched", root / "verl/trainer/ppo/ref_input_utils.py", "and", root / "ve
 from tailswap_patch import patch_file as _ts_patch  # noqa: E402
 _ts_patch(str(root / "verl/trainer/ppo/ray_trainer.py"), keep_orig=False)   # the pristine file is in git
 print("patched", root / "verl/trainer/ppo/ray_trainer.py", "(tail-swap OPD)")
+
+# 7. [v2.5.9w] (Q-039) r3's group drop (vardrop_patch.py; a no-op unless OPD_VARDROP is set): after the rollouts are joined,
+#    the rows of at most K groups whose scores differ go on; after compute_advantage, the kept tokens' advantage statistics
+from vardrop_patch import patch_file as _vd_patch  # noqa: E402
+_vd_patch(str(root / "verl/trainer/ppo/ray_trainer.py"), keep_orig=False)   # the pristine file is in git
+print("patched", root / "verl/trainer/ppo/ray_trainer.py", "(r3 group drop)")
