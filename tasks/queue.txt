@@ -86,6 +86,8 @@ b259lp   open   PROBE-STOPMERGE
 b259l    open   E10b-P5stopmerge:PROBE-STOPMERGE EVAL-smerge:E10b-P5stopmerge EVAL-ext32k-17smerge:E10b-P5stopmerge
 b259np   open   PROBE-TAIL
 b259n    open   E10b-P5tail:PROBE-TAIL EVAL-tail:E10b-P5tail EVAL-ext32k-17tail:E10b-P5tail
+b259up   open   PROBE-POLISH
+b259u    open   E10c-P5-polish:PROBE-POLISH EVAL-polish:E10c-P5-polish EVAL-ext32k-06polish:E10c-P5-polish
 night1   open   EVAL-ext-06p5rl EVAL-ext-x1 EVAL-ext-x2 EVAL-ext-x4:E10d-X4 EVAL-ext32k-17p5selfrl-s43 EVAL-ext-17p5selfrl-s43 EVAL-ext-17p5self-s43 EVAL-budA-17p2rl-s43 EVAL-budA-4Bp2s43
 b259ip   open   PROBE-ROLLOUT-U60 PROBE-ROLLOUT-U85 PROBE-ROLLOUT-U75
 night2   open   EVAL-ext-17s44mid EVAL-ext-4Bmid EVAL-budA-17p2seeds
@@ -1578,3 +1580,20 @@ olpd     open   EVAL-ext32k-17olpd
 #eval EVAL-ext32k-17tail ext32k17_P5tail_s50_aime25_T0.6 result:runs/E10b-P5tail/global_step_50/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-17tail ext32k17_P5tail_s50_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17smerge/ext32k17_P5smerge_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #pair EVAL-ext32k-17tail ext32k17_P5tail_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17smerge/ext32k17_P5smerge_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
+# b259up / b259u (runbook v2.5.9u, T2, the reviewer's A1): E10c-P5-polish = the 0.6B P5 student (E10c-P5-fix4 s150) taught for 20 more
+# steps by the 0.6B base on its own thinking template, gated by PROBE-POLISH. Readings at s20: MATH500 16K T0.6 / T1.0 paired against
+# the start (P5-fix4 s150); MATH500 32K with the budget curves against the base, the start and the 0.6B thinking mode; STRICT-C1
+# against the start; AIME24/25 avg@16 32K paired against the start and the thinking mode. TERM4 rows later.
+#eval EVAL-polish e10c_P5polish_s20_math500_T0.6 result:runs/E10c-P5-polish/global_step_20/actor/huggingface math500 4 0.6
+#eval EVAL-polish e10c_P5polish_s20_math500_T1.0 result:runs/E10c-P5-polish/global_step_20/actor/huggingface math500 4 1.0
+#eval EVAL-polish budA06polish_s20_math500_T0.6_32k result:runs/E10c-P5-polish/global_step_20/actor/huggingface math500 4 0.6 32768
+#pair EVAL-polish e10c_P5polish_s20_math500_T0.6 EVAL-e10c-P5-fix4/e10c_P5-fix4_s150_math500_T0.6_math500_no_think_t0.6.jsonl
+#pair EVAL-polish e10c_P5polish_s20_math500_T1.0 EVAL-e10c-P5-fix4/e10c_P5-fix4_s150_math500_T1.0_math500_no_think_t1.0.jsonl
+#budget EVAL-polish budget_curve EVAL-budA06/budA_base06_math500_T0.6_32k_math500_no_think_t0.6.jsonl budA06polish_s20_math500_T0.6_32k
+#budget EVAL-polish budget_curve_vsStart EVAL-budA06p5/budA06_E10cP5fix4_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budA06polish_s20_math500_T0.6_32k
+#budget EVAL-polish budget_curve_vsThink EVAL-budA06think/budA06_P0think_math500_T0.6_32k_math500_think_t0.6.jsonl budA06polish_s20_math500_T0.6_32k
+#strict STRICT-C1 EVAL-polish/budA06polish_s20_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA06p5/budA06_E10cP5fix4_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#eval EVAL-ext32k-06polish ext32k06_P5polish_s20_aime24_T0.6 result:runs/E10c-P5-polish/global_step_20/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-06polish ext32k06_P5polish_s20_aime25_T0.6 result:runs/E10c-P5-polish/global_step_20/actor/huggingface aime25 16 0.6 32768
+#pair EVAL-ext32k-06polish ext32k06_P5polish_s20_aime24_T0.6 EVAL-ext32k-06/ext32k06_E10cP5fix4_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-06think/ext32k06_P0think_aime24_T0.6_aime24_think_t0.6.jsonl
+#pair EVAL-ext32k-06polish ext32k06_P5polish_s20_aime25_T0.6 EVAL-ext32k-06/ext32k06_E10cP5fix4_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-06think/ext32k06_P0think_aime25_T0.6_aime25_think_t0.6.jsonl
