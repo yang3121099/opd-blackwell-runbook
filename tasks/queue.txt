@@ -72,6 +72,7 @@ fill12   open   EVAL-ext-4Bp5self:E10d-P5self
 fill13   open   EVAL-ext32k-17sets-a EVAL-ext32k-17sets-b:E12b-P5-kl
 budF     open   EVAL-budF-4B EVAL-budF-06:EVAL-budA06p5+EVAL-budA06think
 passk    open   EVAL-passk-ext
+z8b      open   EVAL-ext32k-8Bthink-aime
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T0.6 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T1.0 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 1.0
 #eval EVAL-e10c-dyn16k e10c_P4lowlr-dyn16k_s150_math500_T0.6 local:runs/E10c-P4lowlr-dyn16k/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
@@ -1291,3 +1292,13 @@ passk    open   EVAL-passk-ext
 #pair EVAL-e10d-x4 e10d_X4_s50_math500_T0.6 EVAL-e10d-P0/e10d_P0_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e10d-P5/e10d_P5_s150_math500_T0.6_math500_no_think_t0.6.jsonl
 #strict STRICT-C1 EVAL-budA-x4/budAX4_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-4B/budA4B_base4B_math500_T0.6_32k_math500_no_think_t0.6.jsonl
 #strict STRICT-C1 EVAL-budA-x4/budAX4_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-i2507/i2507_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+# z8b / Z1 (reviewer 07:4x UTC 10-21, Runming's questions, research_program §3b): Z2 = the 8B teacher in thinking mode on AIME24/25
+# avg@16 32K with pass@k per budget against the 4B thinking mode, 4B P5 s150, 4B P5self s50 and Instruct-2507 (does the student
+# pass the teacher?); Z1 = three PROBE-TERM4 rows, the 14B-teacher arms and P5think ("is a closer teacher cleaner?"), rerun after
+#eval EVAL-ext32k-8Bthink-aime ext32k8B_think_aime24_T0.6 local:models/Qwen3-8B aime24 16 0.6 32768 think
+#eval EVAL-ext32k-8Bthink-aime ext32k8B_think_aime25_T0.6 local:models/Qwen3-8B aime25 16 0.6 32768 think
+#budget EVAL-ext32k-8Bthink-aime passk8B_aime24 ext32k8B_think_aime24_T0.6 EVAL-ext32k-4Bthink/ext32k4B_P0think_aime24_T0.6_aime24_think_t0.6.jsonl EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4Bp5self/ext32k4B_E10dP5self_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-i2507-aime/i2507_aime24_T0.6_32k_aime24_no_think_t0.6.jsonl
+#budget EVAL-ext32k-8Bthink-aime passk8B_aime25 ext32k8B_think_aime25_T0.6 EVAL-ext32k-4Bthink/ext32k4B_P0think_aime25_T0.6_aime25_think_t0.6.jsonl EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Bp5self/ext32k4B_E10dP5self_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-i2507-aime/i2507_aime25_T0.6_32k_aime25_no_think_t0.6.jsonl
+#term PROBE-TERM4 17_P5t14 result:runs/E10b-P5-t14/global_step_150/actor/huggingface E11b-P5-t14/e11b_P5-t14_math500_T0.6_math500_no_think_t0.6.jsonl
+#term PROBE-TERM4 17_P2t14 result:runs/E10b-P2-t14/global_step_150/actor/huggingface E11b-P2-t14/e11b_P2-t14_math500_T0.6_math500_no_think_t0.6.jsonl
+#term PROBE-TERM4 17_P5think local:runs/E10b-P5think/ckpt/global_step_50/actor/huggingface EVAL-e10b-P5think/e10b_P5think_s50_math500_T0.6_math500_think_t0.6.jsonl think
