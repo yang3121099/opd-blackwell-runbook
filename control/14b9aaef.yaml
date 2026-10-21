@@ -373,3 +373,4 @@ commands:
   - {"seq": 371, "cmd": "kill E10b-P5lenS", "reason": "Runming's rule via the reviewer 10:1x: free two GPUs at once for E12b-P5-16k (#gpus 2); this arm started 09:59, no progress kept; requeued after 16k starts", "utc": "2026-10-21T10:09:14Z"}
   - {"seq": 372, "cmd": "kill E10b-P5lenL", "reason": "same: together with E10b-P5lenS so both GPUs free in one pass; started 10:04; requeued after 16k starts", "utc": "2026-10-21T10:09:23Z"}
   - {"seq": 373, "cmd": "resume EVAL-e10d-x1", "reason": "requeued after E12b-P5-16k took GPU2 + GPU7 at 10:11 UTC (two-GPU restart); readings keep their generations, the arms start again from step 0", "utc": "2026-10-21T10:12:02Z"}
+  - {"seq": 374, "cmd": "resume EVAL-e10d-x2", "reason": "requeued after E12b-P5-16k took GPU2 + GPU7 at 10:11 UTC (two-GPU restart); readings keep their generations, the arms start again from step 0", "utc": "2026-10-21T10:12:11Z"}
