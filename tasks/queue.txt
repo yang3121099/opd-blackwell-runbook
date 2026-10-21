@@ -75,7 +75,7 @@ fill12   open   EVAL-ext-4Bp5self:E10d-P5self
 fill13   open   EVAL-ext32k-17sets-a EVAL-ext32k-17sets-b:E12b-P5-kl
 budF     open   EVAL-budF-4B EVAL-budF-06:EVAL-budA06p5+EVAL-budA06think
 passk    open   EVAL-passk-ext
-z8b      open   EVAL-ext32k-8Bthink-aime
+z8b      open   EVAL-ext32k-8Bthink-aime EVAL-ext32k-17base
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T0.6 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T1.0 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 1.0
 #eval EVAL-e10c-dyn16k e10c_P4lowlr-dyn16k_s150_math500_T0.6 local:runs/E10c-P4lowlr-dyn16k/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
@@ -1329,3 +1329,6 @@ z8b      open   EVAL-ext32k-8Bthink-aime
 # b259ap (runbook v2.5.9a, reviewer A1 09:2x UTC): the gate of the two-GPU slot on two GPUs (#gpus); its report (speedup,
 # worth_it) decides which arms take two GPUs; E12b-P5-16k restarts on two only if two GPUs are free and it is before s15
 #gpus PROBE-2GPU 2
+# z8b (reviewer, adaptivity table 10-21): the 1.7B base on AIME24/25 avg@16 32K (non-thinking), the one missing row
+#eval EVAL-ext32k-17base ext32k17_base17_aime24_T0.6 local:models/Qwen3-1.7B aime24 16 0.6 32768
+#eval EVAL-ext32k-17base ext32k17_base17_aime25_T0.6 local:models/Qwen3-1.7B aime25 16 0.6 32768
