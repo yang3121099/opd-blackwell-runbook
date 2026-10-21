@@ -107,7 +107,7 @@ dead() { [ "$(attempts $1)" -ge 3 ]; }
 running() { pgrep -f "task.sh ([0-9]+(,[0-9]+)*|cpu) $1\$" >/dev/null; }   # [v2.5.8] cpu: a CPU-lane task; [v2.5.9a] a,b: a #gpus task
 # [v2.5.8] (reviewer 08:5x UTC 10-19: CPU phases without a GPU slot) CPU-only tasks run in a lane of their own, "gpu" cpu,
 # at most CPU_MAX (default 1) at once; STRICT-C1 held a GPU slot for its rejudge (and three on its failed attempts)
-cpu_task() { case $1 in STRICT-C1|PROBE-NET|PROBE-NET2|BUILD-VENV-VL|READINGS-EXTRA) return 0;; esac; return 1; }   # [v2.5.9c] PROBE-NET; [v2.5.9h] PROBE-NET2; [v2.5.9y1] BUILD-VENV-VL; [v2.5.9x1] READINGS-EXTRA
+cpu_task() { case $1 in STRICT-C1|PROBE-NET|PROBE-NET2|BUILD-VENV-VL|READINGS-EXTRA|PROBE-STOPMERGE-UNIT) return 0;; esac; return 1; }   # [v2.5.9c] PROBE-NET; [v2.5.9h] PROBE-NET2; [v2.5.9y1] BUILD-VENV-VL; [v2.5.9x1] READINGS-EXTRA; [v2.5.9z6] PROBE-STOPMERGE-UNIT
 cpu_busy() { [ "$(pgrep -f "task.sh cpu [A-Za-z0-9._-]+\$" | wc -l | tr -d ' ')" -ge "${CPU_MAX:-1}" ]; }
 free_gpus() { for i in $(seq 0 $((NGPU-1))); do
     # v2.5.4d: a GPU given to a task stays taken while its task.sh / ad-hoc evaluation runs, also before the task touches it

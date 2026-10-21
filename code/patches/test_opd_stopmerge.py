@@ -2,6 +2,8 @@
 stop-set log-prob (torch). Run: python -m pytest -q test_opd_stopmerge.py, or any plain runner of the test_ functions
 (PROBE-STOPMERGE runs them on the node, with torch)."""
 import math
+import os
+import unittest
 
 import numpy as np
 
@@ -115,15 +117,58 @@ def test_patch_texts_on_the_real_files():   # GOPD_VERL=<G-OPD's verl package di
     import os
     import stopmerge_patch as P
     d = os.environ.get("GOPD_VERL")
-    if not d:
-        return
+    if not d:   # [v2.5.9z6] a visible skip (pytest and the probe's runner count it), not a silent pass
+        raise unittest.SkipTest("GOPD_VERL not set")
     for rel, fn, n in (("trainer/ppo/ref_input_utils.py", P.patch_ref_text, 1), ("workers/actor/dp_actor.py", P.patch_actor_text, 6)):
-        src = open(os.path.join(d, rel)).read()
+        _check_real_file(os.path.join(d, rel), rel, fn, n, P.MARK)
+
+
+def _check_real_file(path, rel, fn, n, mark):
+    """[v2.5.9z6] the installed file as it is, and its rollback copy <file>.orig when there is one: an unpatched text gets
+    both hooks once, compiles and is patched idempotently; one already patched (an earlier smoke patches the installed
+    file: PROBE-STOPMERGE's third run 10-21 20:20 UTC failed on it) has the hooks n times, compiles and is left unchanged."""
+    texts = [open(path).read()] + ([open(path + ".orig").read()] if os.path.exists(path + ".orig") else [])
+    for src in texts:
+        if mark in src:
+            assert src.count(mark) == n, (rel, "already patched", src.count(mark))
+            compile(src, rel, "exec")
+            assert fn(src) == (src, False), (rel, "already patched, changed again")
+            continue
         new, changed = fn(src)
-        assert changed and new.count(P.MARK) == n, (rel, new.count(P.MARK))
+        assert changed and new.count(mark) == n, (rel, new.count(mark))
         compile(new, rel, "exec")
         again, changed2 = fn(new)
         assert not changed2 and again == new   # idempotent
+
+
+def test_real_file_check_on_patched_installed_files():
+    """[v2.5.9z6] G-OPD's two files (GOPD_SRC: the source tree's verl dir; on the node its files may be patched already, then
+    their .orig is the unpatched text), checked unpatched, then patched in place with a .orig (as the smoke leaves the
+    installed package), and a wrong hook count must fail. Skipped (visibly) without GOPD_SRC or without an unpatched text."""
+    import shutil
+    import tempfile
+    import stopmerge_patch as P
+    src = os.environ.get("GOPD_SRC")
+    if not src:
+        raise unittest.SkipTest("GOPD_SRC not set")
+    d = tempfile.mkdtemp()
+    try:
+        for rel, fn, n in (("trainer/ppo/ref_input_utils.py", P.patch_ref_text, 1), ("workers/actor/dp_actor.py", P.patch_actor_text, 6)):
+            f = os.path.join(src, rel)
+            if P.MARK in open(f).read():
+                f += ".orig"
+                if not os.path.exists(f) or P.MARK in open(f).read():
+                    raise unittest.SkipTest(f"GOPD_SRC's {rel} is patched and has no unpatched .orig")
+            p = os.path.join(d, rel); os.makedirs(os.path.dirname(p), exist_ok=True); shutil.copyfile(f, p)
+            _check_real_file(p, rel, fn, n, P.MARK)                        # unpatched, no .orig
+            assert P.patch_file(p, fn) and os.path.exists(p + ".orig")      # the smoke's patch
+            _check_real_file(p, rel, fn, n, P.MARK)                        # patched + its .orig: the third run's case
+            try:
+                _check_real_file(p, rel, fn, n + 1, P.MARK); raise RuntimeError("a wrong hook count passed")
+            except AssertionError:
+                pass
+    finally:
+        shutil.rmtree(d)
 
 
 def test_patch_file_atomic_with_rollback_copy():

@@ -10,9 +10,12 @@
 #     teacher's own (gain >= 0: the stop set holds the student's stop); the installed files holding the hooks once.
 # report.json (per step: rows, share with a box, merges per row, mean gain, the teacher's stop mass after the box), to
 # logs/<node>/probe_stopmerge/<task> (private), an event, .done. ~25 min on one GPU.
-# Usage: bash probe_stopmerge.sh <gpu>
+# [v2.5.9z6] PSM_UNIT_ONLY=1 (task PROBE-STOPMERGE-UNIT, the CPU lane): step 1 only, no GPU, in runs/PROBE-STOPMERGE-UNIT (the gate's
+# own report is not touched): the unit-test line "N passed, F failed, S skipped" (a skip fails the gate too) and hooks.txt,
+# the installed files' hook lines with the guard each one runs under (OPD_STOPMERGE=1 or the batch key it sets).
+# Usage: bash probe_stopmerge.sh <gpu>   |   PSM_UNIT_ONLY=1 bash probe_stopmerge.sh cpu
 set -uo pipefail
-G=$1; T=PROBE-STOPMERGE; source "$(dirname "$0")/env.sh"
+G=$1; T=PROBE-STOPMERGE; [ "${PSM_UNIT_ONLY:-0}" = 1 ] && T=PROBE-STOPMERGE-UNIT; source "$(dirname "$0")/env.sh"
 D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; mkdir -p $D
 [ -f $D/.done ] && { echo "TASK_ALREADY_DONE $T"; exit 0; }
 step() { echo "PROBE_STOPMERGE $(date -u +%T) $*" | tee -a $LOG; }
@@ -31,7 +34,7 @@ if os.path.exists(p):
     r["checks"] = json.load(open(p))
 json.dump(r, open(os.path.join(d, "report.json"), "w"), indent=1)
 PY
-  mkdir -p $D/up; cp $D/report.json $D/probe.log $D/unit_tests.txt $D/up/ 2> /dev/null
+  mkdir -p $D/up; cp $D/report.json $D/probe.log $D/unit_tests.txt $D/hooks.txt $D/up/ 2> /dev/null
   [ -f $D/smoke/train.log ] && tail -c 200000 $D/smoke/train.log > $D/up/train_tail.log
   [ -f $D/smoke/stopmerge.jsonl ] && cp $D/smoke/stopmerge.jsonl $D/up/
   python3 $RUNBOOK/scripts/remote.py put $D/up logs/$(python3 $RUNBOOK/scripts/control.py node)/probe_stopmerge/$T >> $LOG 2>&1 || step "report upload failed (kept in $D)"
@@ -42,29 +45,53 @@ PY
 PY=${PSM_PY:-$OPD_ROOT/venv/bin/python}; [ -x "$PY" ] || PY=python3
 VD=$($PY -c "import importlib.util as u, os; print(os.path.dirname(u.find_spec('verl').origin))" 2> /dev/null)
 [ -n "$VD" ] && [ -f "$VD/workers/actor/dp_actor.py" ] || finish FAIL "verl's package not found by $PY"
-step "start gpu=$G unit tests with $PY"
-( cd $RUNBOOK/code/patches && CUDA_VISIBLE_DEVICES= GOPD_VERL=$VD $PY - > $D/unit_tests.txt 2>&1 <<'PY'
-import importlib, inspect, sys, traceback
+# [v2.5.9z6] GOPD_SRC = G-OPD's source tree (the trainings run from it; its .orig when its files carry the hooks already)
+GS=${GOPD_SRC:-$OPD_ROOT/G-OPD/verl/verl}; [ -f $GS/workers/actor/dp_actor.py ] || GS=$VD
+step "start gpu=$G unit tests with $PY (GOPD_VERL $VD, GOPD_SRC $GS)"
+( cd $RUNBOOK/code/patches && CUDA_VISIBLE_DEVICES= GOPD_VERL=$VD GOPD_SRC=$GS $PY - > $D/unit_tests.txt 2>&1 <<'PY'
+import importlib, inspect, sys, traceback, unittest
 sys.path.insert(0, ".")
-n = fails = 0
+n = fails = skips = 0
 mod = importlib.import_module("test_opd_stopmerge")
 for name, f in inspect.getmembers(mod, inspect.isfunction):
     if name.startswith("test_") and f.__module__ == "test_opd_stopmerge":
         n += 1
         try:
             f()
+        except unittest.SkipTest as e:   # [v2.5.9z6] counted, and it fails the gate: a test that did not run is not a pass
+            skips += 1; print("SKIPPED", name, e)
         except Exception:
             fails += 1; print("FAILED", name); traceback.print_exc()
 try:
     import torch  # noqa: F401  (the torch tests return early without it: on the node they must run)
 except ImportError:
     fails += 1; print("FAILED torch not importable: the merge and stop-set tests did not run")
-print(f"{n - fails} passed, {fails} failed")
-sys.exit(1 if fails or not n else 0)
+print(f"{n - fails - skips} passed, {fails} failed, {skips} skipped")
+sys.exit(1 if fails or skips or not n else 0)
 PY
 ); rc=$?
-step "unit tests: $(tail -1 $D/unit_tests.txt)"
+# [v2.5.9z6] the hook lines of the files the trainings import (the installed package and the source tree), each with its guard
+python3 - "$VD" "$GS" > $D/hooks.txt 2>&1 <<'PY'
+import os, sys
+mark = "# [opd-variants patch v2] [v2.5.9l] stop-merged OPD"
+seen = set()
+for d in sys.argv[1:]:
+    for rel in ("trainer/ppo/ref_input_utils.py", "workers/actor/dp_actor.py"):
+        f = os.path.realpath(os.path.join(d, rel))
+        if f in seen or not os.path.exists(f):
+            continue
+        seen.add(f); lines = open(f).read().splitlines()
+        hits = [i for i, x in enumerate(lines) if mark in x]
+        print(f"== {rel} ({'the installed package' if d == sys.argv[1] else 'the source tree'}): {len(hits)} hook lines")
+        for i in hits:
+            print(f"{i + 1}: {lines[i].strip()}")
+            if not lines[i].lstrip().startswith(("if ", "_sm_on")):   # the hook's guard is the next line
+                print(f"{i + 2}: {lines[i + 1].strip()}")
+print(f"files: {len(seen)} distinct")
+PY
+step "unit tests: $(tail -1 $D/unit_tests.txt); hooks: $(grep -c '^== ' $D/hooks.txt) files listed"
 [ $rc = 0 ] || finish FAIL "unit tests: $(tail -1 $D/unit_tests.txt)"
+[ "${PSM_UNIT_ONLY:-0}" = 1 ] && finish PASS "unit tests only (no smoke): $(tail -1 $D/unit_tests.txt)"
 # 2. the 3-step smoke
 for _w in $(seq 19); do
   used=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $G 2>/dev/null | tr -d ' ')

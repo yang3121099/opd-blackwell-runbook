@@ -83,6 +83,7 @@ budF     open   EVAL-budF-4B EVAL-budF-06:EVAL-budA06p5+EVAL-budA06think
 passk    open   EVAL-passk-ext
 z8b      open   EVAL-ext32k-8Bthink-aime EVAL-ext32k-17base
 b259lp   open   PROBE-STOPMERGE
+b259z6   open   PROBE-STOPMERGE-UNIT
 b259l    open   E10b-P5stopmerge:PROBE-STOPMERGE EVAL-smerge:E10b-P5stopmerge EVAL-ext32k-17smerge:E10b-P5stopmerge
 b259np   open   PROBE-TAIL
 b259n    open   E10b-P5tail:PROBE-TAIL EVAL-tail:E10b-P5tail EVAL-ext32k-17tail:E10b-P5tail
@@ -1792,3 +1793,6 @@ olpd     open   EVAL-ext32k-17olpd
 # problem-level paired bootstrap (READINGS-EXTRA's #pairq rows: CPU, from the readings already on the node; `rerun READINGS-EXTRA`)
 #pairq READINGS-EXTRA 8Bthink_vs_4Bthink_aime24 EVAL-ext32k-8Bthink-aime/ext32k8B_think_aime24_T0.6_aime24_think_t0.6.jsonl EVAL-ext32k-4Bthink/ext32k4B_P0think_aime24_T0.6_aime24_think_t0.6.jsonl
 #pairq READINGS-EXTRA 8Bthink_vs_4Bthink_aime25 EVAL-ext32k-8Bthink-aime/ext32k8B_think_aime25_T0.6_aime25_think_t0.6.jsonl EVAL-ext32k-4Bthink/ext32k4B_P0think_aime25_T0.6_aime25_think_t0.6.jsonl
+# b259z6 (runbook v2.5.9z6, Q-038, the reviewer's A1 with conditions): PROBE-STOPMERGE-UNIT, the gate's own unit tests and the installed
+# files' hook guards only (the CPU lane, no GPU; runs/PROBE-STOPMERGE-UNIT, the gate's report untouched). Its "N passed, 0 failed,
+# 0 skipped" goes to the inbox before PROBE-STOPMERGE is rerun for its GPU smoke.
