@@ -430,3 +430,4 @@ commands:
   - {"seq": 428, "cmd": "snapshot models/Qwen3-32B", "reason": "32B rate sample 2", "utc": "2026-10-21T18:58:07Z"}
   - {"seq": 429, "cmd": "logs E10b-P5stopmerge 120", "reason": "Q-038 stopmerge failed x3 at step 0: diagnosis for ops-lead (read only)", "utc": "2026-10-21T19:40:33Z"}
   - {"seq": 430, "cmd": "rerun PROBE-STOPMERGE", "reason": "v2.5.9z2 (Fable A1): the gate's torch test fixed (float32 compared with a tolerance); the arm is rerun only after a PASS", "utc": "2026-10-21T19:46:03Z"}
+  - {"seq": 431, "cmd": "rerun PROBE-STOPMERGE", "reason": "v2.5.9z4 (Fable A1): merge's positions on the GPU; the arm and its readings wait for the gate's PASS (v2.5.9z3 blocks them otherwise)", "utc": "2026-10-21T20:11:09Z"}
