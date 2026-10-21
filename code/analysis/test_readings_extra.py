@@ -80,3 +80,34 @@ def test_pairq_paired_bootstrap():   # [v2.5.9z5] problem-level pairs of two rea
     assert "EVAL-z/none.jsonl" in s["missing"] and any("refused path" in m for m in s["missing"])
     assert json.load(open(os.path.join(out, "up", "runs", "READINGS-EXTRA", "pairs.json")))["c_vs_d"]["diff"] == 16.67
     assert "c_vs_d | 66.67 | 50.0 | 16.67 [" in open(os.path.join(out, "summary.txt")).read()
+
+
+def test_coverq_problem_coverage():   # [v2.5.9z7] (Q-052) problems one reading solves at least once and the other never
+    runs, out, q = setup()
+    os.makedirs(os.path.join(runs, "EVAL-c"))
+    solved = {"a": {0, 1, 2, 5}, "b": {0, 1, 3, 4, 6}, "t": {3, 5}, "s": {4}}   # by problem index; problem 7: nobody
+    for k, sol in solved.items():
+        with open(os.path.join(runs, "EVAL-c", f"{k}.jsonl"), "w") as f:
+            for i in range(8 if k != "s" else 7):                              # the extra s lacks problem 7
+                for smp in range(4):
+                    f.write(json.dumps({"pid": f"aime25-{i}", "sample": smp, "correct": i in sol and smp < (1 if k == "a" else 2)}) + "\n")
+    open(q, "a").write("#coverq READINGS-EXTRA q052_aime25 EVAL-c/a.jsonl EVAL-c/b.jsonl teacher=EVAL-c/t.jsonl self=EVAL-c/s.jsonl gone=EVAL-z/x.jsonl\n"
+                       "#coverq READINGS-EXTRA nob EVAL-c/a.jsonl EVAL-z/none.jsonl\n#coverq READINGS-EXTRA bad EVAL-c/a.jsonl EVAL-c/b.jsonl t=../x.jsonl\n")
+    s = X.main(runs, q, out)
+    c = s["coverage"]["q052_aime25"]
+    assert (c["problems"], c["a_solved"], c["b_solved"], c["both"], c["neither"]) == (8, 4, 5, 2, 1)
+    assert [r["pid"] for r in c["b_only"]] == ["aime25-3", "aime25-4", "aime25-6"] and [r["pid"] for r in c["a_only"]] == ["aime25-2", "aime25-5"]
+    r3 = c["b_only"][0]
+    assert r3["a"] == [0, 4] and r3["b"] == [2, 4] and r3["teacher"] == [2, 4] and r3["self"] == [0, 4] and "gone" not in r3
+    assert c["b_only"][1]["self"] == [2, 4] and c["a_only"][1]["teacher"] == [2, 4] and c["a_only"][1]["a"] == [1, 4]
+    assert c["extras_missing"] == ["gone"] and "EVAL-z/x.jsonl" in s["missing"] and "EVAL-z/none.jsonl" in s["missing"]
+    assert "nob" not in s["coverage"] and "bad" not in s["coverage"] and "bad: refused path" in s["missing"]
+    assert json.load(open(os.path.join(out, "up", "runs", "READINGS-EXTRA", "coverage.json")))["q052_aime25"]["b_solved"] == 5
+    t = open(os.path.join(out, "summary.txt")).read()
+    assert "q052_aime25 | 8 | 4 / 5 / 2 / 1 | aime25-3 a 0/4 b 2/4 teacher 2/4 self 0/4 gone —; aime25-4 " in t
+
+
+def test_coverq_extra_without_a_problem_is_null():
+    A, B, E = {"p-0": [0, 4], "p-1": [1, 4]}, {"p-0": [3, 4], "p-1": [1, 4], "p-2": [1, 4]}, {"p-1": [4, 4]}
+    c = X.coverage(A, B, {"e": E})
+    assert c["b_only"] == [{"pid": "p-0", "a": [0, 4], "b": [3, 4], "e": None}] and c["not_in_both"] == ["p-2"] and c["problems"] == 2

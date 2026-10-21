@@ -1796,3 +1796,8 @@ olpd     open   EVAL-ext32k-17olpd
 # b259z6 (runbook v2.5.9z6, Q-038, the reviewer's A1 with conditions): PROBE-STOPMERGE-UNIT, the gate's own unit tests and the installed
 # files' hook guards only (the CPU lane, no GPU; runs/PROBE-STOPMERGE-UNIT, the gate's report untouched). Its "N passed, 0 failed,
 # 0 skipped" goes to the inbox before PROBE-STOPMERGE is rerun for its GPU smoke.
+# (the reviewer 10-22, Q-052 (b), via ops-lead) problem coverage on AIME 32K avg@16: 4B P5 s150 (a, non-thinking) against the 4B base
+# on its thinking template (b): the problems b solves at least once and P5 never (b_only), the reverse (a_only), each with the 8B
+# teacher's and 4B P5self s50's counts (READINGS-EXTRA's #coverq rows, CPU, readings already on the node; coverage.json)
+#coverq READINGS-EXTRA q052_aime24 EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4Bthink/ext32k4B_P0think_aime24_T0.6_aime24_think_t0.6.jsonl 8Bthink=EVAL-ext32k-8Bthink-aime/ext32k8B_think_aime24_T0.6_aime24_think_t0.6.jsonl P5self=EVAL-ext32k-4Bp5self/ext32k4B_E10dP5self_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#coverq READINGS-EXTRA q052_aime25 EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Bthink/ext32k4B_P0think_aime25_T0.6_aime25_think_t0.6.jsonl 8Bthink=EVAL-ext32k-8Bthink-aime/ext32k8B_think_aime25_T0.6_aime25_think_t0.6.jsonl P5self=EVAL-ext32k-4Bp5self/ext32k4B_E10dP5self_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl

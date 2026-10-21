@@ -12,6 +12,10 @@ generated again, no reading's own numbers changed.
 3. [v2.5.9z5] pairs (the reviewer 10-22, Q-F): for each `#pairq READINGS-EXTRA <label> <task>/<a>.jsonl <task>/<b>.jsonl` line, the
    problem-level paired bootstrap of a against b (code/analysis/paired_bootstrap.py, the lab's method run for #pair lines: per-problem
    accuracy, 10000 resamples, seed 0, 95% percentile CI, wins / losses / ties). Written to READINGS-EXTRA/pairs.json.
+4. [v2.5.9z7] coverage (the reviewer 10-22, Q-052 (b)): for each `#coverq READINGS-EXTRA <label> <task>/<a>.jsonl <task>/<b>.jsonl
+   [<name>=<task>/<c>.jsonl ...]` line, the problems b solves at least once and a never (b_only), the reverse (a_only), and the
+   counts solved by a, by b, by both and by neither, over the problems both readings have; each listed problem with every reading's
+   n_correct / n_samples (an extra reading without the problem: null). Written to READINGS-EXTRA/coverage.json.
 Inputs missing on the node are listed, not guessed. Usage: python readings_extra.py <runs dir> <queue file> <out dir>
 """
 import json
@@ -63,6 +67,24 @@ def frontier(path, reading=None):
         return {"mean_tokens_16k": b["mean_tokens"], "trunc_16k": b["trunc_rate"], "acc_16k": b.get("acc"), "how": "budget curve at 16384"}
     return {"mean_tokens_16k": d["mean_tokens"], "trunc_16k": d["trunc_rate"], "acc_16k": d.get("avg_acc"),
             "how": f"metrics.json (max_tokens {d.get('max_tokens')})"}
+
+
+def pid_order(pid):
+    try:
+        return (0, pid_index(pid), str(pid))
+    except ValueError:
+        return (1, 0, str(pid))
+
+
+def coverage(A, B, extras):
+    """[v2.5.9z7] (Q-052) A, B, each extra: {pid: [n_correct, n_samples]} (paired_bootstrap.reduce). Over the problems A and B
+    both have: a_only = solved by A at least once and never by B, b_only the reverse, each with every reading's counts."""
+    common = sorted(set(A) & set(B), key=pid_order)
+    row = lambda p: dict({"pid": p, "a": A[p], "b": B[p]}, **{k: E.get(p) for k, E in extras.items()})
+    sa, sb = {p for p in common if A[p][0] > 0}, {p for p in common if B[p][0] > 0}
+    return {"problems": len(common), "a_solved": len(sa), "b_solved": len(sb), "both": len(sa & sb),
+            "neither": len(common) - len(sa | sb), "a_only": [row(p) for p in common if p in sa - sb],
+            "b_only": [row(p) for p in common if p in sb - sa], "not_in_both": sorted(set(A) ^ set(B), key=pid_order)}
 
 
 def safe(rel):
@@ -126,8 +148,27 @@ def main(runs, qfile, out):
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         import paired_bootstrap as PB
         summary["pairs"][label] = dict(PB.paired(PB.load(pa), PB.load(pb), label), a=a, b=b)
+    summary["coverage"] = {}
+    for row in queue_rows(qfile, "coverq"):   # [v2.5.9z7]
+        label, a, b, ex = row[0], row[1], (row[2] if len(row) > 2 else None), [x.split("=", 1) for x in row[3:]]
+        if not (a and b and safe(a) and safe(b)) or any(len(x) != 2 or not safe(x[1]) for x in ex):
+            summary["missing"].append(f"{label}: refused path"); continue
+        pa, pb = os.path.join(runs, a), os.path.join(runs, b)
+        if not (os.path.exists(pa) and os.path.exists(pb)):
+            summary["missing"] += [x for x, q in ((a, pa), (b, pb)) if not os.path.exists(q)]; continue
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import paired_bootstrap as PB
+        extras = {}
+        for name, rel in ex:
+            if os.path.exists(os.path.join(runs, rel)):
+                extras[name] = PB.reduce(os.path.join(runs, rel))
+            else:
+                summary["missing"].append(rel)
+        summary["coverage"][label] = dict(coverage(PB.reduce(pa), PB.reduce(pb), extras), a=a, b=b,
+                                          extras={name: rel for name, rel in ex}, extras_missing=[n for n, _ in ex if n not in extras])
     fd = os.path.join(out, "up", "runs", "READINGS-EXTRA"); os.makedirs(fd, exist_ok=True)
     json.dump(summary["pairs"], open(os.path.join(fd, "pairs.json"), "w"), indent=1)
+    json.dump(summary["coverage"], open(os.path.join(fd, "coverage.json"), "w"), indent=1)
     json.dump(summary["frontier"], open(os.path.join(fd, "frontier_fill.json"), "w"), indent=1)
     json.dump(summary, open(os.path.join(fd, "summary.json"), "w"), indent=1)
     json.dump(summary, open(os.path.join(out, "summary.json"), "w"), indent=1)
@@ -139,6 +180,11 @@ def main(runs, qfile, out):
     lines += [f"{k} | {v['mean_tokens_16k']} | {v['trunc_16k']} | {v['source']}" for k, v in summary["frontier"].items()]
     lines.append("pairs: label | acc a | acc b | diff [95% CI] | wins / losses / ties | problems")
     lines += [f"{k} | {v['acc_a']} | {v['acc_b']} | {v['diff']} [{v['ci95'][0]}, {v['ci95'][1]}] | {v['wins']} / {v['losses']} / {v['ties']} | {v['problems']}" for k, v in summary["pairs"].items()]
+    lines.append("coverage: label | problems | a solved / b solved / both / neither | b only (a never) | a only (b never)")
+    cnt = lambda c: "—" if c is None else f"{c[0]}/{c[1]}"
+    for k, v in summary["coverage"].items():
+        show = lambda rows: "; ".join(f"{r['pid']} a {cnt(r['a'])} b {cnt(r['b'])}" + "".join(f" {n} {cnt(r.get(n))}" for n in v["extras"]) for r in rows) or "none"
+        lines.append(f"{k} | {v['problems']} | {v['a_solved']} / {v['b_solved']} / {v['both']} / {v['neither']} | {show(v['b_only'])} | {show(v['a_only'])}")
     lines.append("missing: " + (", ".join(summary["missing"]) or "none"))
     lines.append("all-500 vs metrics mismatch: " + ("; ".join(summary.get("mismatch", [])) or "none"))
     open(os.path.join(out, "summary.txt"), "w").write("\n".join(lines) + "\n")
