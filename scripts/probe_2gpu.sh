@@ -13,6 +13,7 @@ set -uo pipefail
 G=$1; T=PROBE-2GPU; source "$(dirname "$0")/env.sh"
 D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; mkdir -p $D
 [ -f $D/.done ] && { echo "TASK_ALREADY_DONE $T"; exit 0; }
+rm -f $D/mem.csv   # [v2.5.9z11] this run's memory samples only (a rerun keeps the directory: PROBE-STOPMERGE's 4th peak was the 2nd run's)
 step() { echo "PROBE_2GPU $(date -u +%T) $*" | tee -a $LOG; }
 finish() {   # $1 = PASS / FAIL, $2 = reason
   python3 - "$D" "$1" "$2" <<'PY'

@@ -4,6 +4,7 @@ CPU only, no network or credentials (huggingface_hub is replaced). Run: python -
 import importlib
 import json
 import os
+import re
 import socket
 import sys
 import types
@@ -943,3 +944,43 @@ def test_image_benches_v259z():   # [2.5.58] geo3k / mathvista are evaluation be
     R.check_eval_args(["result:runs/E15-VLM-P5/global_step_50/actor/huggingface", "mathvista", "4", "0.6", "16384", "no_think"])
     with pytest.raises(R.Reject):
         R.check_eval_args(["local:models/Qwen3-VL-2B-Instruct", "chartqa", "4", "0.6", "16384", "no_think"])
+
+
+def _task_sh_names():
+    """[v2.5.9z11] the names task.sh dispatches: its explicit case labels, and per family (E10b-* ...) the regex it checks."""
+    src = open(os.path.join(HERE, "task.sh")).read()
+    names, fams = [], {}
+    for m in re.finditer(r"^  ([A-Za-z0-9|._*-]+)\)(.*)$", src, re.M):
+        lab, rest = m.group(1), m.group(2)
+        if lab.endswith("-*"):
+            r = re.search(r"\[\[ \$T =~ (\^\S+\$) \]\]", rest)
+            fams[lab[:-2]] = r.group(1) if r else None
+        elif lab != "*":   # the default: an unknown task
+            names += lab.split("|")
+    return names, fams
+
+
+def test_task_sh_names_accepted_by_run_and_rerun(env):   # [v2.5.9z11] ops-lead 10-21: an allowlist entry was missed twice
+    names, _ = _task_sh_names()
+    assert len(names) > 40 and "PROBE-STOPMERGE-UNIT" in names and "PROBE-T32" in names
+    no_run, no_rerun = [], []
+    for i, t in enumerate(names):
+        if t in R.QUEUE_ONLY:
+            continue
+        if env.c.v_run([t], 900 + i)[0] != "accepted":
+            no_run.append(t)
+        try:
+            R.parse({"cmd": f"rerun {t}", "reason": "t"})
+        except R.Reject:
+            no_rerun.append(t)
+    assert not no_run and not no_rerun, f"not accepted by run: {no_run}; by rerun: {no_rerun} (add them, or to control_rules.QUEUE_ONLY)"
+    assert all(t in names for t in R.QUEUE_ONLY), "QUEUE_ONLY lists a name task.sh does not have"
+
+
+def test_task_sh_family_regexes_match_v_run():   # [v2.5.9z11] E10b-* / E10d-* ...: the same regex in task.sh and in control.py's v_run
+    _, fams = _task_sh_names()
+    src = open(os.path.join(HERE, "control.py")).read()
+    vr = src[src.index("def v_run("):src.index("def v_rerun(")]
+    assert {"E10b", "E10c", "E10d", "E11b", "E12b", "E12c", "E12d", "EVAL"} <= set(fams)
+    for fam, rx in fams.items():
+        assert rx and f"{fam}-*) [[ $T =~ {rx} ]]" in vr, (fam, rx)

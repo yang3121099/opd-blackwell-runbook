@@ -20,6 +20,7 @@ set -uo pipefail
 G=$1; source "$(dirname "$0")/env.sh"
 D=$OPD_ROOT/runs/FA-PROBE; VF=$OPD_ROOT/venv-fa; LOG=$D/probe.log; mkdir -p $D
 [ -f $D/.done ] && { echo "TASK_ALREADY_DONE FA-PROBE"; exit 0; }
+rm -f $D/mem.csv   # [v2.5.9z11] this run's memory samples only (a rerun keeps the directory: PROBE-STOPMERGE's 4th peak was the 2nd run's)
 PJ=$D/probe.json; echo '{}' > $PJ
 step() { echo "FA_PROBE $(date -u +%T) $*" | tee -a $LOG; }
 put() {   # put <key> <json value>; puts <key> <string>

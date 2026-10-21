@@ -17,6 +17,10 @@ KEY_RE = re.compile(r"^(VLLM_[A-Z0-9_]+|TRITON_[A-Z0-9_]+|TORCHINDUCTOR_[A-Z0-9_
                     r"|LOCAL_LRU_GB|OUTBOX|PREFETCH_PAR|PREFETCH_TIMEOUT|FETCH_TIMEOUT|CPU_MAX|FETCH_CONNS_DAY|FETCH_CONNS_NIGHT|FETCH_DAY_MAX_BYTES|VENV_VL_REBUILD)$")   # [v2.5.8] 2.5.33; [2.5.50] the parallel pulls
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")   # owner/name of an HF repository
 VAL_RE = re.compile(r"^[A-Za-z0-9_.,:/=+-]*$")
+# [v2.5.9z11] task names task.sh dispatches that `run` / `rerun` deliberately do not accept (the queue starts them); every other
+# task.sh name must be accepted by both (test_v251.test_task_sh_names_accepted_by_run_and_rerun)
+QUEUE_ONLY = {"E01-opsa17-think", "E01-opsa17-nothink", "E01-base17-think", "E02-opsa17-c-1", "E02-opsa17-c2", "E02-opsa4-c2",
+              "E05-fstop-base06", "E05-fstop-art06"}   # the lab's zero-shot runs on this node (v2.5.6j / l): queue rows only
 BENCHES = {"math500", "amc23", "aime24", "aime25", "olympiadbench", "minervamath", "geo3k", "mathvista"}   # [2.5.58] the image benches (gen_eval_vl.py)
 SIGNALS = {"TERM", "KILL", "STOP", "CONT"}
 LAB_ARCHIVE = "yang31210999/opd-lab-ckpts"   # eval source besides Qwen/*, the result repository and the two local roots

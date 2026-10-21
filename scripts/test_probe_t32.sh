@@ -34,6 +34,11 @@ ok "3-step smoke of E10d-P5-t32 with the 32B on the share" 'grep -q "^run_arm 3 
 ok "steps, ref timing, projection for 50 steps, teacher calls in the checks" '[ "$(res steps)" = 3 ] && [ "$(res projected_hours_50)" = 5.0 ] && python3 -c "import json, sys; r = json.load(open(sys.argv[1])); assert r[\"mean_s2plus\"][\"ref\"] == 90.0 and [c[\"rows\"] for c in r[\"checks\"][\"teacher_calls\"]] == [128] * 3, r" $T/root/runs/PROBE-T32/report.json'
 ok "report to logs/<node>/probe_t32 with the smoke's config, event" 'grep -q "^remote put $T/root/runs/PROBE-T32/up logs/abcd1234/probe_t32" $CALLS && [ -f $T/root/runs/PROBE-T32/up/smoke_config.yaml ] && grep -q "^control event PROBE-T32 probe_t32_pass" $CALLS'
 rm -rf $T
+# 1b. [v2.5.9z11] a rerun: an earlier run's memory samples do not count (every probe resets mem.csv at its start)
+setup; mkdir -p $T/root/runs/PROBE-T32; echo "1,999999" > $T/root/runs/PROBE-T32/mem.csv
+FAKE_MEM=0 bash $T/rb/scripts/probe_t32.sh 3 > /dev/null 2>&1
+ok "a rerun: PASS with this run's peak (an old mem.csv sample of 999999 MiB ignored)" '[ "$(res result)" = PASS ] && [ "$(res mem_peak_mib)" = 0.0 ]'
+rm -rf $T
 # 2. the 32B not in: WAIT_INPUTS, exit 1, no smoke, no .done (run_tasks keeps it waiting, no attempt)
 setup; rm $T/root/models/Qwen3-32B/.fetch_ok
 FAKE_MEM=0 bash $T/rb/scripts/probe_t32.sh 3 > $T/out 2>&1; rc=$?

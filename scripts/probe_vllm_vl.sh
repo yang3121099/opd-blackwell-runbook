@@ -10,6 +10,7 @@ set -uo pipefail
 G=$1; source "$(dirname "$0")/env.sh"
 T=PROBE-VLLM-VL; D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; mkdir -p $D
 [ -f $D/.done ] && { echo "TASK_ALREADY_DONE $T"; exit 0; }
+rm -f $D/mem.csv   # [v2.5.9z11] this run's memory samples only (a rerun keeps the directory: PROBE-STOPMERGE's 4th peak was the 2nd run's)
 step() { echo "PROBE_VLLM_VL $(date -u +%T) $*" | tee -a $LOG; }
 PY=${PVV_PY:-$OPD_ROOT/venv-vl/bin/python}; M=$OPD_ROOT/models/Qwen3-VL-2B-Instruct; DS=$OPD_ROOT/data/hf/hiyouga__geometry3k
 finish() {   # $1 = PASS / FAIL, $2 = reason
