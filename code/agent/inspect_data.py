@@ -4,7 +4,8 @@ For each data file (.parquet / .json / .jsonl / .csv, at most 50, largest first)
 sha256, number of records (parquet rows, a JSON list's length or a JSON object's keys, JSONL / CSV lines) and the first
 record's fields with their types and a 300-character preview; the licence file's first non-empty lines with a guess of its
 SPDX id. A parquet file needs pandas (the node's venv); without it the file is listed with "rows": null.
-Usage: python inspect_data.py DIR [--repo owner/name] [--commit SHA]
+[v2.5.9e] --list-only (a code repository): the file count, bytes and the files per top-level folder, nothing parsed.
+Usage: python inspect_data.py DIR [--repo owner/name] [--commit SHA] [--list-only]
 """
 import argparse
 import hashlib
@@ -78,7 +79,18 @@ def licence(root):
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("dir"); ap.add_argument("--repo"); ap.add_argument("--commit")
+    ap.add_argument("--list-only", action="store_true")
     a = ap.parse_args()
+    if a.list_only:   # [v2.5.9e]
+        top, n, b = {}, 0, 0
+        for dp, dn, fn in os.walk(a.dir):
+            dn[:] = [x for x in dn if x != ".git"]
+            for f in fn:
+                rel = os.path.relpath(os.path.join(dp, f), a.dir); k = rel.split(os.sep)[0] if os.sep in rel else "."
+                top[k] = top.get(k, 0) + 1; n += 1; b += os.path.getsize(os.path.join(dp, f))
+        print(json.dumps({"repo": a.repo, "commit": a.commit, "licence": licence(a.dir), "list_only": True, "files": n,
+                          "total_bytes": b, "top": dict(sorted(top.items()))}, indent=1))
+        return
     files = []
     for dp, dn, fn in os.walk(a.dir):
         dn[:] = [x for x in dn if not x.startswith(".")]

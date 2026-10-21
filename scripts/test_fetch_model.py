@@ -31,17 +31,18 @@ def hub(monkeypatch):
             self.ep = endpoint
             state.setdefault("tokens", []).append((endpoint, token))
 
-        def get_paths_info(self, repo, paths):   # v2.5.7g: one file
-            state["paths_info"] = paths
+        def get_paths_info(self, repo, paths, repo_type=None):   # v2.5.7g: one file
+            state["paths_info"] = paths; state.setdefault("repo_types", []).append(repo_type)
             return [types.SimpleNamespace(path=paths[0], size=len(W), lfs={"sha256": SHA_W})]
 
-        def list_repo_tree(self, repo, path_in_repo, recursive=True):
+        def list_repo_tree(self, repo, path_in_repo, recursive=True, repo_type=None):
+            state.setdefault("repo_types", []).append(repo_type)
             if self.ep in state["list_fail"]:
                 raise OSError("HEAD failed")
             return tree(path_in_repo)
 
-    def dl(repo, filename, local_dir, endpoint=None, token=None):
-        state["calls"].append((endpoint, filename))
+    def dl(repo, filename, local_dir, endpoint=None, token=None, repo_type=None):
+        state["calls"].append((endpoint, filename)); state.setdefault("dl_repo_types", []).append(repo_type)
         state.setdefault("dl_tokens", []).append((endpoint, token))
         p = os.path.join(local_dir, filename); os.makedirs(os.path.dirname(p), exist_ok=True)
         data = C if filename.endswith(".json") else (b"x" * len(W) if state["bad_weights"] else W)
@@ -114,3 +115,30 @@ def test_single_file(hub, tmp_path):   # v2.5.7g: an archived generation file (P
     r = F.fetch("o/r", f, str(tmp_path))
     assert r["ok"] and r["files"] == 1 and hub["paths_info"] == [f] and (tmp_path / f).read_bytes() == W
     assert os.path.isfile(str(tmp_path / f) + ".fetch_ok") and F.fetch("o/r", f, str(tmp_path)).get("cached")
+
+
+def test_dataset_repo_type(hub, monkeypatch, tmp_path):   # [v2.5.9e] --dataset: listing and downloads with repo_type "dataset"
+    monkeypatch.setattr(F, "REPO_TYPE", "dataset")
+    r = F.fetch("own/ds", "data", str(tmp_path))
+    assert r["ok"] and set(hub["repo_types"]) == {"dataset"} and set(hub["dl_repo_types"]) == {"dataset"}
+    assert json.load(open(tmp_path / "data" / ".fetch_ok"))["kind"] == "dataset"
+    monkeypatch.setattr(F, "REPO_TYPE", None)
+    r = F.fetch("own/m", "model", str(tmp_path / "m"))
+    assert r["ok"] and hub["repo_types"][-1] is None and json.load(open(tmp_path / "m" / "model" / ".fetch_ok"))["kind"] == "model"
+
+
+def test_dataset_flag_reaches_the_child(monkeypatch, tmp_path):   # [v2.5.9e] the download child gets --dataset too
+    seen = {}
+
+    class P:
+        pid = 1
+
+        def __init__(self, args, **kw):
+            seen["args"] = args
+
+        def communicate(self, timeout=None):
+            return json.dumps({"ok": True, "files": 1}), None
+    monkeypatch.setattr(F.subprocess, "Popen", P)
+    monkeypatch.setattr(F, "REPO_TYPE", "dataset")
+    F.locked_fetch("own/ds", "", str(tmp_path))
+    assert seen["args"][-1] == "--dataset" and seen["args"][2] == "--child"

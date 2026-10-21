@@ -157,15 +157,36 @@ prefetch_pass() {
 # background, without a GPU (fetch_model.py: every file by size and sha256, .fetch_ok, events fetch_done / fetch_failed);
 # one model at a time, a failure retried after 30 min
 fetch_pass() {
-  pgrep -f "fetch_model\.py Qwen/" > /dev/null && return
-  local m d
+  pgrep -f "fetch_model\.py .* --task FETCH-" > /dev/null && { fetch_progress; return; }
+  # [v2.5.9e] no new pull while result uploads are timing out (the node's proxy is shared; results go first)
+  [ -n "$(find $OPD_ROOT/logs/heartbeat.err -mmin -60 2> /dev/null)" ] && tail -20 $OPD_ROOT/logs/heartbeat.err | grep -q UPLOAD_TIMEOUT && return
+  local m d r ds nm io
   for m in $(awk '$1 == "#fetch" {print $2}' "$Q"); do
-    [[ $m =~ ^Qwen/Qwen3-[0-9.]+B$ ]] || continue
-    d=$OPD_ROOT/models/${m#Qwen/}; [ -f $d/.fetch_ok ] && continue
-    [ -n "$(find $d.fetch_fail -mmin -30 2>/dev/null)" ] && continue
-    mkdir -p $OPD_ROOT/models $OPD_ROOT/logs
-    setsid nohup bash -c "python $RUNBOOK/scripts/fetch_model.py $m '' $d --task FETCH-${m#Qwen/} >> $OPD_ROOT/logs/fetch_${m#Qwen/}.log 2>&1 && rm -f $d.fetch_fail || touch $d.fetch_fail" < /dev/null > /dev/null 2>&1 &
+    case $m in   # [v2.5.9e] Qwen3 text and VL models, and datasets (dataset:<owner>/<name> -> data/hf/<owner>__<name>)
+      Qwen/*) [[ $m =~ ^Qwen/Qwen3-(VL-)?[0-9.]+B(-Instruct|-Thinking)?(-[0-9]{4})?$ ]] || continue; r=$m; d=$OPD_ROOT/models/${m#Qwen/}; ds=""; nm=${m#Qwen/};;
+      dataset:*) r=${m#dataset:}; [[ $r =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || continue; d=$OPD_ROOT/data/hf/${r/\//__}; ds=--dataset; nm=${r/\//__};;
+      *) continue;;
+    esac
+    [ -f $d/.fetch_ok ] && continue
+    [ -n "$(find $d.fetch_fail -mmin -${FETCH_RETRY_MIN:-10} 2>/dev/null)" ] && continue
+    mkdir -p $(dirname $d) $OPD_ROOT/logs
+    # [v2.5.9e] slow background pulls (0.03-0.05 MB/s through the proxy, PROBE-NET 10-21): niced, idle I/O class, each call
+    # bounded by FETCH_TIMEOUT_BG (6 h; the partial files stay and the next call goes on), retried after FETCH_RETRY_MIN (10)
+    io=""; command -v ionice > /dev/null && io="ionice -c3"
+    setsid nohup bash -c "FETCH_TIMEOUT=${FETCH_TIMEOUT_BG:-21600} nice -n 19 $io python $RUNBOOK/scripts/fetch_model.py $r '' $d $ds --task FETCH-$nm >> $OPD_ROOT/logs/fetch_$nm.log 2>&1 && rm -f $d.fetch_fail || touch $d.fetch_fail" < /dev/null > /dev/null 2>&1 &
+    date +%s > ${CDIR:-$OPD_ROOT/control}/fetch_progress.t
     return
+  done; }
+# [v2.5.9e] while a pull runs: once an hour an event fetch_progress with the MB already on disk (its directory, partial
+# downloads included)
+fetch_progress() {
+  local c=${CDIR:-$OPD_ROOT/control} last p a d; last=$(cat $c/fetch_progress.t 2> /dev/null || echo 0)
+  [ $(( $(date +%s) - last )) -ge ${FETCH_PROGRESS_SEC:-3600} ] || return
+  date +%s > $c/fetch_progress.t
+  for p in $(pgrep -f "fetch_model\.py .* --task FETCH-"); do
+    a=$(tr '\0' ' ' < /proc/$p/cmdline 2> /dev/null); d=$(echo "$a" | grep -oE "$OPD_ROOT/(models|data/hf)/[A-Za-z0-9._-]+" | head -1); [ -n "$d" ] || continue
+    python $RUNBOOK/scripts/control.py event FETCH-$(basename $d) fetch_progress "$(du -sm $d 2> /dev/null | cut -f1) MB on disk" > /dev/null 2>&1 &
+    break
   done; }
 # [v2.5.9c] (reviewer 10-21; Runming: "is ToolRL passed over too?") "#git <owner>/<repo> <40-hex commit>" lines of the queue = a
 # public GitHub repository at that commit onto $OPD_ROOT/data/git/<owner>__<repo> (git_fetch.sh: shallow, the commit
@@ -173,15 +194,24 @@ fetch_pass() {
 # GPU or the Mac; one at a time, a failure retried after 30 min, a changed commit fetched again
 git_pass() {
   pgrep -f "scripts/git_fetch\.sh " > /dev/null && return
-  local r c d
-  while read -r r c; do
+  local r c d k
+  while read -r r c k; do
     [[ $r =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ && $c =~ ^[0-9a-f]{40}$ ]] || continue
-    d=$OPD_ROOT/data/git/${r/\//__}; [ "$(cat $d/.fetch_ok 2>/dev/null)" = $c ] && continue
+    d=$OPD_ROOT/data/git/${r/\//__}
+    if [ "$(cat $d/.fetch_ok 2>/dev/null)" = $c ]; then   # [v2.5.9e] at the commit; its hf/ folders linked into data/hf?
+      [ -n "$(find $d.link_fail -mmin -30 2>/dev/null)" ] && continue
+      for x in $d/hf/*/; do [ -d "$x" ] || continue; [[ $(basename $x) =~ ^[A-Za-z0-9._-]+__[A-Za-z0-9._-]+$ ]] || continue
+        [ -e $OPD_ROOT/data/hf/$(basename $x) ] && continue
+        setsid nohup bash $RUNBOOK/scripts/git_fetch.sh $r $c $d link >> $OPD_ROOT/logs/git_fetch.log 2>&1 < /dev/null &
+        return; done
+      continue
+    fi
     [ -n "$(find $d.git_fail -mmin -30 2>/dev/null)" ] && continue
     mkdir -p $OPD_ROOT/data/git $OPD_ROOT/logs
-    setsid nohup bash $RUNBOOK/scripts/git_fetch.sh $r $c $d >> $OPD_ROOT/logs/git_fetch.log 2>&1 < /dev/null &
+    [ "${k:-}" = code ] || k=""   # [v2.5.9e] a 4th field `code`: file list only (link is internal)
+    setsid nohup bash $RUNBOOK/scripts/git_fetch.sh $r $c $d $k >> $OPD_ROOT/logs/git_fetch.log 2>&1 < /dev/null &
     return
-  done <<< "$(awk '$1 == "#git" {print $2, $3}' "$Q")"; }
+  done <<< "$(awk '$1 == "#git" {print $2, $3, $4}' "$Q")"; }
 launch() { # gpu task   (v2.5: start / done / killed / failed also go to status/<node>/events/ as receipts; [v2.5.8] gpu cpu: no reap)
   mkdir -p $OPD_ROOT/runs/$2
   python $RUNBOOK/scripts/control.py event $2 start "gpu=$1 attempt=$(( $(attempts $2) + 1 ))" > /dev/null 2>&1 &

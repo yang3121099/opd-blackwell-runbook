@@ -1,6 +1,9 @@
 """fetch_model.py (runbook v2.5.4e): download one model directory of a Hugging Face repository completely, or say why not.
 
-    python fetch_model.py <repo> <path prefix> <local dir> [--task NAME]
+    python fetch_model.py <repo> <path prefix> <local dir> [--task NAME] [--dataset]
+
+[v2.5.9e] --dataset: the repository is a dataset (repo_type "dataset"; the slow background pulls of run_tasks.sh's
+"#fetch dataset:<owner>/<name>" lines).
 
 The file list, sizes and LFS sha256 come from the Hub API (list_repo_tree). Endpoints are tried in the order of
 HF_DOWNLOAD_ENDPOINTS (comma list; default https://huggingface.co, then https://hf-mirror.com), each up to 3 times, with
@@ -86,10 +89,14 @@ def single_file(prefix):
     return prefix.endswith((".jsonl", ".json"))
 
 
+REPO_TYPE = None   # [v2.5.9e] "dataset" with --dataset
+
+
 def listing(api, repo, prefix):
     """[(path, size, sha256 or None)] of the files under prefix (or of the one file prefix names)."""
     out = []
-    entries = api.get_paths_info(repo, [prefix]) if single_file(prefix) else api.list_repo_tree(repo, path_in_repo=prefix, recursive=True)
+    entries = (api.get_paths_info(repo, [prefix], repo_type=REPO_TYPE) if single_file(prefix)
+               else api.list_repo_tree(repo, path_in_repo=prefix or None, recursive=True, repo_type=REPO_TYPE))
     for f in entries:
         size = getattr(f, "size", None)
         if size is None:          # a folder
@@ -137,12 +144,12 @@ def fetch(repo, prefix, local):
                     p = os.path.join(local, path)
                     if os.path.isfile(p):
                         os.remove(p)      # wrong size or sha256: fetch again (only our own download directory)
-                    hf_hub_download(repo, filename=path, local_dir=local, endpoint=ep, token=tok)
+                    hf_hub_download(repo, filename=path, local_dir=local, endpoint=ep, token=tok, repo_type=REPO_TYPE)
                     got += size
                 todo = missing(files, local)
                 if not todo:
                     os.makedirs(os.path.dirname(ok_file), exist_ok=True)
-                    json.dump({"repo": repo, "prefix": prefix, "files": files, "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}, open(ok_file, "w"))
+                    json.dump({"repo": repo, "kind": REPO_TYPE or "model", "prefix": prefix, "files": files, "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}, open(ok_file, "w"))
                     s = time.time() - t0
                     return {"ok": True, "endpoint": ep, "hf_transfer": bool(getattr(K, "HF_HUB_ENABLE_HF_TRANSFER", False)),
                             "files": len(files), "bytes": got, "seconds": round(s, 1),
@@ -181,7 +188,7 @@ def locked_fetch(repo, prefix, local):
                     return fail("LockTimeout", f"another fetch held {os.path.basename(lock_path(prefix, local))} for {FETCH_LOCK_WAIT}s", t0)
                 time.sleep(5)
         waited = round(time.time() - t0, 1)
-        p = subprocess.Popen([sys.executable, os.path.abspath(__file__), "--child", repo, prefix, local],
+        p = subprocess.Popen([sys.executable, os.path.abspath(__file__), "--child", repo, prefix, local] + (["--dataset"] if REPO_TYPE else []),
                              stdout=subprocess.PIPE, text=True, start_new_session=True)
 
         def on_term(signum, frame):   # [v2.5.8] a TERM to this call (timeout, kill) ends the download too
@@ -223,6 +230,9 @@ def locked_fetch(repo, prefix, local):
 
 def main():
     a = sys.argv[1:]
+    global REPO_TYPE
+    if "--dataset" in a:   # [v2.5.9e]
+        a.remove("--dataset"); REPO_TYPE = "dataset"
     if a[:1] == ["--child"]:   # [v2.5.8] the download itself, run by locked_fetch
         print(json.dumps(fetch(*a[1:4])), flush=True)
         return

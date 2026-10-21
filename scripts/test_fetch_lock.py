@@ -17,9 +17,9 @@ class _E:
     def __init__(s, path, size): s.path, s.size, s.lfs = path, size, None
 class HfApi:
     def __init__(self, endpoint=None, token=None): pass
-    def list_repo_tree(self, repo, path_in_repo=None, recursive=True):
+    def list_repo_tree(self, repo, path_in_repo=None, recursive=True, repo_type=None):
         return [_E(path_in_repo + "/model.bin", 4), _E(path_in_repo + "/config.json", 2)]
-def hf_hub_download(repo, filename, local_dir, endpoint=None, token=None):
+def hf_hub_download(repo, filename, local_dir, endpoint=None, token=None, repo_type=None):
     time.sleep(float(os.environ.get("STUB_SLEEP", "0")))
     with open(os.environ["STUB_COUNT"], "a") as f: f.write(filename + "\\n")
     p = os.path.join(local_dir, filename); os.makedirs(os.path.dirname(p), exist_ok=True)
