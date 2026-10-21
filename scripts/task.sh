@@ -14,7 +14,7 @@ case $G in *,*) [[ $T =~ ^(E10[bcd]-|E12[bcd]-|PROBE-2GPU$) ]] || { echo "$T tak
 ARMS="P2|P3|P4lowlr|P5|P6|P6r|P2noEOS|Pstop|P6rand|P6top5|P4EOSpen|P5top10|P5rand10m"
 case $T in
   E10b-*)  [[ $T =~ ^E10b-(($ARMS)(-s(43|44))?|(P2|P5)-t14|P5think|P5self|P5self-s43|P2self|P5len[SLR]|P5stopmerge|P5tail)$ ]] || exit 2; bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # v2.5.7p: -t14; v2.5.7r: P5think; v2.5.7v: P5self; [v2.5.8e] P5self-s43
-  E10c-*)  [[ $T =~ ^E10c-(($ARMS)-(fix4|dyn16k|dyn6144)(-s43)?|P5-polish)$ ]] || exit 2; bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # v2.5.6f: 0.6B, V3-c1; v2.5.7g: dyn6144, -s43
+  E10c-*)  [[ $T =~ ^E10c-(($ARMS)-(fix4|dyn16k|dyn6144)(-s43)?|P5-polish|P5self)$ ]] || exit 2; bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # v2.5.6f: 0.6B, V3-c1; v2.5.7g: dyn6144, -s43
   E10d-*)  [[ $T =~ ^E10d-((P2|P5)(-s43)?|P5self|X1|X2|X4)$ ]] || exit 2; bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # v2.5.7b: 4B student, V3-c5; v2.5.7o: -s43
   E11b-*)  [[ $T =~ ^E11b-(P0|($ARMS)(-s(43|44))?|(P2|P5)-t14)$ ]] || exit 2; bash $RUNBOOK/scripts/run_eval.sh $G $T;;   # v2.5.6c: seed arms too
   SFT-P1)  bash $RUNBOOK/scripts/run_sft.sh $G $T;;
@@ -29,7 +29,7 @@ case $T in
   FA-PROBE) bash $RUNBOOK/scripts/fa_probe.sh $G;;
   SPEED-PROBE) bash $RUNBOOK/scripts/speed_probe.sh $G;;
   PROBE-4B) bash $RUNBOOK/scripts/probe_4b.sh $G;;
-  PROBE-TERM|PROBE-TERM2|PROBE-TERM3|PROBE-TERM4|PROBE-TERM4-4B) bash $RUNBOOK/scripts/term_probe.sh $G $T;;   # v2.5.7zk: -4B
+  PROBE-TERM|PROBE-TERM2|PROBE-TERM3|PROBE-TERM4|PROBE-TERM4-4B|PROBE-TERM4-06B) bash $RUNBOOK/scripts/term_probe.sh $G $T;;   # v2.5.7zk: -4B; [v2.5.9v] -06B
   STRICT-C1) bash $RUNBOOK/scripts/strict_c1.sh $G $T;;
   PROBE-T14) bash $RUNBOOK/scripts/probe_t14.sh $G;;   # v2.5.7p (Q-015): the 14B teacher's gate
   PROBE-P5THINK) bash $RUNBOOK/scripts/probe_p5think.sh $G;;   # v2.5.7r (Q-016): the thinking student's gate
@@ -41,6 +41,7 @@ case $T in
   PROBE-E12B-8K) bash $RUNBOOK/scripts/probe_e12var.sh $G 8k;;   # [v2.5.8h] (Q-028): the gate of E12b-P5-8k
   PROBE-E12B-16K) bash $RUNBOOK/scripts/probe_e12var.sh $G 16k;;   # [v2.5.8h] (Q-028): the gate of E12b-P5-16k
   PROBE-P5SELF-4B) bash $RUNBOOK/scripts/probe_p5self.sh $G 4b;;   # [v2.5.8e] the gate of E10d-P5self
+  PROBE-P5SELF-06B) bash $RUNBOOK/scripts/probe_p5self.sh $G 06b;;   # [v2.5.9v] (Q-047) the gate of E10c-P5self
   PROBE-NET) bash $RUNBOOK/scripts/probe_net.sh $G;;   # [v2.5.9c] the routes to the model hubs (the CPU lane)
   PROBE-NET2) bash $RUNBOOK/scripts/probe_net2.sh $G;;   # [v2.5.9h] per-connection or per-host limit, parallel Range connections (the CPU lane)
   PROBE-ROLLOUT-U60|PROBE-ROLLOUT-U75|PROBE-ROLLOUT-U85) bash $RUNBOOK/scripts/probe_rollout.sh $G ${T#PROBE-ROLLOUT-};;   # [v2.5.9i] vLLM memory vs E12b step time (one GPU each)

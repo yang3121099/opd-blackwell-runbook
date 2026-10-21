@@ -6,10 +6,13 @@
 # event, .done. run_arm.sh starts E10b-P5self only after a PASS. Usage: bash probe_p5self.sh <gpu> [4b]
 # [v2.5.8e] (reviewer 15:5x UTC 10-20) with 4b: PROBE-P5SELF-4B, the gate of E10d-P5self (the 4B student, its own base as
 # the teacher), report to logs/<node>/probe_p5self_4b/. Both: FAIL unless the smoke's teacher is the student itself.
+# [v2.5.9v] (Q-047) with 06b: PROBE-P5SELF-06B, the gate of E10c-P5self (the 0.6B student, its own base as the teacher),
+# report to logs/<node>/probe_p5self_06b/. Usage: bash probe_p5self.sh <gpu> [4b|06b]
 set -uo pipefail
 G=$1; source "$(dirname "$0")/env.sh"
 T=PROBE-P5SELF; ARMT=E10b-P5self; UPD=probe_p5self
 [ "${2:-}" = 4b ] && { T=PROBE-P5SELF-4B; ARMT=E10d-P5self; UPD=probe_p5self_4b; }   # [v2.5.8e]
+[ "${2:-}" = 06b ] && { T=PROBE-P5SELF-06B; ARMT=E10c-P5self; UPD=probe_p5self_06b; }   # [v2.5.9v]
 D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; mkdir -p $D
 [ -f $D/.done ] && { echo "TASK_ALREADY_DONE $T"; exit 0; }
 step() { echo "PROBE_P5SELF $(date -u +%T) $*" | tee -a $LOG; }

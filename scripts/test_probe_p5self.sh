@@ -13,6 +13,7 @@ setup() {
   cat > $T/rb/scripts/run_arm.sh <<'SH'
 echo "run_arm $* SMOKE=$SMOKE STEPS=$SMOKE_STEPS TEACHER_14B=${TEACHER_14B:-} PROBE_TASK=$PROBE_TASK" >> $CALLS
 d=$OPD_ROOT/runs/$PROBE_TASK; mkdir -p $d; S=/m/Qwen3-1.7B; [ $2 = E10d-P5self ] && S=/m/Qwen3-4B   # [v2.5.8e] student / teacher lines
+[ $2 = E10c-P5self ] && S=/m/Qwen3-0.6B   # [v2.5.9v]
 printf "task: $2\nstudent: $S (no_think)\nteacher: ${FAKE_TEACHER:-$S} (ref; think-template=1; param_offload=1)\n" > $d/config.yaml
 for i in $(seq 1 $SMOKE_STEPS); do echo "(TaskRunner pid=1) step:$i - timing_s/gen:100 - timing_s/update_actor:150 - timing_s/step:$([ $i = 1 ] && echo 600 || echo 330) - response_length/mean:3000" >> $d/train.log; done
 sleep ${FAKE_SLEEP:-0}; [ "${FAKE_OOM:-0}" = 1 ] && { echo "torch.OutOfMemoryError: CUDA out of memory" >> $d/train.log; exit 1; }; exit 0
@@ -51,5 +52,15 @@ rm -rf $T
 setup
 FAKE_MEM=0 FAKE_TEACHER=/m/Qwen3-8B bash $T/rb/scripts/probe_p5self.sh 3 4b > /dev/null 2>&1
 ok "[v2.5.8e] teacher != student is FAIL" '[ "$(res4 result)" = FAIL ] && [[ "$(res4 reason)" == *"is not the student itself"* ]]'
+rm -rf $T
+# 6. [v2.5.9v] 06b: PROBE-P5SELF-06B, a 3-step smoke of E10c-P5self, its own report path; a teacher other than the student FAILs
+res6() { python3 -c "import json, sys; print(json.load(open(sys.argv[1])).get(sys.argv[2], ''))" $T/root/runs/PROBE-P5SELF-06B/report.json "$1"; }
+setup
+FAKE_MEM=0 bash $T/rb/scripts/probe_p5self.sh 3 06b > /dev/null 2>&1
+ok "[v2.5.9v] 06b PASS: E10c-P5self smoke, report to probe_p5self_06b, event" '[ "$(res6 result)" = PASS ] && grep -q "^run_arm 3 E10c-P5self SMOKE=1 STEPS=3 TEACHER_14B= PROBE_TASK=PROBE-P5SELF-06B-smoke" $CALLS && grep -q "^remote put $T/root/runs/PROBE-P5SELF-06B/up logs/abcd1234/probe_p5self_06b" $CALLS && grep -q "^control event PROBE-P5SELF-06B probe_p5self_pass" $CALLS && [ -f $T/root/runs/PROBE-P5SELF-06B/.done ] && [ ! -e $T/root/runs/PROBE-P5SELF/report.json ]'
+rm -rf $T
+setup
+FAKE_MEM=0 FAKE_TEACHER=/m/Qwen3-1.7B bash $T/rb/scripts/probe_p5self.sh 3 06b > /dev/null 2>&1
+ok "[v2.5.9v] 06b: a 1.7B teacher for the 0.6B student is FAIL" '[ "$(res6 result)" = FAIL ] && [[ "$(res6 reason)" == *"is not the student itself"* ]]'
 rm -rf $T
 [ $fails = 0 ] && echo "PROBE_P5SELF_TEST PASS ($n checks)" || echo "PROBE_P5SELF_TEST FAIL ($fails of $n)"

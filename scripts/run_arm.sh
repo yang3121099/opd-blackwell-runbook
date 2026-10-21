@@ -43,6 +43,10 @@ MODE=""; [[ $TASK =~ ^E10c-(.+)-(fix4|dyn16k|dyn6144)(-s(43|44))?$ ]] && { BASE=
 # with the teacher at the student's own size, as P5self, but from P5's end point instead of the base. fix4 batching (FIXED_MICRO_BSZ
 # 4, the venv in use) as E10c-P5-fix4; s20 uploaded. Gated by PROBE-POLISH.
 POLISH=0; [ $TASK = E10c-P5-polish ] && { POLISH=1; BASE=E10b-P5; MODE=fix4; }
+# [v2.5.9v] (Q-047, the reviewer 10-21): E10c-P5self = P5self at 0.6B: the 0.6B student taught from its base by the 0.6B base
+# itself on the thinking template (P5's teacher prompt), 50 steps, fix4 batching as E10c-P5-fix4; s50 uploaded. Gated by
+# PROBE-P5SELF-06B (probe_p5self.sh 06b)
+[ $TASK = E10c-P5self ] && { SELF=1; BASE=E10b-P5; MODE=fix4; }
 # v2.5.7b (queue v3 V3-c5, the 4B probe): E10d-<P2|P5> = the E10b arm with the 4B student ($STUDENT_4B); gradient
 # checkpointing stays on for it (GC=0 was measured on 1.7B only), the batching is the node's (FIXED_MICRO_BSZ)
 SIZE=""; [[ $TASK =~ ^E10d-(P2|P5)(-s43)?$ ]] && { BASE=E10b-${BASH_REMATCH[1]}; SIZE=4B; }   # v2.5.7o: -s43 = data.seed 43
@@ -98,7 +102,7 @@ if [ $POLISH = 1 ]; then   # [v2.5.9u] the start: P5-fix4's s150 on this node (t
 fi
 [ "$SIZE" = 4B ] && { STUDENT=$STUDENT_4B; GC=1; }
 [ $T14 = 1 ] && { TEACHER=$TEACHER_14B; TEACHER_OFFLOAD=0; }   # v2.5.7p: a node-wide TEACHER_OFFLOAD does not reach it
-[ $SELF = 1 ] && { TEACHER=$STUDENT_17B; [ "$SIZE" = 4B ] && TEACHER=$STUDENT_4B; }   # v2.5.7v; [v2.5.8e] the 4B student's own base
+[ $SELF = 1 ] && { TEACHER=$STUDENT_17B; [ "$SIZE" = 4B ] && TEACHER=$STUDENT_4B; [ -n "$MODE" ] && TEACHER=$STUDENT_06B; }   # v2.5.7v; [v2.5.8e] the 4B student's own base; [v2.5.9v] the 0.6B one's
 [ $POLISH = 1 ] && TEACHER=$STUDENT_06B   # [v2.5.9u] the 0.6B base on its thinking template
 if [ -n "$XARM" ]; then   # [v2.5.8i] hub ids, resolved to the local HF cache after the venv is active
   STUDENT=${STUDENT_I2507:-Qwen/Qwen3-4B-Instruct-2507}; TEACHER=${TEACHER_T2507:-Qwen/Qwen3-4B-Thinking-2507}; [ $XARM = X2 ] && TEACHER=$STUDENT_4B
@@ -126,7 +130,7 @@ if [ $TAIL = 1 ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
 fi
 # v2.5.7v: E10b-P5self starts only after PROBE-P5SELF passed (a 3-step smoke); v2.5.7zg: E10b-P2self after PROBE-P2SELF
 if [ $SELF = 1 ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
-  SA=${TASK#E10[bd]-}; PG=PROBE-$(echo ${SA%-s4[34]} | tr a-z A-Z); [ "$SIZE" = 4B ] && PG=$PG-4B   # [v2.5.8e] -s43 shares its arm's gate; 4B: PROBE-P5SELF-4B
+  SA=${TASK#E10[bcd]-}; PG=PROBE-$(echo ${SA%-s4[34]} | tr a-z A-Z); [ "$SIZE" = 4B ] && PG=$PG-4B; [ -n "$MODE" ] && PG=$PG-06B   # [v2.5.8e] -s43 shares its arm's gate; 4B: PROBE-P5SELF-4B; [v2.5.9v] 0.6B: PROBE-P5SELF-06B
   grep -q '"result": "PASS"' $OPD_ROOT/runs/$PG/report.json 2> /dev/null || { echo "$PG has not passed: $TASK not started"; exit 3; }
 fi
 # v2.5.7r: E10b-P5think starts only after PROBE-P5THINK passed (templates + a 3-step smoke whose rollouts open with <think>)
