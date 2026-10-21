@@ -91,7 +91,7 @@ b259u    open   E10c-P5-polish:PROBE-POLISH EVAL-polish:E10c-P5-polish EVAL-ext3
 b259vp   open   PROBE-P5SELF-06B
 b259v    open   E10c-P5self:PROBE-P5SELF-06B EVAL-e10c-P5self:E10c-P5self PROBE-TERM4-06B:EVAL-polish
 b259wp   open   PROBE-E12B-R3
-b259w    open   E12b-P5-r3:PROBE-E12B-R3 EVAL-e12b-P5s44-s50 EVAL-e12b-P5r3:E12b-P5-r3+EVAL-e12b-P5s44-s50 EVAL-ext32k-17r3:E12b-P5-r3
+b259w    open   E12b-P5-r3:PROBE-E12B-R3 EVAL-e12b-P5s44-s50:EVAL-e12b-P5-8k EVAL-e12b-P5r3:E12b-P5-r3+EVAL-e12b-P5s44-s50 EVAL-ext32k-17r3:E12b-P5-r3
 b259f2   open   E12b-P5-stop2:PROBE-E12B-STOP2
 b259y    open   E12b-P5-16k-kl:EVAL-e12b-P5-16k EVAL-e12b-P5-16k-kl:E12b-P5-16k-kl EVAL-budA-e12bP5-16k-kl:E12b-P5-16k-kl EVAL-ext32k-17p5l16kkl:E12b-P5-16k-kl
 b259y1   open   BUILD-VENV-VL PROBE-VLLM-VL:BUILD-VENV-VL
@@ -1775,3 +1775,8 @@ olpd     open   EVAL-ext32k-17olpd
 #pair EVAL-e15-vlm e15_P5_s25_geo3k_T0.6 EVAL-e15-base/e15_base2B_geo3k_T0.6_geo3k_no_think_t0.6.jsonl
 #pair EVAL-e15-vlm e15_P5_s50_mathvista_T0.6 EVAL-e15-base/e15_base2B_mathvista_T0.6_mathvista_no_think_t0.6.jsonl
 #pair EVAL-e15-vlm e15_P5_s25_mathvista_T0.6 EVAL-e15-base/e15_base2B_mathvista_T0.6_mathvista_no_think_t0.6.jsonl
+# (the reviewer 10-22, with the frontier fill) the 8K-limit RL arm's s50 paired against the KL arm's s100, and pure GRPO s50 (s44 chain)
+# against the 8K arm's s50 (equal steps; EVAL-e12b-P5s44-s50 now waits for EVAL-e12b-P5-8k)
+#pair EVAL-e12b-P5-8k e12b_P5-8k_s50_math500_T0.6 EVAL-e12b-P5kl/e12b_P5kl_s100_math500_T0.6_math500_no_think_t0.6.jsonl
+#pair EVAL-e12b-P5-8k e12b_P5-8k_s50_math500_T1.0 EVAL-e12b-P5kl/e12b_P5kl_s100_math500_T1.0_math500_no_think_t1.0.jsonl
+#pair EVAL-e12b-P5s44-s50 e12b_P5-s44_s50_math500_T0.6 EVAL-e12b-P5-8k/e12b_P5-8k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
