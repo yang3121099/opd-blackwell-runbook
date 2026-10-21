@@ -435,3 +435,4 @@ commands:
   - {"seq": 433, "cmd": "rerun EVAL-smerge", "reason": "v2.5.9z4 (Fable A1): merge's positions on the GPU; the arm and its readings wait for the gate's PASS (v2.5.9z3 blocks them otherwise)", "utc": "2026-10-21T20:11:25Z"}
   - {"seq": 434, "cmd": "rerun EVAL-ext32k-17smerge", "reason": "v2.5.9z4 (Fable A1): merge's positions on the GPU; the arm and its readings wait for the gate's PASS (v2.5.9z3 blocks them otherwise)", "utc": "2026-10-21T20:11:33Z"}
   - {"seq": 435, "cmd": "snapshot models/Qwen3-32B/.fetch_ok", "reason": "arrival check: Qwen3-32B", "utc": "2026-10-21T20:13:51Z"}
+  - {"seq": 436, "cmd": "snapshot models/Qwen3-VL-2B-Instruct/.fetch_ok", "reason": "arrival check: Qwen3-VL-2B-Instruct", "utc": "2026-10-21T20:13:59Z"}
