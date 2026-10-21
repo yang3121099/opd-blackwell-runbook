@@ -446,3 +446,4 @@ commands:
   - {"seq": 444, "cmd": "rerun READINGS-EXTRA", "reason": "v2.5.9z7 (ops-lead A1): Q-052 (b) coverage rows q052_aime24 / q052_aime25", "utc": "2026-10-21T21:08:17Z"}
   - {"seq": 445, "cmd": "rerun PROBE-STOPMERGE", "reason": "v2.5.9z6 (reviewer A1): the gate's self-check PROBE-STOPMERGE-UNIT passed (10 passed, 0 failed, 0 skipped); the GPU smoke now", "utc": "2026-10-21T21:09:03Z"}
   - {"seq": 446, "cmd": "rerun PROBE-STOPMERGE-UNIT", "reason": "v2.5.9z8 / 9z8a (ops-lead A1): hooks.txt with every opd_box_end line in the installed verl tree and the runbook's code", "utc": "2026-10-21T21:29:28Z"}
+  - {"seq": 447, "cmd": "rerun PROBE-NET2", "reason": "night rerun 2 of 2 (deferred from 19:00 UTC while the 32B / MathVista pulls ran; both in by 20:37 UTC, no pull running)", "utc": "2026-10-21T21:34:54Z"}
