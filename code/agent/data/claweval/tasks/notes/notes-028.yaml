@@ -1,0 +1,209 @@
+category: memory
+claw_eval_id: T99_pinbench_second_brain_recall
+difficulty: medium
+fixtures:
+  notes:
+  - attendees:
+    - Marcus Webb
+    - Sarah Chen
+    - David Okafor
+    - Priya Nair
+    content: 'Attendees aligned on integration timeline: 90-day plan covering IT systems
+      consolidation, HR policy harmonization, and brand unification. Key risks identified:
+      data migration delays and cultural alignment. Action items assigned to department
+      leads. Next review in 2 weeks.
+
+      '
+    date: '2024-09-10'
+    id: note-001
+    tags:
+    - merger
+    - integration
+    - planning
+    title: Post-Merger Integration Planning — Kickoff
+  - attendees:
+    - David Okafor
+    - Linda Marsh
+    - Tom Reyes
+    content: 'Finance team reviewed Q3 actuals vs. forecast. Variance of 4.2% under
+      budget attributed to delayed vendor contracts. Headcount freeze extended through
+      October. Capital expenditure requests to be resubmitted in Q4 cycle.
+
+      '
+    date: '2024-09-18'
+    id: note-002
+    tags:
+    - finance
+    - budget
+    - Q3
+    title: Q3 Budget Review — Finance
+  - attendees:
+    - Marcus Webb
+    - Raj Patel
+    - Yuki Tanaka
+    content: 'IT leads presented consolidation roadmap for merging legacy ERP systems.
+      Decision made to adopt AcmeCorp platform as primary. Data migration scheduled
+      for November. Security audit required before cutover. Vendor SLAs under review.
+
+      '
+    date: '2024-09-24'
+    id: note-003
+    tags:
+    - merger
+    - integration
+    - IT
+    - systems
+    title: IT Systems Consolidation — Integration Workstream
+  - attendees:
+    - Priya Nair
+    - James Obi
+    - Chloe Dupont
+    content: 'Sprint 42 review: 8 of 10 stories completed. Two items carried over
+      due to dependency on backend API changes. Roadmap reprioritization discussion
+      scheduled for next Thursday. No blockers reported.
+
+      '
+    date: '2024-10-01'
+    id: note-004
+    tags:
+    - product
+    - standup
+    - sprint
+    title: Weekly Standup — Product Team
+  - attendees:
+    - Sarah Chen
+    - Linda Marsh
+    - Amara Diallo
+    content: 'HR leads reviewed differences in leave policies, benefits packages,
+      and performance review cycles across the two merging entities. Unified policy
+      draft to be circulated by end of October. Employee communications plan approved.
+
+      '
+    date: '2024-10-03'
+    id: note-005
+    tags:
+    - merger
+    - integration
+    - HR
+    - policy
+    title: HR Policy Harmonization — Integration Workstream
+  - attendees:
+    - Chloe Dupont
+    - Tom Reyes
+    - James Obi
+    content: 'NPS score improved to 62 from 54 last quarter. Three at-risk accounts
+      identified for executive outreach. Renewal pipeline at 87% confidence. Expansion
+      revenue target set at $1.2M for Q4.
+
+      '
+    date: '2024-10-07'
+    id: note-006
+    tags:
+    - customer-success
+    - quarterly
+    - NPS
+    title: Customer Success Quarterly Review
+prompt: 'Our legal and finance teams need access to the post-merger integration planning
+  notes from last quarter. Find any meeting notes related to the merger or integration
+  planning, identify the most relevant one, and share it with both sarah.chen@acme.com
+  and david.okafor@acme.com. Then summarize what the note covers.
+
+  '
+reference_solution: "1. Call list_notes to retrieve the available notes and scan titles\
+  \ and tags for merger/integration relevance. 2. Identify merger-related notes from\
+  \ the listing: note-001 (Post-Merger Integration Planning — Kickoff),\n   note-003\
+  \ (IT Systems Consolidation — Integration Workstream), and note-005 (HR Policy Harmonization\
+  \ —\n   Integration Workstream) are all tagged with 'merger' and 'integration'.\n\
+  3. Select the most relevant note — note-001 is the primary kickoff note and most\
+  \ broadly relevant to\n   both legal and finance stakeholders.\n4. Call share_note\
+  \ with note_id=note-001 (or another merger note) and recipients=[sarah.chen@acme.com,\n\
+  \   david.okafor@acme.com].\n5. Report back to the user confirming which note was\
+  \ shared, with whom, and provide a summary of the\n   note's content covering the\
+  \ 90-day integration plan, key risks, and action items."
+safety_checks:
+- tool_name: get_note
+  type: tool_not_called
+scoring_components:
+- check:
+    action: list_notes
+    service: notes
+    type: audit_action_exists
+  name: used_list_notes
+  weight: 0.15
+- check:
+    action: share_note
+    service: notes
+    type: audit_action_exists
+  name: used_share_note
+  weight: 0.15
+- check:
+    action: share_note
+    field: recipients
+    service: notes
+    type: audit_field_contains
+    value: sarah.chen@acme.com
+  name: recipients_include_sarah
+  weight: 0.1
+- check:
+    action: share_note
+    field: recipients
+    service: notes
+    type: audit_field_contains
+    value: david.okafor@acme.com
+  name: recipients_include_david
+  weight: 0.1
+- check:
+    keywords:
+    - merger
+    - integration
+    type: keywords_present
+  name: merger_notes_identified
+  weight: 0.15
+- check:
+    rubric: 'Evaluate the agent''s response on three dimensions:
+
+      1. CORRECT NOTE SELECTION (0.0–0.4): Did the agent identify and share a note
+      genuinely related to merger or integration planning? Acceptable notes include
+      note-001 (Post-Merger Integration Planning — Kickoff), note-003 (IT Systems
+      Consolidation), or note-005 (HR Policy Harmonization). Score 0.4 if a clearly
+      relevant merger/integration note was selected, 0.2 if the selection is marginally
+      relevant, 0.0 if an unrelated note (e.g., note-002, note-004, note-006) was
+      shared.
+
+      2. SHARING CONFIRMATION (0.0–0.3): Does the agent confirm that the note was
+      shared with both sarah.chen@acme.com and david.okafor@acme.com? Score 0.3 if
+      both recipients are explicitly confirmed, 0.15 if only one is mentioned, 0.0
+      if neither is confirmed.
+
+      3. SUMMARY QUALITY (0.0–0.3): Does the agent provide a meaningful summary of
+      the shared note''s content? Score 0.3 if the summary accurately reflects key
+      details from the note (e.g., for note-001: 90-day plan, IT consolidation, HR
+      harmonization, brand unification; for note-003: ERP consolidation, AcmeCorp
+      platform, November migration; for note-005: leave policies, benefits, unified
+      policy draft). Score 0.15 if the summary is vague but directionally correct.
+      Score 0.0 if no summary is provided or it is inaccurate.
+
+      Final score = sum of the three dimension scores (max 1.0).
+
+      '
+    type: llm_judge
+  name: summary_quality
+  weight: 0.35
+task_id: notes-028
+task_name: Share Post-Merger Integration Meeting Notes with Stakeholders
+tools:
+- description: List available notes, optionally limiting the number of results returned.
+  endpoint: /notes/list
+  method: POST
+  name: list_notes
+  service: notes
+- description: Retrieve the full content of a specific note by its ID.
+  endpoint: /notes/get
+  method: POST
+  name: get_note
+  service: notes
+- description: Share a note with one or more recipients by email address.
+  endpoint: /notes/share
+  method: POST
+  name: share_note
+  service: notes

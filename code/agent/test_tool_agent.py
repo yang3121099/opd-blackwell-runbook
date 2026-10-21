@@ -82,6 +82,185 @@ def test_every_sample_is_solvable():   # each reference call scores 1 and matche
         assert G.ast_match(G.parse_calls(text)[0], s["ref_calls"]), s["id"]
 
 
+# --- [v2.5.9z19] grader v2: the reviewer's gate checks, then the parts ---
+
+def gt2(rid, **over):   # the ground truth as prep writes it (with the tool schemas)
+    s = next(x for x in SAMPLES if x["id"] == rid)
+    return json.dumps({"rules": s["rules"], "forbidden": s["forbidden"], "ref_calls": s["ref_calls"],
+                       "schemas": G.schemas(s["tools"]), **over})
+
+
+def ref_text(s):
+    return "\n".join(call(c["name"], **c["arguments"]) for c in s["ref_calls"])
+
+
+def test_v2_gate_reference_scores_1_and_empty_scores_0():
+    for s in SAMPLES:
+        assert G.compute_score("tool_call", ref_text(s), gt2(s["id"])) == 1.0, s["id"]
+        assert G.compute_score("tool_call", ref_text(s), gt2(s["id"], rules=[])) == 1.0, s["id"]   # the same calls by ast_match
+        for empty in ("", "<think>\nlet me see\n</think>\n", "I cannot help.", "<tool_call></tool_call>"):
+            assert G.compute_score("tool_call", empty, gt2(s["id"])) == 0.0, (s["id"], empty)
+            assert G.compute_score("tool_call", empty, gt2(s["id"], rules=[])) == 0.0, (s["id"], empty)
+
+
+def test_v2_gate_forbidden_tool_scores_0():
+    ok = ref_text(next(x for x in SAMPLES if x["id"] == "s1"))
+    assert G.compute_score("tool_call", ok, gt2("s1")) == 1.0
+    for extra in (call("delete_email", email_id="42"), call("delete_email")):
+        assert G.compute_score("tool_call", ok + "\n" + extra, gt2("s1")) == 0.0
+        assert G.compute_score("tool_call", extra + "\n" + ok, gt2("s1", rules=[])) == 0.0
+
+
+def test_v2_gate_padding_scores_below_the_clean_answer():
+    for s in SAMPLES:
+        clean = ref_text(s)
+        other = next(t["function"]["name"] for t in s["tools"] if t["function"]["name"] not in {c["name"] for c in s["ref_calls"]})
+        first = s["ref_calls"][0]
+        padded = {
+            "an extra tool": clean + "\n" + call(other),
+            "a repeated call": clean + "\n" + call(first["name"], **first["arguments"]),
+            "an argument outside the schema": "\n".join(call(c["name"], **c["arguments"], extra_arg="x") for c in s["ref_calls"]),
+        }
+        for kind, text in padded.items():
+            for g in (gt2(s["id"]), gt2(s["id"], rules=[])):
+                assert G.compute_score("tool_call", text, g) < 1.0, (s["id"], kind)
+    # several values stuffed into an argument: a list, a comma list, "or"; free text is one value
+    w1 = gt2("w1")
+    for city in (["Paris", "London"], "Paris, London", "Paris or Lyon", "Paris; Lyon; Nice"):
+        g = G.grade(call("get_weather", city=city, unit="celsius"), w1)
+        assert g["passed"] == [True, True, True] and g["score"] < 1.0, city
+    assert G.compute_score("tool_call", call("get_weather", city="Paris, London", unit="celsius"), w1) == (1 + 0.5 + 0.5) / 2.5
+    assert G.compute_score("tool_call", call("get_weather", city="Paris", unit="celsius"), w1) == 1.0
+    e1 = gt2("e1")
+    att = ["alice@example.com", "bob@example.com"]
+    base = dict(title="Budget review", date="2026-11-03", time="14:30")
+    assert G.compute_score("tool_call", call("create_event", **base, attendees=att), e1) == 1.0
+    assert G.compute_score("tool_call", call("create_event", **base, attendees=att + ["carol@example.com", "dan@example.com"]), e1) < 1.0
+    s1 = gt2("s1")   # the body is free text: commas in it are not several values
+    body = "Hi Carol, the draft is ready, it is in the shared folder, thanks."
+    assert G.compute_score("tool_call", call("send_email", to="carol@example.com", subject="Draft ready", body=body), s1) == 1.0
+    assert G.compute_score("tool_call", call("send_email", to="carol@example.com, eve@example.com", subject="Draft ready",
+                                             body=body), s1) < 1.0
+
+
+def test_v2_jaccard_repeat_schema_penalty():
+    w1, w2 = gt2("w1"), gt2("w2")
+    one = call("get_weather", city="Paris", unit="celsius")
+    g = G.grade(one + "\n" + call("calculate", expression="1"), w1)
+    assert g["jaccard"] == 0.5 and g["repeat"] == 1.0 and g["score"] == 0.5
+    g = G.grade(one + "\n" + one, w1)
+    assert g["jaccard"] == 1.0 and g["repeat"] == 0.5 and g["score"] == 0.5
+    cities = [call("get_weather", city=c) for c in ("Tokyo", "Osaka", "Kyoto", "Nagoya", "Sapporo")]
+    assert G.grade("\n".join(cities[:2]), w2)["score"] == 1.0
+    assert abs(G.grade("\n".join(cities), w2)["score"] - 0.4) < 1e-9          # 2 of 5 calls within the reference count
+    assert G.grade(cities[0], w2)["score"] == 0.5                            # a missing call costs only its rule
+    g = G.grade(call("get_weather", city="Paris", unit="celsius", country="FR", lang="fr"), w1)
+    assert g["unknown_args"] == 2 and g["score"] == 0.25                     # 0.5 per argument outside the schema
+    assert G.grade(call("get_weather", city="Paris", unit="celsius", country="FR"), gt2("w1", schemas={}))["score"] == 1.0
+    # without reference calls the reference names come from the positive rules: distinct equals values = distinct calls
+    rules = [{"type": "tool_called", "name": "update_task"},
+             {"type": "tool_arg_equals", "name": "update_task", "arg": "priority", "value": "high"},
+             {"type": "tool_arg_equals", "name": "update_task", "arg": "priority", "value": "low"},
+             {"type": "tool_arg_excludes", "name": "delete_task", "arg": "task_id", "value": "t1"}]
+    assert G.ref_names(rules, []) == {"update_task": 2}
+    gt = json.dumps({"rules": rules})
+    two = call("update_task", task_id="t1", priority="High") + "\n" + call("update_task", task_id="t2", priority=" low")
+    assert G.compute_score("tool_call", two, gt) == 1.0
+    assert G.compute_score("tool_call", call("update_task", task_id="t1", priority="high"), gt) == 0.75
+    assert G.compute_score("tool_call", two + "\n" + call("update_task", task_id="t3", priority="high"), gt) < 1.0
+
+
+def test_v2_equals_rule_and_normalisation():
+    calls = [("f", {"a": " Paris ", "n": "3", "m": 3.0, "l": ["x", "y"], "b": True})]
+    eq = lambda arg, v: G.rule_credit({"type": "tool_arg_equals", "name": "f", "arg": arg, "value": v}, calls)
+    assert eq("a", "paris") == 1.0 and eq("a", "Paris, France") == 0.0 and eq("a", "Par") == 0.0
+    assert eq("n", 3) == 1.0 and eq("m", "3") == 1.0 and eq("n", "3.0") == 1.0 and eq("n", 4) == 0.0
+    assert eq("l", ["X", "y"]) == 1.0 and eq("l", "x") == 0.0                 # a list equals only a list
+    assert eq("b", True) == 1.0 and eq("b", "true") == 0.0 and eq("zz", None) == 0.0
+    try:
+        G.rule_credit({"type": "tool_arg_regex", "name": "f", "arg": "a", "value": "P.*"}, calls)
+    except ValueError as e:
+        assert "tool_arg_regex" in str(e)
+    else:
+        raise AssertionError("an unknown rule type was graded")
+    assert G.compute_score("tool_call", call("f", a="x"), json.dumps({"rules": [{"type": "tool_arg_regex", "name": "f", "arg": "a",
+                                                                                  "value": "x"}]})) == 0.0
+
+
+def test_v2_ast_accept_optional_and_matching():
+    # BFCL's possible answers: every acceptable value of an argument; "" in BFCL's list = the argument may be left out
+    ref = [{"name": "get_weather", "arguments": {"city": "San Francisco"}, "accept": {"city": ["San Francisco", "SF", "San Francisco, CA"],
+                                                                                       "unit": ["fahrenheit", "f"]},
+            "optional": ["unit"]}]
+    sch = {"get_weather": ["city", "unit"]}
+    ok = lambda *cs: G.ast_match(list(cs), ref, sch)
+    assert ok(("get_weather", {"city": "sf"})) and ok(("get_weather", {"city": "San Francisco, CA", "unit": "F"}))
+    assert not ok(("get_weather", {"city": "Los Angeles"})) and not ok(("get_weather", {"city": "SF", "unit": "celsius"}))
+    assert not ok(("get_weather", {"city": "SF, LA"})) and not ok(("get_weather", {"city": ["SF", "LA"]}))   # stuffing
+    assert not ok(("get_weather", {"city": "SF", "country": "US"}))                                          # outside the schema
+    assert not ok(("get_weather", {"city": "SF"}), ("get_weather", {"city": "SF"}))                           # an extra call
+    gt = json.dumps({"rules": [], "ref_calls": ref, "schemas": sch})
+    assert G.compute_score("tool_call", call("get_weather", city="SF", unit="f"), gt) == 1.0
+    assert G.compute_score("tool_call", call("get_weather", city="SF", unit="kelvin"), gt) == 0.0
+    # matching in any order, with backtracking: a greedy first pick would take the wider reference for the first call
+    two = [{"name": "f", "arguments": {"x": 1}, "accept": {"x": [1, 2]}}, {"name": "f", "arguments": {"x": 1}}]
+    assert G.ast_match([("f", {"x": 1}), ("f", {"x": 2})], two) and G.ast_match([("f", {"x": 2}), ("f", {"x": "1"})], two)
+    assert not G.ast_match([("f", {"x": 2}), ("f", {"x": 2})], two)
+    assert G.compute_score("tool_call", call("w..0LUDsu", qdBYgo=20),                                       # ToolRL quotes numbers
+                           json.dumps({"ref_calls": [{"name": "w..0LUDsu", "arguments": {"qdBYgo": "20"}}]})) == 1.0
+
+
+def test_v2_validate_refuses_malformed_ground_truth():
+    good = {"rules": [{"type": "tool_called", "name": "f"}], "ref_calls": [], "forbidden": []}
+    G.validate(good, ["f"])
+    G.validate({"rules": [], "ref_calls": [{"name": "f", "arguments": {"x": 1}, "accept": {"x": [1, 2]}, "optional": []}]}, ["f"])
+    bad = {
+        "unknown rule type": {"rules": [{"type": "tool_arg_regex", "name": "f", "arg": "a", "value": "x"}]},
+        "no arg": {"rules": [{"type": "tool_arg_contains", "name": "f", "value": "x"}]},
+        "no value": {"rules": [{"type": "tool_arg_equals", "name": "f", "arg": "a"}]},
+        "no name": {"rules": [{"type": "tool_called"}]},
+        "non-numeric near": {"rules": [{"type": "tool_arg_number_near", "name": "f", "arg": "a", "value": "abc"}]},
+        "negative weight": {"rules": [{"type": "tool_called", "name": "f", "weight": -1}]},
+        "zero weights": {"rules": [{"type": "tool_called", "name": "f", "weight": 0}]},
+        "only a negative rule": {"rules": [{"type": "tool_arg_excludes", "name": "f", "arg": "a", "value": "x"}]},
+        "nothing to grade": {"rules": [], "ref_calls": []},
+        "accept not a list": {"ref_calls": [{"name": "f", "arguments": {}, "accept": {"x": 1}}]},
+        "a tool not offered": {"rules": [{"type": "tool_called", "name": "g"}]},
+        "a forbidden reference": {"ref_calls": [{"name": "f", "arguments": {}}], "forbidden": ["f"]},
+        "a forbidden rule": {"rules": [{"type": "tool_called", "name": "f"}], "forbidden": ["f"]},
+        "a rule off the references": {"rules": [{"type": "tool_called", "name": "g"}], "ref_calls": [{"name": "f", "arguments": {}}]},
+        "rules not a list": {"rules": {"type": "tool_called", "name": "f"}},
+    }
+    for why, g in bad.items():
+        try:
+            G.validate(g, ["f", "g"] if why == "a rule off the references" else ["f"], "sample z")
+        except ValueError as e:
+            assert str(e).startswith("sample z: "), why
+        else:
+            raise AssertionError(f"accepted: {why}")
+
+
+def test_v2_prep_checks_samples_and_keeps_both_ground_truths():
+    tok = _tok()
+    s = dict(SAMPLES[0])                                          # rules and ref_calls: both survive, with the schemas
+    g = json.loads(P.build_row(0, s, tok, tok)["reward_model"]["ground_truth"])
+    assert g["rules"] == s["rules"] and g["ref_calls"] == s["ref_calls"] and g["schemas"] == {"get_weather": ["city", "unit"],
+                                                                                              "calculate": ["expression"]}
+    for why, change in {"unknown rule type": {"rules": [{"type": "tool_arg_regex", "name": "get_weather", "arg": "city", "value": "P"}]},
+                        "duplicate tool names": {"tools": s["tools"] + s["tools"][:1]},
+                        "no query": {"query": " "},
+                        "a rule on a tool not offered": {"rules": [{"type": "tool_called", "name": "book_table"}]}}.items():
+        try:
+            P.build_row(3, dict(s, **change), tok, tok)
+        except ValueError as e:
+            assert f"sample {s['id']}" in str(e), why
+        else:
+            raise AssertionError(f"prep accepted: {why}")
+    loose = dict(s, tools=[{"type": "function", "function": {"name": "get_weather", "description": "d", "parameters": {"type": "object"}}}],
+                 rules=[], ref_calls=[{"name": "get_weather", "arguments": {"city": "Paris", "anything": 1}}])
+    assert json.loads(P.build_row(0, loose, tok, tok)["reward_model"]["ground_truth"])["schemas"] == {}   # unknown parameters
+
+
 class JinjaTok:   # apply_chat_template as transformers renders it (jinja2, tojson without HTML escaping)
     MINI = ("{%- if tools %}{{- '<|im_start|>system\\n' }}{%- if messages[0].role == 'system' %}{{- messages[0].content + '\\n\\n' }}{%- endif %}"
             "{{- '# Tools\\n<tools>' }}{%- for tool in tools %}{{- '\\n' }}{{- tool | tojson }}{%- endfor %}{{- '\\n</tools><|im_end|>\\n' }}"
@@ -147,3 +326,9 @@ def test_eval_budget_curve():   # tool_eval.evaluate: a call that only completes
     assert c["2"]["score"] == 0.0 and c["2"]["legal"] == 0.0 and c["2"]["mean_tokens"] == 2.0
     full = c[str(len(words))]
     assert full["score"] == 50.0 and full["legal"] == 50.0 and full["ast"] == 50.0 and full["forbidden"] == 0.0 and full["n"] == 2
+    assert full["n_ast"] == 2
+    rules_only = json.dumps({"rules": [{"type": "tool_called", "name": "get_weather"}]})   # [v2.5.9z19] no reference calls: not in ast
+    c = E.evaluate(rec + [{"id": "r", "ground_truth": rules_only, "ids": words, "schemas": None}], [len(words)], cut)[str(len(words))]
+    assert c["n_ast"] == 2 and c["ast"] == 50.0 and c["n"] == 3 and abs(c["score"] - 200 / 3) < 0.01
+    assert E.evaluate([rec[1]], [2], cut)["2"]["ast"] == 0.0
+    assert E.evaluate([{"id": "r", "ground_truth": rules_only, "ids": words, "schemas": None}], [2], cut)["2"]["ast"] is None

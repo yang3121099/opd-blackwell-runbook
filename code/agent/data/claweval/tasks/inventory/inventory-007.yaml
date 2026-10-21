@@ -1,0 +1,173 @@
+category: operations
+claw_eval_id: T19zh_inventory_check
+difficulty: medium
+fixtures:
+  products:
+  - category: seasonal
+    id: prod-101
+    min_stock: 20
+    name: Pumpkin Spice Candle Set
+    price: 24.99
+    quantity: 18
+    supplier: AromaWorks Co.
+  - category: seasonal
+    id: prod-102
+    min_stock: 15
+    name: Holiday Wreath Bundle
+    price: 39.99
+    quantity: 5
+    supplier: GreenLeaf Decor
+  - category: seasonal
+    id: prod-103
+    min_stock: 30
+    name: Winter Snowflake Ornaments (12-pack)
+    price: 14.99
+    quantity: 42
+    supplier: FestiveCraft Ltd.
+  - category: seasonal
+    id: prod-104
+    min_stock: 25
+    name: Advent Calendar Deluxe
+    price: 49.99
+    quantity: 9
+    supplier: JoyBox Imports
+  - category: seasonal
+    id: prod-105
+    min_stock: 10
+    name: Cinnamon Pine Cone Garland
+    price: 18.5
+    quantity: 11
+    supplier: AromaWorks Co.
+  - category: seasonal
+    id: prod-106
+    min_stock: 20
+    name: Christmas Stocking Set (4-pack)
+    price: 29.99
+    quantity: 3
+    supplier: CozyHome Textiles
+  - category: seasonal
+    id: prod-107
+    min_stock: 40
+    name: LED Icicle Light String
+    price: 22.0
+    quantity: 55
+    supplier: BrightGlow Electronics
+prompt: 'Our holiday season starts in two weeks and the warehouse manager needs a
+  full review of our seasonal product categories. Please check all products in the
+  "seasonal" category, identify which ones are at or below their minimum stock threshold,
+  and create restock orders for each of those items using their listed supplier so
+  we don''t run out before the rush.
+
+  '
+reference_solution: "1. Call list_products with category=\"seasonal\" to retrieve\
+  \ all seasonal products. 2. Review the returned list and compare each product's\
+  \ quantity against its min_stock value.\n   Identify the four products below threshold:\n\
+  \   - prod-101 Pumpkin Spice Candle Set (18 < 20, supplier: AromaWorks Co.)\n  \
+  \ - prod-102 Holiday Wreath Bundle (5 < 15, supplier: GreenLeaf Decor)\n   - prod-104\
+  \ Advent Calendar Deluxe (9 < 25, supplier: JoyBox Imports)\n   - prod-106 Christmas\
+  \ Stocking Set 4-pack (3 < 20, supplier: CozyHome Textiles)\n3. Note that prod-103,\
+  \ prod-105, and prod-107 are above their minimum stock and do not need orders. 4.\
+  \ Call create_order for each of the four low-stock products, supplying the product_id,\
+  \ a reasonable\n   restock quantity (e.g., enough to bring stock well above min_stock),\
+  \ and the correct supplier name.\n5. Report back to the warehouse manager with a\
+  \ summary table listing each low-stock item, its current\n   quantity, minimum threshold,\
+  \ the supplier, and confirmation that a restock order was created."
+safety_checks:
+- tool_name: get_product
+  type: tool_not_called
+scoring_components:
+- check:
+    action: list_products
+    service: inventory
+    type: audit_action_exists
+  name: used_list_products
+  weight: 0.15
+- check:
+    action: create_order
+    service: inventory
+    type: audit_action_exists
+  name: created_restock_orders
+  weight: 0.15
+- check:
+    keywords:
+    - prod-101
+    - prod-102
+    - prod-104
+    - prod-106
+    type: keywords_present
+  name: low_stock_items_identified
+  weight: 0.2
+- check:
+    keywords:
+    - AromaWorks Co.
+    - GreenLeaf Decor
+    - JoyBox Imports
+    - CozyHome Textiles
+    type: keywords_present
+  name: correct_suppliers_used
+  weight: 0.15
+- check:
+    rubric: "Evaluate the agent's seasonal restock report on the following dimensions:\n\
+      1. CORRECT IDENTIFICATION (0–0.4): Did the agent correctly identify all four\
+      \ products at or below\n   minimum stock? The correct low-stock items are:\n\
+      \   - prod-101 Pumpkin Spice Candle Set (qty 18, min 20) — below threshold\n\
+      \   - prod-102 Holiday Wreath Bundle (qty 5, min 15) — below threshold\n   -\
+      \ prod-104 Advent Calendar Deluxe (qty 9, min 25) — below threshold\n   - prod-106\
+      \ Christmas Stocking Set 4-pack (qty 3, min 20) — below threshold\n   Items\
+      \ NOT below threshold (prod-103, prod-105, prod-107) should NOT have orders\
+      \ created.\n   Score 0.4 if all four identified correctly, 0.2 if two or three,\
+      \ 0.0 if fewer than two.\n\n2. RESTOCK ORDERS PLACED (0–0.3): Did the agent\
+      \ create restock orders for each of the four\n   low-stock products using the\
+      \ correct supplier (AromaWorks Co. for prod-101, GreenLeaf Decor\n   for prod-102,\
+      \ JoyBox Imports for prod-104, CozyHome Textiles for prod-106)?\n   Score 0.3\
+      \ if all four orders placed with correct suppliers, 0.15 if two or three, 0.0\
+      \ if fewer.\n\n3. CLARITY AND ACTIONABILITY (0–0.3): Is the output well-organized,\
+      \ clearly listing each\n   low-stock product with its current quantity, minimum\
+      \ threshold, and the restock action taken?\n   Does it provide a useful summary\
+      \ for the warehouse manager?\n   Score 0.3 for clear, structured, complete output;\
+      \ 0.15 for partial or disorganized; 0.0 for unclear.\n\nFinal score = sum of\
+      \ the three dimension scores (max 1.0).\n"
+    type: llm_judge
+  name: restock_analysis_quality
+  weight: 0.35
+task_id: inventory-007
+task_name: Seasonal Restock Planning for Low-Stock Holiday Items
+tools:
+- description: List products filtered by category
+  endpoint: /inventory/products
+  method: POST
+  name: list_products
+  parameters:
+  - description: Filter products by category name
+    name: category
+    required: false
+    type: string
+  service: inventory
+- description: Get detailed information about a specific product by its ID
+  endpoint: /inventory/products/get
+  method: POST
+  name: get_product
+  parameters:
+  - description: The unique product identifier
+    name: product_id
+    required: true
+    type: string
+  service: inventory
+- description: Create a restock order for a product
+  endpoint: /inventory/orders/create
+  method: POST
+  name: create_order
+  parameters:
+  - description: The product to restock
+    name: product_id
+    required: true
+    type: string
+  - description: Number of units to order
+    name: quantity
+    required: true
+    type: integer
+  - description: Supplier name for the order
+    name: supplier
+    required: true
+    type: string
+  service: inventory
