@@ -21,9 +21,17 @@ import urllib.request
 UA = {"User-Agent": "opd-probe-net2/1"}
 
 
+class _Redirect(urllib.request.HTTPRedirectHandler):   # [v2.5.9p] 308 as 307 (the Python 3.9 urllib on the node raises on 308)
+    def http_error_308(self, req, fp, code, msg, headers):
+        return self.http_error_302(req, fp, 307, msg, headers)   # 307 keeps the method and the Range header
+
+
+OPENER = urllib.request.build_opener(_Redirect)   # with the default handlers (the proxy from https_proxy among them)
+
+
 def resolve(url, timeout):
     req = urllib.request.Request(url, headers={**UA, "Range": "bytes=0-0"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
+    with OPENER.open(req, timeout=timeout) as r:
         m = re.search(r"/(\d+)$", r.headers.get("Content-Range", ""))
         size = int(m.group(1)) if m else int(r.headers.get("Content-Length") or 0)
         r.read(1)
@@ -54,7 +62,7 @@ def measure(url, conns, secs, seg=4 << 20, timeout=30):
             req = urllib.request.Request(final, headers={**UA, "Range": f"bytes={off}-{end}"})
             try:
                 left = max(1.0, deadline - time.monotonic())
-                with urllib.request.urlopen(req, timeout=min(timeout, left + 5)) as r:
+                with OPENER.open(req, timeout=min(timeout, left + 5)) as r:
                     count(str(r.status))
                     if r.status == 206:
                         out["range_ok"] = True

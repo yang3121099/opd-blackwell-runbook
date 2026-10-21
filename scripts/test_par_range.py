@@ -81,3 +81,22 @@ def test_missing_file_is_an_error():
     finally:
         s.shutdown()
     assert r["error"] == "resolve http 404" and r["bytes"] == 0 and r["MBps"] == 0.0
+
+
+def test_308_is_followed_with_the_range():   # [v2.5.9p] hf-mirror answers the resolve with 308 (Python 3.9's urllib raised)
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    _noproxy(); s, base = server(per_conn_bps=5e6)
+
+    class R(BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_GET(self):
+            self.send_response(308); self.send_header("Location", base + "/f.bin"); self.end_headers()
+    r = ThreadingHTTPServer(("127.0.0.1", 0), R); r.daemon_threads = True
+    threading.Thread(target=r.serve_forever, daemon=True).start()
+    try:
+        out = par_range.measure(f"http://127.0.0.1:{r.server_address[1]}/x", 2, 1.0, seg=1 << 20)
+    finally:
+        r.shutdown(); s.shutdown()
+    assert out["error"] is None and out["range_ok"] and out["size"] == SIZE and out["bytes"] > 0, out

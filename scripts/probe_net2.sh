@@ -24,7 +24,7 @@ T=PROBE-NET2; source "$(dirname "$0")/env.sh"
 D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; mkdir -p $D
 [ -f $D/.done ] && { echo "TASK_ALREADY_DONE $T"; exit 0; }
 step() { echo "PROBE_NET2 $(date -u +%T) $*" | tee -a $LOG; }
-SECS=${PN2_SECS:-120}; CONNS=${PN2_CONNS:-1 4 16 32}; PY=${PN2_PY:-python3}
+SECS=${PN2_SECS:-120}; CONNS=${PN2_CONNS:-1 4 16 32 64}; PY=${PN2_PY:-python3}   # [v2.5.9p] 64 too
 MS=https://modelscope.cn/api/v1
 declare -a SOURCES=(
   "hf|https://huggingface.co/Qwen/Qwen3-32B/resolve/main/model-00001-of-00017.safetensors"
@@ -69,11 +69,19 @@ done
 if A=$(command -v aria2c); then
   for s in "${SOURCES[@]}"; do
     name=${s%%|*}; url=${s#*|}; rm -rf $D/aria2; mkdir -p $D/aria2
-    timeout ${SECS%.*} $A -x 16 -s 16 -k 4M --max-tries=1 --timeout=30 --file-allocation=none --allow-overwrite=true \
-      --auto-file-renaming=false --summary-interval=0 -d $D/aria2 -o f.bin "$url" > $D/aria2.out 2>&1
-    kb=$(du -k $D/aria2/f.bin 2> /dev/null | cut -f1); rm -rf $D/aria2
-    python3 -c "import json, sys; b = int(sys.argv[2] or 0) * 1024; print(json.dumps({'tool': 'aria2c', 'source': sys.argv[1], 'conns': 16, 'secs': float(sys.argv[3]), 'bytes': b, 'MBps': round(b / float(sys.argv[3]) / 1e6, 4), 'error': None if b else sys.argv[4][:150]}))" \
-      $name "${kb:-0}" $SECS "$(tail -c 300 $D/aria2.out | tr '\n' ' ')" >> $RUN
+    # [v2.5.9p] the rate from aria2c's own result table (avg speed; SIGINT makes it print one), not from the file's size: on
+    # the work disk files are not sparse, so writing the 16th segment at 15/16 of the file allocates everything before it
+    timeout -s INT ${SECS%.*} $A -x 16 -s 16 -k 4M --max-tries=1 --timeout=30 --file-allocation=none --allow-overwrite=true \
+      --auto-file-renaming=false --summary-interval=0 -d $D/aria2 -o f.bin "$url" > $D/aria2.out 2>&1; rm -rf $D/aria2
+    python3 - $name $SECS $D/aria2.out >> $RUN <<'PYA'
+import json, re, sys
+name, secs, out = sys.argv[1], float(sys.argv[2]), open(sys.argv[3], errors="ignore").read()
+unit = {"B": 1, "KiB": 1024, "MiB": 1024 ** 2, "GiB": 1024 ** 3}
+m = re.findall(r"^[0-9a-f]{6}\|[A-Z]+ *\| *([0-9.]+)(B|KiB|MiB|GiB)/s\|", out, re.M)
+bps = float(m[-1][0]) * unit[m[-1][1]] if m else 0.0
+print(json.dumps({"tool": "aria2c", "source": name, "conns": 16, "secs": secs, "bytes": int(bps * secs), "MBps": round(bps / 1e6, 4),
+                  "error": None if m else "no result table: " + " ".join(out.split())[-150:]}))
+PYA
     step "aria2c $name x16: $(tail -1 $RUN | python3 -c 'import json, sys; print(json.load(sys.stdin)["MBps"], "MB/s")')"
   done
 else step "aria2c not on the node: standard-library connections only"; fi
@@ -84,10 +92,16 @@ import json, os, sys
 d, utc = sys.argv[1:3]
 rows = [json.loads(l) for l in open(os.path.join(d, "run.jsonl")) if l.strip()]
 bj = (int(utc[11:13]) + 8) % 24
-run = {"utc": utc, "beijing_hour": bj, "slot": "night" if bj >= 22 or bj < 8 else "day", "rows": rows}
+run = {"utc": utc, "beijing_hour": bj, "slot": "night" if bj >= 22 or bj < 8 else "day", "method": 2, "rows": rows}   # [v2.5.9p] method 2
 with open(os.path.join(d, "history.jsonl"), "a") as f:
     f.write(json.dumps(run) + "\n")
 hist = [json.loads(l) for l in open(os.path.join(d, "history.jsonl")) if l.strip()]
+# [v2.5.9p] runs before method 2 measured aria2c by the size of a non-sparse file (the 12:31 UTC run of 10-21: 31 MB/s on
+# every source): their aria2c rows are void and left out of every conclusion; their standard-library rows stay
+void = [{"utc": h["utc"], "source": r["source"]} for h in hist if h.get("method", 1) < 2 for r in h["rows"] if r.get("tool") == "aria2c"]
+for h in hist:
+    if h.get("method", 1) < 2:
+        h["rows"] = [r for r in h["rows"] if r.get("tool") != "aria2c"]
 best_of = lambda rs: max(rs, key=lambda r: r.get("MBps") or 0) if rs else None
 def scaling(rs):
     out = {}
@@ -110,7 +124,8 @@ c = {"best_source": b and b["source"], "best_parallel": b and b["conns"], "best_
      "best_any_run": ball and {"source": ball["source"], "conns": ball["conns"], "tool": ball.get("tool"), "MBps": ball.get("MBps")},
      "scaling": scaling(rows), "night_gain": gain,
      "slot_best_MBps": {s: (v or {}).get("MBps") for s, v in slot_best.items()},
-     "hours_vl8b_17.5GB": hours(top, 17.5), "hours_32b_65.5GB": hours(top, 65.5), "next": nxt}
+     "hours_vl8b_17.5GB": hours(top, 17.5), "hours_32b_65.5GB": hours(top, 65.5), "next": nxt,
+     "void_rows": void, "void_note": "aria2c rows of runs before method 2 (sized by a non-sparse file) are void and left out" if void else None}
 json.dump({"latest": run, "runs": len(hist), "history": hist, "conclusions": c}, open(os.path.join(d, "report.json"), "w"), indent=1)
 print(f"best {c['MBps']} MB/s ({c['best_source']} x{c['best_parallel']}, {c['best_tool']}) in this {run['slot']} run; "
       f"night gain {gain}; {c['hours_vl8b_17.5GB']} h for VL-8B at the best rate; next: {nxt}")
