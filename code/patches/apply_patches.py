@@ -111,3 +111,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from lensel_patch import patch_file as _lensel_patch  # noqa: E402
 _lensel_patch(str(root / "verl/trainer/ppo/ray_trainer.py"), keep_orig=False)   # the pristine file is in git
 print("patched", root / "verl/trainer/ppo/ray_trainer.py")
+
+# 5. [v2.5.9l] (Q-038) stop-merged OPD (stopmerge_patch.py; a no-op unless OPD_STOPMERGE=1): the box positions in
+#    prepare_ref_model_inputs, the key into the reference pass, the teacher's stop-set mass and the merge there
+from stopmerge_patch import patch_file as _sm_patch, patch_ref_text as _sm_ref, patch_actor_text as _sm_actor  # noqa: E402
+_sm_patch(str(root / "verl/trainer/ppo/ref_input_utils.py"), _sm_ref, keep_orig=False)   # the pristine files are in git
+_sm_patch(str(root / "verl/workers/actor/dp_actor.py"), _sm_actor, keep_orig=False)
+print("patched", root / "verl/trainer/ppo/ref_input_utils.py", "and", root / "verl/workers/actor/dp_actor.py", "(stop-merged OPD)")

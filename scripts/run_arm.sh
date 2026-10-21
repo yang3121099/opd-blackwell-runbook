@@ -63,6 +63,12 @@ LENSEL=""; [[ $TASK =~ ^E10b-P5len([SLR])$ ]] && { case ${BASH_REMATCH[1]} in S)
 # code/agent/tool_grader.py as the logged reward, prompts up to 2048 tokens. TOOL_DATA = the parquet prefix
 # (<prefix>_train.parquet / _val.parquet); for now only PROBE-TOOL's smoke runs it
 TOOL=0; [ $TASK = E10b-P5tool ] && { TOOL=1; BASE=E10b-P5; }
+# [v2.5.9l] (Q-038; reviewer 14:1x UTC 10-21, after 2609.20511's fixes 2-4): E10b-P5stopmerge = P5's recipe with the stop-merged
+# teacher (code/patches/opd_stopmerge.py, OPD_STOPMERGE=1): after the first complete \boxed{} of a response, a student stop
+# (<|im_end|>) is scored with the teacher's log-mass on {<|im_end|>, </think>, <|endoftext|>}; every other position, and every
+# position up to the box, as in P5. 50 steps, no fused kernels (the merge needs the logits); runs/<task>/stopmerge.jsonl (per
+# reference micro-batch: rows with a box, positions merged, the gain). Gated by PROBE-STOPMERGE.
+SMERGE=0; [ $TASK = E10b-P5stopmerge ] && { SMERGE=1; BASE=E10b-P5; }
 case $BASE in
   E10b-P2) ARM=P2; LR=3e-6;; E10b-P3) ARM=P3; LR=3e-6;; E10b-P4lowlr) ARM=P4; LR=6e-7;; E10b-P5) ARM=P5; LR=3e-6;;
   E10b-P6) ARM=P6; LR=3e-6;; E10b-P6r) ARM=P6r; LR=3e-6;; E10b-P2noEOS) ARM=P2noEOS; LR=3e-6;;
@@ -90,6 +96,10 @@ fi
 # [v2.5.8m] a length-selected arm starts only after PROBE-LENSEL passed (the unit tests on the node + a 2-step smoke)
 if [ -n "$LENSEL" ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
   grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-LENSEL/report.json 2> /dev/null || { echo "PROBE-LENSEL has not passed: $TASK not started"; exit 3; }
+fi
+# [v2.5.9l] the stop-merged arm starts only after PROBE-STOPMERGE passed (the unit tests on the node + a 3-step smoke)
+if [ $SMERGE = 1 ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
+  grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-STOPMERGE/report.json 2> /dev/null || { echo "PROBE-STOPMERGE has not passed: $TASK not started"; exit 3; }
 fi
 # v2.5.7v: E10b-P5self starts only after PROBE-P5SELF passed (a 3-step smoke); v2.5.7zg: E10b-P2self after PROBE-P2SELF
 if [ $SELF = 1 ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
@@ -140,6 +150,7 @@ case $ARM in P5top10|P5rand10m) export OPD_VARIANT=P6 OPD_VARIANT_OVERRIDE=$ARM 
 [ $STHINK = 1 ] && NSTEPS=${P5THINK_STEPS:-50}
 [ -n "$XARM" ] && NSTEPS=${X2507_STEPS:-50}   # [v2.5.8i]
 [ -n "$LENSEL" ] && NSTEPS=${LENSEL_STEPS:-50}   # [v2.5.8m]
+[ $SMERGE = 1 ] && NSTEPS=${STOPMERGE_STEPS:-50}   # [v2.5.9l]
 [ $TOOL = 1 ] && NSTEPS=${TOOL_STEPS:-50}   # [v2.5.9b]
 [ $SELF = 1 ] && NSTEPS=${P5SELF_STEPS:-50}   # v2.5.7v: the same point as P5 s50   # v2.5.7r: constant lr, so step 50 is the same point as in a 150-step run
 OPD_REF_THINK=0; [[ $ARM =~ ^P5(top10|rand10m)?$ ]] && OPD_REF_THINK=1; [ $STHINK = 1 ] && OPD_REF_THINK=0; [ "$XARM" = X1 ] && OPD_REF_THINK=0; [ "$XARM" = X4 ] && OPD_REF_THINK=0; export OPD_REF_THINK   # [v2.5.8i] X1: the template opens <think>
@@ -160,11 +171,13 @@ ENT=""; [ "$RMPAD" = False ] && ENT="actor_rollout_ref.actor.entropy_from_logits
 # GC=0 (setenv) = no gradient checkpointing in the actor. SPEED-PROBE measures both; unset, the ladder runs as before.
 KERN=""; [ "${FUSED:-0}" = 1 ] && KERN="actor_rollout_ref.model.use_fused_kernels=True actor_rollout_ref.model.fused_kernel_options.impl_backend=torch"
 GCK=True; [ "${GC:-1}" = 0 ] && GCK=False
+[ $SMERGE = 1 ] && KERN=""   # [v2.5.9l] the merge needs the logits: no fused kernels
 # [v2.5.8m] prompts per step, rollouts per prompt and the mini-batch in prompts (verl multiplies it by n): P5 128 x 1 in one
 # mini-batch; a length-selected arm 32 x 16 with k = 4 kept, so 32 x 4 / 16 = 8 prompts' worth = the 128 kept sequences
 TBS=128; RN=1; MBS=128; unset OPD_LENSEL OPD_LENSEL_K OPD_LENSEL_LOG
 if [ -n "$LENSEL" ]; then TBS=${LENSEL_PROMPTS:-32}; RN=${LENSEL_N:-16}; LK=${LENSEL_K:-4}; MBS=$(( TBS * LK / RN ))
   export OPD_LENSEL=$LENSEL OPD_LENSEL_K=$LK OPD_LENSEL_LOG=$OUT/lensel.jsonl; fi
+unset OPD_STOPMERGE OPD_STOPMERGE_LOG; [ $SMERGE = 1 ] && export OPD_STOPMERGE=1 OPD_STOPMERGE_LOG=$OUT/stopmerge.jsonl   # [v2.5.9l]
 # [v2.5.9b] the data, prompt length and logged reward: math by default, the tool-call parquet for a tool arm
 TRAIN=$OPD_ROOT/data/dapo_train.parquet; VAL=$OPD_ROOT/data/math500_100.parquet; MAXP=1024; REWARD=$RUNBOOK/code/train/reward_mathverify.py
 if [ $TOOL = 1 ]; then
@@ -172,6 +185,7 @@ if [ $TOOL = 1 ]; then
   TRAIN=${TOOL_DATA}_train.parquet; VAL=${TOOL_DATA}_val.parquet; MAXP=2048; REWARD=$RUNBOOK/code/agent/tool_grader.py
 fi
 UW=$NSTEPS; [ $TASK = E10c-P5-fix4 ] && UW=100,$NSTEPS; [ -n "$XARM" ] && UW=25,$NSTEPS   # [v2.5.8i] X arms: s25 is read too   # [v2.5.8a] (Q-023): its s100 = the step of the lab's 0.6B P5 reading (+19.2)
+[ "${DRYRUN:-0}" = 1 ] && [ $SMERGE = 1 ] && echo "DRYRUN_STOPMERGE OPD_STOPMERGE=${OPD_STOPMERGE:-} log=$(basename ${OPD_STOPMERGE_LOG:-none}) kern=[$KERN]"   # [v2.5.9l] tests
 [ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $TASK arm=$ARM lr=$LR seed=$SEED student=$STUDENT batch=[$BATCH] kern=[$KERN] gc=$GCK venv=$(basename ${VENV:-$OPD_ROOT/venv}) ngpu=$NG rmpad=$RMPAD tool=$TOOL maxp=$MAXP reward=$(basename $REWARD) lensel=${LENSEL:-none}/${TBS}x${RN}/mb$MBS sthink=$STHINK maxresp=$MAXRESP teacher=$TEACHER offload=${TEACHER_OFFLOAD:-1} variant=$OPD_VARIANT override=$OPD_VARIANT_OVERRIDE refthink=$OPD_REF_THINK steps=$NSTEPS"; exit 0; }   # tests
 STEPS=$NSTEPS; TEST=10; VALB=True
 # save rule (v2.4, Runming 2026-10-17): no archive of resume states. A dedicated node saves only the HF weights at the
@@ -189,7 +203,7 @@ lr: $LR
 data_seed: $SEED
 steps: $STEPS
 student: $STUDENT (no_think)
-teacher: $TEACHER (ref; think-template=$OPD_REF_THINK; param_offload=${TEACHER_OFFLOAD:-1})
+teacher: $TEACHER (ref; think-template=$OPD_REF_THINK; param_offload=${TEACHER_OFFLOAD:-1})$([ $SMERGE = 1 ] && echo '; stop-merged after the first box (opd_stopmerge.py)')
 student_template: $([ $STHINK = 1 ] && echo "thinking (the teacher prompt uses the same template)" || echo non-thinking), max_response_length $MAXRESP
 attention: $ATTN (use_remove_padding=$RMPAD)
 batching: ${MODE:-default} [$BATCH]
@@ -206,6 +220,7 @@ CFG
 [ "${SMOKE:-0}" = 1 ] || pgrep -f "upload_syn[c].sh $OUT\$" >/dev/null || \
   UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-$UW} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OUT > $OUT/upload.log 2>&1 < /dev/null &
 if [ -n "$LENSEL" ]; then python $RUNBOOK/code/patches/lensel_patch.py || { echo "LENSEL_PATCH_FAILED $TASK"; exit 1; }; fi   # [v2.5.8m] idempotent
+if [ $SMERGE = 1 ]; then python $RUNBOOK/code/patches/stopmerge_patch.py || { echo "STOPMERGE_PATCH_FAILED $TASK"; exit 1; }; fi   # [v2.5.9l] idempotent
 cd $OPD_ROOT/G-OPD/verl
 python3 -m verl.trainer.main_ppo \
   algorithm.adv_estimator=grpo \

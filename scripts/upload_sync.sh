@@ -61,7 +61,7 @@ while true; do
   if grep -q '^finished:' $RUN/config.yaml 2>/dev/null && [ $pend = 0 ]; then
     [ -f $RUN/train.log ] && python $RUNBOOK/scripts/metrics_jsonl.py $RUN/train.log > $RUN/metrics.jsonl
     case $TASK in E12[bcd]-*) stats 0;; esac   # [v2.5.9g] complete, whether or not run_e12.sh's own pass (after finished:) is done
-    for f in train.log config.yaml metrics.jsonl rollout_stats.csv lensel.jsonl; do [ -f $RUN/$f ] && up $RUN/$f runs/$TASK/$f; done   # [v2.5.8m] lensel.jsonl: the length-selected arms' per-prompt record
+    for f in train.log config.yaml metrics.jsonl rollout_stats.csv lensel.jsonl stopmerge.jsonl; do [ -f $RUN/$f ] && up $RUN/$f runs/$TASK/$f; done   # [v2.5.8m] lensel.jsonl: the length-selected arms' per-prompt record
     [ -d $RUN/rollouts ] && up $RUN/rollouts runs/$TASK/rollouts
     [ -f $RUN/.done ] && up $RUN/.done runs/$TASK/.done
     echo "UPLOAD_DONE $TASK $(date -u +%T)"
@@ -75,7 +75,7 @@ while true; do
   why=""; [ -f $RUN/.paused ] && why=paused
   [ "$(sed -n 's/^attempts: //p' $RUN/.failed 2>/dev/null)" -ge 3 ] 2> /dev/null && why=failed
   if [ -n "$why" ] && [ $pend = 0 ] && ! pgrep -f "scripts/task\.sh ([0-9]+(,[0-9]+)*|cpu) $TASK( |\$)" > /dev/null; then
-    for f in train.log config.yaml lensel.jsonl; do [ -f $RUN/$f ] && up $RUN/$f runs/$TASK/$f; done
+    for f in train.log config.yaml lensel.jsonl stopmerge.jsonl; do [ -f $RUN/$f ] && up $RUN/$f runs/$TASK/$f; done
     echo "UPLOAD_STOPPED $TASK $why $(date -u +%T)"; break
   fi
   sleep $([ "$DRY" = 1 ] && echo 5 || echo 120)
