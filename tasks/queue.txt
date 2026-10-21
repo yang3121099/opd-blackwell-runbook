@@ -1383,6 +1383,8 @@ olpd     open   EVAL-ext32k-17olpd
 #fetch Qwen/Qwen3-VL-8B-Thinking
 #fetch Qwen/Qwen3-VL-2B-Instruct
 #fetch dataset:BytedTsinghua-SIA/DAPO-Math-17k
+# 10-22 01:02 Beijing (17:02 UTC): Qwen3-VL-8B-Thinking in (.fetch_ok, 17.55 GB, ~3.6 MB/s); Qwen3-32B next (ops-lead's standing A1)
+#fetch Qwen/Qwen3-32B
 #git xirui-li/ClawEnvKit e7003442030e15c5e85f4c5f28a5e54774c6a21a code
 # b259fp / b259f (runbook v2.5.9f, T1, reviewer A1 10-21): E12b-P5-stop2 = E12b-P5 with the graded stop reward (reward_stop2.py:
 # acc x (1 + 0.5 clip(1 - tail/1024, 0, 1)), tail = student tokens after the first \boxed{}, a cut response tail 1024), from P5
