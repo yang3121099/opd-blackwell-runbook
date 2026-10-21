@@ -410,3 +410,4 @@ commands:
   - {"seq": 408, "cmd": "rerun PROBE-TERM4-4B", "reason": "v2.5.9v (Fable A1): TERM4-4B rows for X1 / X2 / X4 s50", "utc": "2026-10-21T16:47:17Z"}
   - {"seq": 409, "cmd": "snapshot models/Qwen3-VL-8B-Thinking", "reason": "VL-8B arrival check (parallel pull since 15:41 UTC)", "utc": "2026-10-21T17:13:25Z"}
   - {"seq": 410, "cmd": "setenv FETCH_CONNS_NIGHT=64", "reason": "ops-lead 17:2x UTC: 64 connections (net2 grid 7.25 MB/s at 64; VL-8B averaged 3.6 at 32); revert to 32 if the 32B rate is not higher", "utc": "2026-10-21T17:17:36Z"}
+  - {"seq": 411, "cmd": "setenv FETCH_CONNS_DAY=64", "reason": "ops-lead 17:2x UTC (Runming: day as night): 64 connections by day too, same revert rule", "utc": "2026-10-21T17:17:44Z"}
