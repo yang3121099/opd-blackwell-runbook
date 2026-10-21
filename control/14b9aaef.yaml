@@ -388,3 +388,4 @@ commands:
   - {"seq": 386, "cmd": "logs prefetch_EVAL-ext-4Bmid 20", "reason": "night2 prefetch check: are the models local (reviewer A1 11:27 UTC)", "utc": "2026-10-21T11:33:05Z"}
   - {"seq": 387, "cmd": "logs prefetch_EVAL-budA-17p2seeds 20", "reason": "night2 prefetch check: are the models local (reviewer A1 11:27 UTC)", "utc": "2026-10-21T11:33:13Z"}
   - {"seq": 388, "cmd": "logs prefetch_EVAL-ext32k-17olpd 20", "reason": "night2 prefetch check: are the models local (reviewer A1 11:27 UTC)", "utc": "2026-10-21T11:33:21Z"}
+  - {"seq": 389, "cmd": "du ckpt adhoc_models/result/runs/E12b-P1", "reason": "fill14: are the E12b-P1 / P3 s100 weights cached on the node (ops-lead A1 13:0x UTC)", "utc": "2026-10-21T13:10:27Z"}
