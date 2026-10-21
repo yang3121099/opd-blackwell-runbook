@@ -82,6 +82,8 @@ fill13   open   EVAL-ext32k-17sets-a EVAL-ext32k-17sets-b:E12b-P5-kl
 budF     open   EVAL-budF-4B EVAL-budF-06:EVAL-budA06p5+EVAL-budA06think
 passk    open   EVAL-passk-ext
 z8b      open   EVAL-ext32k-8Bthink-aime EVAL-ext32k-17base
+b259lp   open   PROBE-STOPMERGE
+b259l    open   E10b-P5stopmerge:PROBE-STOPMERGE EVAL-smerge:E10b-P5stopmerge EVAL-ext32k-17smerge:E10b-P5stopmerge
 night1   open   EVAL-ext-06p5rl EVAL-ext-x1 EVAL-ext-x2 EVAL-ext-x4:E10d-X4 EVAL-ext32k-17p5selfrl-s43 EVAL-ext-17p5selfrl-s43 EVAL-ext-17p5self-s43 EVAL-budA-17p2rl-s43 EVAL-budA-4Bp2s43
 b259ip   open   PROBE-ROLLOUT-U60 PROBE-ROLLOUT-U85 PROBE-ROLLOUT-U75
 night2   open   EVAL-ext-17s44mid EVAL-ext-4Bmid EVAL-budA-17p2seeds
@@ -1524,3 +1526,23 @@ olpd     open   EVAL-ext32k-17olpd
 #budget EVAL-budA-e12bP13 budget_curve_vsP5rl EVAL-budA-e12b/budAe12b_E12bP5_s100_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12b_E12bP1_s100_math500_T0.6_32k budAe12b_E12bP3_s100_math500_T0.6_32k
 # b259ip (runbook v2.5.9i, ops-lead's A1): PROBE-ROLLOUT, does more vLLM memory make an E12b step faster? One GPU each, ~45 min:
 # U60 (the arm's 0.6, the reference) first, then U85 and U75; after night1, ahead of night2 (ops-lead 12:3x UTC)
+# b259lp / b259l (runbook v2.5.9l, Q-038, the reviewer's A1): E10b-P5stopmerge = P5's recipe for 50 steps with the stop-merged
+# teacher (after the first complete box, a student stop scored with the teacher's mass on {<|im_end|>, </think>, <|endoftext|>}),
+# gated by PROBE-STOPMERGE. Readings at s50: MATH500 16K T0.6 / T1.0 paired against P5 s150 (E11b-P5) and the same-step control
+# lenR (P5 teacher, s50); MATH500 32K with the budget curves against the base, P5 s50 (the lab run) and lenR; STRICT-C1 lines
+# against P5 s50 and lenR; AIME24/25 avg@16 32K paired against P5 s150 and P5self s50. TERM4 row 17_P5smerge (p_stop_last,
+# the tail after the last box) once the 16K reading exists, then `rerun PROBE-TERM4`.
+#eval EVAL-smerge e10b_P5smerge_s50_math500_T0.6 result:runs/E10b-P5stopmerge/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-smerge e10b_P5smerge_s50_math500_T1.0 result:runs/E10b-P5stopmerge/global_step_50/actor/huggingface math500 4 1.0
+#eval EVAL-smerge budAsmerge_s50_math500_T0.6_32k result:runs/E10b-P5stopmerge/global_step_50/actor/huggingface math500 4 0.6 32768
+#pair EVAL-smerge e10b_P5smerge_s50_math500_T0.6 E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-len-R/e10b_P5lenR_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#pair EVAL-smerge e10b_P5smerge_s50_math500_T1.0 E11b-P5/e11b_P5_math500_T1.0_math500_no_think_t1.0.jsonl
+#budget EVAL-smerge budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAsmerge_s50_math500_T0.6_32k
+#budget EVAL-smerge budget_curve_vsP5s50 EVAL-budA-top10c/budAtop10_E10P5_17B_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAsmerge_s50_math500_T0.6_32k
+#budget EVAL-smerge budget_curve_vsR EVAL-len-R/budAlenR_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAsmerge_s50_math500_T0.6_32k
+#strict STRICT-C1 EVAL-smerge/budAsmerge_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-top10c/budAtop10_E10P5_17B_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#strict STRICT-C1 EVAL-smerge/budAsmerge_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-len-R/budAlenR_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#eval EVAL-ext32k-17smerge ext32k17_P5smerge_s50_aime24_T0.6 result:runs/E10b-P5stopmerge/global_step_50/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-17smerge ext32k17_P5smerge_s50_aime25_T0.6 result:runs/E10b-P5stopmerge/global_step_50/actor/huggingface aime25 16 0.6 32768
+#pair EVAL-ext32k-17smerge ext32k17_P5smerge_s50_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#pair EVAL-ext32k-17smerge ext32k17_P5smerge_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
