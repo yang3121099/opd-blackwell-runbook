@@ -160,8 +160,8 @@ def par(hub, monkeypatch):   # [v2.5.9q] FETCH_PARALLEL=1 with par_fetch.downloa
     return calls
 
 
-def test_parallel_by_day_defers_a_large_file(hub, par, monkeypatch, tmp_path):
-    monkeypatch.setattr(F, "night", lambda t=None: False); monkeypatch.setattr(F, "DAY_MAX", 100)
+def test_parallel_by_day_defers_a_large_file(hub, par, monkeypatch, tmp_path):   # with a day cap set (the default has none)
+    monkeypatch.setattr(F, "night", lambda t=None: False); monkeypatch.setenv("FETCH_DAY_MAX_BYTES", "100"); monkeypatch.setenv("FETCH_CONNS_DAY", "8")
     r = F.fetch("Qwen/Qwen3-1.7B", "m", str(tmp_path))
     assert r["ok"] is False and r["deferred"] is True and r["errors"][-1]["error"] == "Deferred"
     assert [c["size"] for c in par] == [len(C)] and par[0]["conns"] == 8   # the small file only, with the day's connections
@@ -169,7 +169,7 @@ def test_parallel_by_day_defers_a_large_file(hub, par, monkeypatch, tmp_path):
 
 
 def test_parallel_at_night(hub, par, monkeypatch, tmp_path):
-    monkeypatch.setattr(F, "night", lambda t=None: True); monkeypatch.setattr(F, "DAY_MAX", 100)
+    monkeypatch.setattr(F, "night", lambda t=None: True); monkeypatch.setenv("FETCH_DAY_MAX_BYTES", "100")
     r = F.fetch("Qwen/Qwen3-1.7B", "m", str(tmp_path))
     assert r["ok"] is True and os.path.exists(tmp_path / "m" / ".fetch_ok") and hub["calls"] == []
     assert [c["conns"] for c in par] == [32, 32] and all(c["may_run"] and not c["stop"] for c in par)   # small file first
@@ -194,3 +194,18 @@ def test_night_window_and_upload_check(tmp_path, monkeypatch):
     old = os.path.getmtime(tmp_path / "logs" / "heartbeat.err") - 7200
     os.utime(tmp_path / "logs" / "heartbeat.err", (old, old))
     assert F.uploads_timing_out() is False   # more than an hour ago
+
+
+def test_by_day_as_at_night_by_default(hub, par, monkeypatch, tmp_path):   # [v2.5.9r] Runming 10-21 23:3x Beijing
+    monkeypatch.setattr(F, "night", lambda t=None: False); monkeypatch.delenv("FETCH_DAY_MAX_BYTES", raising=False)
+    monkeypatch.setenv("OPD_ROOT", str(tmp_path / "root"))
+    r = F.fetch("Qwen/Qwen3-1.7B", "m", str(tmp_path))
+    assert r["ok"] is True and [c["conns"] for c in par] == [32, 32] and not any(c["stop"] for c in par)   # no cap, no stop
+
+
+def test_control_env_wins_over_the_environment(hub, par, monkeypatch, tmp_path):   # [v2.5.9r] setenv reaches the running loop
+    os.makedirs(tmp_path / "root"); (tmp_path / "root" / "control.env").write_text("FETCH_CONNS_DAY=64\n")
+    monkeypatch.setenv("OPD_ROOT", str(tmp_path / "root")); monkeypatch.setenv("FETCH_CONNS_DAY", "8")
+    monkeypatch.setattr(F, "night", lambda t=None: False)
+    assert F.conns_now() == 64 and F.day_max() == int(1e13)
+

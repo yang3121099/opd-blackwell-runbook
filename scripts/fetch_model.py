@@ -132,21 +132,40 @@ def uploads_timing_out():   # [v2.5.9e/9q] as fetch_pass: a result upload timed 
         return False
 
 
-DAY_MAX = int(float(os.environ.get("FETCH_DAY_MAX_BYTES", "1e9")))
+def _cfg(name, default):
+    """[v2.5.9r] a pull setting: $OPD_ROOT/control.env first (setenv reaches the running run_tasks loop without a restart, as
+    FETCH_ENDPOINT), then the environment, then the default."""
+    try:
+        for line in open(os.path.join(os.environ.get("OPD_ROOT", ""), "control.env")):
+            k, _, x = line.strip().removeprefix("export ").partition("=")
+            if k == name and x.strip().strip('"'):
+                return x.strip().strip('"')
+    except OSError:
+        pass
+    return os.environ.get(name) or default
+
+
+def day_max():   # [v2.5.9r] Runming 10-21 23:3x Beijing: by day as at night (nobody competes for the bandwidth): no day cap
+    return int(float(_cfg("FETCH_DAY_MAX_BYTES", "1e13")))
+
+
+def conns_now():   # [v2.5.9r] the same 32 by day and at night unless setenv says otherwise (PROBE-NET2's best)
+    return int(_cfg("FETCH_CONNS_NIGHT", "32") if night() else _cfg("FETCH_CONNS_DAY", "32"))
 
 
 def parallel_download(repo, path, size, local, ep):
     """[v2.5.9q] (FETCH_PARALLEL=1: run_tasks.sh's background pulls; Fable's rule 10-21 22:5x Beijing) one file in parallel
-    Range segments (par_fetch.py), FETCH_CONNS_NIGHT (32) connections at night and FETCH_CONNS_DAY (8) by day; a file over
-    FETCH_DAY_MAX_BYTES (1 GB) only at night (outside it: not started, or stopped at the end of the window, Deferred);
+    Range segments (par_fetch.py), FETCH_CONNS_NIGHT at night and FETCH_CONNS_DAY by day (both 32; [v2.5.9r] the day like the
+    night); a file over FETCH_DAY_MAX_BYTES ([v2.5.9r] 1e13: no cap) only at night (outside it: not started, or stopped
+    at the end of the window, Deferred);
     every segment waits while result uploads time out. No token is sent (public repositories)."""
     from huggingface_hub import hf_hub_url
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import par_fetch
-    big = size > DAY_MAX
+    big = size > day_max()
     if big and not night():
         raise par_fetch.Deferred(f"{path}: {size / 1e9:.1f} GB waits for the night window (22:00-08:00 Beijing)")
-    conns = int(os.environ.get("FETCH_CONNS_NIGHT" if night() else "FETCH_CONNS_DAY", "32" if night() else "8"))
+    conns = conns_now()
     dst = os.path.join(local, path); os.makedirs(os.path.dirname(dst) or ".", exist_ok=True)
     return par_fetch.download(hf_hub_url(repo, path, repo_type=REPO_TYPE, endpoint=ep), dst, size, conns,
                               may_run=lambda: not uploads_timing_out(), stop=lambda: big and not night(),
