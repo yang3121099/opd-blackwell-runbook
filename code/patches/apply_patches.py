@@ -131,3 +131,9 @@ print("patched", root / "verl/trainer/ppo/ray_trainer.py", "(tail-swap OPD)")
 from vardrop_patch import patch_file as _vd_patch  # noqa: E402
 _vd_patch(str(root / "verl/trainer/ppo/ray_trainer.py"), keep_orig=False)   # the pristine file is in git
 print("patched", root / "verl/trainer/ppo/ray_trainer.py", "(r3 group drop)")
+
+# 8. [v2.5.9x] (Q-041 / Q-042) the per-prompt teacher template (route_patch.py; a no-op unless OPD_ROUTE is set): after the P5
+#    patch's per-sample `_think` in prepare_ref_model_inputs (section 2), and the call's log before it returns
+from route_patch import patch_file as _rt_patch  # noqa: E402
+_rt_patch(str(root / "verl/trainer/ppo/ref_input_utils.py"), keep_orig=False)   # the pristine file is in git
+print("patched", root / "verl/trainer/ppo/ref_input_utils.py", "(per-prompt teacher template)")
