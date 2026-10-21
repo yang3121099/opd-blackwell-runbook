@@ -12,7 +12,8 @@
 # logs/<node>/probe_stopmerge/<task> (private), an event, .done. ~25 min on one GPU.
 # [v2.5.9z6] PSM_UNIT_ONLY=1 (task PROBE-STOPMERGE-UNIT, the CPU lane): step 1 only, no GPU, in runs/PROBE-STOPMERGE-UNIT (the gate's
 # own report is not touched): the unit-test line "N passed, F failed, S skipped" (a skip fails the gate too) and hooks.txt,
-# the installed files' hook lines with the guard each one runs under (OPD_STOPMERGE=1 or the batch key it sets).
+# the installed files' hook lines with the guard each one runs under (OPD_STOPMERGE=1 or the batch key it sets), and [v2.5.9z8]
+# every line with opd_box_end in the installed verl tree and $RUNBOOK/code (the writes marked).
 # Usage: bash probe_stopmerge.sh <gpu>   |   PSM_UNIT_ONLY=1 bash probe_stopmerge.sh cpu
 set -uo pipefail
 G=$1; T=PROBE-STOPMERGE; [ "${PSM_UNIT_ONLY:-0}" = 1 ] && T=PROBE-STOPMERGE-UNIT; source "$(dirname "$0")/env.sh"
@@ -71,11 +72,11 @@ sys.exit(1 if fails or skips or not n else 0)
 PY
 ); rc=$?
 # [v2.5.9z6] the hook lines of the files the trainings import (the installed package and the source tree), each with its guard
-python3 - "$VD" "$GS" > $D/hooks.txt 2>&1 <<'PY'
-import os, sys
+python3 - "$VD" "$GS" "$RUNBOOK/code" > $D/hooks.txt 2>&1 <<'PY'
+import os, re, sys
 mark = "# [opd-variants patch v2] [v2.5.9l] stop-merged OPD"
 seen = set()
-for d in sys.argv[1:]:
+for d in sys.argv[1:3]:
     for rel in ("trainer/ppo/ref_input_utils.py", "workers/actor/dp_actor.py"):
         f = os.path.realpath(os.path.join(d, rel))
         if f in seen or not os.path.exists(f):
@@ -88,6 +89,28 @@ for d in sys.argv[1:]:
             if not lines[i].lstrip().startswith(("if ", "_sm_on")):   # the hook's guard is the next line
                 print(f"{i + 2}: {lines[i + 1].strip()}")
 print(f"files: {len(seen)} distinct")
+# [v2.5.9z8] (ops-lead 10-21) every line holding the batch key opd_box_end in the installed verl tree(s) and the runbook's code
+# (tree:file:line:text, relative paths), and the writes among them (an assignment to the key): the 6 actor hooks are guarded by the
+# key, so they are no-ops unless the OPD_STOPMERGE branch is its only writer
+write = re.compile(r"""opd_box_end['"]\]\s*=[^=]""")
+walked = set()
+for label, root in (("verl", sys.argv[1]), ("verl-src", sys.argv[2]), ("runbook/code", sys.argv[3])):
+    rr = os.path.realpath(root)
+    if rr in walked or not os.path.isdir(rr):
+        continue
+    walked.add(rr); hits = writes = 0
+    print(f"-- opd_box_end in {label}")
+    for base, dirs, files in os.walk(rr, followlinks=True):
+        dirs[:] = sorted(x for x in dirs if x != "__pycache__")
+        for fn in sorted(files):
+            f = os.path.join(base, fn)
+            if fn.endswith((".pyc", ".so")) or os.path.getsize(f) > 5 << 20:
+                continue
+            for i, line in enumerate(open(f, errors="ignore"), 1):
+                if "opd_box_end" in line:
+                    w = bool(write.search(line)); hits += 1; writes += w
+                    print(f"{label}:{os.path.relpath(f, rr)}:{i}:{' WRITE' if w else ''} {line.strip()}")
+    print(f"-- {label}: {hits} lines, {writes} writes")
 PY
 step "unit tests: $(tail -1 $D/unit_tests.txt); hooks: $(grep -c '^== ' $D/hooks.txt) files listed"
 [ $rc = 0 ] || finish FAIL "unit tests: $(tail -1 $D/unit_tests.txt)"
