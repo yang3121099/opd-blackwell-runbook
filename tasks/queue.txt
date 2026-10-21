@@ -1385,6 +1385,9 @@ olpd     open   EVAL-ext32k-17olpd
 #fetch Qwen/Qwen3-VL-2B-Instruct
 # 10-22 01:2x Beijing (Fable's Q-051, ops-lead): Geometry3K (verl's example set, ~100 MB, open licence) before Qwen3-32B, for PROBE-VLM / E15-VLM
 #fetch dataset:hiyouga/geometry3k
+# (Fable / ops-lead 10-22 01:4x Beijing) MathVista for E15-VLM's testmini reading (CC BY-SA 4.0, evaluation only, not redistributed): the
+# whole repository (1.75 GB; testmini is one 141.6 MB parquet, fetch_pass takes no prefix), ~4-8 min at the measured 3.6-7 MB/s
+#fetch dataset:AI4Math/MathVista
 #fetch dataset:BytedTsinghua-SIA/DAPO-Math-17k
 # 10-22 01:02 Beijing (17:02 UTC): Qwen3-VL-8B-Thinking in (.fetch_ok, 17.55 GB, ~3.6 MB/s); Qwen3-32B next (ops-lead's standing A1)
 #fetch Qwen/Qwen3-32B
