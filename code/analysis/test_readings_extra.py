@@ -62,3 +62,21 @@ def test_refused_paths_and_the_metrics_mismatch():   # [v2.5.9z3] ops-lead's A1 
     s = X.main(runs, q, out)
     assert "../etc/x.jsonl: refused path" in s["missing"] and "/abs/m.metrics.json: refused path" in s["missing"]
     assert s["mismatch"] == ["17_A: all 60.0 vs metrics 61.0"] and "mismatch: 17_A" in open(os.path.join(out, "summary.txt")).read()
+
+
+def test_pairq_paired_bootstrap():   # [v2.5.9z5] problem-level pairs of two readings, the lab's method
+    runs, out, q = setup()
+    os.makedirs(os.path.join(runs, "EVAL-c"))
+    with open(os.path.join(runs, "EVAL-c", "c_aime.jsonl"), "w") as f, open(os.path.join(runs, "EVAL-c", "d_aime.jsonl"), "w") as g:
+        for i in range(30):
+            for s in range(4):
+                f.write(json.dumps({"pid": f"aime24-{i}", "sample": s, "correct": i < 20}) + "\n")   # a: 20 / 30 solved
+                g.write(json.dumps({"pid": f"aime24-{i}", "sample": s, "correct": i < 15}) + "\n")   # b: 15 / 30
+    open(q, "a").write("#pairq READINGS-EXTRA c_vs_d EVAL-c/c_aime.jsonl EVAL-c/d_aime.jsonl\n#pairq READINGS-EXTRA gone EVAL-c/c_aime.jsonl EVAL-z/none.jsonl\n#pairq READINGS-EXTRA bad ../x.jsonl EVAL-c/d_aime.jsonl\n")
+    s = X.main(runs, q, out)
+    p = s["pairs"]["c_vs_d"]
+    assert p["acc_a"] == 66.67 and p["acc_b"] == 50.0 and p["diff"] == 16.67 and p["wins"] == 5 and p["losses"] == 0 and p["problems"] == 30
+    assert p["ci95"][0] > 0 and p["a"] == "EVAL-c/c_aime.jsonl"
+    assert "EVAL-z/none.jsonl" in s["missing"] and any("refused path" in m for m in s["missing"])
+    assert json.load(open(os.path.join(out, "up", "runs", "READINGS-EXTRA", "pairs.json")))["c_vs_d"]["diff"] == 16.67
+    assert "c_vs_d | 66.67 | 50.0 | 16.67 [" in open(os.path.join(out, "summary.txt")).read()

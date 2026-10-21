@@ -1788,3 +1788,7 @@ olpd     open   EVAL-ext32k-17olpd
 #pair EVAL-ext32k-17p5l8k-s25 ext32k17_E12bP5l8k_s25_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17p5l8k/ext32k17_E12bP5l8k_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #eval EVAL-ext32k-17p5l8k-s25 ext32k17_E12bP5l8k_s25_aime25_T0.6 result:runs/E12b-P5-8k/global_step_25/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-17p5l8k-s25 ext32k17_E12bP5l8k_s25_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17p5l8k/ext32k17_E12bP5l8k_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
+# (the reviewer 10-22, Q-F, via ops-lead) the 8B teacher against the 4B base on its thinking template, AIME24 / AIME25 avg@16 32K,
+# problem-level paired bootstrap (READINGS-EXTRA's #pairq rows: CPU, from the readings already on the node; `rerun READINGS-EXTRA`)
+#pairq READINGS-EXTRA 8Bthink_vs_4Bthink_aime24 EVAL-ext32k-8Bthink-aime/ext32k8B_think_aime24_T0.6_aime24_think_t0.6.jsonl EVAL-ext32k-4Bthink/ext32k4B_P0think_aime24_T0.6_aime24_think_t0.6.jsonl
+#pairq READINGS-EXTRA 8Bthink_vs_4Bthink_aime25 EVAL-ext32k-8Bthink-aime/ext32k8B_think_aime25_T0.6_aime25_think_t0.6.jsonl EVAL-ext32k-4Bthink/ext32k4B_P0think_aime25_T0.6_aime25_think_t0.6.jsonl

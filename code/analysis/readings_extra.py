@@ -9,6 +9,9 @@ generated again, no reading's own numbers changed.
 2. frontier (the reviewer's cost-frontier table): for each `#frontier READINGS-EXTRA <label> <task>/<file> [<reading>]` line, the
    16K mean length and truncation rate: from a budget_curve*.json, its <reading>'s 16384 budget (by_budget["16384"]); from a
    metrics.json, its mean_tokens / trunc_rate (with its max_tokens). Written to READINGS-EXTRA/frontier_fill.json.
+3. [v2.5.9z5] pairs (the reviewer 10-22, Q-F): for each `#pairq READINGS-EXTRA <label> <task>/<a>.jsonl <task>/<b>.jsonl` line, the
+   problem-level paired bootstrap of a against b (code/analysis/paired_bootstrap.py, the lab's method run for #pair lines: per-problem
+   accuracy, 10000 resamples, seed 0, 95% percentile CI, wins / losses / ties). Written to READINGS-EXTRA/pairs.json.
 Inputs missing on the node are listed, not guessed. Usage: python readings_extra.py <runs dir> <queue file> <out dir>
 """
 import json
@@ -112,7 +115,19 @@ def main(runs, qfile, out):
             summary["frontier"][label] = dict(frontier(p, reading), source=rel + (f" [{reading}]" if reading else ""))
         except (OSError, KeyError, ValueError) as e:
             summary["missing"].append(f"{rel}: {type(e).__name__}")
+    summary["pairs"] = {}
+    for row in queue_rows(qfile, "pairq"):   # [v2.5.9z5]
+        label, a, b = (row + [None, None])[:3]
+        if not (a and b and safe(a) and safe(b)):
+            summary["missing"].append(f"{a} / {b}: refused path"); continue
+        pa, pb = os.path.join(runs, a), os.path.join(runs, b)
+        if not (os.path.exists(pa) and os.path.exists(pb)):
+            summary["missing"] += [x for x, q in ((a, pa), (b, pb)) if not os.path.exists(q)]; continue
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import paired_bootstrap as PB
+        summary["pairs"][label] = dict(PB.paired(PB.load(pa), PB.load(pb), label), a=a, b=b)
     fd = os.path.join(out, "up", "runs", "READINGS-EXTRA"); os.makedirs(fd, exist_ok=True)
+    json.dump(summary["pairs"], open(os.path.join(fd, "pairs.json"), "w"), indent=1)
     json.dump(summary["frontier"], open(os.path.join(fd, "frontier_fill.json"), "w"), indent=1)
     json.dump(summary, open(os.path.join(fd, "summary.json"), "w"), indent=1)
     json.dump(summary, open(os.path.join(out, "summary.json"), "w"), indent=1)
@@ -122,6 +137,8 @@ def main(runs, qfile, out):
         lines.append(f"{k} | {f('1-100')} | {f('101-500')} | {s['all']['acc']} ({s.get('metrics_avg_acc')}) | {f('easy')} | {f('hard')}")
     lines.append("frontier: label | 16K mean tokens | 16K trunc | source")
     lines += [f"{k} | {v['mean_tokens_16k']} | {v['trunc_16k']} | {v['source']}" for k, v in summary["frontier"].items()]
+    lines.append("pairs: label | acc a | acc b | diff [95% CI] | wins / losses / ties | problems")
+    lines += [f"{k} | {v['acc_a']} | {v['acc_b']} | {v['diff']} [{v['ci95'][0]}, {v['ci95'][1]}] | {v['wins']} / {v['losses']} / {v['ties']} | {v['problems']}" for k, v in summary["pairs"].items()]
     lines.append("missing: " + (", ".join(summary["missing"]) or "none"))
     lines.append("all-500 vs metrics mismatch: " + ("; ".join(summary.get("mismatch", [])) or "none"))
     open(os.path.join(out, "summary.txt"), "w").write("\n".join(lines) + "\n")

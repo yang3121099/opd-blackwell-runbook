@@ -65,4 +65,11 @@ ok "X-gate (PROBE-Y without a report) and X-wait (just waiting) are not started"
 mkdir -p $T/root/runs/PROBE-Y; echo '{"result": "PASS"}' > $T/root/runs/PROBE-Y/report.json; touch -t 202001010000 $T/root/runs/X-wait/.waiting; dry
 ok "PROBE-Y PASS and the wait over: both start" 'grep -q "WOULD_START .* X-gate " $T/dry.out && grep -q "WOULD_START .* X-wait " $T/dry.out'
 cd $SRC; rm -rf $T
+# 6. [v2.5.9z5] readings_extra.sh uploads each run directory as runs/<task> (public), not a bare "runs" (private)
+setup; mkdir -p $T/rb/code/analysis; cp $SRC/scripts/readings_extra.sh $T/rb/scripts/
+printf "import os, sys, json\nout = sys.argv[3]\nfor d in (\"EVAL-a\", \"READINGS-EXTRA\"):\n    os.makedirs(os.path.join(out, \"up\", \"runs\", d), exist_ok=True)\njson.dump({\"split\": {}, \"frontier\": {}, \"missing\": []}, open(os.path.join(out, \"summary.json\"), \"w\"))\n" > $T/rb/code/analysis/readings_extra.py
+printf 'import sys, os; open(os.environ["CALLS"], "a").write("remote " + " ".join(sys.argv[1:]) + "\\n")\n' > $T/rb/scripts/remote.py
+bash $T/rb/scripts/readings_extra.sh > /dev/null 2>&1
+ok "[v2.5.9z5] READINGS-EXTRA uploads runs/EVAL-a and runs/READINGS-EXTRA, never a bare runs" 'grep -q "^remote put $T/root/runs/READINGS-EXTRA/up/runs/EVAL-a runs/EVAL-a$" $CALLS && grep -q "^remote put $T/root/runs/READINGS-EXTRA/up/runs/READINGS-EXTRA runs/READINGS-EXTRA$" $CALLS && ! grep -q " runs$" $CALLS'
+cd $SRC; rm -rf $T
 [ $fails = 0 ] && echo "GATE_BLOCK_TEST PASS ($n checks)" || echo "GATE_BLOCK_TEST FAIL ($fails of $n)"
