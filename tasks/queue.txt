@@ -48,6 +48,7 @@ b258bp   open   PROBE-E12B-KL
 b258cp   open   PROBE-E12B-STOP
 b258hp   open   PROBE-E12B-8K PROBE-E12B-16K
 b258ip   open   PROBE-X2507-X1 PROBE-X2507-X2
+b258lp   open   PROBE-X2507-X4
 fill2    open   EVAL-ext32k-4Bp2:E10d-P2 EVAL-ext32k-4Bp2s43:E10d-P2-s43 EVAL-ext32k-17p2s:E10b-P2-s43 EVAL-ext32k-17p2srl:E12b-P2-s43 EVAL-ext-E10b-P2s43:E10b-P2-s43 EVAL-ext-E10b-P2s44:E10b-P2-s44
 b258a    open   E10c-P5-fix4 E12c-P0:PROBE-E12C E12b-P5self EVAL-e10c-P5-fix4:E10c-P5-fix4+EVAL-e10c-base06 E12c-P5:PROBE-E12C+E10c-P5-fix4 EVAL-e12b-P5self:E12b-P5self EVAL-budA-e12bP5self:E12b-P5self EVAL-e12c-P0:E12c-P0+EVAL-e10c-base06 EVAL-e12c-P5:E12c-P5+EVAL-e12c-P0+EVAL-e10c-P5-fix4 EVAL-budA-e12c:E12c-P0+E12c-P5+EVAL-budA06p5
 fill3    open   EVAL-ext32k-17p5self:E10b-P5self EVAL-ext32k-17p2self:E10b-P2self EVAL-ext32k-17think:E10b-P5think EVAL-ext-E10b-P5self:E10b-P5self EVAL-ext-E10b-P2self:E10b-P2self EVAL-ext-E10b-P5think:E10b-P5think EVAL-ext32k-17p2s44:E10b-P2-s44
@@ -57,6 +58,7 @@ q2507    open   EVAL-i2507 EVAL-t2507 EVAL-i2507-aime EVAL-t2507-aime
 b258e    open   E10b-P5self-s43 PROBE-P5SELF-4B E10d-P5self:PROBE-P5SELF-4B E12b-P5self-s43:E10b-P5self-s43 EVAL-e10b-P5self-s43:E10b-P5self-s43 EVAL-budA-P5self-s43:E10b-P5self-s43 EVAL-e10d-P5self:E10d-P5self EVAL-budA-e10dP5self:E10d-P5self EVAL-e12b-P5self-s43:E12b-P5self-s43 EVAL-budA-e12bP5self-s43:E12b-P5self-s43+EVAL-budA-P5self-s43
 b258h    open   E12b-P5-8k:PROBE-E12B-8K E12b-P5-16k:PROBE-E12B-16K EVAL-e12b-P5-8k:E12b-P5-8k EVAL-budA-e12bP5-8k:E12b-P5-8k EVAL-ext32k-17p5l8k:E12b-P5-8k EVAL-e12b-P5-16k:E12b-P5-16k EVAL-budA-e12bP5-16k:E12b-P5-16k EVAL-ext32k-17p5l16k:E12b-P5-16k
 b258i    open   E10d-X1:PROBE-X2507-X1 E10d-X2:PROBE-X2507-X2 EVAL-ext32k-x1:E10d-X1 EVAL-ext32k-x2:E10d-X2 EVAL-budA-x1:E10d-X1+EVAL-i2507 EVAL-budA-x2:E10d-X2+EVAL-i2507 EVAL-e10d-x1:E10d-X1 EVAL-e10d-x2:E10d-X2
+b258l    open   E10d-X4:PROBE-X2507-X4 EVAL-ext32k-x4:E10d-X4 EVAL-budA-x4:E10d-X4+EVAL-i2507 EVAL-e10d-x4:E10d-X4
 fill4    open   EVAL-ext32k-17p1:E12b-P1 EVAL-ext32k-17p3:E12b-P3 EVAL-ext-E10b-P3:E10b-P3 EVAL-ext-E10b-P6r:E10b-P6r
 len      open   EVAL-budA06p5:E10c-P5-fix4 EVAL-budA06think EVAL-budA-8Bthink
 fill5    open   EVAL-ext-E10c-P0 EVAL-ext32k-06think EVAL-ext-E10c-P5-fix4:E10c-P5-fix4+EVAL-ext-E10c-P0 EVAL-ext32k-06:E10c-P5-fix4+EVAL-ext32k-06think EVAL-ext-E12c-P0:E12c-P0+EVAL-ext-E10c-P0+EVAL-ext-E10c-P5-fix4
@@ -1267,3 +1269,25 @@ passk    open   EVAL-passk-ext
 #strict STRICT-C1 EVAL-budA-x2/budAX2_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-i2507/i2507_math500_T0.6_32k_math500_no_think_t0.6.jsonl
 # 06:0x UTC 10-21: the dyn6144 reading's lines turned off (it was in no stage; the pulse listed it as queued from these lines;
 # its training E10c-P4lowlr-dyn6144 has been paused since its out-of-memory at step 105 on 10-18, so it could never start)
+# b258l (runbook v2.5.8l, Q-032, Runming via the reviewer 06:4x UTC 10-21): E10d-X4 = the hybrid Qwen3-4B student (non-thinking
+# template, as E10d-P5) taught by Qwen3-4B-Instruct-2507 in its own template (think-template 0), P5's recipe, 4K rollouts, 50 steps;
+# the teacher already has thinking-level accuracy with non-thinking termination. AIME at s25 and s50 first, then MATH500 32K with
+# forced answers, budget curves and STRICT lines, then 16K. TERM4 rows follow once s50 exists (as for X1 / X2).
+#eval EVAL-ext32k-x4 ext32k4B_X4_s25_aime24_T0.6 result:runs/E10d-X4/global_step_25/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-x4 ext32k4B_X4_s25_aime25_T0.6 result:runs/E10d-X4/global_step_25/actor/huggingface aime25 16 0.6 32768
+#eval EVAL-ext32k-x4 ext32k4B_X4_s50_aime24_T0.6 result:runs/E10d-X4/global_step_50/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-x4 ext32k4B_X4_s50_aime25_T0.6 result:runs/E10d-X4/global_step_50/actor/huggingface aime25 16 0.6 32768
+#pair EVAL-ext32k-x4 ext32k4B_X4_s50_aime24_T0.6 EVAL-ext32k-4B/ext32k4B_base4B_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-i2507-aime/i2507_aime24_T0.6_32k_aime24_no_think_t0.6.jsonl EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4Bthink/ext32k4B_P0think_aime24_T0.6_aime24_think_t0.6.jsonl
+#pair EVAL-ext32k-x4 ext32k4B_X4_s50_aime25_T0.6 EVAL-ext32k-4B/ext32k4B_base4B_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-i2507-aime/i2507_aime25_T0.6_32k_aime25_no_think_t0.6.jsonl EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Bthink/ext32k4B_P0think_aime25_T0.6_aime25_think_t0.6.jsonl
+#pair EVAL-ext32k-x4 ext32k4B_X4_s25_aime24_T0.6 EVAL-ext32k-4B/ext32k4B_base4B_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#pair EVAL-ext32k-x4 ext32k4B_X4_s25_aime25_T0.6 EVAL-ext32k-4B/ext32k4B_base4B_aime25_T0.6_aime25_no_think_t0.6.jsonl
+#eval EVAL-budA-x4 budAX4_s50_math500_T0.6_32k result:runs/E10d-X4/global_step_50/actor/huggingface math500 4 0.6 32768
+#forced EVAL-budA-x4 EVAL-budA-x4/budAX4_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl result:runs/E10d-X4/global_step_50/actor/huggingface no_think
+#budget EVAL-budA-x4 budget_curve EVAL-budA-4B/budA4B_base4B_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAX4_s50_math500_T0.6_32k
+#budget EVAL-budA-x4 budget_curve_vsI2507 EVAL-i2507/i2507_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAX4_s50_math500_T0.6_32k
+#budget EVAL-budA-x4 budget_curve_vsE10dP5 EVAL-budA-4B/budA4B_E10dP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAX4_s50_math500_T0.6_32k
+#budget EVAL-budA-x4 budget_curve_vs4Bthink EVAL-budA-4Bthink/budA4B_P0think_math500_T0.6_32k_math500_think_t0.6.jsonl budAX4_s50_math500_T0.6_32k
+#eval EVAL-e10d-x4 e10d_X4_s50_math500_T0.6 result:runs/E10d-X4/global_step_50/actor/huggingface math500 4 0.6
+#pair EVAL-e10d-x4 e10d_X4_s50_math500_T0.6 EVAL-e10d-P0/e10d_P0_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e10d-P5/e10d_P5_s150_math500_T0.6_math500_no_think_t0.6.jsonl
+#strict STRICT-C1 EVAL-budA-x4/budAX4_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-4B/budA4B_base4B_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#strict STRICT-C1 EVAL-budA-x4/budAX4_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-i2507/i2507_math500_T0.6_32k_math500_no_think_t0.6.jsonl
