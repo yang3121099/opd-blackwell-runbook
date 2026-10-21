@@ -59,6 +59,8 @@ ok "E12b DR=0: as before" '[[ "$d2" == *"save=100 contents=['"'"'hf_model'"'"']"
 mkdir -p $T/base/root/runs/SFT-P1 $T/base/opd-dr/keep/SFT-P1/ckpt/global_step_283/huggingface; echo 283 > $T/base/root/runs/SFT-P1/final_step
 : > $T/base/opd-dr/keep/SFT-P1/ckpt/global_step_283/huggingface/model.safetensors
 d4=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P1 2>&1 | tail -1)
+d9=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 2,5 E12b-P0 2>&1 | tail -1)   # [v2.5.9a] a #gpus task
+ok "[v2.5.9a] run_e12 on gpus 2,5: ngpu=2; one GPU: ngpu=1" '[[ "$d9" == *" ngpu=2 "* && "$d1" == *" ngpu=1 "* ]]'
 d6=$(VENV=fa DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P0 2>&1 | tail -1); d7=$(VENV=fa E12B_FA=1 DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P0 2>&1 | tail -1)
 d8=$(SMOKE=1 PROBE_TASK=FA-SPEED-E12-fa_gc0 DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P0 2>&1 | tail -1)   # v2.5.7c
 mkdir -p $T/base/root/runs/E10b-P5-s44/ckpt/global_step_150/actor/huggingface_bf16; : > $T/base/root/runs/E10b-P5-s44/ckpt/global_step_150/actor/huggingface_bf16/model.safetensors

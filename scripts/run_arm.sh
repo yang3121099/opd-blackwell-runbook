@@ -122,7 +122,8 @@ if [ -n "$XARM" ]; then   # [v2.5.8i] the 2507 models from the HF cache only (th
   S=$(loc $STUDENT) || { echo "no local copy of $STUDENT"; exit 2; }; T=$(loc $TEACHER) || { echo "no local copy of $TEACHER"; exit 2; }
   STUDENT=$S; TEACHER=$T
 fi
-export CUDA_VISIBLE_DEVICES=$GPU RAY_TMPDIR=/tmp/ray_gpu$GPU
+NG=$(echo $GPU | tr , '\n' | grep -c .)   # [v2.5.9a] the GPUs of a #gpus task (a,b): FSDP over NG ranks, one vLLM engine each
+export CUDA_VISIBLE_DEVICES=$GPU RAY_TMPDIR=/tmp/ray_gpu${GPU//,/_}
 export PYTHONPATH=$RUNBOOK/code/patches:${PYTHONPATH:-}
 export OPD_VARIANT=$ARM OPD_SEED=${OPD_SEED:-1234} OPD_VARIANT_OVERRIDE= OPD_TOKCAT=
 # v2.5.7h (Q-014): P5top10 / P5rand10m reach opd_variants.compute through the dispatched hook P6 (opd_variants.OVERRIDE_VIA:
@@ -158,7 +159,7 @@ TBS=128; RN=1; MBS=128; unset OPD_LENSEL OPD_LENSEL_K OPD_LENSEL_LOG
 if [ -n "$LENSEL" ]; then TBS=${LENSEL_PROMPTS:-32}; RN=${LENSEL_N:-16}; LK=${LENSEL_K:-4}; MBS=$(( TBS * LK / RN ))
   export OPD_LENSEL=$LENSEL OPD_LENSEL_K=$LK OPD_LENSEL_LOG=$OUT/lensel.jsonl; fi
 UW=$NSTEPS; [ $TASK = E10c-P5-fix4 ] && UW=100,$NSTEPS; [ -n "$XARM" ] && UW=25,$NSTEPS   # [v2.5.8i] X arms: s25 is read too   # [v2.5.8a] (Q-023): its s100 = the step of the lab's 0.6B P5 reading (+19.2)
-[ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $TASK arm=$ARM lr=$LR seed=$SEED student=$STUDENT batch=[$BATCH] kern=[$KERN] gc=$GCK venv=$(basename ${VENV:-$OPD_ROOT/venv}) rmpad=$RMPAD lensel=${LENSEL:-none}/${TBS}x${RN}/mb$MBS sthink=$STHINK maxresp=$MAXRESP teacher=$TEACHER offload=${TEACHER_OFFLOAD:-1} variant=$OPD_VARIANT override=$OPD_VARIANT_OVERRIDE refthink=$OPD_REF_THINK steps=$NSTEPS"; exit 0; }   # tests
+[ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $TASK arm=$ARM lr=$LR seed=$SEED student=$STUDENT batch=[$BATCH] kern=[$KERN] gc=$GCK venv=$(basename ${VENV:-$OPD_ROOT/venv}) ngpu=$NG rmpad=$RMPAD lensel=${LENSEL:-none}/${TBS}x${RN}/mb$MBS sthink=$STHINK maxresp=$MAXRESP teacher=$TEACHER offload=${TEACHER_OFFLOAD:-1} variant=$OPD_VARIANT override=$OPD_VARIANT_OVERRIDE refthink=$OPD_REF_THINK steps=$NSTEPS"; exit 0; }   # tests
 STEPS=$NSTEPS; TEST=10; VALB=True
 # save rule (v2.4, Runming 2026-10-17): no archive of resume states. A dedicated node saves only the HF weights at the
 # pre-registered reading steps (E10b: step 150, the one checkpoint E11b and E12b read; SAVE=<n> for others), which
@@ -183,7 +184,7 @@ rollouts: $TBS prompts x $RN per step$([ -n "$LENSEL" ] && echo ", length select
 kernels: fused=${FUSED:-0} gradient_checkpointing=$GCK
 dr: $(dr_on && echo "every $SAVE steps" || echo off)
 gopd_commit: $GOPD_COMMIT
-gpu: $(nvidia-smi --query-gpu=name --format=csv,noheader -i $GPU)
+gpu: $(nvidia-smi --query-gpu=name --format=csv,noheader -i $GPU | head -1) x$NG ($GPU)
 started: $(date -u +%FT%TZ)
 CFG
 [ "${SMOKE:-0}" = 1 ] || ckpt_link $OUT   # v2.4: checkpoints on $CKPT_ROOT (the large disk)
@@ -224,7 +225,7 @@ python3 -m verl.trainer.main_ppo \
   custom_reward_function.path=$RUNBOOK/code/train/reward_mathverify.py custom_reward_function.name=compute_score \
   reward_model.reward_manager=naive trainer.critic_warmup=0 trainer.val_before_train=$VALB \
   trainer.logger='["console"]' trainer.project_name=opd-e10b trainer.experiment_name=$TASK \
-  trainer.n_gpus_per_node=1 trainer.nnodes=1 trainer.save_freq=$SAVE trainer.test_freq=$TEST \
+  trainer.n_gpus_per_node=$NG trainer.nnodes=1 trainer.save_freq=$SAVE trainer.test_freq=$TEST \
   trainer.resume_mode=auto trainer.total_training_steps=$STEPS trainer.total_epochs=2 \
   trainer.default_local_dir=$OUT/ckpt $([ -n "${ROLLOUT_DUMP:-}" ] && echo trainer.rollout_data_dir=$ROLLOUT_DUMP) \
   2>&1 | tee -a $OUT/train.log

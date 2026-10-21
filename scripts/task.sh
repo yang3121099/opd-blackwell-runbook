@@ -5,6 +5,9 @@
 # Usage: bash task.sh <gpu> <task id>
 set -uo pipefail
 source "$(dirname "$0")/env.sh"; G=$1; T=$2
+# [v2.5.9a] G = one GPU, cpu, or a list a,b (a #gpus task, run_tasks.sh): a list only for the trainings and PROBE-2GPU
+[[ $G =~ ^([0-9]+(,[0-9]+){0,3}|cpu)$ ]] || { echo "bad gpu $G"; exit 2; }
+case $G in *,*) [[ $T =~ ^(E10[bcd]-|E12[bcd]-|PROBE-2GPU$) ]] || { echo "$T takes one GPU (got $G)"; exit 2; };; esac
 # v2.5.4a: a task whose previous attempt ran out of GPU memory (run_tasks.sh writes runs/<task>/.oom) gets FIXED_MICRO_BSZ=4
 # for its own retries, unless the key is set already; nothing else changes
 [ -f $OPD_ROOT/runs/$T/.oom ] && [ -z "${FIXED_MICRO_BSZ:-}" ] && { export FIXED_MICRO_BSZ=4; echo "OOM_RETRY $T with FIXED_MICRO_BSZ=4"; }
@@ -37,6 +40,7 @@ case $T in
   PROBE-E12B-8K) bash $RUNBOOK/scripts/probe_e12var.sh $G 8k;;   # [v2.5.8h] (Q-028): the gate of E12b-P5-8k
   PROBE-E12B-16K) bash $RUNBOOK/scripts/probe_e12var.sh $G 16k;;   # [v2.5.8h] (Q-028): the gate of E12b-P5-16k
   PROBE-P5SELF-4B) bash $RUNBOOK/scripts/probe_p5self.sh $G 4b;;   # [v2.5.8e] the gate of E10d-P5self
+  PROBE-2GPU) bash $RUNBOOK/scripts/probe_2gpu.sh $G;;   # [v2.5.9a] the gate of the two-GPU slot (G = a,b from '#gpus PROBE-2GPU 2')
   PROBE-LENSEL) bash $RUNBOOK/scripts/probe_lensel.sh $G;;   # [v2.5.8m] (Q-030): the gate of E10b-P5lenS / L / R
   PROBE-X2507-X1|PROBE-X2507-X2|PROBE-X2507-X4) bash $RUNBOOK/scripts/probe_x2507.sh $G ${T#PROBE-X2507-};;   # [v2.5.8i] (Q-029): the gates of E10d-X1 / X2
   PROBE-P5SELF) bash $RUNBOOK/scripts/probe_p5self.sh $G;;   # v2.5.7v (Q-017): the self-teacher's gate   # v2.5.7o: C1 strict-contract rejudge of the MATH500 readings, CPU only   # v2.5.7g: termination-quality probe, forward passes only (#term lines)

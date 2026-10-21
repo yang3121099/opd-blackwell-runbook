@@ -291,6 +291,10 @@ ls0=$(FIXED_MICRO_BSZ= DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10b-P5 | tail -
 ok "[v2.5.8m] other arms keep 128 x 1 and no selection" '[[ "$ls0" == *"lensel=none/128x1/mb128 "* ]] && grep -q "data.train_batch_size=\$TBS " $SRC/scripts/run_arm.sh && grep -q "ppo_mini_batch_size=\$MBS " $SRC/scripts/run_arm.sh && grep -q "rollout.n=\$RN " $SRC/scripts/run_arm.sh'
 ( bash $T/rb/scripts/run_arm.sh 0 E10b-P5lenL > $T/g10 2>&1 ); r10=$?
 ok "[v2.5.8m] gated on PROBE-LENSEL; names P5lenS / L / R run, P5lenX refused; uploads s50" '[ $r10 = 3 ] && grep -q "PROBE-LENSEL has not passed: E10b-P5lenL" $T/g10 && [[ "$(DRYRUN=1 bash $T/rb/scripts/task.sh 0 E10b-P5lenR | tail -1)" == DRYRUN* ]] && ! bash $T/rb/scripts/task.sh 0 E10b-P5lenX > /dev/null 2>&1 && grep -q "E10b-P2self|E10b-P5len\[SLR\]) env UPLOAD_WEIGHTS=\${UPLOAD_WEIGHTS:-50}" $SRC/scripts/run_tasks.sh'
+# [v2.5.9a] a GPU list: trainings (and PROBE-2GPU) take it, run_arm with ngpu=2; an evaluation and a malformed list are refused
+g2=$(FIXED_MICRO_BSZ= DRYRUN=1 bash $T/rb/scripts/task.sh 2,3 E10b-P5 | tail -1); g3=$(FIXED_MICRO_BSZ= DRYRUN=1 bash $T/rb/scripts/run_arm.sh 2,3 E10b-P5 | tail -1); g4=$(FIXED_MICRO_BSZ= DRYRUN=1 bash $T/rb/scripts/run_arm.sh 2 E10b-P5 | tail -1)
+( bash $T/rb/scripts/task.sh 2,3 EVAL-x > $T/g11 2>&1 ); r11=$?; ( bash $T/rb/scripts/task.sh '2;3' E12b-P5 > $T/g12 2>&1 ); r12=$?
+ok "[v2.5.9a] GPU lists: task.sh passes 2,3 to an E10b arm (ngpu=2; 1 alone), EVAL and a bad list refused, n_gpus_per_node from the list" '[[ "$g2" == *" ngpu=2 "* && "$g3" == *" ngpu=2 "* && "$g4" == *" ngpu=1 "* ]] && [ $r11 = 2 ] && grep -q "EVAL-x takes one GPU" $T/g11 && [ $r12 = 2 ] && grep -q "bad gpu" $T/g12 && grep -q "trainer.n_gpus_per_node=\$NG " $SRC/scripts/run_e12.sh && grep -q "trainer.n_gpus_per_node=\$NG " $SRC/scripts/run_arm.sh && grep -q "RAY_TMPDIR=/tmp/ray_gpu\${GPU//,/_}" $SRC/scripts/run_arm.sh'
 ok "[v2.5.8e] gates: P5self-s43 on PROBE-P5SELF, E10d-P5self on PROBE-P5SELF-4B" '[ $r6 = 3 ] && grep -q "PROBE-P5SELF has not passed: E10b-P5self-s43" $T/g6 && [ $r7 = 3 ] && grep -q "PROBE-P5SELF-4B has not passed: E10d-P5self" $T/g7'
 ok "[v2.5.8e] task names: E10b-P5self-s43, E10d-P5self, E12b-P5self-s43 run; -s44 / E10d-P2self refused" '[[ "$(DRYRUN=1 bash $T/rb/scripts/task.sh 0 E10d-P5self | tail -1)" == DRYRUN* ]] && [[ "$(DRYRUN=1 bash $T/rb/scripts/task.sh 0 E10b-P5self-s43 | tail -1)" == DRYRUN* ]] && ! bash $T/rb/scripts/task.sh 0 E10b-P5self-s44 > /dev/null 2>&1 && ! bash $T/rb/scripts/task.sh 0 E10d-P2self > /dev/null 2>&1 && grep -q "|P5self|P5self-s43|P5-kl|P5-stop|P5-8k|P5-16k)" $SRC/scripts/task.sh'
 # v2.5.7zg (Q-019): E10b-P2self = P2 with the student's base as the teacher (non-thinking), 50 steps, venv-fa, gated on PROBE-P2SELF
@@ -424,7 +428,7 @@ got=$( eval "$(sed -n '/^running() {/p;/^cpu_task() {/p;/^cpu_busy() {/p' $SRC/s
   bash $T/x/scripts/task.sh cpu STRICT-C1 & P=$!; sleep 0.5
   running STRICT-C1 && printf "running "; cpu_busy && printf "busy "; kill $P 2> /dev/null; wait $P 2> /dev/null )
 ok "[v2.5.8] CPU lane: STRICT-C1 cpu task, running + busy while its task.sh cpu runs" '[ "$got" = "c1 notcpu free running busy " ]'
-ok "[v2.5.8] dispatch: cpu tasks launch with gpu cpu before the GPU check; launch skips the reap for cpu" 'grep -q "launch cpu \$t" $SRC/scripts/run_tasks.sh && grep -q "\[ \$1 = cpu \] || python \$RUNBOOK/scripts/control.py reap" $SRC/scripts/run_tasks.sh && [ $(grep -n "launch cpu \$t" $SRC/scripts/run_tasks.sh | cut -d: -f1) -lt $(grep -n "g=\${FREE\[0\]}; FREE=(\"\${FREE\[@\]:1}\")$" $SRC/scripts/run_tasks.sh | head -1 | cut -d: -f1) ]'
+ok "[v2.5.8] dispatch: cpu tasks launch with gpu cpu before the GPU check; launch skips the reap for cpu" 'grep -q "launch cpu \$t" $SRC/scripts/run_tasks.sh && grep -q "\[ \$1 = cpu \] || for _g in .*control.py reap" $SRC/scripts/run_tasks.sh && [ $(grep -n "launch cpu \$t" $SRC/scripts/run_tasks.sh | cut -d: -f1) -lt $(grep -n "take_gpus \$t || continue; g=\$G" $SRC/scripts/run_tasks.sh | head -1 | cut -d: -f1) ]'
 rm -rf $T
 # 3k. [v2.5.8] gpu_wait_free: returns once the GPU's memory falls to <= 2048 MiB; times out (1, GPU_NOT_FREE) if it stays
 #     up; the eval scripts call it before every engine
@@ -455,6 +459,26 @@ bash $T/x/scripts/task.sh 5 FA-PROBE & P1=$!; bash $T/x/scripts/run_adhoc_eval.s
 got=$( PATH=$T/bin:$PATH NGPU=14; eval "$(sed -n '/^free_gpus() {/,/; }$/p' $SRC/scripts/run_tasks.sh)"; free_gpus | tr '\n' ' ' )
 kill $P1 $P2 2> /dev/null
 ok "running tasks keep their GPUs" '[[ " $got" == *" 1 "* && " $got" == *" 6 "* && " $got" != *" 5 "* && " $got" != *" 13 "* ]]'   # 13 must not hide 1
+rm -rf $T
+# [v2.5.9a] #gpus: a task on a GPU list keeps every GPU of it; take_gpus gives n GPUs, holds the free ones in turns of
+# GPUS_HOLD_MIN, gives one GPU otherwise (an invalid n counts as 1) and clears its wait when it starts
+T=$(mktemp -d); mkdir -p $T/bin $T/x/scripts $T/root/runs
+printf '#!/usr/bin/env bash\ncase "$*" in *compute-apps*) ;; *) echo 0;; esac\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi
+printf 'sleep 30\n' > $T/x/scripts/task.sh
+bash $T/x/scripts/task.sh 1,2 E12b-P5-16k & P1=$!; sleep 0.5
+got=$( PATH=$T/bin:$PATH NGPU=4; eval "$(sed -n '/^free_gpus() {/,/; }$/p' $SRC/scripts/run_tasks.sh)"; free_gpus | tr '\n' ' ' )
+kill $P1 2> /dev/null
+ok "[v2.5.9a] a task on gpus 1,2 keeps both" '[ "$got" = "0 3 " ]'
+printf '#gpus A 2\n#gpus B 3\n#gpus C 9\n' > $T/q
+tg=$( Q=$T/q OPD_ROOT=$T/root; eval "$(sed -n '/^gpus_of() {/p' $SRC/scripts/run_tasks.sh)"; eval "$(sed -n '/^take_gpus() {/,/; }$/p' $SRC/scripts/run_tasks.sh)"
+  FREE=(3 5 6); take_gpus A; printf "a=$G:${FREE[*]} "
+  FREE=(4 7); take_gpus C; printf "c=$G:${FREE[*]} "
+  FREE=(4); take_gpus A > /dev/null; printf "hold=$?:${#FREE[@]} "; [ -f $T/root/runs/A/.gpus_wait ] && printf "wait "
+  echo $(( $(date +%s) - 31 * 60 )) > $T/root/runs/A/.gpus_wait; FREE=(4); take_gpus A; printf "release=$?:${#FREE[@]} "
+  echo $(( $(date +%s) - 61 * 60 )) > $T/root/runs/A/.gpus_wait; FREE=(4); take_gpus A; printf "again=${#FREE[@]} "
+  FREE=(4 9); take_gpus A; printf "go=$G "; [ -f $T/root/runs/A/.gpus_wait ] || printf "cleared "
+  FREE=(); take_gpus B; printf "none=$?" )
+ok "[v2.5.9a] take_gpus: n GPUs, n invalid = 1, too few: held, then released, then held again; the wait cleared on start" '[ "$tg" = "a=3,5:6 c=4:7 hold=1:0 wait release=1:1 again=0 go=4,9 cleared none=1" ]'
 rm -rf $T
 # v2.5.7j: no task script deletes a final bf16 copy (Runming: final weights keep a local copy after upload)
 ok "final bf16 copies are never deleted by run_e12.sh / run_arm.sh / run_eval.sh" '! grep -nE "rm -rf[^#]*huggingface_bf16" $SRC/scripts/run_e12.sh $SRC/scripts/run_arm.sh $SRC/scripts/run_eval.sh'

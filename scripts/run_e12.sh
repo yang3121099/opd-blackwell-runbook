@@ -67,7 +67,8 @@ if [ $LADDER = E12c ] && [ $A = P0 ] && [ ! -d "$START" ]; then
   if has_weights $OPD_ROOT/models/Qwen3-0.6B; then START=$OPD_ROOT/models/Qwen3-0.6B
   else START=$(python -c "import sys; from huggingface_hub import snapshot_download as s; print(s(sys.argv[1], local_files_only=True))" $START 2> /dev/null) || START=$STUDENT_06B; fi
 fi
-export CUDA_VISIBLE_DEVICES=$G RAY_TMPDIR=/tmp/ray_gpu$G PYTHONPATH=$RUNBOOK/code/patches:${PYTHONPATH:-}
+NG=$(echo $G | tr , '\n' | grep -c .)   # [v2.5.9a] the GPUs of a #gpus task (a,b): FSDP over NG ranks, one vLLM engine each
+export CUDA_VISIBLE_DEVICES=$G RAY_TMPDIR=/tmp/ray_gpu${G//,/_} PYTHONPATH=$RUNBOOK/code/patches:${PYTHONPATH:-}
 unset OPD_VARIANT
 if python -c "import flash_attn" 2>/dev/null; then RMPAD=True; ATTN=flash_attention_2; TOK=16384; else RMPAD=False; ATTN=sdpa; TOK=6144; fi
 # [v2.5.8h] a long limit: the dynamic token budget holds one whole sequence (verl requires it), a fixed micro-batch is not used
@@ -94,6 +95,7 @@ reward: $([ "$VAR" = stop ] && echo "reward_stop.py (1 if correct, +0.5 if every
 attention: $ATTN (use_remove_padding=$RMPAD)
 venv: $(basename $V)
 batching: [$BATCH]
+gpus: $G (n_gpus_per_node $NG)
 kernels: fused=${FUSED:-0} gradient_checkpointing=$GCK
 started: $(date -u +%FT%TZ)
 CFG
@@ -113,7 +115,7 @@ KL="actor_rollout_ref.actor.use_kl_loss=False"; REWARD=$RUNBOOK/code/train/rewar
 # [v2.5.8c] stop: the stop reward, counting the student's tokens (its start's tokenizer) against the 4K response limit
 [ "$VAR" = stop ] && { REWARD=$RUNBOOK/code/train/reward_stop.py; export OPD_REWARD_TOKENIZER=$START OPD_REWARD_MAXLEN=4096; }
 [ "$VAR" = kl ] && KL="actor_rollout_ref.actor.use_kl_loss=True actor_rollout_ref.actor.kl_loss_coef=0.01 actor_rollout_ref.actor.kl_loss_type=low_var_kl +actor_rollout_ref.ref.model.path=$START actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=$LOGP_MB actor_rollout_ref.ref.fsdp_config.param_offload=False"
-[ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $NAME start=$START steps=$STEPS save=$SAVE contents=$CONTENTS kern=[$KERN] gc=$GCK venv=$(basename $V) rmpad=$RMPAD upload=${UPLOAD_WEIGHTS:-$UW} vllm=${VLLM_UTIL:-0.6} var=${VAR:-none} kl=[$KL] reward=$(basename $REWARD)"; exit 0; }   # tests
+[ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $NAME start=$START steps=$STEPS save=$SAVE contents=$CONTENTS kern=[$KERN] gc=$GCK venv=$(basename $V) ngpu=$NG rmpad=$RMPAD upload=${UPLOAD_WEIGHTS:-$UW} vllm=${VLLM_UTIL:-0.6} var=${VAR:-none} kl=[$KL] reward=$(basename $REWARD)"; exit 0; }   # tests
 if [ $SM = 0 ]; then
   ckpt_link $OUT
   dr_restore $OUT || echo "DR_RESTORE_FAILED $T"; dr_start_sync $OUT   # v2.5.7
@@ -146,7 +148,7 @@ python3 -m verl.trainer.main_ppo \
   custom_reward_function.path=$REWARD custom_reward_function.name=compute_score \
   reward_model.reward_manager=naive trainer.critic_warmup=0 trainer.val_before_train=$VALB \
   trainer.logger='["console"]' trainer.project_name=opd-e10b trainer.experiment_name=$NAME \
-  trainer.n_gpus_per_node=1 trainer.nnodes=1 trainer.save_freq=$SAVE trainer.test_freq=$TESTF trainer.resume_mode=auto \
+  trainer.n_gpus_per_node=$NG trainer.nnodes=1 trainer.save_freq=$SAVE trainer.test_freq=$TESTF trainer.resume_mode=auto \
   trainer.rollout_data_dir=$OUT/rollouts trainer.total_training_steps=$STEPS trainer.total_epochs=1 \
   trainer.default_local_dir=$OUT/ckpt 2>&1 | tee -a $OUT/train.log
 LAST=$(grep -oE "(^|[ )])step:[0-9]+ - " $OUT/train.log | tail -1 | grep -oE "[0-9]+")

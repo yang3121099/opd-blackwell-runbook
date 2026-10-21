@@ -83,7 +83,7 @@ done_() { [ -f $OPD_ROOT/runs/$1/.done ] && return 0
 skipped() { [ -f $OPD_ROOT/runs/$1/.skipped ]; }
 attempts() { sed -n 's/^attempts: //p' $OPD_ROOT/runs/$1/.failed 2>/dev/null || echo 0; }
 dead() { [ "$(attempts $1)" -ge 3 ]; }
-running() { pgrep -f "task.sh ([0-9]+|cpu) $1\$" >/dev/null; }   # [v2.5.8] cpu: a CPU-lane task
+running() { pgrep -f "task.sh ([0-9]+(,[0-9]+)*|cpu) $1\$" >/dev/null; }   # [v2.5.8] cpu: a CPU-lane task; [v2.5.9a] a,b: a #gpus task
 # [v2.5.8] (reviewer 08:5x UTC 10-19: CPU phases without a GPU slot) CPU-only tasks run in a lane of their own, "gpu" cpu,
 # at most CPU_MAX (default 1) at once; STRICT-C1 held a GPU slot for its rejudge (and three on its failed attempts)
 cpu_task() { case $1 in STRICT-C1) return 0;; esac; return 1; }
@@ -91,9 +91,26 @@ cpu_busy() { [ "$(pgrep -f "task.sh cpu [A-Za-z0-9._-]+\$" | wc -l | tr -d ' ')"
 free_gpus() { for i in $(seq 0 $((NGPU-1))); do
     # v2.5.4d: a GPU given to a task stays taken while its task.sh / ad-hoc evaluation runs, also before the task touches it
     # (2026-10-17: FA-PROBE's CPU-only venv copy left GPU6 empty, and EVAL-bridge and EVAL-p5s43-s20 were started on it too)
-    pgrep -f "scripts/(task|run_adhoc_eval)\.sh $i( |\$)" > /dev/null && continue
+    pgrep -f "scripts/(task|run_adhoc_eval)\.sh ([0-9]+,)*$i(,[0-9]+)*( |\$)" > /dev/null && continue   # [v2.5.9a] also in a GPU list
     [ -z "$(nvidia-smi --query-compute-apps=pid --format=csv,noheader -i $i)" ] || continue
     [ "$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $i | tr -d ' ')" -le 2048 ] && echo $i; done; }
+# [v2.5.9a] (Runming via the reviewer 06:4x UTC 10-21: "a task heavy for one GPU gets two") "#gpus <task> <n>" lines of the
+# queue (n 1-4, default 1): the task gets n GPUs, passed as a,b (task.sh accepts a list for the trainings and PROBE-2GPU;
+# run_e12.sh / run_arm.sh: CUDA_VISIBLE_DEVICES=a,b, trainer.n_gpus_per_node=n, one vLLM engine per rank). A verl FSDP
+# checkpoint is sharded by world size: a #gpus task resumes only with the same n.
+gpus_of() { local n; n=$(awk -v t="$1" '$1 == "#gpus" && $2 == t {print $3}' "$Q" | tail -1); [[ $n =~ ^[1-4]$ ]] && echo $n || echo 1; }
+# take_gpus <task>: G = its first n free GPUs (a,b), dropped from FREE. With too few free GPUs a multi-GPU task holds the
+# free ones (FREE emptied: the later tasks of this pass get none) in turns of GPUS_HOLD_MIN (default 30) minutes from its
+# first wait: held for one turn, released to the later tasks for the next, and so on, so neither side waits for ever.
+take_gpus() {
+  local n w; n=$(gpus_of $1); G=""
+  if [ ${#FREE[@]} -ge $n ]; then G=$(IFS=,; echo "${FREE[*]:0:$n}"); FREE=("${FREE[@]:$n}"); rm -f $OPD_ROOT/runs/$1/.gpus_wait; return 0; fi
+  if [ $n -gt 1 ] && [ ${#FREE[@]} -gt 0 ]; then
+    w=$OPD_ROOT/runs/$1/.gpus_wait; mkdir -p $OPD_ROOT/runs/$1
+    if [ ! -f $w ]; then date +%s > $w; echo "HOLD $(date -u +%T) gpu=$(IFS=,; echo "${FREE[*]}") for $1 (needs $n)"; fi
+    [ $(( ($(date +%s) - $(cat $w)) / (${GPUS_HOLD_MIN:-30} * 60 + 1) % 2 )) = 0 ] && FREE=()
+  fi
+  return 1; }
 # v2.5.4e: EVAL tasks get a GPU only once their models are local and checked (.inputs_ok = the hash of their #eval
 # lines, written by `run_queue_eval.sh prefetch`); CPU-side prefetches for every EVAL task of the queue
 # (also in locked stages), a failed one again after 30 min
@@ -140,7 +157,7 @@ launch() { # gpu task   (v2.5: start / done / killed / failed also go to status/
   mkdir -p $OPD_ROOT/runs/$2
   python $RUNBOOK/scripts/control.py event $2 start "gpu=$1 attempt=$(( $(attempts $2) + 1 ))" > /dev/null 2>&1 &
   setsid nohup bash -c "bash $RUNBOOK/scripts/task.sh $1 $2 > $OPD_ROOT/logs/$2.log 2>&1
-    [ $1 = cpu ] || python $RUNBOOK/scripts/control.py reap $1 $2 > /dev/null 2>&1   # v2.5.4b: the task's orphaned vLLM / Ray processes off its GPU
+    [ $1 = cpu ] || for _g in \$(echo $1 | tr , ' '); do python $RUNBOOK/scripts/control.py reap \$_g $2 > /dev/null 2>&1; done   # v2.5.4b: the task's orphaned vLLM / Ray processes off its GPU(s)
     if [ -f $OPD_ROOT/runs/$2/.done ]; then python $RUNBOOK/scripts/control.py event $2 done gpu=$1
     elif [ -f $OPD_ROOT/runs/$2/.killed ]; then python $RUNBOOK/scripts/control.py event $2 killed gpu=$1
     else a=\$(( \$(sed -n 's/^attempts: //p' $OPD_ROOT/runs/$2/.failed 2>/dev/null || echo 0) + 1 ))
@@ -167,7 +184,7 @@ while true; do
       setsid nohup bash $RUNBOOK/scripts/heartbeat.sh >> $OPD_ROOT/logs/heartbeat.log 2>&1 < /dev/null &
       python $RUNBOOK/scripts/control.py event node heartbeat_restarted > /dev/null 2>&1 &
     fi
-    for p in $(pgrep -f "task.sh [0-9]+ E1(0[bcd]|2[bcd])-[A-Za-z0-9._-]+\$"); do
+    for p in $(pgrep -f "task.sh [0-9]+(,[0-9]+)* E1(0[bcd]|2[bcd])-[A-Za-z0-9._-]+\$"); do
       t=$(tr '\0' ' ' < /proc/$p/cmdline | grep -oE "E1(0[bcd]|2[bcd])-[A-Za-z0-9._-]+" | tail -1); [ -n "$t" ] || continue
       pgrep -f "upload_syn[c].sh $OPD_ROOT/runs/$t\$" > /dev/null && continue
       case $t in
@@ -209,8 +226,7 @@ while true; do
         if [ "${DRY:-0}" = 1 ]; then echo "WOULD_START gpu=cpu $t (stage $stage, attempt $(( $(attempts $t) + 1 )))"; continue; fi
         echo "START $(date -u +%T) gpu=cpu $t (stage $stage, attempt $(( $(attempts $t) + 1 )))"; launch cpu $t; nap 10; continue
       fi
-      [ ${#FREE[@]} -gt 0 ] || continue
-      g=${FREE[0]}; FREE=("${FREE[@]:1}")
+      take_gpus $t || continue; g=$G   # [v2.5.9a] one GPU, or n for a #gpus task
       if [ "${DRY:-0}" = 1 ]; then echo "WOULD_START gpu=$g $t (stage $stage, attempt $(( $(attempts $t) + 1 )))"; continue; fi
       echo "START $(date -u +%T) gpu=$g $t (stage $stage, queue v$(sed -n 's/^version:[[:space:]]*//p' "$Q"), attempt $(( $(attempts $t) + 1 )))"
       launch $g $t; nap 90
@@ -225,7 +241,9 @@ while true; do
       set -- $r; g=${FREE[0]}; FREE=("${FREE[@]:1}")
       if [ "$1" = run ]; then
         ok=1; for d in $(deps_of $2); do done_ $d || ok=0; done
-        if [ $ok = 1 ] && ! running $2 && ! done_ $2; then
+        if [ "$(gpus_of $2)" != 1 ]; then   # [v2.5.9a] a #gpus task starts from the queue only (its n GPUs, its checkpoint's world size)
+          python $RUNBOOK/scripts/control.py rcpt $3 rejected "$2 takes $(gpus_of $2) GPUs: it starts from the queue"; FREE=($g "${FREE[@]}")
+        elif [ $ok = 1 ] && ! running $2 && ! done_ $2; then
           echo "START $(date -u +%T) gpu=$g $2 (control seq $3)"; launch $g $2; python $RUNBOOK/scripts/control.py rcpt $3 accepted "started on gpu $g"; nap 90
         else python $RUNBOOK/scripts/control.py rcpt $3 rejected "deps not done, already running or done"; FREE=($g "${FREE[@]}"); fi
       else

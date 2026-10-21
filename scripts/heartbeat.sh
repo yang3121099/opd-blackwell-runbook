@@ -41,6 +41,13 @@ def total_steps(d, text):
     cfg = open(os.path.join(d, "config.yaml"), errors="ignore").read() if os.path.exists(os.path.join(d, "config.yaml")) else ""
     m = re.search(r"^steps:\s*(\d+)", cfg, re.M) or re.search(r"total_training_steps[=:]\s*(\d+)", text)
     return int(m.group(1)) if m else None
+def gpu_arg(s):   # [v2.5.9a] task.sh's GPU argument: '3' -> (3, [3]), '1,2' (a #gpus task) -> (1, [1, 2]), 'cpu' -> ('cpu', [])
+    if s == "cpu":
+        return ("cpu", [])
+    if re.fullmatch(r"\d+(,\d+)*", s):
+        g = [int(x) for x in s.split(",")]
+        return (g[0], g)
+    return None
 def tail(path, n=20):
     try:
         return [redact(x) for x in open(path, errors="ignore").read()[-20000:].splitlines()[-n:]]
@@ -65,14 +72,14 @@ def live_tasks():
         except (OSError, IndexError, ValueError):
             continue
         for i, x in enumerate(a[:-2]):
-            if x.endswith(("/scripts/task.sh", "/scripts/run_adhoc_eval.sh")) and (a[i + 1].isdigit() or a[i + 1] == "cpu"):
+            if x.endswith(("/scripts/task.sh", "/scripts/run_adhoc_eval.sh")) and gpu_arg(a[i + 1]) is not None:
                 name = a[i + 2] if x.endswith("task.sh") else f"adhoc_eval_{a[i + 2]}"
                 if name not in out or start < out[name][1]:
-                    out[name] = (int(a[i + 1]) if a[i + 1].isdigit() else "cpu", start)   # [v2.5.8] the CPU lane
+                    g0, gl = gpu_arg(a[i + 1]); out[name] = (g0, start, gl)   # [v2.5.8] the CPU lane; [v2.5.9a] all its GPUs
     return out
 def kind(name):
     return ("train" if re.match(r"E1(0[bcd]|2[bcd])-", name) else "sft" if name.startswith("SFT-") else
-            "eval" if re.match(r"E11b-|EVAL-|adhoc_eval_|E0[1-5]-", name) else "probe" if name in ("FA-PROBE", "SPEED-PROBE", "PROBE-4B", "PROBE-TERM", "PROBE-TERM2", "PROBE-TERM3", "PROBE-TERM4", "PROBE-TERM4-4B", "PROBE-TOP10", "STRICT-C1", "PROBE-T14", "PROBE-P5THINK", "PROBE-P5SELF", "PROBE-P5SELF-4B", "PROBE-P2SELF", "PROBE-E12C", "PROBE-E12B-KL", "PROBE-E12B-STOP", "PROBE-E12B-8K", "PROBE-E12B-16K", "PROBE-X2507-X1", "PROBE-X2507-X2", "PROBE-X2507-X4", "PROBE-LENSEL") or name.startswith("FA-SPEED-") else "other")
+            "eval" if re.match(r"E11b-|EVAL-|adhoc_eval_|E0[1-5]-", name) else "probe" if name in ("FA-PROBE", "SPEED-PROBE", "PROBE-4B", "PROBE-TERM", "PROBE-TERM2", "PROBE-TERM3", "PROBE-TERM4", "PROBE-TERM4-4B", "PROBE-TOP10", "STRICT-C1", "PROBE-T14", "PROBE-P5THINK", "PROBE-P5SELF", "PROBE-P5SELF-4B", "PROBE-P2SELF", "PROBE-E12C", "PROBE-E12B-KL", "PROBE-E12B-STOP", "PROBE-E12B-8K", "PROBE-E12B-16K", "PROBE-X2507-X1", "PROBE-X2507-X2", "PROBE-X2507-X4", "PROBE-LENSEL", "PROBE-2GPU") or name.startswith("FA-SPEED-") else "other")
 live = live_tasks()
 tasks = {}; stale = []
 queue = open(os.path.join(runbook, "tasks", "queue.txt")).read() if os.path.exists(os.path.join(runbook, "tasks", "queue.txt")) else ""
@@ -104,6 +111,7 @@ for d in sorted(x for x in glob.glob(os.path.join(root, "runs", "*")) if os.path
     if not lv and os.path.exists(os.path.join(d, ".paused")) and t["state"] not in ("done", "skipped"):
         t["state"] = "paused"             # [v2.5.8] pause / kill / move-ckpt leave .paused; was shown as running or retrying
     t["gpu"] = lv[0] if lv else None; t["kind"] = kind(os.path.basename(d))
+    t["gpus"] = lv[2] if lv else []   # [v2.5.9a] every GPU of the task (two for a #gpus 2 task); "gpu" stays the first
     t["started_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(lv[1])) if lv else None
 gpu = []
 for line in subprocess.run(["nvidia-smi", "--query-gpu=index,name,utilization.gpu,memory.used,memory.total", "--format=csv,noheader,nounits"],

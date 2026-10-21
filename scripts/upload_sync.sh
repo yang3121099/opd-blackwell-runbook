@@ -61,7 +61,7 @@ while true; do
   # resumed or rerun task's run starts a new one
   why=""; [ -f $RUN/.paused ] && why=paused
   [ "$(sed -n 's/^attempts: //p' $RUN/.failed 2>/dev/null)" -ge 3 ] 2> /dev/null && why=failed
-  if [ -n "$why" ] && [ $pend = 0 ] && ! pgrep -f "scripts/task\.sh ([0-9]+|cpu) $TASK( |\$)" > /dev/null; then
+  if [ -n "$why" ] && [ $pend = 0 ] && ! pgrep -f "scripts/task\.sh ([0-9]+(,[0-9]+)*|cpu) $TASK( |\$)" > /dev/null; then
     for f in train.log config.yaml lensel.jsonl; do [ -f $RUN/$f ] && up $RUN/$f runs/$TASK/$f; done
     echo "UPLOAD_STOPPED $TASK $why $(date -u +%T)"; break
   fi

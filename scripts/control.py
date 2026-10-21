@@ -86,7 +86,7 @@ def origin_ok():
 
 
 def running_pids(task=None):
-    pat = f"task.sh ([0-9]+|cpu) {re.escape(task)}$" if task else "task.sh ([0-9]+|cpu) [A-Za-z0-9._-]+$"   # [v2.5.8] cpu lane
+    pat = f"task.sh ([0-9]+(,[0-9]+)*|cpu) {re.escape(task)}$" if task else "task.sh ([0-9]+(,[0-9]+)*|cpu) [A-Za-z0-9._-]+$"   # [v2.5.8] cpu lane; [v2.5.9a] a,b
     r = subprocess.run(["pgrep", "-f", pat], capture_output=True, text=True)
     return [int(x) for x in r.stdout.split() if x.strip().isdigit() and int(x) != os.getpid()]
 
@@ -166,9 +166,9 @@ def v_kill(a, seq):
         return "ok", f"{t} was not running; paused", {}
     gpus = set()
     for pid in pids:
-        m = re.search(r"task\.sh\s+(\d+)\s", _read(f"/proc/{pid}/cmdline").replace("\0", " ") + " ")
+        m = re.search(r"task\.sh\s+(\d+(?:,\d+)*)\s", _read(f"/proc/{pid}/cmdline").replace("\0", " ") + " ")
         if m:
-            gpus.add(m.group(1))
+            gpus.update(m.group(1).split(","))   # [v2.5.9a] every GPU of a #gpus task
     procs = _tree(pids)
     _signal_all(procs, signal.SIGTERM)
     deadline = time.time() + 30
@@ -542,7 +542,7 @@ def proc_table():
     def task_of(p):
         seen = 0
         while p in rows and seen < 64:
-            m = re.search(r"scripts/task\.sh (\d+) ([A-Za-z0-9._-]+)", rows[p]["_cmd"]) or re.search(r"run_adhoc_eval\.sh (\d+) (\d+)", rows[p]["_cmd"])
+            m = re.search(r"scripts/task\.sh (\d+(?:,\d+)*) ([A-Za-z0-9._-]+)", rows[p]["_cmd"]) or re.search(r"run_adhoc_eval\.sh (\d+) (\d+)", rows[p]["_cmd"])
             if m:
                 return m.group(2) if "task.sh" in m.group(0) else f"adhoc_eval_{m.group(2)}"
             p, seen = rows[p]["ppid"], seen + 1
@@ -775,7 +775,9 @@ def reap(gpu, task=None, wait_s=120, proc_root="/proc", grace_s=10):
         if "OPD_ROOT" in env:   # environment intact (SPT_NOENV=1, v2.5.4c): ours and this GPU by the environment
             if env["OPD_ROOT"] != ROOT:
                 continue
-            if env.get("CUDA_VISIBLE_DEVICES") != str(gpu) and env.get("RAY_TMPDIR") != f"/tmp/ray_gpu{gpu}":
+            rt = env.get("RAY_TMPDIR", "")   # [v2.5.9a] a #gpus task: CUDA_VISIBLE_DEVICES=a,b, RAY_TMPDIR=/tmp/ray_gpu<a>_<b>
+            if str(gpu) not in env.get("CUDA_VISIBLE_DEVICES", "").split(",") and not (
+                    rt.startswith("/tmp/ray_gpu") and str(gpu) in rt[len("/tmp/ray_gpu"):].split("_")):
                 continue
         else:   # v2.5.4c: setproctitle (vLLM, Ray) wrote the title over the environment area (B300 2026-10-17: environ
             # read "VLLM::EngineCore"): ours if it maps a library from our venv / OPD_ROOT, this GPU by nvidia-smi's pid map
@@ -1023,7 +1025,7 @@ def v_run(a, seq, flags=None, entry=None):
     t = a[0]
     r = subprocess.run(["bash", "-c", f'T={t}; ARMS="P2|P3|P4lowlr|P5|P6|P6r|P2noEOS|Pstop|P6rand|P6top5|P4EOSpen|P5top10|P5rand10m"; '
                         'case $T in E10b-*) [[ $T =~ ^E10b-(($ARMS)(-s(43|44))?|(P2|P5)-t14|P5think|P5self|P5self-s43|P2self|P5len[SLR])$ ]];; E10c-*) [[ $T =~ ^E10c-($ARMS)-(fix4|dyn16k|dyn6144)(-s43)?$ ]];; E10d-*) [[ $T =~ ^E10d-((P2|P5)(-s43)?|P5self|X1|X2|X4)$ ]];; E11b-*) [[ $T =~ ^E11b-(P0|($ARMS)(-s(43|44))?|(P2|P5)-t14)$ ]];; '
-                        'E12b-*) [[ $T =~ ^E12b-(P0|P1|$ARMS|P5-s4[34]|P2-s43|P5self|P5self-s43|P5-kl|P5-stop|P5-8k|P5-16k)$ ]];; E12c-*) [[ $T =~ ^E12c-(P0|P5)$ ]];; E12d-*) [[ $T =~ ^E12d-(P0|P5)$ ]];; EVAL-*) [[ $T =~ ^EVAL-[A-Za-z0-9._-]+$ ]];; SFT-P1|FA-PROBE|SPEED-PROBE|PROBE-4B|PROBE-TERM|PROBE-TERM2|PROBE-TERM3|PROBE-TERM4|PROBE-TERM4-4B|PROBE-TOP10|STRICT-C1|PROBE-T14|PROBE-P5THINK|PROBE-P5SELF|PROBE-P5SELF-4B|PROBE-P2SELF|PROBE-E12C|PROBE-E12B-KL|PROBE-E12B-STOP|PROBE-E12B-8K|PROBE-E12B-16K|PROBE-X2507-X1|PROBE-X2507-X2|PROBE-X2507-X4|PROBE-LENSEL|FA-SPEED-17|FA-SPEED-4B|FA-SPEED-E12|FA-SPEED-TWIN|E03-MI-l0.[0357]|E03-MI-l1.0|E02-opsa17-c0.5|E02-opsa17-c1.5|E02-opsa4-c-1|'
+                        'E12b-*) [[ $T =~ ^E12b-(P0|P1|$ARMS|P5-s4[34]|P2-s43|P5self|P5self-s43|P5-kl|P5-stop|P5-8k|P5-16k)$ ]];; E12c-*) [[ $T =~ ^E12c-(P0|P5)$ ]];; E12d-*) [[ $T =~ ^E12d-(P0|P5)$ ]];; EVAL-*) [[ $T =~ ^EVAL-[A-Za-z0-9._-]+$ ]];; SFT-P1|FA-PROBE|SPEED-PROBE|PROBE-4B|PROBE-TERM|PROBE-TERM2|PROBE-TERM3|PROBE-TERM4|PROBE-TERM4-4B|PROBE-TOP10|STRICT-C1|PROBE-T14|PROBE-P5THINK|PROBE-P5SELF|PROBE-P5SELF-4B|PROBE-P2SELF|PROBE-E12C|PROBE-E12B-KL|PROBE-E12B-STOP|PROBE-E12B-8K|PROBE-E12B-16K|PROBE-X2507-X1|PROBE-X2507-X2|PROBE-X2507-X4|PROBE-LENSEL|PROBE-2GPU|FA-SPEED-17|FA-SPEED-4B|FA-SPEED-E12|FA-SPEED-TWIN|E03-MI-l0.[0357]|E03-MI-l1.0|E02-opsa17-c0.5|E02-opsa17-c1.5|E02-opsa4-c-1|'
                         'E02-opsa4-c0.5|E02-opsa4-c1.5) true;; *) false;; esac'])
     if r.returncode != 0:
         return "rejected", f"{t} is not accepted by task.sh", {}
@@ -1046,7 +1048,7 @@ def v_rerun(a, seq, flags=None, entry=None):
     d = os.path.join(ROOT, "runs", t)
     done, failed = os.path.exists(os.path.join(d, ".done")), os.path.exists(os.path.join(d, ".failed"))
     skipped = os.path.exists(os.path.join(d, ".skipped"))
-    if done and not re.fullmatch(r"FA-PROBE|SPEED-PROBE|PROBE-4B|PROBE-TERM(?:[234]|4-4B)?|PROBE-TOP10|STRICT-C1|PROBE-T14|PROBE-P5THINK|PROBE-P5SELF|PROBE-P5SELF-4B|PROBE-P2SELF|PROBE-E12C|PROBE-E12B-KL|PROBE-E12B-STOP|PROBE-E12B-8K|PROBE-E12B-16K|PROBE-X2507-X1|PROBE-X2507-X2|PROBE-X2507-X4|PROBE-LENSEL|FA-SPEED-(17|4B|E12|TWIN)|EVAL-[A-Za-z0-9._-]+", t):
+    if done and not re.fullmatch(r"FA-PROBE|SPEED-PROBE|PROBE-4B|PROBE-TERM(?:[234]|4-4B)?|PROBE-TOP10|STRICT-C1|PROBE-T14|PROBE-P5THINK|PROBE-P5SELF|PROBE-P5SELF-4B|PROBE-P2SELF|PROBE-E12C|PROBE-E12B-KL|PROBE-E12B-STOP|PROBE-E12B-8K|PROBE-E12B-16K|PROBE-X2507-X1|PROBE-X2507-X2|PROBE-X2507-X4|PROBE-LENSEL|PROBE-2GPU|FA-SPEED-(17|4B|E12|TWIN)|EVAL-[A-Za-z0-9._-]+", t):
         return "rejected", f"{t} is done (only FA-PROBE, SPEED-PROBE and EVAL tasks are rerun after finishing)", {}
     if not (done or failed or skipped):
         return "rejected", f"{t} is neither done, failed nor skipped", {}
@@ -1758,7 +1760,7 @@ def alerts(status_path):
             now.add(f"ckpt_root_alert:root{i}")
     ups = subprocess.run(["pgrep", "-af", "scripts/upload_syn[c].sh"], capture_output=True, text=True).stdout
     for pid in running_pids():
-        m = re.search(r"task\.sh\s+\d+\s+(\S+)", _read(f"/proc/{pid}/cmdline").replace("\0", " ") + " ")
+        m = re.search(r"task\.sh\s+\d+(?:,\d+)*\s+(\S+)", _read(f"/proc/{pid}/cmdline").replace("\0", " ") + " ")
         if not m:
             continue
         t = m.group(1); lg = os.path.join(ROOT, "logs", f"{t}.log")
