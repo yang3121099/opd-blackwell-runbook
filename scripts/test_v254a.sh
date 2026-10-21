@@ -432,6 +432,31 @@ for t in A B C; do ( UPLOAD_DRY=1 bash $T/rb/scripts/upload_sync.sh $T/root/runs
 ok "[v2.5.8] upload_sync stops for paused A / failed B, keeps C (paused but its task.sh runs)" 'grep -q "UPLOAD_STOPPED A paused" $T/up_A.log && grep -q "UPLOAD_STOPPED B failed" $T/up_B.log && ! grep -q UPLOAD_STOPPED $T/up_C.log && grep -q "UPLOAD_SETTINGS .* C UPLOAD_WEIGHTS=all" $T/up_C.log'
 pkill -f "upload_sync.sh $T/root/runs/C" 2> /dev/null; kill $P1 2> /dev/null; wait $P1 2> /dev/null
 rm -rf $T
+# 3h2. [v2.5.9g] upload_sync: an E12 run's rollout_stats.csv while it trains (Q-034): settled dumps only, uploaded at 10 new
+#      rows; at the end complete (the fresh last step too); the steps come from the per-step cache (no tokenizer is loaded)
+T=$(mktemp -d); R=$T/root/runs/E12b-T; mkdir -p $T/rb/scripts $T/rb/code/analysis $T/root/venv/bin $R/rollouts $T/bin
+cp $SRC/scripts/upload_sync.sh $T/rb/scripts/; cp $SRC/code/analysis/e12_rollout_stats.py $T/rb/code/analysis/; : > $T/root/venv/bin/activate
+printf 'export OPD_ROOT=%s RUNBOOK=%s STUDENT_17B=%s/no-tokenizer\n' $T/root $T/rb $T > $T/rb/scripts/env.sh
+printf '#!/usr/bin/env bash\nexec python3 "$@"\n' > $T/bin/python; chmod +x $T/bin/python
+command -v timeout > /dev/null || { printf '#!/usr/bin/env bash\nshift; exec "$@"\n' > $T/bin/timeout; chmod +x $T/bin/timeout; }
+python3 - $R <<'PY'
+import json, os, sys, time
+sys.path.insert(0, os.path.join(os.path.dirname(sys.argv[1]), "..", "..", "rb", "code", "analysis"))
+import e12_rollout_stats as E
+run = sys.argv[1]
+for step in range(1, 14):
+    p = os.path.join(run, "rollouts", f"{step}.jsonl")
+    open(p, "w").write("".join(json.dumps({"input": "a", "output": "x", "score": s}) + "\n" for s in (1.0, 0.0)))
+    if step < 13:
+        os.utime(p, (time.time() - 600, time.time() - 600))
+E.collect(run, lambda: (lambda t: len(t.split())))   # the cache of every step, 13 (being written) included
+PY
+printf 'trainer: x\n' > $R/config.yaml
+( PATH=$T/bin:$PATH UPLOAD_DRY=1 bash $T/rb/scripts/upload_sync.sh $R > $T/up.log 2>&1 & ); sleep 3
+rows1=$(awk 'NR > 1' $R/rollout_stats.csv 2> /dev/null | grep -c .); up1=$(cat $R/.stats_uploaded 2> /dev/null)
+echo "finished: now" >> $R/config.yaml; sleep 7
+ok "[v2.5.9g] upload_sync: E12 stats while training (settled s1-s12, uploaded at >= 10 rows), complete at the end (13 rows), no tokenizer" '[ "$rows1" = 12 ] && [ "$up1" = 12 ] && grep -q "STATS_UP E12b-T 12 steps" $T/up.log && [ "$(awk "NR > 1" $R/rollout_stats.csv | grep -c .)" = 13 ] && grep -q "UPLOAD_DONE E12b-T" $T/up.log && ! grep -q STATS_ERR $T/up.log'
+pkill -f "upload_sync.sh $R" 2> /dev/null; rm -rf $T
 # 3i. [v2.5.8] no_fetch(): an EVAL task with only Qwen/ and local: models needs no prefetch; one with a ckpts or
 #     result: model does
 T=$(mktemp -d); printf 'version: 2\n#eval EVAL-a a local:runs/X/ckpt/global_step_1/actor/huggingface math500 4 0.6\n#eval EVAL-a b Qwen/Qwen3-1.7B math500 4 0.6\n#eval EVAL-b c yang31210999/opd-lab-ckpts/runs/Y/global_step_1/actor/huggingface math500 4 0.6\n#eval EVAL-c d result:runs/Z/global_step_1/actor/huggingface math500 4 0.6\n' > $T/q.txt

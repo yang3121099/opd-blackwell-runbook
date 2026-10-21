@@ -18,6 +18,10 @@ set -uo pipefail
 source "$(dirname "$0")/env.sh"; source $OPD_ROOT/venv/bin/activate
 RUN=$1; TASK=$(basename $RUN); DRY=${UPLOAD_DRY:-0}
 up() { [ "$DRY" = 1 ] && return 0; python $RUNBOOK/scripts/remote.py put "$1" "$2"; }
+stats() {   # [v2.5.9g] $1 = settle seconds: <run>/rollout_stats.csv from the run's rollout dumps (an E12 run; per-step cache)
+  ls $RUN/rollouts/*.jsonl > /dev/null 2>&1 || return 1
+  local out; out=$(cd $RUNBOOK && timeout 900 python code/analysis/e12_rollout_stats.py $RUN --tokenizer $STUDENT_17B --settle $1 2>&1) \
+    || { echo "STATS_ERR $TASK $(echo "$out" | tail -1 | cut -c1-200)"; return 1; }; }
 [ "$DRY" = 1 ] || python $RUNBOOK/scripts/remote.py check || { echo "UPLOAD_STOP: backend not usable (token or repo missing?)"; exit 1; }
 echo "UPLOAD_SETTINGS $(date -u +%FT%TZ) $TASK UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-all} KEEP_LOCAL_HF=${KEEP_LOCAL_HF:-0} KEEP_BF16=${KEEP_BF16:-1} DRY=$DRY"   # [v2.5.8]
 while true; do
@@ -46,8 +50,17 @@ while true; do
   for d in $RUN/ckpt/global_step_*; do   # one resume state only: older steps lose their *.pt once a newer one is complete
     [ -d $d ] && [ "${d##*_}" -lt "$latest" ] && ls $d/actor/*.pt >/dev/null 2>&1 && rm -f $d/actor/*.pt && echo "PRUNED resume state $TASK step ${d##*_}"
   done
+  # [v2.5.9g] Q-034 (E12b-P5-stop2 is paused if its zero-variance groups average > 80% over s1-s10): while an E12 run trains,
+  # its rollout_stats.csv every round from the settled dumps (older than 60 s; only new steps are read), uploaded to
+  # runs/<task>/ each time it has STATS_EVERY (10) more rows than at the last upload: s10, s20, ...
+  case $TASK in E12[bcd]-*) if ! grep -q '^finished:' $RUN/config.yaml 2>/dev/null && stats 60; then
+    n=$(awk 'NR > 1' $RUN/rollout_stats.csv 2> /dev/null | grep -c .); u=$(cat $RUN/.stats_uploaded 2> /dev/null || echo 0)
+    [ $n -ge $(( u + ${STATS_EVERY:-10} )) ] && up $RUN/rollout_stats.csv runs/$TASK/rollout_stats.csv > /dev/null 2>&1 \
+      && { echo $n > $RUN/.stats_uploaded; echo "STATS_UP $TASK $n steps $(date -u +%T)"; }
+  fi;; esac
   if grep -q '^finished:' $RUN/config.yaml 2>/dev/null && [ $pend = 0 ]; then
     [ -f $RUN/train.log ] && python $RUNBOOK/scripts/metrics_jsonl.py $RUN/train.log > $RUN/metrics.jsonl
+    case $TASK in E12[bcd]-*) stats 0;; esac   # [v2.5.9g] complete, whether or not run_e12.sh's own pass (after finished:) is done
     for f in train.log config.yaml metrics.jsonl rollout_stats.csv lensel.jsonl; do [ -f $RUN/$f ] && up $RUN/$f runs/$TASK/$f; done   # [v2.5.8m] lensel.jsonl: the length-selected arms' per-prompt record
     [ -d $RUN/rollouts ] && up $RUN/rollouts runs/$TASK/rollouts
     [ -f $RUN/.done ] && up $RUN/.done runs/$TASK/.done

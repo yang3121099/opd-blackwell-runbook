@@ -24,3 +24,27 @@ def test_stop2_parts():   # correct rollouts with different tails: different rew
     r = E.step_stats(1, recs, ntok)
     assert r["zero_var_groups"] == 0.0 and r["tail_mean_correct"] == 512.0 and r["tail_p50_correct"] == 512 and r["tail_p90_correct"] == 1024
     assert r["cut_share"] == 0.25 and r["bonus_mean"] == 0.1875 and r["all_correct"] == 0.5
+
+
+def test_collect_settle_and_cache(tmp_path=None):   # [v2.5.9g] a fresh dump is skipped; a cached step is not read again
+    import json, tempfile, time
+    run = tmp_path or tempfile.mkdtemp(); run = str(run); os.makedirs(os.path.join(run, "rollouts"))
+    rec = lambda s: json.dumps({"input": "a", "output": "x y", "score": s}) + "\n"
+    for step in (1, 2, 10):
+        open(os.path.join(run, "rollouts", f"{step}.jsonl"), "w").write(rec(1.0) + rec(0.0))
+    old = time.time() - 300
+    for step in (1, 2):
+        os.utime(os.path.join(run, "rollouts", f"{step}.jsonl"), (old, old))
+    calls = []
+    fac = lambda: calls.append(1) or ntok
+    rows = E.collect(run, fac, settle=60)
+    assert [r["step"] for r in rows] == [1, 2] and len(calls) == 1   # step 10 is being written: skipped
+    rows = E.collect(run, fac, settle=0)
+    assert [r["step"] for r in rows] == [1, 2, 10] and len(calls) == 2   # steps 1 and 2 from the cache, 10 read
+    rows = E.collect(run, lambda: (_ for _ in ()).throw(AssertionError("tokenizer loaded")), settle=0)
+    assert [r["step"] for r in rows] == [1, 2, 10] and rows[0]["zero_var_groups"] == 0.0
+    open(os.path.join(run, "rollouts", "2.jsonl"), "w").write(rec(1.0) + rec(1.0))   # a dump rewritten after its cache: read again
+    future = time.time() + 5
+    os.utime(os.path.join(run, "rollouts", "2.jsonl"), (future, future))
+    rows = E.collect(run, fac, settle=0, now=future + 1)
+    assert rows[1]["zero_var_groups"] == 1.0 and len(calls) == 3
