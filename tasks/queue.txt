@@ -97,6 +97,8 @@ b259y    open   E12b-P5-16k-kl:EVAL-e12b-P5-16k EVAL-e12b-P5-16k-kl:E12b-P5-16k-
 b259y1   open   BUILD-VENV-VL PROBE-VLLM-VL:BUILD-VENV-VL
 b259xp   open   PROBE-DIFF17 PROBE-ROUTE:PROBE-DIFF17
 b259x    open   E10b-P5route:PROBE-ROUTE E10b-P5mix:PROBE-ROUTE EVAL-e10b-P5route:E10b-P5route EVAL-e10b-P5mix:E10b-P5mix+EVAL-e10b-P5route EVAL-budA-P5route:E10b-P5route EVAL-budA-P5mix:E10b-P5mix
+b259zp   open   PROBE-VLM:PROBE-VLLM-VL EVAL-e15-base:BUILD-VENV-VL
+b259z    open   E15-VLM-P5:PROBE-VLM EVAL-e15-vlm:E15-VLM-P5+EVAL-e15-base
 diff4b   open   PROBE-DIFF17-4B:PROBE-DIFF17
 rx       open   READINGS-EXTRA
 night1   open   EVAL-ext-06p5rl EVAL-ext-x1 EVAL-ext-x2 EVAL-ext-x4:E10d-X4 EVAL-ext32k-17p5selfrl-s43 EVAL-ext-17p5selfrl-s43 EVAL-ext-17p5self-s43 EVAL-budA-17p2rl-s43 EVAL-budA-4Bp2s43
@@ -1760,3 +1762,16 @@ olpd     open   EVAL-ext32k-17olpd
 #frontier READINGS-EXTRA 17_E12b_P2noEOS_s60 EVAL-e12b-P2noEOS/e12b_P2noEOS_s60_math500_T0.6_math500_no_think_t0.6.metrics.json
 #frontier READINGS-EXTRA 17_E12b_P6_s60 EVAL-e12b-P6/e12b_P6_s60_math500_T0.6_math500_no_think_t0.6.metrics.json
 #frontier READINGS-EXTRA 17_E12b_P6r_s60 EVAL-e12b-P6r/e12b_P6r_s60_math500_T0.6_math500_no_think_t0.6.metrics.json
+# b259zp / b259z (runbook v2.5.9z, Q-051, the reviewer's pre-registration research_program §3c; after b259x): PROBE-VLM (after PROBE-VLLM-VL),
+# then E15-VLM-P5 (Qwen3-VL-2B-Instruct taught by Qwen3-VL-8B-Thinking, Geometry3K, 50 steps). Readings: the base and s25 / s50 on
+# Geometry3K test (601) and MathVista testmini (1000), avg@4 T0.6 16K (gen_eval_vl.py, venv-vl), s50 paired against the base.
+#eval EVAL-e15-base e15_base2B_geo3k_T0.6 local:models/Qwen3-VL-2B-Instruct geo3k 4 0.6
+#eval EVAL-e15-base e15_base2B_mathvista_T0.6 local:models/Qwen3-VL-2B-Instruct mathvista 4 0.6
+#eval EVAL-e15-vlm e15_P5_s25_geo3k_T0.6 result:runs/E15-VLM-P5/global_step_25/actor/huggingface geo3k 4 0.6
+#eval EVAL-e15-vlm e15_P5_s25_mathvista_T0.6 result:runs/E15-VLM-P5/global_step_25/actor/huggingface mathvista 4 0.6
+#eval EVAL-e15-vlm e15_P5_s50_geo3k_T0.6 result:runs/E15-VLM-P5/global_step_50/actor/huggingface geo3k 4 0.6
+#eval EVAL-e15-vlm e15_P5_s50_mathvista_T0.6 result:runs/E15-VLM-P5/global_step_50/actor/huggingface mathvista 4 0.6
+#pair EVAL-e15-vlm e15_P5_s50_geo3k_T0.6 EVAL-e15-base/e15_base2B_geo3k_T0.6_geo3k_no_think_t0.6.jsonl
+#pair EVAL-e15-vlm e15_P5_s25_geo3k_T0.6 EVAL-e15-base/e15_base2B_geo3k_T0.6_geo3k_no_think_t0.6.jsonl
+#pair EVAL-e15-vlm e15_P5_s50_mathvista_T0.6 EVAL-e15-base/e15_base2B_mathvista_T0.6_mathvista_no_think_t0.6.jsonl
+#pair EVAL-e15-vlm e15_P5_s25_mathvista_T0.6 EVAL-e15-base/e15_base2B_mathvista_T0.6_mathvista_no_think_t0.6.jsonl
