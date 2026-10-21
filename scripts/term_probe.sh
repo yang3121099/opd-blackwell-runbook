@@ -29,6 +29,16 @@ D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; Q=${QUEUE_FILE:-$RUNBOOK/tasks/queue.txt}
 step() { echo "TERM_PROBE $(date -u +%T) $*" | tee -a $LOG; }
 fetch_ckpt() { python $RUNBOOK/scripts/fetch_model.py yang31210999/opd-lab-ckpts "$1" "$CKPT_ROOT/adhoc_models" --task $T >> $D/fetch.log 2>&1; }
 fetch_result() { python $RUNBOOK/scripts/fetch_model.py "$(python $RUNBOOK/scripts/remote.py repo public)" "$1" "$CKPT_ROOT/adhoc_models/result" --task $T >> $D/fetch.log 2>&1; }
+# [v2.5.8k] (10-20 23:05-23:49 UTC: PROBE-TERM4 hung in a result: fetch of its new rows; the node's proxy blocks the hub)
+# a result: model is read from the training's own save first, as run_queue_eval.sh does since v2.5.7zd (the same lookup)
+local_save() {   # $1 = runs/<task>/global_step_N/actor/huggingface -> the save with weights (bf16 copy first), "" if none
+  [[ $1 =~ ^runs/([A-Za-z0-9._-]+)/global_step_([0-9]+)/actor/huggingface$ ]] || return 0
+  local r b
+  for r in $OPD_ROOT $CKPT_ROOT; do
+    b=$r/runs/${BASH_REMATCH[1]}/ckpt/global_step_${BASH_REMATCH[2]}/actor
+    has_weights $b/huggingface_bf16 && { echo "$b/huggingface_bf16"; return 0; }
+    has_weights $b/huggingface && { echo "$b/huggingface"; return 0; }
+  done; }
 step "start $T gpu=$G"
 : > $D/inputs.tsv
 QT=$T; [ $T = PROBE-TERM2 ] && QT=PROBE-TERM   # v2.5.7m: only PROBE-TERM2 reuses PROBE-TERM's lines
@@ -40,7 +50,8 @@ while read -r TAG MODEL GENS MODE; do
   case $MODEL in
     Qwen/Qwen3-0.6B) M=$STUDENT_06B;; Qwen/Qwen3-1.7B) M=$STUDENT_17B;; Qwen/Qwen3-8B) M=$TEACHER;; Qwen/*) M=$MODEL;;
     yang31210999/opd-lab-ckpts/*) P=${MODEL#yang31210999/opd-lab-ckpts/}; M=$CKPT_ROOT/adhoc_models/$P; fetch_ckpt "$P" || M="";;
-    result:*) P=${MODEL#result:}; M=$CKPT_ROOT/adhoc_models/result/$P; fetch_result "$P" || M="";;
+    result:*) P=${MODEL#result:}; M=$(local_save "$P")   # [v2.5.8k] the local save first
+              if [ -n "$M" ]; then step "LOCAL_FIRST $TAG: $MODEL"; else M=$CKPT_ROOT/adhoc_models/result/$P; fetch_result "$P" || M=""; fi;;
     *) M=$OPD_ROOT/${MODEL#local:}; has_weights $M || M=$CKPT_ROOT/${MODEL#local:};;
   esac
   [ -n "$M" ] && { has_weights $M || [ "${M#Qwen/}" != "$M" ]; } || { step "MODEL_MISSING $TAG: $MODEL"; printf '%s\t-\t-\t%s\tmodel missing\n' $TAG $MODEL >> $D/inputs.tsv; continue; }

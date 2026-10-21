@@ -69,5 +69,10 @@ printf '#term PROBE-TERM4-4B 4_P0 local:m4local E11b-P0/e11b_P0.jsonl\n' >> $T/r
 : > $CALLS; : > $CALLS.tsv; bash $T/rb/scripts/term_probe.sh 3 PROBE-TERM4-4B > $T/out44 2>&1
 ok "v2.5.7zk PROBE-TERM4-4B: own lines (local model), --term4, uploads to runs/PROBE-TERM4-4B" '[ "$(wc -l < $CALLS.tsv | tr -d " ")" = 1 ] && grep -q "^4_P0	$T/root/m4local	" $CALLS.tsv && grep -q "^term_probe .*--no_teacher --term4" $CALLS && grep -q "^remote put $T/root/runs/PROBE-TERM4-4B/up runs/PROBE-TERM4-4B$" $CALLS && ! grep -q "runs/PROBE-TERM4/up" $CALLS'
 ok "v2.5.7zk task.sh and the rerun rule take PROBE-TERM4-4B" 'grep -q "PROBE-TERM4|PROBE-TERM4-4B) bash \$RUNBOOK/scripts/term_probe.sh" $SRC/scripts/task.sh && python3 -c "import sys; sys.path.insert(0, \"$SRC/scripts\"); import control_rules as R; R.parse({\"cmd\": \"rerun PROBE-TERM4-4B\", \"reason\": \"t\"})"'
+# [v2.5.8k] a result: model with a local save is read from it (no fetch); one without is still fetched
+printf '#term PROBE-TERM4 17_RLloc result:runs/E12b-X/global_step_100/actor/huggingface E11b-P0/e11b_P0.jsonl\n#term PROBE-TERM4 17_RLfar result:runs/E12b-Y/global_step_100/actor/huggingface E11b-P0/e11b_P0.jsonl\n' >> $T/rb/tasks/queue.txt
+mkdir -p $T/root/runs/E12b-X/ckpt/global_step_100/actor/huggingface; touch $T/root/runs/E12b-X/ckpt/global_step_100/actor/huggingface/model.safetensors
+rm -f $T/root/runs/PROBE-TERM4/.done; : > $CALLS; : > $CALLS.tsv; bash $T/rb/scripts/term_probe.sh 3 PROBE-TERM4 > $T/out4k 2>&1
+ok "[v2.5.8k] result: rows: the local save without a fetch; no local save: fetched" 'grep -q "^17_RLloc	$T/root/runs/E12b-X/ckpt/global_step_100/actor/huggingface	" $CALLS.tsv && ! grep -q "^fetch .*runs/E12b-X/" $CALLS && grep -q "^fetch me/pub runs/E12b-Y/global_step_100/actor/huggingface " $CALLS && grep -q "LOCAL_FIRST 17_RLloc" $T/root/runs/PROBE-TERM4/probe.log'
 rm -rf $T
 [ $fails = 0 ] && echo "TERM_PROBE_TEST PASS ($n checks)" || echo "TERM_PROBE_TEST FAIL ($fails of $n)"
