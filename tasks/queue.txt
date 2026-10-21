@@ -46,6 +46,8 @@ base06   open   EVAL-e10c-base06
 b258p    open   PROBE-E12C
 b258bp   open   PROBE-E12B-KL
 b258cp   open   PROBE-E12B-STOP
+b258hp   open   PROBE-E12B-8K PROBE-E12B-16K
+b258ip   open   PROBE-X2507-X1 PROBE-X2507-X2
 fill2    open   EVAL-ext32k-4Bp2:E10d-P2 EVAL-ext32k-4Bp2s43:E10d-P2-s43 EVAL-ext32k-17p2s:E10b-P2-s43 EVAL-ext32k-17p2srl:E12b-P2-s43 EVAL-ext-E10b-P2s43:E10b-P2-s43 EVAL-ext-E10b-P2s44:E10b-P2-s44
 b258a    open   E10c-P5-fix4 E12c-P0:PROBE-E12C E12b-P5self EVAL-e10c-P5-fix4:E10c-P5-fix4+EVAL-e10c-base06 E12c-P5:PROBE-E12C+E10c-P5-fix4 EVAL-e12b-P5self:E12b-P5self EVAL-budA-e12bP5self:E12b-P5self EVAL-e12c-P0:E12c-P0+EVAL-e10c-base06 EVAL-e12c-P5:E12c-P5+EVAL-e12c-P0+EVAL-e10c-P5-fix4 EVAL-budA-e12c:E12c-P0+E12c-P5+EVAL-budA06p5
 fill3    open   EVAL-ext32k-17p5self:E10b-P5self EVAL-ext32k-17p2self:E10b-P2self EVAL-ext32k-17think:E10b-P5think EVAL-ext-E10b-P5self:E10b-P5self EVAL-ext-E10b-P2self:E10b-P2self EVAL-ext-E10b-P5think:E10b-P5think EVAL-ext32k-17p2s44:E10b-P2-s44
@@ -53,6 +55,8 @@ b258b    open   E12b-P5-kl:PROBE-E12B-KL EVAL-e12b-P5kl:E12b-P5-kl EVAL-budA-e12
 b258c    open   E12b-P5-stop:PROBE-E12B-STOP EVAL-e12b-P5stop:E12b-P5-stop EVAL-budA-e12bP5stop:E12b-P5-stop
 q2507    open   EVAL-i2507 EVAL-t2507 EVAL-i2507-aime EVAL-t2507-aime
 b258e    open   E10b-P5self-s43 PROBE-P5SELF-4B E10d-P5self:PROBE-P5SELF-4B E12b-P5self-s43:E10b-P5self-s43 EVAL-e10b-P5self-s43:E10b-P5self-s43 EVAL-budA-P5self-s43:E10b-P5self-s43 EVAL-e10d-P5self:E10d-P5self EVAL-budA-e10dP5self:E10d-P5self EVAL-e12b-P5self-s43:E12b-P5self-s43 EVAL-budA-e12bP5self-s43:E12b-P5self-s43+EVAL-budA-P5self-s43
+b258h    open   E12b-P5-8k:PROBE-E12B-8K E12b-P5-16k:PROBE-E12B-16K EVAL-e12b-P5-8k:E12b-P5-8k EVAL-budA-e12bP5-8k:E12b-P5-8k EVAL-ext32k-17p5l8k:E12b-P5-8k EVAL-e12b-P5-16k:E12b-P5-16k EVAL-budA-e12bP5-16k:E12b-P5-16k EVAL-ext32k-17p5l16k:E12b-P5-16k
+b258i    open   E10d-X1:PROBE-X2507-X1 E10d-X2:PROBE-X2507-X2 EVAL-ext32k-x1:E10d-X1 EVAL-ext32k-x2:E10d-X2 EVAL-budA-x1:E10d-X1+EVAL-i2507 EVAL-budA-x2:E10d-X2+EVAL-i2507 EVAL-e10d-x1:E10d-X1 EVAL-e10d-x2:E10d-X2
 fill4    open   EVAL-ext32k-17p1:E12b-P1 EVAL-ext32k-17p3:E12b-P3 EVAL-ext-E10b-P3:E10b-P3 EVAL-ext-E10b-P6r:E10b-P6r
 len      open   EVAL-budA06p5:E10c-P5-fix4 EVAL-budA06think EVAL-budA-8Bthink
 fill5    open   EVAL-ext-E10c-P0 EVAL-ext32k-06think EVAL-ext-E10c-P5-fix4:E10c-P5-fix4+EVAL-ext-E10c-P0 EVAL-ext32k-06:E10c-P5-fix4+EVAL-ext32k-06think EVAL-ext-E12c-P0:E12c-P0+EVAL-ext-E10c-P0+EVAL-ext-E10c-P5-fix4
@@ -1198,3 +1202,68 @@ passk    open   EVAL-passk-ext
 #pair EVAL-ext32k-17sets-b ext32k17_E12bP5_s100_minervamath_T0.6 EVAL-ext32k-17sets-a/ext32k17_E10bP5_s150_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
 #pair EVAL-ext32k-17sets-b ext32k17_E12bP5kl_s100_olympiadbench_T0.6 EVAL-ext32k-17sets-a/ext32k17_E10bP5_s150_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl EVAL-ext32k-17sets-b/ext32k17_E12bP5_s100_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
 #pair EVAL-ext32k-17sets-b ext32k17_E12bP5_s100_olympiadbench_T0.6 EVAL-ext32k-17sets-a/ext32k17_E10bP5_s150_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
+# b258h (runbook v2.5.8h, Q-028; Runming: "可以尝试 8K 或者 16K 的上限来完成 RL"): E12b-P5 at the 8K / 16K response limits, 50 steps,
+# readings at s25 / s50: MATH500 16K, the 32K budget curve, STRICT-C1 lines, AIME24/25 32K; the probe stage goes ahead of the readings
+#eval EVAL-e12b-P5-8k e12b_P5-8k_s25_math500_T0.6 result:runs/E12b-P5-8k/global_step_25/actor/huggingface math500 4 0.6
+#eval EVAL-e12b-P5-8k e12b_P5-8k_s50_math500_T0.6 result:runs/E12b-P5-8k/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-e12b-P5-8k e12b_P5-8k_s50_math500_T1.0 result:runs/E12b-P5-8k/global_step_50/actor/huggingface math500 4 1.0
+#pair EVAL-e12b-P5-8k e12b_P5-8k_s50_math500_T0.6 EVAL-e12b-P5/e12b_P5_s100_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e12b-P0/e12b_P0_s100_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl
+#pair EVAL-e12b-P5-8k e12b_P5-8k_s25_math500_T0.6 E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl
+#pair EVAL-e12b-P5-8k e12b_P5-8k_s50_math500_T1.0 EVAL-e12b-P5/e12b_P5_s100_math500_T1.0_math500_no_think_t1.0.jsonl E11b-P5/e11b_P5_math500_T1.0_math500_no_think_t1.0.jsonl
+#strict STRICT-C1 EVAL-e12b-P5-8k/e12b_P5-8k_s50_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e12b-P5/e12b_P5_s100_math500_T0.6_math500_no_think_t0.6.jsonl
+#strict STRICT-C1 EVAL-e12b-P5-8k/e12b_P5-8k_s50_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl
+#eval EVAL-budA-e12bP5-8k budAe12bP5-8k_s25_math500_T0.6_32k result:runs/E12b-P5-8k/global_step_25/actor/huggingface math500 4 0.6 32768
+#eval EVAL-budA-e12bP5-8k budAe12bP5-8k_s50_math500_T0.6_32k result:runs/E12b-P5-8k/global_step_50/actor/huggingface math500 4 0.6 32768
+#budget EVAL-budA-e12bP5-8k budget_curve_vsStart EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12bP5-8k_s25_math500_T0.6_32k budAe12bP5-8k_s50_math500_T0.6_32k
+#budget EVAL-budA-e12bP5-8k budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12bP5-8k_s25_math500_T0.6_32k budAe12bP5-8k_s50_math500_T0.6_32k
+#eval EVAL-ext32k-17p5l8k ext32k17_E12bP5l8k_s50_aime24_T0.6 result:runs/E12b-P5-8k/global_step_50/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-17p5l8k ext32k17_E12bP5l8k_s50_aime25_T0.6 result:runs/E12b-P5-8k/global_step_50/actor/huggingface aime25 16 0.6 32768
+#pair EVAL-ext32k-17p5l8k ext32k17_E12bP5l8k_s50_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k/ext32k_E12bP5_s100_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#pair EVAL-ext32k-17p5l8k ext32k17_E12bP5l8k_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k/ext32k_E12bP5_s100_aime25_T0.6_aime25_no_think_t0.6.jsonl
+#eval EVAL-e12b-P5-16k e12b_P5-16k_s25_math500_T0.6 result:runs/E12b-P5-16k/global_step_25/actor/huggingface math500 4 0.6
+#eval EVAL-e12b-P5-16k e12b_P5-16k_s50_math500_T0.6 result:runs/E12b-P5-16k/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-e12b-P5-16k e12b_P5-16k_s50_math500_T1.0 result:runs/E12b-P5-16k/global_step_50/actor/huggingface math500 4 1.0
+#pair EVAL-e12b-P5-16k e12b_P5-16k_s50_math500_T0.6 EVAL-e12b-P5/e12b_P5_s100_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e12b-P0/e12b_P0_s100_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e12b-P5-8k/e12b_P5-8k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#pair EVAL-e12b-P5-16k e12b_P5-16k_s25_math500_T0.6 E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl
+#pair EVAL-e12b-P5-16k e12b_P5-16k_s50_math500_T1.0 EVAL-e12b-P5/e12b_P5_s100_math500_T1.0_math500_no_think_t1.0.jsonl E11b-P5/e11b_P5_math500_T1.0_math500_no_think_t1.0.jsonl
+#strict STRICT-C1 EVAL-e12b-P5-16k/e12b_P5-16k_s50_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e12b-P5/e12b_P5_s100_math500_T0.6_math500_no_think_t0.6.jsonl
+#strict STRICT-C1 EVAL-e12b-P5-16k/e12b_P5-16k_s50_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl
+#eval EVAL-budA-e12bP5-16k budAe12bP5-16k_s25_math500_T0.6_32k result:runs/E12b-P5-16k/global_step_25/actor/huggingface math500 4 0.6 32768
+#eval EVAL-budA-e12bP5-16k budAe12bP5-16k_s50_math500_T0.6_32k result:runs/E12b-P5-16k/global_step_50/actor/huggingface math500 4 0.6 32768
+#budget EVAL-budA-e12bP5-16k budget_curve_vsStart EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12bP5-16k_s25_math500_T0.6_32k budAe12bP5-16k_s50_math500_T0.6_32k
+#budget EVAL-budA-e12bP5-16k budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12bP5-16k_s25_math500_T0.6_32k budAe12bP5-16k_s50_math500_T0.6_32k
+#eval EVAL-ext32k-17p5l16k ext32k17_E12bP5l16k_s50_aime24_T0.6 result:runs/E12b-P5-16k/global_step_50/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-17p5l16k ext32k17_E12bP5l16k_s50_aime25_T0.6 result:runs/E12b-P5-16k/global_step_50/actor/huggingface aime25 16 0.6 32768
+#pair EVAL-ext32k-17p5l16k ext32k17_E12bP5l16k_s50_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k/ext32k_E12bP5_s100_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#pair EVAL-ext32k-17p5l16k ext32k17_E12bP5l16k_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k/ext32k_E12bP5_s100_aime25_T0.6_aime25_no_think_t0.6.jsonl
+# b258i (runbook v2.5.8i, Q-029 as amended by the reviewer 18:5x UTC: the primary endpoint is AIME24/25 avg@16 32K, MATH500 only
+# a non-regression check >= 95.0 - 1.5): E10d-X1 (Instruct-2507 <- Thinking-2507) and E10d-X2 (Instruct-2507 <- hybrid Qwen3-4B in
+# think mode); AIME at s25 and s50 first, then MATH500 32K with forced answers and 16K
+#eval EVAL-ext32k-x1 ext32k4B_X1_s25_aime24_T0.6 result:runs/E10d-X1/global_step_25/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-x1 ext32k4B_X1_s25_aime25_T0.6 result:runs/E10d-X1/global_step_25/actor/huggingface aime25 16 0.6 32768
+#eval EVAL-ext32k-x1 ext32k4B_X1_s50_aime24_T0.6 result:runs/E10d-X1/global_step_50/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-x1 ext32k4B_X1_s50_aime25_T0.6 result:runs/E10d-X1/global_step_50/actor/huggingface aime25 16 0.6 32768
+#pair EVAL-ext32k-x1 ext32k4B_X1_s50_aime24_T0.6 EVAL-i2507-aime/i2507_aime24_T0.6_32k_aime24_no_think_t0.6.jsonl EVAL-t2507-aime/t2507_aime24_T0.6_32k_aime24_think_t0.6.jsonl
+#pair EVAL-ext32k-x1 ext32k4B_X1_s50_aime25_T0.6 EVAL-i2507-aime/i2507_aime25_T0.6_32k_aime25_no_think_t0.6.jsonl EVAL-t2507-aime/t2507_aime25_T0.6_32k_aime25_think_t0.6.jsonl
+#pair EVAL-ext32k-x1 ext32k4B_X1_s25_aime24_T0.6 EVAL-i2507-aime/i2507_aime24_T0.6_32k_aime24_no_think_t0.6.jsonl
+#pair EVAL-ext32k-x1 ext32k4B_X1_s25_aime25_T0.6 EVAL-i2507-aime/i2507_aime25_T0.6_32k_aime25_no_think_t0.6.jsonl
+#eval EVAL-ext32k-x2 ext32k4B_X2_s25_aime24_T0.6 result:runs/E10d-X2/global_step_25/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-x2 ext32k4B_X2_s25_aime25_T0.6 result:runs/E10d-X2/global_step_25/actor/huggingface aime25 16 0.6 32768
+#eval EVAL-ext32k-x2 ext32k4B_X2_s50_aime24_T0.6 result:runs/E10d-X2/global_step_50/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-x2 ext32k4B_X2_s50_aime25_T0.6 result:runs/E10d-X2/global_step_50/actor/huggingface aime25 16 0.6 32768
+#pair EVAL-ext32k-x2 ext32k4B_X2_s50_aime24_T0.6 EVAL-i2507-aime/i2507_aime24_T0.6_32k_aime24_no_think_t0.6.jsonl EVAL-ext32k-4Bthink/ext32k4B_P0think_aime24_T0.6_aime24_think_t0.6.jsonl EVAL-ext32k-x1/ext32k4B_X1_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#pair EVAL-ext32k-x2 ext32k4B_X2_s50_aime25_T0.6 EVAL-i2507-aime/i2507_aime25_T0.6_32k_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Bthink/ext32k4B_P0think_aime25_T0.6_aime25_think_t0.6.jsonl EVAL-ext32k-x1/ext32k4B_X1_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
+#pair EVAL-ext32k-x2 ext32k4B_X2_s25_aime24_T0.6 EVAL-i2507-aime/i2507_aime24_T0.6_32k_aime24_no_think_t0.6.jsonl
+#pair EVAL-ext32k-x2 ext32k4B_X2_s25_aime25_T0.6 EVAL-i2507-aime/i2507_aime25_T0.6_32k_aime25_no_think_t0.6.jsonl
+#eval EVAL-budA-x1 budAX1_s50_math500_T0.6_32k result:runs/E10d-X1/global_step_50/actor/huggingface math500 4 0.6 32768
+#forced EVAL-budA-x1 EVAL-budA-x1/budAX1_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl result:runs/E10d-X1/global_step_50/actor/huggingface no_think
+#budget EVAL-budA-x1 budget_curve_vsI2507 EVAL-i2507/i2507_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAX1_s50_math500_T0.6_32k
+#eval EVAL-budA-x2 budAX2_s50_math500_T0.6_32k result:runs/E10d-X2/global_step_50/actor/huggingface math500 4 0.6 32768
+#forced EVAL-budA-x2 EVAL-budA-x2/budAX2_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl result:runs/E10d-X2/global_step_50/actor/huggingface no_think
+#budget EVAL-budA-x2 budget_curve_vsI2507 EVAL-i2507/i2507_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAX2_s50_math500_T0.6_32k
+#eval EVAL-e10d-x1 e10d_X1_s50_math500_T0.6 result:runs/E10d-X1/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-e10d-x2 e10d_X2_s50_math500_T0.6 result:runs/E10d-X2/global_step_50/actor/huggingface math500 4 0.6
+#strict STRICT-C1 EVAL-budA-x1/budAX1_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-i2507/i2507_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#strict STRICT-C1 EVAL-budA-x2/budAX2_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-i2507/i2507_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+# 06:0x UTC 10-21: EVAL-e10c-dyn6144 taken out of stage  (its training E10c-P4lowlr-dyn6144 has been paused since its out-of-memory
+# at step 105 on 10-18, so the reading could never start; its #eval lines stay for a later run)
