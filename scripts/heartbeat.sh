@@ -116,7 +116,7 @@ def live_tasks():
     return out
 def kind(name):
     return ("train" if re.match(r"E1(0[bcd]|2[bcd])-", name) else "sft" if name.startswith("SFT-") else
-            "eval" if re.match(r"E11b-|EVAL-|adhoc_eval_|E0[1-5]-", name) else "probe" if name in ("FA-PROBE", "SPEED-PROBE", "PROBE-4B", "PROBE-TERM", "PROBE-TERM2", "PROBE-TERM3", "PROBE-TERM4", "PROBE-TERM4-4B", "PROBE-TOP10", "STRICT-C1", "PROBE-T14", "PROBE-P5THINK", "PROBE-P5SELF", "PROBE-P5SELF-4B", "PROBE-P2SELF", "PROBE-E12C", "PROBE-E12B-KL", "PROBE-E12B-STOP", "PROBE-E12B-STOP2", "PROBE-E12B-8K", "PROBE-E12B-16K", "PROBE-X2507-X1", "PROBE-X2507-X2", "PROBE-X2507-X4", "PROBE-LENSEL", "PROBE-2GPU", "PROBE-TOOL", "PROBE-NET", "PROBE-NET2", "PROBE-ROLLOUT-U60", "PROBE-ROLLOUT-U75", "PROBE-ROLLOUT-U85", "PROBE-STOPMERGE", "PROBE-TAIL") or name.startswith("FA-SPEED-") else "other")
+            "eval" if re.match(r"E11b-|EVAL-|adhoc_eval_|E0[1-5]-", name) else "probe" if name in ("FA-PROBE", "SPEED-PROBE", "PROBE-4B", "PROBE-TERM", "PROBE-TERM2", "PROBE-TERM3", "PROBE-TERM4", "PROBE-TERM4-4B", "PROBE-TOP10", "STRICT-C1", "PROBE-T14", "PROBE-P5THINK", "PROBE-P5SELF", "PROBE-P5SELF-4B", "PROBE-P2SELF", "PROBE-E12C", "PROBE-E12B-KL", "PROBE-E12B-STOP", "PROBE-E12B-STOP2", "PROBE-E12B-8K", "PROBE-E12B-16K", "PROBE-X2507-X1", "PROBE-X2507-X2", "PROBE-X2507-X4", "PROBE-LENSEL", "PROBE-2GPU", "PROBE-TOOL", "PROBE-NET", "PROBE-NET2", "PROBE-ROLLOUT-U60", "PROBE-ROLLOUT-U75", "PROBE-ROLLOUT-U85", "PROBE-STOPMERGE", "PROBE-TAIL", "PROBE-POLISH") or name.startswith("FA-SPEED-") else "other")
 live = live_tasks()
 tasks = {}; stale = []
 queue = open(os.path.join(runbook, "tasks", "queue.txt")).read() if os.path.exists(os.path.join(runbook, "tasks", "queue.txt")) else ""
