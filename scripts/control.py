@@ -1806,11 +1806,16 @@ def alerts(status_path):
             now.add(f"stalled:{t}")
         if re.match(r"(E10b|E10c|E10d|E12b|E12c|E12d)-", t) and f"/runs/{t}" not in ups:   # [v2.5.8a] E10c / E12c
             now.add(f"upload_sync_missing:{t}")
+    rsv = reserve_low()   # [v2.5.9z12] fewer tasks ready than free GPUs + 2, for 10 minutes
+    if rsv:
+        now.add("reserve_low")
     roots = {f"root{i}": {"free_gb": r.get("free_gb"), "current": r.get("current")} for i, r in enumerate(st.get("ckpt_roots") or [])}
     state(alerts=sorted(now))   # v2.5.8: saved first, so a failing event can never re-fire every round
     for a in sorted(now - prev):
         tgt = a.split(":", 1)[1] if ":" in a else "node"
         detail = {k: st.get(k) for k in ("disk_free_gb", "ckpt_disk_free_gb")}
+        if a == "reserve_low":
+            detail = {k: rsv.get(k) for k in ("ready", "free_gpus", "need", "ready_tasks", "held_by_disk")}
         if tgt in roots:
             detail["root"] = roots[tgt]
         try:
@@ -1823,6 +1828,115 @@ def alerts(status_path):
         except Exception as e:
             print(f"ALERT_EVENT_FAILED {a}: {type(e).__name__}", file=sys.stderr)
     return sorted(now)
+
+
+# ---------- [v2.5.9z12] (ops-lead / the reviewer 10-22, the offline-readiness list) queue reruns, the disk guard, the reserve ----------
+AT_WINDOW_MIN = int(os.environ.get("AT_WINDOW_MIN", "120"))
+
+
+def _auto_rows(qfile):
+    """'#at <UTC HH:MM> rerun <task>' and '#after <task> rerun <task2>' lines of the queue file."""
+    at, after = [], []
+    for line in _read(qfile).splitlines():
+        f = line.split()
+        if len(f) == 4 and f[0] == "#at" and f[2] == "rerun" and re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", f[1]) and R.TASK_RE.match(f[3]):
+            at.append((f[1], f[3]))
+        elif len(f) == 4 and f[0] == "#after" and f[2] == "rerun" and R.TASK_RE.match(f[1]) and R.TASK_RE.match(f[3]):
+            after.append((f[1], f[3]))
+    return at, after
+
+
+def _auto_rerun(kind, tag, t):
+    """One rerun from a queue row: the rerun allowlist of a control command (control_rules), then v_rerun (seq = tag)."""
+    try:
+        R.parse({"cmd": f"rerun {t}", "reason": f"queue #{kind} row"})
+    except R.Reject as e:
+        return "refused", str(e)
+    st, msg, _ = v_rerun([t], tag)
+    return st, msg
+
+
+def auto_reruns(qfile, now=None):
+    """run_tasks.sh every pass, before it dispatches.
+    #at HH:MM rerun <task>: once a UTC day, within AT_WINDOW_MIN (120) minutes after HH:MM (a node down at the time skips
+    that day); while the task runs it is tried again later inside the window; a task still queued (neither done, failed nor
+    skipped) needs nothing that day.
+    #after <task> rerun <probe>: when <task>'s .done is newer than <probe>'s (a reading landed after the probe last finished)
+    and neither runs. The probe's rerun moves its .done away and its next .done is newer, so nothing repeats; a refusal is
+    not repeated for the same .done of <task> (auto_rerun/after_<task>__<probe> holds its mtime).
+    Each rerun or refusal: an event (at_rerun_<status> / after_rerun_<status>) and a line AUTO_RERUN on stdout."""
+    now = time.time() if now is None else now
+    at, after = _auto_rows(qfile)
+    if not (at or after):
+        return []
+    os.makedirs(_p("auto_rerun"), exist_ok=True)
+    day, out = time.strftime("%Y%m%d", time.gmtime(now)), []
+    for hhmm, t in at:
+        h, m = map(int, hhmm.split(":"))
+        start = calendar.timegm(time.gmtime(now)[:3] + (h, m, 0))
+        mark = _p("auto_rerun", f"at_{hhmm.replace(':', '')}_{t}")
+        if not start <= now < start + AT_WINDOW_MIN * 60 or _read(mark).strip() == day:
+            continue
+        st, msg = _auto_rerun("at", f"at{day}T{hhmm.replace(':', '')}", t)
+        if st == "rejected" and msg.endswith("is running"):
+            continue
+        open(mark, "w").write(day + "\n")
+        out.append((t, f"at_rerun_{st}", f"#at {hhmm} rerun {t}: {msg}"))
+    for src, t in after:
+        ds, dt = os.path.join(ROOT, "runs", src, ".done"), os.path.join(ROOT, "runs", t, ".done")
+        if not (os.path.exists(ds) and os.path.exists(dt)) or os.path.getmtime(ds) <= os.path.getmtime(dt):
+            continue
+        mark = _p("auto_rerun", f"after_{src}__{t}")
+        if _read(mark).strip() == str(os.path.getmtime(ds)) or running_pids(src) or running_pids(t):
+            continue
+        st, msg = _auto_rerun("after", f"after{time.strftime('%Y%m%dT%H%M%S', time.gmtime(now))}", t)
+        open(mark, "w").write(str(os.path.getmtime(ds)) + "\n")
+        out.append((t, f"after_rerun_{st}", f"#after {src} rerun {t}: {msg}"))
+    for t, kind, msg in out:
+        print(f"AUTO_RERUN {t} {kind} {msg}")
+        try:
+            event(t, kind, msg)
+        except Exception as e:
+            print(f"AUTO_RERUN_EVENT_FAILED {t}: {type(e).__name__}", file=sys.stderr)
+    return out
+
+
+def disk_low():
+    """The disks below the heartbeat's alert lines: 'work' (OPD_ROOT, DISK_ALERT_GB 30) and / or 'ckpt' (CKPT_ROOT,
+    CKPT_ALERT_GB 100), space separated; '' when both are above. run_tasks.sh holds new trainings while it is not empty."""
+    low = []
+    for name, path, var, dflt in (("work", ROOT, "DISK_ALERT_GB", "30"), ("ckpt", os.environ.get("CKPT_ROOT", ""), "CKPT_ALERT_GB", "100")):
+        if path and os.path.isdir(path):
+            s = os.statvfs(path)
+            if s.f_bavail * s.f_frsize / 1e9 < float(os.environ.get(var, dflt)):
+                low.append(name)
+    return " ".join(low)
+
+
+RESERVE_ALERT_MIN = int(os.environ.get("RESERVE_ALERT_MIN", "10"))
+
+
+def reserve_note(ready, free, tasks, held, now=None):
+    """run_tasks.sh after each dispatch pass: the GPU tasks ready but not started (every check passed, no GPU free for
+    them), the GPUs still free, and the trainings the disk guard held, to reserve.json; low_since = since when ready <
+    free + RESERVE_MIN (2) has held without a break (None while it does not)."""
+    now = time.time() if now is None else now
+    prev = json.loads(_read(_p("reserve.json"), "{}") or "{}")
+    need = free + int(os.environ.get("RESERVE_MIN", "2"))
+    low = ready < need
+    r = {"utc": utc(), "t": now, "ready": ready, "free_gpus": free, "need": need, "ready_tasks": tasks[:20], "held_by_disk": held[:20],
+         "low_since": (prev.get("low_since") or now) if low else None}
+    json.dump(r, open(_p("reserve.json"), "w"))
+    return r
+
+
+def reserve_low(now=None):
+    """The reserve alert: reserve.json fresh (< 15 min) and low for RESERVE_ALERT_MIN (10) minutes or more."""
+    now = time.time() if now is None else now
+    r = json.loads(_read(_p("reserve.json"), "{}") or "{}")
+    if not r or now - (r.get("t") or 0) > 900 or not r.get("low_since"):
+        return None
+    return r if now - r["low_since"] >= RESERVE_ALERT_MIN * 60 else None
 
 
 # ---------- v2.5: checkpoint roots (same tree under every candidate: <base>/opd-ckpt/<task>/ckpt/global_step_<N>/) ----------
@@ -2133,6 +2247,12 @@ if __name__ == "__main__":
         print("REAPED", " ".join(map(str, reap(int(sys.argv[2]), sys.argv[3] if len(sys.argv) > 3 else None, wait_s=300))) or "none")   # v2.5.6e: up to 5 min for the GPU to empty
     elif cmd == "pulse":   # heartbeat.sh every 60 s (v2.5.1)
         r = pulse(sys.argv[2]); print("PULSE ok" if r else "PULSE refused")
+    elif cmd == "auto_reruns":   # [v2.5.9z12] run_tasks.sh every pass: the queue's #at / #after rerun lines
+        auto_reruns(sys.argv[2])
+    elif cmd == "disk_low":   # [v2.5.9z12] run_tasks.sh every pass: the disk guard of new trainings
+        print(disk_low())
+    elif cmd == "reserve_note":   # [v2.5.9z12] run_tasks.sh after a pass: reserve_note <ready> <free> "<tasks>" "<held>"
+        reserve_note(int(sys.argv[2]), int(sys.argv[3]), sys.argv[4].split(), sys.argv[5].split() if len(sys.argv) > 5 else [])
     elif cmd == "rcpt":   # run_tasks / run_adhoc_eval: update a receipt (started, done, failed)
         receipt(int(sys.argv[2]), None, sys.argv[3], " ".join(sys.argv[4:]))
     else:

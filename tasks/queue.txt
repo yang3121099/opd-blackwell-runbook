@@ -1831,3 +1831,13 @@ olpd     open   EVAL-ext32k-17olpd
 #pair EVAL-ext32k-4Bt32 ext32k4B_E10dP5t32_s50_aime24_T0.6 EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4Bp5self/ext32k4B_E10dP5self_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4Bthink/ext32k4B_P0think_aime24_T0.6_aime24_think_t0.6.jsonl EVAL-ext32k-32Bthink-aime/ext32k32B_think_aime24_T0.6_aime24_think_t0.6.jsonl
 #pair EVAL-ext32k-4Bt32 ext32k4B_E10dP5t32_s50_aime25_T0.6 EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Bp5self/ext32k4B_E10dP5self_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Bthink/ext32k4B_P0think_aime25_T0.6_aime25_think_t0.6.jsonl EVAL-ext32k-32Bthink-aime/ext32k32B_think_aime25_T0.6_aime25_think_t0.6.jsonl
 #term PROBE-TERM4-4B 4B_P5t32 result:runs/E10d-P5-t32/global_step_50/actor/huggingface EVAL-e10d-P5t32/e10d_P5t32_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+# [v2.5.9z12] (ops-lead / the reviewer 10-22, the offline-readiness list) queue-driven reruns, applied by run_tasks.sh every pass
+# (control.py auto_reruns; only tasks the rerun allowlist accepts, as a control command would):
+#   #at <UTC HH:MM> rerun <task>      once a UTC day, within 120 min after HH:MM (AT_WINDOW_MIN)
+#   #after <task> rerun <probe>       when <task>'s .done is newer than <probe>'s (a reading landed after the probe last finished)
+# First #after rows: the reruns the executor owed by hand (TERM4 / STRICT rows already in this file).
+#after EVAL-e10c-P5self rerun PROBE-TERM4-06B
+#after EVAL-e10c-P5self rerun STRICT-C1
+#after EVAL-polish rerun STRICT-C1
+#after EVAL-ext32k-x4 rerun STRICT-C1
+#after EVAL-e10d-P5t32 rerun PROBE-TERM4-4B

@@ -5,6 +5,7 @@ import importlib
 import json
 import os
 import re
+import time
 import socket
 import sys
 import types
@@ -984,3 +985,108 @@ def test_task_sh_family_regexes_match_v_run():   # [v2.5.9z11] E10b-* / E10d-* .
     assert {"E10b", "E10c", "E10d", "E11b", "E12b", "E12c", "E12d", "EVAL"} <= set(fams)
     for fam, rx in fams.items():
         assert rx and f"{fam}-*) [[ $T =~ {rx} ]]" in vr, (fam, rx)
+
+
+# ---------- [v2.5.9z12] queue reruns (#at / #after), the disk guard, the reserve ----------
+def _q(env, text):
+    q = env.root / "queue.txt"; q.write_text("version: 2\n" + text); return str(q)
+
+
+def _done(env, t, mtime=None):
+    d = env.root / "runs" / t; d.mkdir(parents=True, exist_ok=True); f = d / ".done"; f.write_text("")
+    if mtime is not None:
+        os.utime(f, (mtime, mtime))
+    return f
+
+
+def _events(env, kind):
+    d = env.root / "control" / "events"
+    return [json.load(open(d / n)) for n in sorted(os.listdir(d)) if n.endswith(f"_{kind}.json")] if d.exists() else []
+
+
+def test_at_rerun_once_a_day_inside_its_window(env, monkeypatch):
+    import calendar as cal
+    q = _q(env, "#at 03:00 rerun PROBE-TERM4\n#at 03:00 rerun E10b-P5\n#at 25:00 rerun PROBE-TERM4\n#at 03:00 rerun EVAL-q\n")
+    day = cal.timegm((2026, 10, 22, 3, 5, 0, 0, 0, 0))
+    _done(env, "PROBE-TERM4"); _done(env, "E10b-P5")
+    assert env.c.auto_reruns(q, now=day - 600) == []                       # 02:55: not yet
+    out = env.c.auto_reruns(q, now=day)                                     # 03:05
+    got = {(t, k) for t, k, _ in out}
+    assert ("PROBE-TERM4", "at_rerun_ok") in got and not (env.root / "runs" / "PROBE-TERM4" / ".done").exists()
+    assert (env.root / "runs" / "PROBE-TERM4" / ".done.prev_at20261022T0300").exists()
+    assert ("E10b-P5", "at_rerun_rejected") in got                          # a finished training is never rerun
+    assert ("EVAL-q", "at_rerun_rejected") in got                           # still queued: nothing to do that day
+    assert len(out) == 3 and _events(env, "at_rerun_ok")                    # 25:00 is not a time
+    _done(env, "PROBE-TERM4")
+    assert env.c.auto_reruns(q, now=day + 600) == []                        # once a day
+    assert env.c.auto_reruns(q, now=day + 86400 + 3 * 3600) == []           # the next day at 06:05: outside the 120-min window
+    out = env.c.auto_reruns(q, now=day + 86400)                             # the next day at 03:05
+    assert ("PROBE-TERM4", "at_rerun_ok") in {(t, k) for t, k, _ in out}
+
+
+def test_at_rerun_of_a_running_task_waits_inside_the_window(env, monkeypatch):
+    import calendar as cal
+    q = _q(env, "#at 03:00 rerun PROBE-TERM4\n"); now = cal.timegm((2026, 10, 22, 3, 1, 0, 0, 0, 0)); _done(env, "PROBE-TERM4")
+    monkeypatch.setattr(env.c, "running_pids", lambda t=None: [1] if t == "PROBE-TERM4" else [])
+    assert env.c.auto_reruns(q, now=now) == []                              # running: not marked, tried again
+    monkeypatch.setattr(env.c, "running_pids", lambda t=None: [])
+    assert [k for _, k, _ in env.c.auto_reruns(q, now=now + 300)] == ["at_rerun_ok"]
+
+
+def test_after_rerun_when_a_reading_lands_after_the_probe(env):
+    q = _q(env, "#after EVAL-a rerun PROBE-TERM4\n#after EVAL-b rerun PROBE-TERM4\n#after EVAL-a rerun E10b-P5\n#after EVAL-a rerun NOT-A-TASK\n")
+    t0 = time.time() - 1000
+    _done(env, "PROBE-TERM4", t0); _done(env, "EVAL-b", t0 - 100); _done(env, "E10b-P5", t0)
+    assert env.c.auto_reruns(q) == []                                       # EVAL-a not done; EVAL-b older than the probe
+    _done(env, "EVAL-a", t0 + 100)
+    out = {(t, k) for t, k, _ in env.c.auto_reruns(q)}
+    assert ("PROBE-TERM4", "after_rerun_ok") in out and ("E10b-P5", "after_rerun_rejected") in out
+    assert ("NOT-A-TASK", "after_rerun_refused") not in out                 # no .done for it: nothing to compare
+    assert env.c.auto_reruns(q) == []                                       # the probe's .done moved; the refusal not repeated
+    _done(env, "PROBE-TERM4", t0 + 200)                                     # the probe ran again: newer than both readings
+    assert env.c.auto_reruns(q) == []
+    _done(env, "EVAL-b", t0 + 300)                                          # another reading lands
+    assert [(t, k) for t, k, _ in env.c.auto_reruns(q)] == [("PROBE-TERM4", "after_rerun_ok")]
+
+
+def test_after_rerun_refused_by_the_rules(env):
+    q = _q(env, "#after EVAL-a rerun E99-x\n"); t0 = time.time() - 100
+    _done(env, "E99-x", t0); _done(env, "EVAL-a", t0 + 10)
+    out = env.c.auto_reruns(q)
+    assert [(t, k) for t, k, _ in out] == [("E99-x", "after_rerun_refused")] and (env.root / "runs" / "E99-x" / ".done").exists()
+    assert env.c.auto_reruns(q) == []                                       # not repeated for the same reading
+
+
+def test_disk_low(env, monkeypatch, tmp_path):
+    monkeypatch.setenv("DISK_ALERT_GB", "0"); monkeypatch.setenv("CKPT_ROOT", str(tmp_path)); monkeypatch.setenv("CKPT_ALERT_GB", "0")
+    assert env.c.disk_low() == ""
+    monkeypatch.setenv("DISK_ALERT_GB", "1e12")
+    assert env.c.disk_low() == "work"
+    monkeypatch.setenv("CKPT_ALERT_GB", "1e12")
+    assert env.c.disk_low() == "work ckpt"
+    monkeypatch.setenv("CKPT_ROOT", str(tmp_path / "missing"))
+    assert env.c.disk_low() == "work"
+
+
+def test_reserve_note_and_alert(env):
+    t0 = 1_800_000_000
+    r = env.c.reserve_note(1, 2, ["EVAL-a"], [], now=t0)
+    assert r["need"] == 4 and r["low_since"] == t0
+    assert env.c.reserve_low(now=t0 + 300) is None                         # low for 5 min: not yet
+    assert env.c.reserve_low(now=t0 + 660)["ready"] == 1                    # 11 min
+    assert env.c.reserve_note(2, 1, ["EVAL-a", "EVAL-b"], [], now=t0 + 700)["low_since"] == t0   # still low (2 < 3): kept
+    assert env.c.reserve_note(5, 1, [], [], now=t0 + 760)["low_since"] is None and env.c.reserve_low(now=t0 + 1400) is None
+    env.c.reserve_note(0, 3, [], ["E10b-P5"], now=t0)
+    assert env.c.reserve_low(now=t0 + 2000) is None                         # stale (> 15 min): no alert
+
+
+def test_alerts_carry_reserve_low(env, tmp_path):
+    now = time.time()
+    json.dump({"utc": "x", "t": now, "ready": 0, "free_gpus": 2, "need": 4, "ready_tasks": [], "held_by_disk": ["E10b-P5"],
+               "low_since": now - 900}, open(env.c._p("reserve.json"), "w"))
+    s = tmp_path / "status.json"; s.write_text("{}")
+    assert "reserve_low" in env.c.alerts(str(s))
+    ev = _events(env, "reserve_low")
+    assert ev and json.loads(ev[0]["detail"]) == {"ready": 0, "free_gpus": 2, "need": 4, "ready_tasks": [], "held_by_disk": ["E10b-P5"]}
+    json.dump({"t": now, "low_since": None}, open(env.c._p("reserve.json"), "w"))
+    assert "reserve_low" not in env.c.alerts(str(s)) and _events(env, "reserve_low_cleared")

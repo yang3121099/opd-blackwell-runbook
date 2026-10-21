@@ -267,6 +267,19 @@ stage_lines() {   # [v2.5.9m] (Runming 10-21 21:2x Beijing via ops-lead: padding
        ($1 in pad) { tail = tail $0 "\n"; next }
        { print }
        END { printf "%s", tail }' "$1" "$1"; }
+# [v2.5.9z12] (ops-lead / the reviewer 10-22, the offline-readiness list) a training (E10b/c/d, E12b/c/d, E15, SFT) starts only while
+# the work disk and the checkpoint disk are above the heartbeat's alert lines (DISK_ALERT_GB / CKPT_ALERT_GB; control.py disk_low);
+# readings, probes and the CPU lane go on. An event disk_guard_on / disk_guard_off when it switches.
+training_task() { case $1 in E10[bcd]-*|E12[bcd]-*|E15-*|SFT-*) return 0;; esac; return 1; }
+disk_guard() {
+  DISK_LOW=$(python $RUNBOOK/scripts/control.py disk_low 2> /dev/null)
+  [ "${DRY:-0}" = 1 ] && { [ -n "$DISK_LOW" ] && echo "DISK_GUARD $DISK_LOW"; return; }
+  [ "$DISK_LOW" = "$(cat $CDIR/disk_guard 2> /dev/null)" ] && return
+  echo "$DISK_LOW" > $CDIR/disk_guard
+  if [ -n "$DISK_LOW" ]; then python $RUNBOOK/scripts/control.py event node disk_guard_on "new trainings held: $DISK_LOW disk below its alert line" > /dev/null 2>&1 &
+  else python $RUNBOOK/scripts/control.py event node disk_guard_off > /dev/null 2>&1 &
+  fi
+}
 deps_of() { local s=$(grep -v '^#' "$Q" | tr ' ' '\n' | grep -E "^$1(:|\$)" | head -1); [ "$s" != "${s#*:}" ] && echo ${s#*:} | tr '+' ' '; }
 while true; do
   date -u +%s > $CDIR/loop_run_tasks   # v2.5.7zb: liveness for the watchdog (local, every round)
@@ -304,6 +317,9 @@ while true; do
   [ "${DRY:-0}" != 1 ] && net2_unfreeze   # [v2.5.9i]
   [ "${DRY:-0}" != 1 ] && fetch_pass   # v2.5.7w
   [ "${DRY:-0}" != 1 ] && git_pass   # [v2.5.9c]
+  [ "${DRY:-0}" != 1 ] && python $RUNBOOK/scripts/control.py auto_reruns "$Q"   # [v2.5.9z12] the queue's #at / #after rerun lines
+  disk_guard   # [v2.5.9z12]
+  READY=0; RT=""; HELD=""   # [v2.5.9z12] this pass's ready-but-not-started GPU tasks, and the trainings the disk guard held
   FREE=($(free_gpus)); earlier_finished=1; rm -f $CDIR/held.json   # [v2.5.9c] a hold is written again by take_gpus
   verify_busy && FREE=()   # a remote rerun_verify owns the GPUs
   while read -r stage status rest; do
@@ -337,7 +353,8 @@ while true; do
         if [ "${DRY:-0}" = 1 ]; then echo "WOULD_START gpu=cpu $t (stage $stage, attempt $(( $(attempts $t) + 1 )))"; continue; fi
         echo "START $(date -u +%T) gpu=cpu $t (stage $stage, attempt $(( $(attempts $t) + 1 )))"; launch cpu $t; nap 10; continue
       fi
-      take_gpus $t || continue; g=$G   # [v2.5.9a] one GPU, or n for a #gpus task
+      if [ -n "$DISK_LOW" ] && training_task $t; then HELD="$HELD $t"; continue; fi   # [v2.5.9z12] the disk guard
+      take_gpus $t || { READY=$((READY + 1)); RT="$RT $t"; continue; }; g=$G   # [v2.5.9a] one GPU, or n for a #gpus task; [v2.5.9z12] or ready in reserve
       if [ "${DRY:-0}" = 1 ]; then echo "WOULD_START gpu=$g $t (stage $stage, attempt $(( $(attempts $t) + 1 )))"; continue; fi
       echo "START $(date -u +%T) gpu=$g $t (stage $stage, queue v$(sed -n 's/^version:[[:space:]]*//p' "$Q"), attempt $(( $(attempts $t) + 1 )))"
       launch $g $t; nap 90
@@ -345,6 +362,9 @@ while true; do
     [ "$status" = locked ] && stage_finished=0
     [ $stage_finished = 1 ] || earlier_finished=0
   done < <(stage_lines "$Q")   # [v2.5.9m] padding stages last
+  # [v2.5.9z12] the reserve: ready GPU tasks left waiting against the GPUs still free (control.py: alert reserve_low after 10 min)
+  if [ "${DRY:-0}" = 1 ]; then echo "RESERVE ready=$READY free=${#FREE[@]} tasks=[${RT# }] held=[${HELD# }]"
+  else python $RUNBOOK/scripts/control.py reserve_note $READY ${#FREE[@]} "$RT" "$HELD" > /dev/null 2>&1; fi
   # v2.5: ad-hoc `run` / `eval` requests (control.py) take only the GPUs this pass left free: the queue goes first
   if [ "${DRY:-0}" != 1 ] && ! verify_busy; then
     while [ ${#FREE[@]} -gt 0 ]; do
