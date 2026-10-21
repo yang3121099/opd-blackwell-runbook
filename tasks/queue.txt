@@ -28,7 +28,7 @@ evals    open   EVAL-bridge E11b-P5-s43:E10b-P5-s43+E11b-P0 EVAL-p5s43-s20 EVAL-
 #eval EVAL-p5s43-s40 e12_P5s43_s40_math500_T0.6 yang31210999/opd-lab-ckpts/runs/E12-P5s43/global_step_40/actor/huggingface math500 4 0.6
 E12bread open   EVAL-e12b-P0:E12b-P0 SPEED-PROBE EVAL-e12b-P2:E12b-P2 EVAL-e12b-P5:E12b-P5 EVAL-e12b-P3:E12b-P3 EVAL-e12b-P1:E12b-P1
 E10b2read open   E11b-P2-s43:E10b-P2-s43+E11b-P0 E11b-P2-s44:E10b-P2-s44+E11b-P0 E11b-P6r-s43:E10b-P6r-s43+E11b-P0 E11b-P6r-s44:E10b-P6r-s44+E11b-P0 E11b-Pstop:E10b-Pstop+E11b-P0 E11b-P6rand:E10b-P6rand+E11b-P0 E11b-P6top5:E10b-P6top5+E11b-P0 E11b-P4EOSpen:E10b-P4EOSpen+E11b-P0
-v3c1     open   E10c-P4lowlr-fix4:E12b-P0+E12b-P2+E12b-P3+E12b-P5+E12b-P1 E10c-P4lowlr-dyn16k:E12b-P0+E12b-P2+E12b-P3+E12b-P5+E12b-P1 EVAL-e10c-fix4:E10c-P4lowlr-fix4
+v3c1     open   E10c-P4lowlr-fix4:E12b-P0+E12b-P2+E12b-P3+E12b-P5+E12b-P1 EVAL-e10c-fix4:E10c-P4lowlr-fix4
 E12bRest open   E12b-P4lowlr:E10b-P4lowlr+E12b-P0+E12b-P2+E12b-P3+E12b-P5+E12b-P1 E12b-P6:E10b-P6+E12b-P0+E12b-P2+E12b-P3+E12b-P5+E12b-P1 E12b-P6r:E10b-P6r+E12b-P0+E12b-P2+E12b-P3+E12b-P5+E12b-P1 E12b-P2noEOS:E10b-P2noEOS+E12b-P0+E12b-P2+E12b-P3+E12b-P5+E12b-P1
 E12bRestRead open   EVAL-e12b-P4lowlr:E12b-P4lowlr EVAL-e12b-P6:E12b-P6 EVAL-e12b-P6r:E12b-P6r EVAL-e12b-P2noEOS:E12b-P2noEOS
 E10b2    open   E10b-P2-s43 E10b-P2-s44 E10b-P6r-s43 E10b-P6r-s44 E10b-Pstop E10b-P6rand E10b-P6top5 E10b-P4EOSpen
@@ -1549,3 +1549,6 @@ olpd     open   EVAL-ext32k-17olpd
 #eval EVAL-ext32k-17smerge ext32k17_P5smerge_s50_aime25_T0.6 result:runs/E10b-P5stopmerge/global_step_50/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-17smerge ext32k17_P5smerge_s50_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #pair EVAL-ext32k-17smerge ext32k17_P5smerge_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
+# 10-21 (ops-lead, Runming: special states handled promptly): E10c-P4lowlr-dyn16k left the v3c1 stage line (its 10-19 OOM feasibility
+# result, ruled not to be retried; no task depends on it; its runs/ directory stays). It had reappeared as failed once the
+# heartbeat counted name:dep entries (v2.5.9m).
