@@ -355,3 +355,4 @@ commands:
   - {"seq": 353, "cmd": "logs run_tasks 80", "reason": "reviewer 03:2x UTC: what ended E12b-P5self-s43 attempt 1 at 03:18 (read-only)", "utc": "2026-10-21T03:23:19Z"}
   - {"seq": 354, "cmd": "logs watchdog 80", "reason": "reviewer 03:2x UTC: what ended E12b-P5self-s43 attempt 1 at 03:18 (read-only)", "utc": "2026-10-21T03:24:03Z"}
   - {"seq": 355, "cmd": "logs E12b-P5self-s43 2000", "reason": "reviewer 03:2x UTC: the end of attempt 1 of E12b-P5self-s43", "utc": "2026-10-21T03:25:37Z"}
+  - {"seq": 356, "cmd": "logs PROBE-E12B-8K 40", "reason": "patrol URGENT 06:33: 8K gate 33 min, stalled alert; compare with the 16K gate", "utc": "2026-10-21T06:34:45Z"}
