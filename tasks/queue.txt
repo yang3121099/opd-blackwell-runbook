@@ -1345,3 +1345,7 @@ z8b      open   EVAL-ext32k-8Bthink-aime EVAL-ext32k-17base
 # and direct, 64 MB each; report private); ToolRL (Apache-2.0; dataset/rlla_4k) onto the node from GitHub at a fixed commit,
 # to data/git/qiancheng0__ToolRL with a manifest and a summary of its data files (private)
 #git qiancheng0/ToolRL 8cee13ec0ca72f0461da372a93a6fd8140dbb840
+# opd-lab-assets (Runming confirmed in the executor's window 10-21: public assets repository, ~64 MB through the Mac's proxy):
+# Auto-ClawEval-mini / Auto-ClawEval (MIT) and BFCL v3 (Apache-2.0) unmodified at pinned revisions, files with key-shaped fixture
+# strings left out (LEFT_OUT.txt); onto the node at data/git/yang3121099__opd-lab-assets
+#git yang3121099/opd-lab-assets dd96e0ec684d31fc4b155ea4d23982b9dee55873
