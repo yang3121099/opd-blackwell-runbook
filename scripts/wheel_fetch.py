@@ -9,7 +9,8 @@ proxy is the smallest wheel of at least PROBE_MIN_MB (4; else the first), fetche
 through par_fetch.download over FETCH_CONNS connections when that probe is under PAR_BELOW_MBPS (1.0), else over one connection
 too. Every file is checked against PyPI's sha256 (a mismatch removes nothing but the file just written and fails); a file already
 there with the right sha256 is kept. <out dir>/manifest.json: per wheel name, version, file, size, sha256, url host, seconds, MB/s,
-connections; and the probe. Exit 0 when every pin is in, 1 otherwise. No tunnel, no proxy change: urllib with the environment's
+connections; and the probe. [v2.5.9z34] WHEEL_PAR_FIRST=1: the first wheel, when larger than PAR_MIN_MB, goes straight through
+par_fetch (no probe): a lone large pin was its own one-connection probe (VENV-VL-NVRTC 10-22: 89.6 MB at 0.069 MB/s, a read timeout). Exit 0 when every pin is in, 1 otherwise. No tunnel, no proxy change: urllib with the environment's
 proxy settings, as fetch_model.py.
 """
 import hashlib
@@ -88,6 +89,8 @@ def fetch_all(out, pins, single_fn=single, par_fn=None, meta_fn=meta, conns_fn=c
             row["kept"] = True
         else:
             use_par = i > 0 and m["size"] > PAR_MIN and res["probe_MBps"] is not None and res["probe_MBps"] < PAR_BELOW
+            if i == 0 and os.environ.get("WHEEL_PAR_FIRST") == "1" and m["size"] > PAR_MIN:   # [v2.5.9z34] no probe
+                use_par = True
             t0 = clock()
             try:
                 if use_par:
@@ -102,7 +105,7 @@ def fetch_all(out, pins, single_fn=single, par_fn=None, meta_fn=meta, conns_fn=c
                 row["error"] = f"{type(e).__name__}: {e}"[:300]
             dt = max(clock() - t0, 1e-6)
             row["seconds"], row["MBps"] = round(dt, 2), round(m["size"] / 1e6 / dt, 3)
-            if i == 0 and "error" not in row:
+            if i == 0 and "error" not in row and not use_par:   # [v2.5.9z34] a parallel first wheel is no one-connection probe
                 res["probe_MBps"] = row["MBps"]
             if "error" not in row:
                 got = sha256(dst)

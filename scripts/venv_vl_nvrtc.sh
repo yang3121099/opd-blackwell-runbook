@@ -12,8 +12,9 @@
 #      nothing installed; (b) venv and venv-fa are only read: the sha256 of their nvidia/cuda_nvrtc/lib/libnvrtc.so.12* before
 #      and after the install must be equal, else FAIL and an event venv_contamination. guard.json also records whether venv-fa's
 #      and venv-vl's nvidia/cuda_nvrtc are links (lstat)
-#   2. the pinned wheel (NVRTC_PIN, default nvidia-cuda-nvrtc-cu12==12.9.86) by wheel_fetch.py (PyPI's sha256 checked), installed
-#      offline with --no-index --no-deps: the resolver touches nothing else
+#   2. the pinned wheel (NVRTC_PIN, default nvidia-cuda-nvrtc-cu12==12.9.86) by wheel_fetch.py (PyPI's sha256 checked; [v2.5.9z34]
+#      WHEEL_PAR_FIRST=1, NVRTC_CONNS (16) connections: the first try, 06:44 UTC, was its own one-connection probe at 0.069 MB/s
+#      and timed out), installed offline with --no-index --no-deps: the resolver touches nothing else
 #   3. checks (no GPU visible): torch still 2.8.0+cu128, flash-attn still 2.8.3, nvidia-cuda-nvrtc-cu12 at the pin, libnvrtc.so.12
 #      in site-packages/nvidia/cuda_nvrtc/lib; `pip check` verbatim at the top of requirements.lock (a line that torch wants NVRTC
 #      12.8 is expected: recorded, not a failure), then pip freeze
@@ -97,7 +98,7 @@ guard pre >> $LOG 2>&1 || finish FAIL "paths outside venv-vl, nothing installed:
 [[ $PIN =~ ^nvidia-cuda-nvrtc-cu12==12\.9\.[0-9]+$ ]] || finish FAIL "NVRTC_PIN $PIN is not nvidia-cuda-nvrtc-cu12==12.9.<x>"
 step "start: $PIN into \$OPD_ROOT/venv-vl"
 # 2. the wheel, sha256-checked, installed offline without dependencies
-$NI python3 $RUNBOOK/scripts/wheel_fetch.py $D/wheels $PIN >> $LOG 2>&1 || finish FAIL "wheel: $(grep -h '^WHEEL.*Error\|^WHEEL.*sha256 ' $LOG | tail -2 | tr '\n' ' ')"
+WHEEL_PAR_FIRST=1 FETCH_CONNS=${NVRTC_CONNS:-16} $NI python3 $RUNBOOK/scripts/wheel_fetch.py $D/wheels $PIN >> $LOG 2>&1 || finish FAIL "wheel: $(grep -h '^WHEEL.*Error\|^WHEEL.*sha256 ' $LOG | tail -2 | tr '\n' ' ')"   # [v2.5.9z34]
 cp $D/wheels/manifest.json $D/manifest.json 2> /dev/null
 $NI $PIP install --no-index --find-links $D/wheels --no-deps "$PIN" >> $LOG 2>&1 || finish FAIL "offline install of $PIN failed"
 if ! guard post >> $LOG 2>&1; then   # [ops-lead's A1 condition b]

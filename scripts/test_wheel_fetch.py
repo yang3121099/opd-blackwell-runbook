@@ -92,3 +92,21 @@ def test_the_probe_is_a_small_wheel_even_when_listed_last(tmp_path):   # [v2.5.9
     r = W.fetch_all(str(tmp_path), ["vllm==0.11.0", "mathruler==0.1.0", "transformers==4.57.1"], single, par, meta, lambda: 64, clock)
     assert [w["name"] for w in r["wheels"]] == ["transformers", "mathruler", "vllm"] and r["probe_MBps"] < 1.0
     assert [c[0] for c in calls] == ["single", "single", "par"]
+
+
+def test_wheel_par_first_skips_the_probe(tmp_path, monkeypatch):   # [v2.5.9z34] a lone large pin straight through par_fetch
+    meta, single, par, clock, calls, _ = _env(tmp_path, {"nvidia-cuda-nvrtc-cu12": 40_000_000})
+    monkeypatch.setenv("WHEEL_PAR_FIRST", "1")
+    r = W.fetch_all(str(tmp_path), ["nvidia-cuda-nvrtc-cu12==12.9.86"], single, par, meta, lambda: 16, clock)
+    assert r["ok"] and [c[0] for c in calls] == ["par"] and calls[0][2] == 16 and r["probe_MBps"] is None and r["wheels"][0]["conns"] == 16
+    monkeypatch.delenv("WHEEL_PAR_FIRST")
+    meta, single, par, clock, calls, _ = _env(tmp_path / "b", {"nvidia-cuda-nvrtc-cu12": 40_000_000})
+    r = W.fetch_all(str(tmp_path / "b"), ["nvidia-cuda-nvrtc-cu12==12.9.86"], single, par, meta, lambda: 16, clock)
+    assert [c[0] for c in calls] == ["single"]   # without it: the lone wheel is its own one-connection probe, as before
+
+
+def test_wheel_par_first_keeps_a_small_first_wheel_single(tmp_path, monkeypatch):
+    meta, single, par, clock, calls, _ = _env(tmp_path, {"mathruler": 15_000})
+    monkeypatch.setenv("WHEEL_PAR_FIRST", "1")
+    r = W.fetch_all(str(tmp_path), ["mathruler==0.1.0"], single, par, meta, lambda: 16, clock)
+    assert r["ok"] and [c[0] for c in calls] == ["single"]
