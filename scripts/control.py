@@ -684,6 +684,7 @@ def _git_head():
 # [v2.5.8] also uploader.sh
 OUR_ROOTS = re.compile(r"scripts/(run_tasks|task|upload_sync|heartbeat|run_adhoc_eval|watchdog|run_queue_eval|uploader)\.sh|scripts/(control|remote|fetch_model)\.py"
                        r"|scripts/gh_heartbeat\.sh"   # [v2.5.9z54]
+                       r"|scripts/weights_replay\.(?:sh|py)"   # [v2.5.9z62]
                        r"|code/eval/gen_eval\.py|/tmp/ray_gpu")
 
 

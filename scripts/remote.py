@@ -296,8 +296,11 @@ def defer_weight(src, dst):
             shutil.copy2(f, t)
         size += os.path.getsize(f)
     d = os.path.join(os.environ.get("OPD_ROOT", ""), "control"); os.makedirs(d, exist_ok=True)
-    with open(os.path.join(d, "weights_pending.txt"), "a") as fh:
-        fh.write(f"{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}\t{dst}\t{hold}\t{size}\n")
+    import fcntl
+    with open(os.path.join(d, "weights_pending.lock"), "w") as lk:   # [v2.5.9z62] weights_replay.py rewrites the list under this lock
+        fcntl.flock(lk, fcntl.LOCK_EX)
+        with open(os.path.join(d, "weights_pending.txt"), "a") as fh:
+            fh.write(f"{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}\t{dst}\t{hold}\t{size}\n")
     return size
 
 
