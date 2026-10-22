@@ -18,6 +18,7 @@ trees and every process on our GPUs; default expiry 2 h / 24 h by verb; reason r
   python control.py procs [--upload] | event <task> <kind> [detail] | next_request | check_pull <before> <after>
 """
 import calendar
+import glob
 import hashlib
 import json
 import os
@@ -672,6 +673,7 @@ def _git_head():
 # can be signalled
 # [v2.5.8] also uploader.sh
 OUR_ROOTS = re.compile(r"scripts/(run_tasks|task|upload_sync|heartbeat|run_adhoc_eval|watchdog|run_queue_eval|uploader)\.sh|scripts/(control|remote|fetch_model)\.py"
+                       r"|scripts/gh_heartbeat\.sh"   # [v2.5.9z54]
                        r"|code/eval/gen_eval\.py|/tmp/ray_gpu")
 
 
@@ -2573,6 +2575,183 @@ def suspects():
     return out
 
 
+# ---------- [v2.5.9z54] the GitHub fallback heartbeat (Runming 10-22 21:5x Beijing via Fable; ops-lead A1) ----------
+# While the HF account answered 429 the status, the pulse and the receipts stopped reaching the project for hours. A second,
+# independent path: gh_heartbeat.sh calls gh_round every GH_HB_POLL (10) s; every GH_HB_SEC (600) s, and at once after an urgent
+# event (a failure, a failed gate or probe, a disk line, idle GPUs, a stall; at most every GH_HB_URGENT_MIN_S, 60 s), one file
+# hb/<node>.json (overwritten) is committed and pushed to a private GitHub repository (GH_HB_REMOTE: an SSH alias set up on this
+# node: GH_HB_URL, by default HTTPS with git's credential store reading GH_CRED, which Runming wrote; an ssh URL (the alias
+# github-hb) works too). A failed push backs off 60 s doubling to 900 s and never touches the HF path. Before the first push
+# `git ls-remote` checks access (event gh_hb_auth_failed once). The whole file passes the pulse's leak_check before it is written:
+# a string that fails it becomes <withheld> (event gh_hb_withheld at most hourly), so even a repository made public by mistake
+# leaks nothing.
+GH_URGENT = {"failed", "gate_failed", "disk_alert", "ckpt_disk_alert", "ckpt_root_alert", "disk_write_fail", "disk_fallback_on",
+             "reserve_low", "stalled", "upload_sync_missing", "watchdog_gave_up", "watchdog_stuck"}
+GH_URL = "https://github.com/yang3121099/opd-b300-heartbeat.git"   # (Fable 14:4x UTC) HTTPS through the node's proxy, as the runbook's pulls
+GH_CRED = "~/.config/opd/gh_hb_credentials"   # written by Runming (a token for this repository only); git reads it, this code never does
+
+
+def _gh_clean(x, toks):
+    """A string for the private GitHub file: redacted as the private status' log tails, and withheld when it still names this
+    machine's user, host or directories."""
+    x = redact(str(x))
+    return "<withheld>" if {w.lower() for w in re.split(r"[^A-Za-z0-9_]+", x) if w} & toks else x
+
+
+def gh_snapshot(n_replies=15, n_events=20):
+    """The one file: the path-free pulse (the status' summary: tasks, GPUs, disks), the latest receipts and events (redacted),
+    the control plane's state, the loops' ages, the outbox and the HF backoff."""
+    toks = _forbidden_tokens()
+    def recent(d, n, key):
+        try:
+            names = sorted((x for x in os.listdir(_p(d)) if x.endswith(".json")), key=key)[-n:]
+        except OSError:
+            return []
+        out = []
+        for x in names:
+            try:
+                out.append(json.load(open(_p(d, x))))
+            except (OSError, ValueError):
+                pass
+        return out
+    seqkey = lambda x: int(x.split(".")[0]) if x.split(".")[0].isdigit() else -1
+    reps = [{"seq": r.get("seq"), "cmd": _gh_clean(r.get("cmd") or "", toks)[:200], "status": r.get("status"), "finished_utc": r.get("finished_utc"),
+             "detail": _gh_clean(r.get("detail") or "", toks)[:300]} for r in recent("replies", n_replies, seqkey)]
+    evs = [{"utc": e.get("utc"), "task": _gh_clean(e.get("task") or "", toks), "event": e.get("event"), "detail": _gh_clean(e.get("detail") or "", toks)[:200]}
+           for e in recent("events", n_events, lambda x: x)]
+    now = time.time()
+    age = lambda f: (lambda t: int(now - int(t)) if t.isdigit() else None)(_read(_p(f)).strip())
+    ob = [n for n in os.listdir(_outbox()) if n.endswith(".json") and not n.startswith(".")] if os.path.isdir(_outbox()) else []
+    s = json.loads(_read(_p("state.json"), "{}") or "{}")
+    sf = sorted(glob.glob(os.path.join(ROOT, "logs", "status_*.json")), key=os.path.getmtime)[-1:]   # heartbeat.sh's status file
+    try:
+        sfu = json.loads(_read(sf[0], "{}") or "{}").get("utc") if sf else None
+    except ValueError:
+        sfu = "unreadable"
+    return {"node": node_id(), "utc": utc(), "runbook_head": _git_head(), "rules": R.RULES_VERSION,
+            "status_file": {"age_s": int(now - os.path.getmtime(sf[0])) if sf else None, "utc_inside": sfu,   # [v2.5.9z55] builder failures
+                            "builder_err": [_gh_clean(x, toks)[:200] for x in _read(os.path.join(ROOT, "logs", "status_builder.err")).strip().splitlines()[-4:]]},
+            "control": {"applied_seq": int((_read(_p("applied_seq"), "0").strip() or 0)), "pending": s.get("pending"),
+                        "last_apply_utc": s.get("last_apply_utc"), "alerts": s.get("alerts", [])},
+            "loops_age_s": {k: age(f"loop_{k}") for k in ("run_tasks", "heartbeat", "uploader", "gh_heartbeat")},
+            "outbox": {"items": len(ob), "oldest_age_s": int(now - int(min(ob)[:20]) / 1e9) if ob and min(ob)[:20].isdigit() else None},
+            "hf_backoff_s": int(_backoff_left()), "hf_429_last": (_read(_p("hf_429.log")).strip().splitlines() or [None])[-1],
+            "pulse": json.loads(_read(_p("pulse.json"), "{}") or "{}"), "replies": reps, "events": evs}
+
+
+def _gh_withhold(obj):
+    """(obj with every string that fails leak_check replaced by <withheld>, how many): keys stay (they are this code's own)."""
+    bad = set(leak_check(obj)); n = [0]
+    def walk(x):
+        if isinstance(x, dict):
+            return {k: walk(v) for k, v in x.items()}
+        if isinstance(x, list):
+            return [walk(v) for v in x]
+        if isinstance(x, str) and x in bad:
+            n[0] += 1
+            return "<withheld>"
+        return x
+    return walk(obj), n[0]
+
+
+def _gh_state(**kw):
+    st = json.loads(_read(_p("gh_hb.json"), "{}") or "{}")
+    if kw:
+        st.update(kw); tmp = _p(f"gh_hb.json.{os.getpid()}.tmp"); json.dump(st, open(tmp, "w")); os.replace(tmp, _p("gh_hb.json"))
+    return st
+
+
+def _gh_urgent(st):
+    """(urgent, newest event name): an event of a GH_URGENT kind, or one ending in _fail (a probe), newer than the last push."""
+    try:
+        names = sorted(x for x in os.listdir(_p("events")) if x.endswith(".json"))
+    except OSError:
+        return False, st.get("seen")
+    seen = st.get("seen") or ""
+    new = [x for x in names if x > seen] if seen else []   # the first round only takes the baseline
+    hit = False
+    for x in new[-200:]:
+        try:
+            k = json.load(open(_p("events", x))).get("event") or ""
+        except (OSError, ValueError):
+            continue
+        hit = hit or k in GH_URGENT or k.endswith("_fail")
+    return hit, (names[-1] if names else seen)
+
+
+def gh_round(now=None):
+    """One round of gh_heartbeat.sh: off | idle | backoff | pushed (time|urgent) | failed (<step>) ."""
+    if _cfg("GH_HB", "1") != "1":
+        return "off"
+    now = time.time() if now is None else now
+    st = _gh_state()
+    try:
+        sec = min(3600, max(60, int(_cfg("GH_HB_SEC", "600"))))
+    except ValueError:
+        sec = 600
+    urgent, newest = _gh_urgent(st)
+    if urgent:
+        _gh_state(pending_urgent=True)
+    due = (now - float(st.get("last_try", 0)) >= sec or int(st.get("fails") or 0) > 0   # a failed try: again when its backoff ends
+           or ((urgent or st.get("pending_urgent")) and now - float(st.get("last_try", 0)) >= int(_cfg("GH_HB_URGENT_MIN_S", "60"))))
+    if not due:
+        _gh_state(seen=newest)
+        return "idle"
+    if now < float(st.get("next_try", 0)):
+        _gh_state(seen=newest)
+        return "backoff"
+    why = "urgent" if (urgent or st.get("pending_urgent")) and now - float(st.get("last_try", 0)) < sec else "time"
+    d = _p("gh_hb"); url = _cfg("GH_HB_URL", "") or os.environ.get("GH_HB_REMOTE") or GH_URL; to = int(os.environ.get("GH_HB_GIT_TIMEOUT", "60"))
+    env = dict(os.environ, GIT_SSH_COMMAND=os.environ.get("GIT_SSH_COMMAND", "ssh -o BatchMode=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=2"),
+               GIT_TERMINAL_PROMPT="0")
+    cred = os.path.expanduser(os.environ.get("GH_HB_CRED") or GH_CRED)
+    cfg = ["-c", "credential.helper=", "-c", f"credential.helper=store --file={cred}"] if url.startswith("https://") and os.path.exists(cred) else []
+    git = lambda *a: subprocess.run(["git", *cfg, "-C", d, *a], capture_output=True, text=True, timeout=to, env=env)
+    step = "auth"
+    try:
+        if not int(st.get("pushes") or 0) and not st.get("auth_ok"):   # before the first push: can this node reach the repository?
+            r = subprocess.run(["git", *cfg, "ls-remote", url], capture_output=True, text=True, timeout=to, env=env)
+            if r.returncode:
+                if not st.get("auth_failed"):
+                    event("node", "gh_hb_auth_failed", _gh_clean(r.stderr.strip()[-160:], _forbidden_tokens()))
+                _gh_state(auth_failed=True)
+                raise RuntimeError("git ls-remote failed")
+            _gh_state(auth_ok=True, auth_failed=False)
+        step = "clone"
+        if not os.path.isdir(os.path.join(d, ".git")):   # (Runming's setup may have cloned it already: used as it is)
+            shutil.rmtree(d, ignore_errors=True)
+            r = subprocess.run(["git", *cfg, "clone", "-q", "--depth", "1", url, d], capture_output=True, text=True, timeout=to, env=env)
+            if r.returncode:
+                raise RuntimeError(r.stderr.strip()[-200:])
+        step = "write"
+        os.makedirs(os.path.join(d, "hb"), exist_ok=True); f = os.path.join(d, "hb", f"{node_id()}.json")
+        snap = gh_snapshot(); snap.update(push_n=int(st.get("pushes") or 0) + 1, why=why, gh_fails_before=int(st.get("fails") or 0))
+        snap, n_withheld = _gh_withhold(snap)   # [ops-lead's A1 condition] the pulse's leak_check over the whole file
+        if n_withheld and now - float(st.get("withheld_event", 0)) >= 3600:
+            event("node", "gh_hb_withheld", f"{n_withheld} string(s)"); _gh_state(withheld_event=now)
+        json.dump(snap, open(f + ".tmp", "w"), indent=1); os.replace(f + ".tmp", f)
+        step = "commit"
+        git("add", f"hb/{node_id()}.json")
+        if git("diff", "--cached", "--quiet").returncode:   # nothing new (the same second): push what is there
+            r = git("-c", "user.name=opd-node", "-c", "user.email=opd-node@users.noreply.github.com", "commit", "-q", "-m", f"hb {utc()} {why}")
+            if r.returncode:
+                raise RuntimeError(r.stderr.strip()[-200:])
+        step = "push"
+        r = git("push", "-q", "origin", "HEAD:refs/heads/main")
+        if r.returncode:
+            if git("fetch", "-q", "--depth", "1", "origin", "main").returncode == 0:   # someone else wrote: ours on top next time
+                git("reset", "-q", "--soft", "FETCH_HEAD")
+            raise RuntimeError(r.stderr.strip()[-200:])
+    except Exception as e:
+        b = min(900, max(60, 2 * int(st.get("backoff_s") or 30)))
+        _gh_state(last_try=now, backoff_s=b, next_try=now + b, fails=int(st.get("fails") or 0) + 1, seen=newest,
+                  last_error=f"{step}: {type(e).__name__} {_gh_clean(str(e), _forbidden_tokens())[:160]}")
+        return f"failed ({step}, next try in {b} s)"
+    _gh_state(last_try=now, last_push=now, last_ok_utc=utc(), backoff_s=0, next_try=0, fails=0, seen=newest, pending_urgent=False, last_error=None,
+              pushes=int(st.get("pushes") or 0) + 1)
+    return f"pushed ({why})"
+
+
 def status():
     lines = _read(_p("log.jsonl")).splitlines()[-5:]
     s = json.loads(_read(_p("state.json"), "{}") or "{}")
@@ -2624,6 +2803,8 @@ if __name__ == "__main__":
         g = lru_clean(); print(f"LRU_FREED {g} GB") if g else None
     elif cmd == "diag_tails":   # [v2.5.9z53] at once (the uploader's pass sends them every DIAG_TAILS_S)
         print("DIAG_TAILS", diag_tails(force=True))
+    elif cmd == "gh_round":   # [v2.5.9z54] gh_heartbeat.sh, one round
+        print(gh_round())
     elif cmd == "ship_outbox":   # [v2.5.8] uploader.sh, one pass
         a, b, c = ship_outbox(); print(f"SHIPPED {a} DROPPED {b} FAILED {c} LEFT {len([n for n in os.listdir(_outbox()) if n.endswith('.json') and not n.startswith('.')])}")
     elif cmd == "put_q":   # [v2.5.8] heartbeat.sh: put_q <src> <dst> through the outbox (directly without a live uploader)
