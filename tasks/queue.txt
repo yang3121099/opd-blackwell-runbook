@@ -1770,20 +1770,26 @@ b259z24  open   TOKCHECK-X5
 # by problems 1-100 (the in-training validation set) / 101-500, and easy / hard once PROBE-DIFF17's labels exist (`rerun READINGS-EXTRA`
 # then, and after E10b-P5route / -P5mix's readings with their #split lines); the cost frontier's missing 16K mean lengths. The lab's
 # 0.6B E10-P6 / P6r and E12-P0s2 / P5s2 readings are not on this node (lab machines) and are left to the archive.
-#split READINGS-EXTRA 17_base E11b-P0/e11b_P0_math500_T0.6_math500_no_think_t0.6.jsonl
-#split READINGS-EXTRA 17_P5s150 E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl
-#split READINGS-EXTRA 17_P5RL_s100 EVAL-e12b-P5/e12b_P5_s100_math500_T0.6_math500_no_think_t0.6.jsonl
-#split READINGS-EXTRA 17_P5RLkl_s100 EVAL-e12b-P5kl/e12b_P5kl_s100_math500_T0.6_math500_no_think_t0.6.jsonl
-#split READINGS-EXTRA 17_P5self_s50 EVAL-e10b-P5self/e10b_P5self_s50_math500_T0.6_math500_no_think_t0.6.jsonl
-#split READINGS-EXTRA 17_P5selfRL_s100 EVAL-e12b-P5self/e12b_P5self_s100_math500_T0.6_math500_no_think_t0.6.jsonl
-#split READINGS-EXTRA 4B_base EVAL-e10d-P0/e10d_P0_math500_T0.6_math500_no_think_t0.6.jsonl
-#split READINGS-EXTRA 4B_P5s150 EVAL-e10d-P5/e10d_P5_s150_math500_T0.6_math500_no_think_t0.6.jsonl
-#split READINGS-EXTRA 4B_P5RL_s100 EVAL-e12d-P5/e12d_P5_s100_math500_T0.6_math500_no_think_t0.6.jsonl
-#split READINGS-EXTRA 4B_X4_s50 EVAL-e10d-x4/e10d_X4_s50_math500_T0.6_math500_no_think_t0.6.jsonl
-#split READINGS-EXTRA 06_base EVAL-e10c-base06/e10c_base06_math500_T0.6_math500_no_think_t0.6.jsonl
-#split READINGS-EXTRA 06_P5fix4_s150 EVAL-e10c-P5-fix4/e10c_P5-fix4_s150_math500_T0.6_math500_no_think_t0.6.jsonl
-#split READINGS-EXTRA 06_P5RL_s100 EVAL-e12c-P5/e12c_P5_s100_math500_T0.6_math500_no_think_t0.6.jsonl
-#split READINGS-EXTRA 06_P0RL_s100 EVAL-e12c-P0/e12c_P0_s100_math500_T0.6_math500_no_think_t0.6.jsonl
+# [v2.5.9z26] (ops-lead 10-22 04:4x UTC; queue only) the 14 #split rows deferred (#split-deferred: READINGS-EXTRA does not read
+# them): PROBE-DIFF17's MATH-500 labels are void (diff_labels.py took bool() of gen_eval.grade's (ok, pred) tuple: all 500
+# problems k=8), and READINGS-EXTRA applies them to every #split row (easy / hard) once labels_17.jsonl exists. The next
+# automatic rerun (#after EVAL-len-cmp) then leaves the split rows out instead of publishing a wrong easy / hard split; the
+# 1-100 / 101-500 splits are left out with them meanwhile. Back to #split once the DIFF17 fix (grade(...)[0], the MATH-500
+# part regenerated) is pushed and PROBE-DIFF17's MATH-500 labels are redone and checked.
+#split-deferred READINGS-EXTRA 17_base E11b-P0/e11b_P0_math500_T0.6_math500_no_think_t0.6.jsonl
+#split-deferred READINGS-EXTRA 17_P5s150 E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl
+#split-deferred READINGS-EXTRA 17_P5RL_s100 EVAL-e12b-P5/e12b_P5_s100_math500_T0.6_math500_no_think_t0.6.jsonl
+#split-deferred READINGS-EXTRA 17_P5RLkl_s100 EVAL-e12b-P5kl/e12b_P5kl_s100_math500_T0.6_math500_no_think_t0.6.jsonl
+#split-deferred READINGS-EXTRA 17_P5self_s50 EVAL-e10b-P5self/e10b_P5self_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#split-deferred READINGS-EXTRA 17_P5selfRL_s100 EVAL-e12b-P5self/e12b_P5self_s100_math500_T0.6_math500_no_think_t0.6.jsonl
+#split-deferred READINGS-EXTRA 4B_base EVAL-e10d-P0/e10d_P0_math500_T0.6_math500_no_think_t0.6.jsonl
+#split-deferred READINGS-EXTRA 4B_P5s150 EVAL-e10d-P5/e10d_P5_s150_math500_T0.6_math500_no_think_t0.6.jsonl
+#split-deferred READINGS-EXTRA 4B_P5RL_s100 EVAL-e12d-P5/e12d_P5_s100_math500_T0.6_math500_no_think_t0.6.jsonl
+#split-deferred READINGS-EXTRA 4B_X4_s50 EVAL-e10d-x4/e10d_X4_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#split-deferred READINGS-EXTRA 06_base EVAL-e10c-base06/e10c_base06_math500_T0.6_math500_no_think_t0.6.jsonl
+#split-deferred READINGS-EXTRA 06_P5fix4_s150 EVAL-e10c-P5-fix4/e10c_P5-fix4_s150_math500_T0.6_math500_no_think_t0.6.jsonl
+#split-deferred READINGS-EXTRA 06_P5RL_s100 EVAL-e12c-P5/e12c_P5_s100_math500_T0.6_math500_no_think_t0.6.jsonl
+#split-deferred READINGS-EXTRA 06_P0RL_s100 EVAL-e12c-P0/e12c_P0_s100_math500_T0.6_math500_no_think_t0.6.jsonl
 #frontier READINGS-EXTRA 06_base_think EVAL-budA06think/budget_curve.json budA06_P0think_math500_T0.6_32k_math500_think_t0.6
 #frontier READINGS-EXTRA 4B_base_think EVAL-budA-4Bthink/budget_curve.json budA4B_P0think_math500_T0.6_32k_math500_think_t0.6
 #frontier READINGS-EXTRA 4B_i2507 EVAL-i2507/budget_curve.json i2507_math500_T0.6_32k_math500_no_think_t0.6
