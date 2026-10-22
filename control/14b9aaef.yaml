@@ -485,3 +485,4 @@ commands:
   - {"seq": 483, "cmd": "logs uploader 80", "reason": "pulse / status stale since 11:17 UTC: the uploader's log tail", "utc": "2026-10-22T12:03:36Z"}
   - {"seq": 484, "cmd": "upload logs/heartbeat.err", "reason": "pulse / status stale since 11:17 UTC: heartbeat.err for diagnosis (ops-lead URGENT)", "utc": "2026-10-22T12:07:57Z"}
   - {"seq": 485, "cmd": "upload logs/uploader.log", "reason": "pulse / status stale since 11:17 UTC: uploader.log for diagnosis (ops-lead URGENT)", "utc": "2026-10-22T12:08:04Z"}
+  - {"seq": 486, "cmd": "rerun PROBE-TERM4", "reason": "attempt 3 died at 14:50 on the pre-z53 code (term_probe.py t4 None); z53's guard is on the node now (ops-lead standing approval)", "utc": "2026-10-22T15:12:28Z"}
