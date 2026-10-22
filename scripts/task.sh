@@ -11,6 +11,10 @@ case $G in *,*) [[ $T =~ ^(E10[bcd]-|E12[bcd]-|PROBE-2GPU$) ]] || { echo "$T tak
 # v2.5.4a: a task whose previous attempt ran out of GPU memory (run_tasks.sh writes runs/<task>/.oom) gets FIXED_MICRO_BSZ=4
 # for its own retries, unless the key is set already; nothing else changes
 [ -f $OPD_ROOT/runs/$T/.oom ] && [ -z "${FIXED_MICRO_BSZ:-}" ] && { export FIXED_MICRO_BSZ=4; echo "OOM_RETRY $T with FIXED_MICRO_BSZ=4"; }
+# [v2.5.9z44] (ops-lead 10-22: PROBE-T32 peaked at 253.9 of 268.6 GB in a 3-step smoke with short answers) E10d-P5-t32 after an
+# out of memory (.oom: run_tasks.sh's test, the gate's regex) retries with the actor's optimizer offloaded too (run_arm.sh
+# T32_OPT_OFFLOAD=1: speed only, a resumed run's results unchanged), unless the key is set; an event t32_opt_offload_on_retry
+[ $T = E10d-P5-t32 ] && [ -f $OPD_ROOT/runs/$T/.oom ] && [ -z "${T32_OPT_OFFLOAD:-}" ] && { export T32_OPT_OFFLOAD=1; echo "OOM_RETRY $T with T32_OPT_OFFLOAD=1"; python3 $RUNBOOK/scripts/control.py event $T t32_opt_offload_on_retry "the previous attempt ran out of GPU memory: the actor's optimizer offloaded" > /dev/null 2>&1; }
 ARMS="P2|P3|P4lowlr|P5|P6|P6r|P2noEOS|Pstop|P6rand|P6top5|P4EOSpen|P5top10|P5rand10m"
 case $T in
   E10b-P5tail-s43) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z41] (padding ruling 10-22) tail-swap, data.seed 43

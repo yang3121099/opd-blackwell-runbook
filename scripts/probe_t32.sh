@@ -58,6 +58,8 @@ for st_i, body in re.findall(r"(?:^|[ )\]])step:(\d+) - (.*)", text):
                 "rollout_tok_s": round(L * n / gen, 1) if L and gen else None, "max_alloc_gib": g("perf/max_memory_allocated_gb"),
                 "max_reserved_gib": g("perf/max_memory_reserved_gb")})
 r["per_step"] = per
+r["mem_note"] = ("the device peak is mem_peak_mib (nvidia-smi, 5 s samples); max_alloc_gib / max_reserved_gib are verl's "   # [v2.5.9z44] ops-lead
+                 "perf/max_memory_*_gb, the torch allocator's high-water marks for the process, which can exceed the card")
 try:
     tot = float(open(os.path.join(d, "gpu_total_mib")).read().strip())
 except (OSError, ValueError):

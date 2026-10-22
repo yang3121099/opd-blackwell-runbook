@@ -32,6 +32,12 @@ mkdir -p $T/root/runs/E10b-P2; touch $T/root/runs/E10b-P2/.oom
 ok "oom sets 4" '[[ "$(FIXED_MICRO_BSZ= bash $T/rb/scripts/task.sh 0 E10b-P2 | tail -1)" == "run_arm FIXED=4" ]]'
 ok "no oom stays unset" '[[ "$(FIXED_MICRO_BSZ= bash $T/rb/scripts/task.sh 0 E10b-P3 | tail -1)" == "run_arm FIXED=unset" ]]'
 ok "set key wins" '[[ "$(FIXED_MICRO_BSZ=8 bash $T/rb/scripts/task.sh 0 E10b-P2 | tail -1)" == "run_arm FIXED=8" ]]'
+# [v2.5.9z44] E10d-P5-t32 after an out of memory: T32_OPT_OFFLOAD=1 too, with an event; other tasks, no .oom, or a set key: unchanged
+printf 'echo "run_arm FIXED=${FIXED_MICRO_BSZ:-unset} OPTOFF=${T32_OPT_OFFLOAD:-unset}"\n' > $T/rb/scripts/run_arm.sh
+mkdir -p $T/root/runs/E10d-P5-t32; touch $T/root/runs/E10d-P5-t32/.oom; : > $CALLS
+o1=$(FIXED_MICRO_BSZ= T32_OPT_OFFLOAD= bash $T/rb/scripts/task.sh 0 E10d-P5-t32); o2=$(FIXED_MICRO_BSZ= T32_OPT_OFFLOAD= bash $T/rb/scripts/task.sh 0 E10b-P2 | tail -1)
+o3=$(FIXED_MICRO_BSZ= T32_OPT_OFFLOAD=0 bash $T/rb/scripts/task.sh 0 E10d-P5-t32 | tail -1); rm $T/root/runs/E10d-P5-t32/.oom; o4=$(FIXED_MICRO_BSZ= T32_OPT_OFFLOAD= bash $T/rb/scripts/task.sh 0 E10d-P5-t32 | tail -1)
+ok "[v2.5.9z44] t32 after an OOM: optimizer offloaded (and FIXED_MICRO_BSZ=4 as every task), the event; P2: no offload; a set key / no .oom: unchanged" '[[ "$(echo "$o1" | tail -1)" == "run_arm FIXED=4 OPTOFF=1" ]] && echo "$o1" | grep -q "^OOM_RETRY E10d-P5-t32 with T32_OPT_OFFLOAD=1$" && [ "$(grep -c "^control event E10d-P5-t32 t32_opt_offload_on_retry " $CALLS)" = 1 ] && [[ "$o2" == "run_arm FIXED=4 OPTOFF=unset" ]] && [[ "$o3" == "run_arm FIXED=4 OPTOFF=0" ]] && [[ "$o4" == "run_arm FIXED=unset OPTOFF=unset" ]]'
 ok "EVAL name check" '! bash $T/rb/scripts/task.sh 0 "EVAL-a;b" > /dev/null 2>&1'
 printf 'echo "run_eval $*"\n' > $T/rb/scripts/run_eval.sh
 ok "E11b seed arm accepted" '[[ "$(bash $T/rb/scripts/task.sh 0 E11b-P5-s43 | tail -1)" == "run_eval 0 E11b-P5-s43" ]]'
@@ -327,6 +333,8 @@ ok "[v2.5.9z9] E10d-P5-t32: 4B student, 32B teacher offloaded, P5 refthink 1, 50
 mkdir -p $T/root/runs/PROBE-T32; echo "actor optimizer offloaded after an out of memory in the first smoke" > $T/root/runs/PROBE-T32/escalation.txt
 t32e=$(TEACHER_32B=$T/m32 FIXED_MICRO_BSZ= DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10d-P5-t32 2>&1); t32es=$(TEACHER_32B=$T/m32 FIXED_MICRO_BSZ= DRYRUN=1 SMOKE=1 bash $T/rb/scripts/run_arm.sh 0 E10d-P5-t32 2>&1); rm -f $T/root/runs/PROBE-T32/escalation.txt
 ok "[v2.5.9z40] the gate passed with the optimizer offloaded (escalation.txt): the arm offloads it too (optoff=True); a smoke follows only its own T32_OPT_OFFLOAD" 'echo "$t32e" | grep -q "^DRYRUN_T32 .* util=0.4 optoff=True$" && echo "$t32es" | grep -q "^DRYRUN_T32 .* util=0.4 optoff=False$"'
+t32r=$(TEACHER_32B=$T/m32 FIXED_MICRO_BSZ= T32_OPT_OFFLOAD=1 DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10d-P5-t32 2>&1); t32n=$(TEACHER_32B=$T/m32 FIXED_MICRO_BSZ= T32_OPT_OFFLOAD= DRYRUN=1 bash $T/rb/scripts/run_arm.sh 0 E10d-P5-t32 2>&1)
+ok "[v2.5.9z44] the arm with T32_OPT_OFFLOAD=1 (task.sh's retry after an OOM) offloads the optimizer; without it (no escalation) it does not" 'echo "$t32r" | grep -q "^DRYRUN_T32 .* util=0.4 optoff=True$" && echo "$t32n" | grep -q "^DRYRUN_T32 .* util=0.4 optoff=False$"'
 # [v2.5.9z] (Q-051) E15-VLM-P5: run_vlm.sh (dry run: VL-2B student, VL-4B-Thinking teacher ([v2.5.9z28], was 8B), MMK12 ([v2.5.9z33]; a smoke on Geometry3K), venv-vl, Geometry3K, 50 steps, 128, s25 / s50,
 # OPD_VLM_REF=1 with the '<think>\n' suffix); gated on PROBE-VLM; task.sh routes it; run_queue_eval sends geo3k / mathvista to gen_eval_vl.py
 cp $SRC/scripts/run_vlm.sh $T/rb/scripts/; vd=$(DRYRUN=1 bash $T/rb/scripts/run_vlm.sh 0 E15-VLM-P5 2>&1 | tail -1); ( SMOKE=0 bash $T/rb/scripts/run_vlm.sh 0 E15-VLM-P5 > $T/gvl 2>&1 ); rvl=$?
