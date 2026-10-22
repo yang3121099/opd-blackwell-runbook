@@ -239,3 +239,12 @@ def test_result_not_verified_stays_listed(priv, monkeypatch):
     monkeypatch.setattr(W, "verify_private", lambda dst, staged: (False, "x.metrics.json: None != 2"))
     assert "not verified" in W.once() and [l.split("\t")[1] for l in lines(n)] == ["runs/EVAL-y"]
 
+
+def test_result_timeout_at_a_single_connection_rate(priv):   # [v2.5.9z64a] 268 MB at 0.4 MB/s timed out at ~77 % on 10-22
+    n = priv; h = held_result(n, "runs/EVAL-z")
+    with open(os.path.join(h, "x_math500_no_think_t0.6.jsonl"), "r+b") as f:
+        f.truncate(268 * 10 ** 6)
+    W.once()
+    total = sum(v for k, v in n.remote.items() if k.startswith("runs/EVAL-z/"))
+    assert n.calls[0]["timeout"] == int(min(21600, total / 1e6 / 0.08 * 1.5 + 600))
+    assert n.calls[0]["timeout"] > 268 / 0.13 * 1.2                                        # the observed 0.09-0.13 MB/s fits

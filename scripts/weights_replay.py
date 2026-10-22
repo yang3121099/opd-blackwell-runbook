@@ -16,7 +16,7 @@ heartbeat, not the control plane's outbox).
 - Events: one weights_replayed event per batch (every WEIGHTS_REPLAY_BATCH items, and when nothing is left), not per file.
 - [v2.5.9z64] (ops-lead's ruling 10-22 20:45 UTC) a held RESULT directory (z50's is_weight held any directory with a file over
   100 MB: six readings) goes first and is never paused: to the PRIVATE repository as an ordinary result (remote.py put, no public),
-  a log over 5 MB as its last 5 MB gzipped (<name>.tail.gz), timeout from its size at 0.4 MB/s; struck once get_paths_info on the
+  a log over 5 MB as its last 5 MB gzipped (<name>.tail.gz), timeout from its size at RESULT_MBPS; struck once get_paths_info on the
   private repository shows every staged file at its size; one results_replayed event each.
 Usage: python weights_replay.py once -> REPLAY_IDLE | REPLAY_OFF | REPLAY_WAIT <why> | REPLAY_OK <dst> | REPLAY_FAIL <dst> <why>"""
 import fcntl
@@ -185,6 +185,7 @@ def batch_event(done_now, left, dst=None):
 WEIGHT_DST = re.compile(r"runs/[A-Za-z0-9._-]+/global_step_\d+/actor/huggingface")
 RESULT_DST = re.compile(r"runs/[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*")
 LOG_TAIL = 5 * 10 ** 6
+RESULT_MBPS = 0.08   # [v2.5.9z64a] was 0.4: one connection gets 0.09-0.13 MB/s through the proxy (10-22: 268 MB at 129 kB/s)
 
 
 def stage_result(hold, stage):
@@ -240,7 +241,7 @@ def results_once(items):
     try:
         staged = stage_result(hold, stage)
         nbytes = sum(b for _, b in staged)
-        to = int(min(float(cfg("WEIGHTS_REPLAY_MAX_S", "21600")), nbytes / 1e6 / 0.4 * 1.5 + 600))
+        to = int(min(float(cfg("WEIGHTS_REPLAY_MAX_S", "21600")), nbytes / 1e6 / RESULT_MBPS * 1.5 + 600))
         t0 = time.time()
         try:
             r = subprocess.run([sys.executable, os.path.join(HERE, "remote.py"), "put", stage, dst], capture_output=True, text=True,
