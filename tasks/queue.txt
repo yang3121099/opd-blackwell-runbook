@@ -1819,6 +1819,8 @@ b259z24  open   TOKCHECK-X5
 #split READINGS-EXTRA 06_think EVAL-budF-06/budF06_P0think_math500_T0.6_16k_math500_think_t0.6.jsonl
 #split READINGS-EXTRA 06_P5self_s50 EVAL-e10c-P5self/e10c_P5self_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 #split READINGS-EXTRA 06_polish_s20 EVAL-polish/e10c_P5polish_s20_math500_T0.6_math500_no_think_t0.6.jsonl
+# [v2.5.9z37] (ops-lead 10-22 07:3x UTC: Q-041 H3 and Q-050 read it) E10b-P5route s50; P5mix's row once its 16K reading lands
+#split READINGS-EXTRA 17_P5route_s50 EVAL-e10b-P5route/e10b_P5route_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 #frontier READINGS-EXTRA 06_base_think EVAL-budA06think/budget_curve.json budA06_P0think_math500_T0.6_32k_math500_think_t0.6
 #frontier READINGS-EXTRA 4B_base_think EVAL-budA-4Bthink/budget_curve.json budA4B_P0think_math500_T0.6_32k_math500_think_t0.6
 #frontier READINGS-EXTRA 4B_i2507 EVAL-i2507/budget_curve.json i2507_math500_T0.6_32k_math500_no_think_t0.6
