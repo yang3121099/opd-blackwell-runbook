@@ -27,7 +27,8 @@ fetch_result() {   # v2.5.6h: $1 = path inside this node's public result reposit
   # as soon as the training has ended: the bf16 copy reaches the repository a few minutes later, so wait up to 20 min.
   local i; for i in $(seq 1 ${RESULT_WAIT_MIN:-20}); do
     python $RUNBOOK/scripts/fetch_model.py "$(python $RUNBOOK/scripts/remote.py repo public)" "$1" "$CKPT_ROOT/adhoc_models/result" --task $T >> $OUT/fetch.log 2>&1 && return 0
-    [ "$G" = prefetch ] && return 1; sleep ${RESULT_WAIT_STEP:-60}; done; return 1; }
+    [ "$G" = prefetch ] && return 1; hf_backoff && return 1; sleep ${RESULT_WAIT_STEP:-60}; done; return 1; }
+hf_backoff() { local s; s=$(python3 $RUNBOOK/scripts/remote.py backoff 2> /dev/null); [ "${s:-0}" -gt 0 ] 2> /dev/null; }   # [v2.5.9z52] the 429 backoff lasts
 local_save() {   # v2.5.7zd (reviewer 15:2x UTC, 10-19) $1 = runs/<task>/global_step_N/actor/huggingface (a result: path) -> the
   # training's own save on this node, if it has weights: its bf16 copy, else its fp32 HF save (read in bf16); "" if none.
   # result: downloads stalled three times on 10-19 (P5self 10:39, EVAL-e12d-P0 14:49, EVAL-e12b-P2-s43 15:04) with
@@ -74,6 +75,7 @@ while read -r TAG MODEL BENCH N TEMP MAXT MODE; do
   python -c "import sys; sys.path.insert(0, sys.argv[1]); import control_rules as R; R.check_eval_args(sys.argv[2:8])" \
     "$RUNBOOK/scripts" "$MODEL" "$BENCH" "$N" "$TEMP" "$MAXT" "$MODE" || { echo "REFUSED $TAG: $MODEL $BENCH $N $TEMP $MAXT $MODE"; ok=0; continue; }
   resolve_model "$MODEL"; rc=$?
+  [ $rc = 1 ] && hf_backoff && { echo "WAIT_INPUTS $T: $MODEL not in (the HF 429 backoff lasts)"; exit 1; }   # [v2.5.9z52] waiting, no attempt
   [ $rc = 1 ] && { echo "MODEL_FETCH_FAILED $TAG: $MODEL (see $OUT/fetch.log)"; ok=0; continue; }
   [ $rc = 2 ] && { echo "MODEL_MISSING $TAG: $MODEL"; ok=0; continue; }
   case $TEMP in 1.0) SAMP="--temperature 1.0 --top_p 1.0 --top_k 0";; 0) SAMP="--temperature 0 --top_p 1.0 --top_k 0";; *) SAMP="--temperature 0.6 --top_p 0.95 --top_k 0";; esac   # [v2.5.9z15] 0: greedy

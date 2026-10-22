@@ -324,9 +324,21 @@ def main():
     # [v2.5.9z50] a comma separated list of repositories (remote.py repo public while public uploads are paused: the private
     # one first): each in turn until one has the files; the result names the one that did and keeps every failed attempt
     tried, errs = [], []
+    try:   # [v2.5.9z52] (the HF account answered 429, 10-22) remote.py's backoff covers our result repositories' reads too
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import remote as RM
+        ours = set(RM.repos())
+    except Exception:
+        RM, ours = None, set()
+    r = {"ok": False}
     for rp in [x for x in repo.split(",") if x]:
+        if RM and rp in ours and RM.backoff_left() > 0:
+            tried.append(rp); errs.append({"endpoint": "https://huggingface.co", "attempt": 0, "error": "Backoff429", "detail": f"{int(RM.backoff_left())} s left"})
+            continue
         r = locked_fetch(rp, prefix, local)
         tried.append(rp); errs += r.get("errors") or []
+        if RM and any("huggingface.co" in str(e.get("endpoint")) and ("Too Many Requests" in str(e.get("detail")) or "429" in str(e.get("error")))
+                      for e in r.get("errors") or []):
+            RM.note_429()
         if r.get("ok"):
             break
     r.update({"repo": rp, "prefix": prefix, "repos_tried": len(tried)})

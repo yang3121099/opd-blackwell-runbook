@@ -195,6 +195,14 @@ R2=$( Q=$T/rb/tasks/queue.txt; eval "$(sed -n '/^result_only() {/p' $SRC/scripts
 ok "result-only EVAL ready without inputs_ok" '[ "$R1" = yes ] && [ "$R2" = no ]'
 ok "result: model from the public repository" '[ $rc4 = 0 ] && grep -q "^fetch me/pub runs/E12b-P0/global_step_100/actor/huggingface $T/root/adhoc_models/result" $CALLS'
 ok "eval with failed fetch not run" '! grep -q "^gen_eval" $CALLS && grep -q MODEL_FETCH_FAILED $T/p3 && [ ! -f $T/root/runs/EVAL-gone/.done ]'
+# [v2.5.9z52] (ops-lead's A1 condition) a result: model not fetched while the HF 429 backoff lasts: WAIT_INPUTS at once (run_tasks.sh:
+# waiting, no attempt; no 20-minute wait on the GPU); without the backoff a failed fetch is MODEL_FETCH_FAILED as before
+printf 'import sys, os; open(os.environ["CALLS"], "a").write("remote " + " ".join(sys.argv[1:]) + "\\n"); sys.argv[1:2] == ["repo"] and print("me/pub"); sys.argv[1:2] == ["backoff"] and print(os.environ.get("FAKE_BACKOFF", "0"))\n' > $T/rb/scripts/remote.py
+echo "#eval EVAL-bo bo_math500_T0.6 result:runs/E12b-missing/global_step_100/actor/huggingface math500 4 0.6" >> $T/rb/tasks/queue.txt
+: > $CALLS; FAKE_BACKOFF=40 RESULT_WAIT_STEP=0 bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-bo > $T/p5 2>&1; rc5=$?
+ok "[v2.5.9z52] the 429 backoff: WAIT_INPUTS, one fetch, no reading" '[ $rc5 = 1 ] && grep -q "^WAIT_INPUTS EVAL-bo: result:runs/E12b-missing/global_step_100/actor/huggingface not in (the HF 429 backoff lasts)$" $T/p5 && [ "$(grep -c "^fetch " $CALLS)" = 1 ] && ! grep -q "^gen_eval" $CALLS'
+: > $CALLS; FAKE_BACKOFF=0 RESULT_WAIT_MIN=2 RESULT_WAIT_STEP=0 bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-bo > $T/p6 2>&1
+ok "[v2.5.9z52] no backoff: MODEL_FETCH_FAILED after its waits, as before" '! grep -q WAIT_INPUTS $T/p6 && grep -q MODEL_FETCH_FAILED $T/p6 && [ "$(grep -c "^fetch " $CALLS)" = 2 ]'
 rm -rf $T
 # 5b. v2.5.7zd: result: reads the training's own save on this node first (bf16 copy, else fp32 read in bf16); the
 #     result repository only when there is none; the prefetch fetches nothing for a local save

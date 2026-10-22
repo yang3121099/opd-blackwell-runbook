@@ -81,6 +81,8 @@ fi
 case $A in P0|P1|P2|P3|P5|P5-s43|P5-s44|P2-s43|P5self|P5self-s43) STEPS=100;; *) STEPS=60;; esac   # v2.5.6j: P5-s43 = the headline chain's second seed (queue v3 V3-c2); v2.5.7n: P5-s44 its third (from the flash-attn arm)
 case $VAR in 8k|16k|16k-kl) STEPS=${E12B_LONG_STEPS:-50};; r3) STEPS=${E12B_R3_STEPS:-50};; esac   # [v2.5.8h] reviewer 17:4x UTC: 50 steps (constant lr: extendable)
 [ -n "$PROG" ] && STEPS=${PROG_STEPS:-25}   # [v2.5.9z43] 25 more steps (total s50)
+hf_backoff() { local s; s=$(python3 $RUNBOOK/scripts/remote.py backoff 2> /dev/null); [ "${s:-0}" -gt 0 ] 2> /dev/null; }   # [v2.5.9z52] the 429 backoff lasts
+[ $A = P0 ] || has_weights $START || ! hf_backoff || { echo "WAIT_INPUTS $T: start checkpoint not in (the HF 429 backoff lasts)"; exit 1; }   # [v2.5.9z52] waiting, no attempt
 [ $A = P0 ] || has_weights $START || { echo "missing start checkpoint $START"; exit 1; }
 TBS=64; ADV=grpo; [ "$VAR" = r3 ] && { TBS=128; ADV=reinforce_plus_plus_baseline; }   # [v2.5.9w]
 # v2.5.7c: venv-fa (flash-attn, remove-padding) only with VENV=fa and E12B_FA=1: the E12b ladder stays on one attention

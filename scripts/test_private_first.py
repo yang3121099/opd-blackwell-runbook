@@ -88,7 +88,7 @@ def test_pulse_fields(root, monkeypatch):
 
 def test_setenv_public_uploads():
     R.parse({"cmd": "setenv PUBLIC_UPLOADS=1", "reason": "t"})
-    assert R.RULES_VERSION == "2.5.75"
+    assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 75)
 
 
 def test_cli_still_dispatches_put(root):   # the CLI dict must still be called (a put reaches put(): here it fails without a token)

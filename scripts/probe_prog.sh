@@ -85,8 +85,10 @@ roll() {   # $1 = parent, $2 = step -> the path, or nothing
   [ -s $L ] && { echo $L; return; }
   python3 $RUNBOOK/scripts/fetch_model.py "$(python3 $RUNBOOK/scripts/remote.py repo public)" $R $CKPT_ROOT/adhoc_models/result --task $T >> $LOG 2>&1 \
     && [ -s $CKPT_ROOT/adhoc_models/result/$R ] && echo $CKPT_ROOT/adhoc_models/result/$R; }
+hf_backoff() { local s; s=$(python3 $RUNBOOK/scripts/remote.py backoff 2> /dev/null); [ "${s:-0}" -gt 0 ] 2> /dev/null; }   # [v2.5.9z52] the 429 backoff lasts
 for P in $PARENTS; do for s in 1 $((SS + 1)) $((2 * SS)); do
-  r=$(roll $P $s); [ -n "$r" ] || finish FAIL "no rollouts/$s.jsonl of $P"; eval "R_${P//-/_}_$s=$r"
+  r=$(roll $P $s); [ -n "$r" ] || ! hf_backoff || { echo "WAIT_INPUTS $T: rollouts/$s.jsonl of $P not in (the HF 429 backoff lasts)"; exit 1; }   # [v2.5.9z52]
+  [ -n "$r" ] || finish FAIL "no rollouts/$s.jsonl of $P"; eval "R_${P//-/_}_$s=$r"
 done; done
 # 2. the sampler model: steps 1 and SS+1 of the training file are each parent's
 for P in $PARENTS; do

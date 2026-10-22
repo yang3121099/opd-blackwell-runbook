@@ -37,18 +37,19 @@ def test_coalescing_and_order(env):
     assert (env.remote / "status/testnode.json").read_text() == "newest" and (env.remote / "status/testnode/events/e1.json").exists()
 
 
-def test_failure_ends_the_pass_then_demotes(env, monkeypatch):
+def test_failure_ends_the_pass_then_demotes(env, monkeypatch):   # [v2.5.9z50] the pass goes on past a failed item (was: ended there)
     c = env.c; alive(c)
-    for n in ("a", "b"):
+    for n in ("a", "b", "r8"):
         (env.root / n).write_text(n)
     c.queue_put(str(env.root / "a"), "status/testnode/replies/7.json"); c.queue_put(str(env.root / "b"), "status/testnode/events/b.json")
+    c.queue_put(str(env.root / "r8"), "status/testnode/replies/8.json")
     real = c.remote_put
     monkeypatch.setattr(c, "remote_put", lambda s, d: False if d.endswith("7.json") else real(s, d))
-    assert c.ship_outbox() == (0, 0, 1) and [i["dst"] for i in items(c)] == ["status/testnode/replies/7.json", "status/testnode/events/b.json"]
-    assert items(c)[0]["fails"] == 1
-    c.ship_outbox(); c.ship_outbox()                                       # the third failure moves it behind b
-    assert [i["dst"] for i in items(c)] == ["status/testnode/events/b.json", "status/testnode/replies/7.json"]
-    assert c.ship_outbox() == (1, 0, 1) and (env.remote / "status/testnode/events/b.json").exists()
+    assert c.ship_outbox() == (2, 0, 1) and [i["dst"] for i in items(c)] == ["status/testnode/replies/7.json"]
+    assert items(c)[0]["fails"] == 1 and (env.remote / "status/testnode/events/b.json").exists() and (env.remote / "status/testnode/replies/8.json").exists()
+    c.queue_put(str(env.root / "r8"), "status/testnode/replies/9.json")
+    c.ship_outbox(); c.ship_outbox()                                       # the third failure moves it to the end, its count anew
+    assert [(i["dst"], i["fails"]) for i in items(c)] == [("status/testnode/replies/7.json", 0)]
 
 
 def test_missing_src_dropped(env):

@@ -78,5 +78,13 @@ printf '#term PROBE-TERM4 17_RLloc result:runs/E12b-X/global_step_100/actor/hugg
 mkdir -p $T/root/runs/E12b-X/ckpt/global_step_100/actor/huggingface; touch $T/root/runs/E12b-X/ckpt/global_step_100/actor/huggingface/model.safetensors
 rm -f $T/root/runs/PROBE-TERM4/.done; : > $CALLS; : > $CALLS.tsv; bash $T/rb/scripts/term_probe.sh 3 PROBE-TERM4 > $T/out4k 2>&1
 ok "[v2.5.8k] result: rows: the local save without a fetch; no local save: fetched" 'grep -q "^17_RLloc	$T/root/runs/E12b-X/ckpt/global_step_100/actor/huggingface	" $CALLS.tsv && ! grep -q "^fetch .*runs/E12b-X/" $CALLS && grep -q "^fetch me/pub runs/E12b-Y/global_step_100/actor/huggingface " $CALLS && grep -q "LOCAL_FIRST 17_RLloc" $T/root/runs/PROBE-TERM4/probe.log'
+# [v2.5.9z52] (ops-lead's A1 condition) during the HF 429 backoff a result: model that could not be fetched makes the task wait
+# (WAIT_INPUTS: run_tasks.sh counts no attempt); without the backoff it is a missing model as before
+printf 'import sys, os; open(os.environ["CALLS"], "a").write("remote " + " ".join(sys.argv[1:]) + "\\n"); sys.argv[1:2] == ["repo"] and print("me/pub"); sys.argv[1:2] == ["backoff"] and print(os.environ.get("FAKE_BACKOFF", "0"))\n' > $T/rb/scripts/remote.py
+printf 'import sys; sys.exit(1)\n' > $T/rb/scripts/fetch_model.py
+rm -f $T/root/runs/PROBE-TERM4/.done; : > $CALLS; : > $CALLS.tsv; FAKE_BACKOFF=40 bash $T/rb/scripts/term_probe.sh 3 PROBE-TERM4 > $T/outbo 2>&1; rc=$?
+ok "[v2.5.9z52] the 429 backoff: WAIT_INPUTS, exit 1, no .done" '[ $rc = 1 ] && grep -q "^WAIT_INPUTS PROBE-TERM4: result:runs/E12b-Y/global_step_100/actor/huggingface not in (the HF 429 backoff lasts)$" $T/outbo && [ ! -f $T/root/runs/PROBE-TERM4/.done ]'
+: > $CALLS; : > $CALLS.tsv; FAKE_BACKOFF=0 bash $T/rb/scripts/term_probe.sh 3 PROBE-TERM4 > $T/outnb 2>&1
+ok "[v2.5.9z52] no backoff: a missing model as before" '! grep -q WAIT_INPUTS $T/outnb && grep -q "MODEL_MISSING 17_RLfar" $T/outnb'
 rm -rf $T
 [ $fails = 0 ] && echo "TERM_PROBE_TEST PASS ($n checks)" || echo "TERM_PROBE_TEST FAIL ($fails of $n)"

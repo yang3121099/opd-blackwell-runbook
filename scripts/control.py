@@ -340,11 +340,17 @@ def v_snapshot(a, seq):
 
 
 # ---------- v2.5: result repository, receipts, events ----------
-def remote_put(src, dst):
+def remote_put(src, dst, kind=None):
     """v2.5.7zb: bounded (REMOTE_PUT_TIMEOUT, 180 s): a hung upload inside `apply` froze run_tasks for 94 min on
-    2026-10-19 (12:17-13:50 UTC); on a timeout the child is killed, the call returns False and is logged."""
+    2026-10-19 (12:17-13:50 UTC); on a timeout the child is killed, the call returns False and is logged. [v2.5.9z52] kind
+    "public": to the public repository whatever the class (the pulse's mirror); a list of pairs: one commit (remote.py putmany)."""
+    if isinstance(src, list):
+        lf = _p("outbox_batch.json"); json.dump(src, open(lf, "w"))
+        args = ["putmany", lf]; dst = f"batch of {len(src)}"
+    else:
+        args = ["put", src, dst] + ([kind] if kind else [])
     try:
-        r = subprocess.run([sys.executable, os.path.join(RUNBOOK, "scripts", "remote.py"), "put", src, dst], capture_output=True, text=True,
+        r = subprocess.run([sys.executable, os.path.join(RUNBOOK, "scripts", "remote.py"), *args], capture_output=True, text=True,
                            timeout=int(os.environ.get("REMOTE_PUT_TIMEOUT", "180")))
     except subprocess.TimeoutExpired:
         try:
@@ -369,8 +375,8 @@ def _outbox():
     return _p("outbox")
 
 
-def enqueue(src, dst):
-    d = _outbox(); os.makedirs(d, exist_ok=True); k = hashlib.sha256(dst.encode()).hexdigest()[:16]
+def enqueue(src, dst, kind=None):
+    d = _outbox(); os.makedirs(d, exist_ok=True); k = hashlib.sha256((dst + (f"|{kind}" if kind else "")).encode()).hexdigest()[:16]
     for n in os.listdir(d):
         if n.endswith(f"__{k}.json"):
             try:
@@ -378,7 +384,7 @@ def enqueue(src, dst):
             except FileNotFoundError:
                 pass
     name = f"{time.time_ns():020d}__{k}.json"
-    json.dump({"src": os.path.abspath(src), "dst": dst, "utc": utc(), "fails": 0}, open(os.path.join(d, "." + name), "w"))
+    json.dump({"src": os.path.abspath(src), "dst": dst, "utc": utc(), "fails": 0, **({"kind": kind} if kind else {})}, open(os.path.join(d, "." + name), "w"))
     os.replace(os.path.join(d, "." + name), os.path.join(d, name))
     return True
 
@@ -388,10 +394,15 @@ def uploader_alive():
     return t.isdigit() and time.time() - int(t) < int(os.environ.get("OUTBOX_STALE_S", "600"))
 
 
-def queue_put(src, dst):
+def queue_put(src, dst, kind=None):
     if os.environ.get("OUTBOX", "1") == "1" and uploader_alive():
-        return enqueue(src, dst)
-    return remote_put(src, dst)
+        return enqueue(src, dst, kind)
+    k = _throttle({"dst": dst, "kind": kind})[0]   # [v2.5.9z52] the direct upload keeps the throttles of the latest-state items
+    if k and k != "events":                         # (an event skipped here would be lost: those go up as before)
+        if not _due({"dst": dst, "kind": kind}):
+            return True
+        _stamp([k])
+    return remote_put(src, dst, kind) if kind else remote_put(src, dst)
 
 
 CONTROL_PREFIXES = ("status/", "pulse/")
@@ -411,29 +422,119 @@ def _ship_order(d):
     return sorted(names, key=lambda n: (prio(n), n))
 
 
+# [v2.5.9z52] (ops-lead / Fable 10-22 21:0x Beijing: the HF account answered 429 from 12:38 UTC, and the status, the pulse and
+# the receipts stopped going up) throttles: each latest-state item (the status, the pulse, procs.json, the heartbeat's re-upload
+# of replies/ and events/) ships at most once per interval, counted from its last try, with the newest content (the outbox
+# coalesces); the events wait for one commit every EVENTS_PUT_S; receipts and other items are not held. While remote.py's 429
+# backoff lasts the pass tries nothing. Intervals from control.env (setenv), else the environment, else these; 0: no throttle.
+THROTTLE = (("status", r"status/[^/]+\.json", "STATUS_PUT_S", 300), ("procs", r"status/[^/]+/procs\.json", "PROCS_PUT_S", 600),
+            ("events", r"status/[^/]+/events/[^/]+", "EVENTS_PUT_S", 300), ("resync", r"status/[^/]+/(?:events|replies)", "RESYNC_PUT_S", 3600),
+            ("pulse", r"pulse/[^/]+\.json", "PULSE_PUT_S", 300))
+
+
+def _throttle(it):
+    """(stamp key, interval s) of an outbox item, or (None, 0): one key for all events, one per destination otherwise; the
+    pulse's public mirror (kind public) every PULSE_MIRROR_S (1800)."""
+    dst = str(it.get("dst", "")).lstrip("/")
+    if it.get("kind") == "public":
+        return "mirror:" + dst, int(_cfg("PULSE_MIRROR_S", "1800"))
+    for name, pat, knob, default in THROTTLE:
+        if re.fullmatch(pat, dst):
+            return (name if name == "events" else f"{name}:{dst}"), int(_cfg(knob, str(default)))
+    return None, 0
+
+
+def _stamps():
+    try:
+        s = json.loads(_read(_p("put_stamps.json"), "{}") or "{}")
+        return s if isinstance(s, dict) else {}
+    except ValueError:
+        return {}
+
+
+def _stamp(keys):
+    s = _stamps(); now = time.time()
+    for k in keys:
+        s[k] = now
+    tmp = _p(f"put_stamps.json.{os.getpid()}.tmp"); json.dump(s, open(tmp, "w")); os.replace(tmp, _p("put_stamps.json"))
+
+
+def _due(it, stamps=None):
+    k, iv = _throttle(it)
+    return not k or iv <= 0 or time.time() - float((_stamps() if stamps is None else stamps).get(k, 0)) >= iv
+
+
+def _backoff_left():
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import remote as _rm_mod
+        return _rm_mod.backoff_left()
+    except Exception:
+        return 0
+
+
+def _ship_events(d, names):
+    """[v2.5.9z52] the events waiting in the outbox, in one commit once EVENTS_PUT_S has passed since the last try (one event:
+    an ordinary put): (shipped, dropped, failed)."""
+    ev, dropped = [], 0
+    for name in names:
+        p = os.path.join(d, name)
+        try:
+            it = json.load(open(p))
+        except (OSError, ValueError):
+            continue
+        if _throttle(it)[0] != "events":
+            continue
+        if not os.path.isfile(it.get("src", "")):
+            _rm(p); dropped += 1; continue
+        ev.append((p, it))
+    if not ev or not _due(ev[0][1]):
+        return 0, dropped, 0
+    _stamp(["events"])
+    ok = remote_put(ev[0][1]["src"], ev[0][1]["dst"]) if len(ev) == 1 else remote_put([[it["src"], it["dst"]] for _, it in ev], None)
+    open(_p("loop_uploader"), "w").write(str(int(time.time())))
+    for p, it in ev:
+        if ok:
+            _rm(p)
+        elif os.path.exists(p):
+            it["fails"] = it.get("fails", 0) + 1; json.dump(it, open(p + ".tmp", "w")); os.replace(p + ".tmp", p)
+    return (len(ev), dropped, 0) if ok else (0, dropped, len(ev))
+
+
 def ship_outbox(budget_s=None):
     """One pass of uploader.sh: (shipped, dropped, failed). A missing src is dropped; the pass ends at the first failure
     or after OUTBOX_PASS_S (420 s); control/loop_uploader is refreshed after every item."""
     budget_s = budget_s or int(os.environ.get("OUTBOX_PASS_S", "420"))
     d = _outbox(); os.makedirs(d, exist_ok=True); t0 = time.time(); shipped = dropped = failed = 0
-    for name in _ship_order(d):   # [v2.5.9z51] the control plane's items first
-        if time.time() - t0 > budget_s:
+    if _backoff_left() > 0:   # [v2.5.9z52] the 429 backoff: nothing tried, nothing counted
+        return shipped, dropped, failed
+    names = _ship_order(d)
+    shipped, dropped, failed = _ship_events(d, names)   # [v2.5.9z52] first, as the control plane's oldest items were
+    stamps = _stamps()
+    for name in names:   # [v2.5.9z51] the control plane's items first
+        if time.time() - t0 > budget_s or _backoff_left() > 0:
             break
         p = os.path.join(d, name)
         try:
             it = json.load(open(p))
         except (OSError, ValueError):
-            continue   # replaced while we listed
+            continue   # replaced while we listed, or an event shipped above
         if not os.path.exists(it.get("src", "")):
             _rm(p); dropped += 1; continue
-        ok = remote_put(it["src"], it["dst"])
+        k = _throttle(it)[0]
+        if k == "events" or not _due(it, stamps):   # [v2.5.9z52] an event goes with the others; a throttled item waits
+            continue
+        if k:
+            _stamp([k])
+        ok = remote_put(it["src"], it["dst"], "public") if it.get("kind") == "public" else remote_put(it["src"], it["dst"])
         open(_p("loop_uploader"), "w").write(str(int(time.time())))
+        if ok and it.get("kind") == "public":   # [v2.5.9z52] the pulse's field public_mirror_utc
+            open(_p("public_mirror_utc"), "w").write(utc() + "\n")
         if ok:
             _rm(p); shipped += 1; continue
         failed += 1; it["fails"] = it.get("fails", 0) + 1
         if os.path.exists(p):
             if it["fails"] >= 3:   # moved to the end, so one item that never goes up cannot hold back the others
-                _rm(p); enqueue(it["src"], it["dst"])
+                _rm(p); enqueue(it["src"], it["dst"], it.get("kind"))
             else:
                 json.dump(it, open(p + ".tmp", "w")); os.replace(p + ".tmp", p)
         # [v2.5.9z50] (the reviewer / Runming 10-22: no head-of-line blocking) a failed item stays for the next pass and the
@@ -1151,6 +1252,8 @@ def pulse(status_path, upload=True):
     json.dump(p, open(_p("pulse.json.tmp"), "w")); os.replace(_p("pulse.json.tmp"), _p("pulse.json"))
     if upload and _split_mode():
         queue_put(_p("pulse.json"), f"pulse/{node_id()}.json")   # [v2.5.8]
+        if p.get("source_policy") == "private_first" and _cfg("PULSE_PUBLIC_MIRROR", "0") == "1":   # [v2.5.9z52] while private first:
+            queue_put(_p("pulse.json"), f"pulse/{node_id()}.json", "public")   # a copy to the public repository every PULSE_MIRROR_S
     return p
 
 

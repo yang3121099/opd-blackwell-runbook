@@ -31,6 +31,7 @@ D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; Q=${QUEUE_FILE:-$RUNBOOK/tasks/queue.txt}
 step() { echo "TERM_PROBE $(date -u +%T) $*" | tee -a $LOG; }
 fetch_ckpt() { python $RUNBOOK/scripts/fetch_model.py yang31210999/opd-lab-ckpts "$1" "$CKPT_ROOT/adhoc_models" --task $T >> $D/fetch.log 2>&1; }
 fetch_result() { python $RUNBOOK/scripts/fetch_model.py "$(python $RUNBOOK/scripts/remote.py repo public)" "$1" "$CKPT_ROOT/adhoc_models/result" --task $T >> $D/fetch.log 2>&1; }
+hf_backoff() { local s; s=$(python3 $RUNBOOK/scripts/remote.py backoff 2> /dev/null); [ "${s:-0}" -gt 0 ] 2> /dev/null; }   # [v2.5.9z52] the 429 backoff lasts
 # [v2.5.8k] (10-20 23:05-23:49 UTC: PROBE-TERM4 hung in a result: fetch of its new rows; the node's proxy blocks the hub)
 # a result: model is read from the training's own save first, as run_queue_eval.sh does since v2.5.7zd (the same lookup)
 local_save() {   # $1 = runs/<task>/global_step_N/actor/huggingface -> the save with weights (bf16 copy first), "" if none
@@ -53,7 +54,8 @@ while read -r TAG MODEL GENS MODE; do
     Qwen/Qwen3-0.6B) M=$STUDENT_06B;; Qwen/Qwen3-1.7B) M=$STUDENT_17B;; Qwen/Qwen3-8B) M=$TEACHER;; Qwen/*) M=$MODEL;;
     yang31210999/opd-lab-ckpts/*) P=${MODEL#yang31210999/opd-lab-ckpts/}; M=$CKPT_ROOT/adhoc_models/$P; fetch_ckpt "$P" || M="";;
     result:*) P=${MODEL#result:}; M=$(local_save "$P")   # [v2.5.8k] the local save first
-              if [ -n "$M" ]; then step "LOCAL_FIRST $TAG: $MODEL"; else M=$CKPT_ROOT/adhoc_models/result/$P; fetch_result "$P" || M=""; fi;;
+              if [ -n "$M" ]; then step "LOCAL_FIRST $TAG: $MODEL"; else M=$CKPT_ROOT/adhoc_models/result/$P
+                fetch_result "$P" || { hf_backoff && { echo "WAIT_INPUTS $T: $MODEL not in (the HF 429 backoff lasts)"; exit 1; }; M=""; }; fi;;   # [v2.5.9z52]
     *) M=$OPD_ROOT/${MODEL#local:}; has_weights $M || M=$CKPT_ROOT/${MODEL#local:};;
   esac
   [ -n "$M" ] && { has_weights $M || [ "${M#Qwen/}" != "$M" ]; } || { step "MODEL_MISSING $TAG: $MODEL"; printf '%s\t-\t-\t%s\tmodel missing\n' $TAG $MODEL >> $D/inputs.tsv; continue; }

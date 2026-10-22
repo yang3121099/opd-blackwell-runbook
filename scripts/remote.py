@@ -4,6 +4,9 @@ chosen by UPLOAD_BACKEND. Credentials are read from the environment only and nev
   python remote.py put <local> <remote>  -> upload a file or a folder to <remote> in the repo
   python remote.py done <task>           -> exit 0 if runs/<task>/.done exists in the repo (HF only; ModelScope: no)
   python remote.py repo public|private   -> print the repository that class of files goes to
+  python remote.py put <local> <remote> public -> [v2.5.9z52] to the public repository whatever the class (the pulse's mirror)
+  python remote.py putmany <list.json>   -> [v2.5.9z52] [[local file, remote], ...] in one commit to the private repository
+  python remote.py backoff               -> [v2.5.9z52] seconds left of the 429 backoff (0: none)
 The ModelScope path is not tested yet: check upload.log for UP_OK after the first checkpoint.
 
 v2.5.1 (two repositories, Runming 2026-10-17): $OPD_ROOT/hf_repos.txt (written by `set HF_REPO_PUBLIC=` /
@@ -191,6 +194,71 @@ def _drill_fault(dst=""):
     time.sleep(7200)
 
 
+# [v2.5.9z52] (ops-lead / Fable 10-22 21:0x Beijing: the HF account answered 429 Too Many Requests from 12:38 UTC; status,
+# pulse and receipts stopped going up) one backoff for every HF call of this node: after a 429 nothing is tried for 60 s, then
+# 120, 240, 480, 900 s (the cap) after each further 429; a call that succeeds ends it. control/hf_backoff.json holds it, so the
+# heartbeat, the uploader, upload_sync.sh and fetch_model.py share it; a call during the wait fails at once without a request.
+BACKOFF_START_S, BACKOFF_MAX_S = 60, 900
+
+
+class Backoff(Exception):
+    pass
+
+
+def _backoff_path():
+    return os.path.join(os.environ.get("OPD_ROOT", ""), "control", "hf_backoff.json")
+
+
+def _backoff_state():
+    try:
+        b = json.load(open(_backoff_path()))
+        return b if isinstance(b, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def backoff_left():
+    try:
+        return max(0.0, float(_backoff_state().get("until", 0)) - time.time())
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def is_429(e):
+    r = getattr(e, "response", None)
+    return getattr(r, "status_code", None) == 429 or "Too Many Requests" in str(e)[:500]
+
+
+def note_429():
+    """The next wait: twice the last one (60 s first), at most BACKOFF_MAX_S; returns it."""
+    try:
+        n = int(_backoff_state().get("level", 0)) + 1
+    except (TypeError, ValueError):
+        n = 1
+    wait = min(BACKOFF_START_S * 2 ** (n - 1), BACKOFF_MAX_S)
+    p = _backoff_path(); os.makedirs(os.path.dirname(p), exist_ok=True); tmp = f"{p}.{os.getpid()}.tmp"
+    json.dump({"level": n, "wait_s": wait, "until": time.time() + wait, "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}, open(tmp, "w"))
+    os.replace(tmp, p)
+    try:   # one line per 429 (control/hf_429.log: utc, level, wait): the count and the first time, for the reviewer's table
+        with open(os.path.join(os.path.dirname(p), "hf_429.log"), "a") as f:
+            f.write(f"{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}\t{n}\t{wait}\n")
+    except OSError:
+        pass
+    return wait
+
+
+def note_ok():
+    try:
+        os.remove(_backoff_path())
+    except FileNotFoundError:
+        pass
+
+
+def _gate():
+    if backoff_left() > 0:
+        raise Backoff()
+
+
 WEIGHT_MB = 100   # [v2.5.9z50] ops-lead's A1 condition: weights stay out of the private repository while public uploads are paused
 
 
@@ -233,18 +301,53 @@ def defer_weight(src, dst):
     return size
 
 
-def put(src, dst):
+def put(src, dst, kind=None):
     _drill_fault(dst)   # v2.5.7zb: a no-op unless DRILL=1 and REMOTE_FAULT are set (zc: the status upload only)
-    if public_paused() and rename(dst).lstrip("/").startswith(PUBLIC_PREFIXES) and is_weight(src, dst):   # [v2.5.9z50]
+    if kind != "public" and public_paused() and rename(dst).lstrip("/").startswith(PUBLIC_PREFIXES) and is_weight(src, dst):   # [v2.5.9z50]
         record_transfer({"dir": "up", "dst": rename(dst), "deferred": "weights_pending", "bytes": defer_weight(src, rename(dst)), "ok": True})
         return
+    _gate()   # [v2.5.9z52] (a held weight above needs no request)
     t0, ok = time.time(), False
     try:
-        _put(src, dst); ok = True
+        _put(src, dst, kind) if kind else _put(src, dst); ok = True
+    except Exception as e:
+        if is_429(e):
+            note_429()
+        raise
     finally:
         files = [os.path.join(r, f) for r, _, fs in os.walk(src) for f in fs] if os.path.isdir(src) else [src]
         record_transfer({"dir": "up", "dst": rename(dst), "files": len(files),
                          "bytes": sum(os.path.getsize(f) for f in files if os.path.isfile(f)), "seconds": round(time.time() - t0, 1), "ok": ok})
+    note_ok()
+
+
+def put_many(listfile):
+    """[v2.5.9z52] the events of an outbox pass in one commit (was one commit each): [[local file, destination], ...] to the
+    private repository; files that are gone are left out."""
+    pairs = [(s, d) for s, d in json.load(open(listfile)) if os.path.isfile(s)]
+    if BACKEND != "hf":
+        for s, d in pairs:
+            put(s, d)
+        return
+    from huggingface_hub import CommitOperationAdd
+    _gate()
+    t0, ok = time.time(), False
+    try:
+        api, repo = hf("private")
+        if split_mode() and not private_ok(api, repo):
+            raise PermissionError("private-class file refused: the private repository is public")
+        if pairs:
+            api.create_commit(repo_id=repo, repo_type="model", commit_message=f"{len(pairs)} files: {rename(pairs[0][1])} ...",
+                              operations=[CommitOperationAdd(path_in_repo=rename(d), path_or_fileobj=s) for s, d in pairs])
+        ok = True
+    except Exception as e:
+        if is_429(e):
+            note_429()
+        raise
+    finally:
+        record_transfer({"dir": "up", "dst": f"batch of {len(pairs)}: {rename(pairs[0][1]) if pairs else '-'}", "files": len(pairs),
+                         "bytes": sum(os.path.getsize(s) for s, _ in pairs), "seconds": round(time.time() - t0, 1), "ok": ok})
+    note_ok()
 
 
 TEXT_EXT = (".log", ".json", ".jsonl", ".txt", ".yaml", ".yml", ".csv", ".md", ".out", ".err", ".sh", ".py", ".cfg", ".toml", ".meta", ".part")
@@ -408,10 +511,10 @@ def _put_public(api, repo, src, dst):
         api.create_commit(repo_id=repo, repo_type="model", operations=ops, commit_message=dst)
 
 
-def _put(src, dst):
+def _put(src, dst, force=None):
     dst = rename(dst)
     if BACKEND == "hf":
-        kind = klass(dst)
+        kind = "public" if force == "public" else klass(dst)   # [v2.5.9z52] force: the pulse's public mirror
         api, repo = hf(kind)
         if kind == "private" and split_mode() and not private_ok(api, repo):
             raise PermissionError("private-class file refused: the private repository is public")
@@ -433,13 +536,17 @@ def done(task):
     if BACKEND != "hf":
         sys.exit(1)
     for kind in (("private", "public") if public_paused() else ("public",)):   # [v2.5.9z50] the private repository first
+        if backoff_left() > 0:   # [v2.5.9z52]
+            break
         try:
             api, repo = hf(kind)
             if api.file_exists(repo, f"runs/{task}/.done", repo_type="model"):
                 sys.exit(0)
         except SystemExit:
             raise
-        except Exception:
+        except Exception as e:
+            if is_429(e):
+                note_429()
             continue
     sys.exit(1)
 
@@ -447,6 +554,7 @@ def done(task):
 if __name__ == "__main__":
     try:
         {"check": lambda: check(), "done": lambda: done(sys.argv[2]),
-         "repo": lambda: print(fetch_repos() if sys.argv[2] == "public" else repos()[1])}.get(sys.argv[1], lambda: put(sys.argv[2], sys.argv[3]))()   # [v2.5.9z50] repo public: the fetch order
+         "repo": lambda: print(fetch_repos() if sys.argv[2] == "public" else repos()[1]), "putmany": lambda: put_many(sys.argv[2]),
+         "backoff": lambda: print(int(backoff_left()))}.get(sys.argv[1], lambda: put(sys.argv[2], sys.argv[3], (sys.argv[4:] or [None])[0]))()   # [v2.5.9z50] repo public: the fetch order
     except Exception as e:   # never echo the exception text verbatim: it can contain request headers
         print(f"{BACKEND} {sys.argv[1]} failed: {type(e).__name__}", file=sys.stderr); sys.exit(1)
