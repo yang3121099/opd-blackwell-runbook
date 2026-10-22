@@ -194,7 +194,7 @@ def test_fingerprint_auto_named_capped_and_pairs():   # [v2.5.9z14] (Q-056)
     full = json.load(open(os.path.join(out, "up", "runs", "READINGS-EXTRA", "fingerprint.json")))
     assert full["q056"]["matrix"]["all"]["a_s50"]["b"]["phi"] == 1.0 and "matrix" not in s["fingerprint"]["q056"]
     t = open(os.path.join(out, "summary.txt")).read()
-    assert "fingerprint q056 (3 models)" in t and "a_s50 vs b | 1.0 / 1.0 / 1.0 / 1.0 |" in t
+    assert "fingerprint q056 (3 models)" in t and "a_s50 vs b | 1.0 / 1.0 / 1.0 (0.5) / 1.0 |" in t and ab["all"]["chance"] == 0.5
 
 
 def test_fp_compare_constant_and_parts():
@@ -202,4 +202,5 @@ def test_fp_compare_constant_and_parts():
     vb = {i: (0.5 if i < 100 else 0.0, float(i)) for i in range(500)}
     c = X.fp_compare(va, vb)
     assert c["r_acc"] is None and c["phi"] is None and c["agree"] == 0.2 and c["n"] == 500   # a constant vector has no correlation
+    assert c["chance"] == 0.2                                   # [v2.5.9z17] pa = 1, pb = 0.2: 1 x 0.2 + 0 x 0.8
     assert X.fp_compare(va, vb, "1-100")["agree"] == 1.0 and X.fp_compare(va, vb, "101-500")["agree"] == 0.0

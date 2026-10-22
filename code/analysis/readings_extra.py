@@ -193,8 +193,11 @@ def fp_compare(va, vb, part=None):
     idx = sorted(i for i in va if i in vb and keep(i))
     aa, ab = [va[i][0] for i in idx], [vb[i][0] for i in idx]
     ba, bb = [1.0 if x >= 0.5 else 0.0 for x in aa], [1.0 if x >= 0.5 else 0.0 for x in ab]
+    pa, pb = (sum(ba) / len(ba), sum(bb) / len(bb)) if idx else (None, None)
     return {"n": len(idx), "r_acc": _pearson(aa, ab), "r_len": _pearson([va[i][1] for i in idx], [vb[i][1] for i in idx]),
-            "phi": _pearson(ba, bb), "agree": round(sum(1 for x, y in zip(ba, bb) if x == y) / len(idx), 4) if idx else None}
+            "phi": _pearson(ba, bb), "agree": round(sum(1 for x, y in zip(ba, bb) if x == y) / len(idx), 4) if idx else None,
+            # [v2.5.9z17] (the reviewer 10-22) the agreement two independent models with these solved shares would reach by chance
+            "chance": round(pa * pb + (1 - pa) * (1 - pb), 4) if idx else None}
 
 
 def fp_auto(runs):
@@ -392,8 +395,8 @@ def main(runs, qfile, out):
         show = lambda rows: "; ".join(f"{r['pid']} a {cnt(r['a'])} b {cnt(r['b'])}" + "".join(f" {n} {cnt(r.get(n))}" for n in v["extras"]) for r in rows) or "none"
         lines.append(f"{k} | {v['problems']} | {v['a_solved']} / {v['b_solved']} / {v['both']} / {v['neither']} | {show(v['b_only'])} | {show(v['a_only'])}")
     for k, v in summary["fingerprint"].items():   # [v2.5.9z14]
-        lines.append(f"fingerprint {k} ({len(v['models'])} models): a vs b | all r_acc / phi / agree / r_len | 1-100 | 101-500")
-        f = lambda c: f"{c['r_acc']} / {c['phi']} / {c['agree']} / {c['r_len']}"
+        lines.append(f"fingerprint {k} ({len(v['models'])} models): a vs b | all r_acc / phi / agree (chance) / r_len | 1-100 | 101-500")
+        f = lambda c: f"{c['r_acc']} / {c['phi']} / {c['agree']} ({c.get('chance')}) / {c['r_len']}"
         lines += [f"{r['a']} vs {r['b']} | {f(r['all'])} | {f(r['1-100'])} | {f(r['101-500'])}" for r in v["pairs"]]
     for k, v in summary["lensel"].items():   # [v2.5.9z13]
         lines.append(f"lensel {k}: kept EOS below 90% from step " + ", ".join(f"{t} {x['kept_eos_below_90_from']}" for t, x in v.items()))

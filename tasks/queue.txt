@@ -1946,3 +1946,8 @@ olpd     open   EVAL-ext32k-17olpd
 #eval EVAL-gm-06P5 gm_06P5_gpqa_T0.6_16k result:runs/E10c-P5-fix4/global_step_150/actor/huggingface gpqa 4 0.6 16384 no_think
 #eval EVAL-gm-06P5rl gm_06P5rl_mmlupro1k_T0_4k result:runs/E12c-P5/global_step_100/actor/huggingface mmlupro1k 1 0 4096 no_think
 #eval EVAL-gm-06P5rl gm_06P5rl_gpqa_T0.6_16k result:runs/E12c-P5/global_step_100/actor/huggingface gpqa 4 0.6 16384 no_think
+# [v2.5.9z17] (the reviewer's Q-040 H3, via ops-lead 10-22) tail-swap s50 against P5 s150 on MATH-500 32K, problem-level paired bootstrap;
+# READINGS-EXTRA reruns by itself once EVAL-tail and then EVAL-len-cmp are done (#after rows, 9z12)
+#pairq READINGS-EXTRA tail32k_vs_P5s150_32k EVAL-tail/budAtail_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#after EVAL-tail rerun READINGS-EXTRA
+#after EVAL-len-cmp rerun READINGS-EXTRA
