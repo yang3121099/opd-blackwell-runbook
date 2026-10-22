@@ -9,7 +9,7 @@
 #     ([v2.5.9z1] '<think>\n' and the empty think block '<think>\n\n</think>\n\n'): either mean >= 0.5; check_b.json names the
 #     suffix the arm uses (think if it passes, else empty = E15-VLM-P5e);
 #  c. a 1-step OPD smoke of E15-VLM-P5 (run_vlm.sh SMOKE=1): exit 0, no out of memory, step 1 logged with a finite actor loss.
-# report.json: each part's numbers; to logs/<node>/probe_vlm/ (private), an event, .done. PASS = all four. Usage: bash probe_vlm.sh <gpu>
+# report.json: each part's numbers; to logs/<node>/probe_vlm/ (private), an event, .done. PASS = all four ([v2.5.9z31] and g, the NVRTC check on the GPU, before them). Usage: bash probe_vlm.sh <gpu>
 # [v2.5.9z28] (the reviewer's ruling 10-22 04:4x UTC; a recorded deviation of Q-051's pre-registration): the teacher is Qwen3-VL-4B-Thinking (was 8B-Thinking).
 # The 8B's vision tower has head_dim 1152 / 16 = 72, which this flash-attn build refuses ("does not support headdim not being a
 # multiple of 32": the first PROBE-VLM, 03:28 UTC, at b's teacher step); the 4B's (like the 2B student's) is 1024 / 16 = 64.
@@ -25,7 +25,7 @@ finish() {   # $1 = PASS / FAIL, $2 = reason
 import json, os, sys
 d, res, why = sys.argv[1:4]
 r = {"result": res, "reason": why}
-for k in ("same", "check_b", "smoke"):
+for k in ("gpu_check", "same", "check_b", "smoke"):   # [v2.5.9z31] gpu_check
     p = os.path.join(d, k + ".json")
     if os.path.exists(p):
         r[k] = json.load(open(p))
@@ -39,6 +39,37 @@ PY
 [ -x "$PY" ] || { [[ $PY != */* ]] && command -v "$PY" > /dev/null; } || finish FAIL "no venv-vl (BUILD-VENV-VL first)"
 for m in $S $TE; do [ -f $m/.fetch_ok ] || { echo "WAIT_INPUTS $T: $(basename $m) not in (no .fetch_ok)"; exit 1; }; done   # [v2.5.9z3] waiting, no attempt
 [ -f $DATA ] || [ -f $OPD_ROOT/data/hf/hiyouga__geometry3k/.fetch_ok ] || { echo "WAIT_INPUTS $T: Geometry3K not in (no .fetch_ok)"; exit 1; }
+# g. [v2.5.9z31] (ops-lead 10-22) NVRTC on this GPU first: the first PROBE-VLM with the 4B teacher failed in c (06:09 UTC) where torch
+# compiles a reduction with NVRTC (transformers' Qwen3-VL rot_pos_emb: torch.prod) and CUDA 12.8's NVRTC refused sm_103. An int64
+# torch.prod and a jiterator element-wise op (torch.special.bessel_j0) on the GPU; gpu_check.json names the libnvrtc the process
+# loaded (relative to $OPD_ROOT) and its version. A failure is a FAIL with its text at once, before anything else runs.
+CUDA_VISIBLE_DEVICES=$G $PY - "$D/gpu_check.json" "$(readlink -f "$OPD_ROOT")" >> $LOG 2>&1 <<'PY'
+import ctypes, json, os, sys
+out, root = sys.argv[1], sys.argv[2]
+r = {"pass": False}
+try:
+    import torch
+    x = torch.tensor([[2, 3, 4], [1, 5, 6]], device="cuda", dtype=torch.int64)
+    r["prod"] = torch.prod(x, dim=1).tolist()
+    y = torch.special.bessel_j0(torch.linspace(0.0, 1.0, 8, device="cuda"))
+    r["jiterator_finite"] = bool(torch.isfinite(y).all())
+    try:
+        maps = open("/proc/self/maps").read().splitlines()
+    except OSError:
+        maps = []
+    lib = next((l.split()[-1] for l in maps if "libnvrtc.so" in l and "builtins" not in l), None)
+    r["libnvrtc"] = None if lib is None else ("$OPD_ROOT/" + os.path.relpath(lib, root) if lib.startswith(root + "/") else os.path.basename(lib))
+    if lib:
+        a, b = ctypes.c_int(), ctypes.c_int()
+        ctypes.CDLL(lib).nvrtcVersion(ctypes.byref(a), ctypes.byref(b)); r["nvrtc_version"] = f"{a.value}.{b.value}"
+    r["capability"] = ".".join(map(str, torch.cuda.get_device_capability(0)))
+    r["pass"] = r["prod"] == [24, 30] and r["jiterator_finite"]
+except Exception as e:
+    r["error"] = f"{type(e).__name__}: {str(e).strip().splitlines()[-1][:300] if str(e).strip() else ''}"
+json.dump(r, open(out, "w"), indent=1); print("GPU_CHECK", json.dumps(r))
+PY
+python3 -c "import json, sys; sys.exit(0 if json.load(open(sys.argv[1]))['pass'] else 1)" $D/gpu_check.json 2> /dev/null || finish FAIL "g: NVRTC on the GPU: $(python3 -c "import json, sys; r = json.load(open(sys.argv[1])); print(r.get('error') or r)" $D/gpu_check.json 2>&1 | tail -1)"
+step "g ok: $(python3 -c "import json, sys; r = json.load(open(sys.argv[1])); print('torch.prod', r['prod'], '| jiterator ok | NVRTC', r.get('nvrtc_version'), r.get('libnvrtc'), '| sm', r.get('capability'))" $D/gpu_check.json)"
 # 0. unit tests
 RU=$($PY -c "import importlib.util as u; print(u.find_spec('verl.trainer.ppo.ref_input_utils').origin)" 2> /dev/null)
 [ -n "$RU" ] && [ -f "$RU" ] || finish FAIL "verl's ref_input_utils.py not found by venv-vl"

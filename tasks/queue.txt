@@ -101,6 +101,7 @@ b259xp   open   PROBE-DIFF17 PROBE-ROUTE:PROBE-DIFF17
 b259x    open   E10b-P5route:PROBE-ROUTE E10b-P5mix:PROBE-ROUTE EVAL-e10b-P5route:E10b-P5route EVAL-e10b-P5mix:E10b-P5mix+EVAL-e10b-P5route EVAL-budA-P5route:E10b-P5route EVAL-budA-P5mix:E10b-P5mix
 b259zp   open   PROBE-VLM:PROBE-VLLM-VL EVAL-e15-base:BUILD-VENV-VL
 b259z    open   E15-VLM-P5:PROBE-VLM EVAL-e15-vlm:E15-VLM-P5+EVAL-e15-base
+b259z31  open   VENV-VL-NVRTC
 b259z9r  open   EVAL-ext32k-32Bthink-aime EVAL-32Bthink-math500
 b259z9p  open   PROBE-T32
 b259z9   open   E10d-P5-t32:PROBE-T32 EVAL-e10d-P5t32:E10d-P5-t32 EVAL-budA-e10dP5t32:E10d-P5-t32 EVAL-ext32k-4Bt32:E10d-P5-t32+EVAL-ext32k-32Bthink-aime
@@ -1822,6 +1823,11 @@ b259z24  open   TOKCHECK-X5
 # head_dim 72 (1152 / 16); the 4B's is 64, like the student's. PROBE-VLLM-VL now checks the student and the 4B teacher;
 # `rerun PROBE-VLLM-VL` then `rerun PROBE-VLM` (it waits for the first; a2 re-checks the 4B's processor / tokenizer /
 # template). The 8B stays option B (its vision tower on SDPA), decided after the 4B results.
+# [v2.5.9z31] (ops-lead's A1 10-22 06:3x UTC) PROBE-VLM with the 4B teacher passed a2 and b but failed c (06:09 UTC): in the
+# student's forward, transformers' Qwen3-VL rot_pos_emb calls torch.prod on the GPU, torch compiles it with NVRTC, and CUDA
+# 12.8's NVRTC (torch 2.8.0+cu128) refuses sm_103. VENV-VL-NVRTC (stage b259z31, the CPU lane) puts CUDA 12.9's NVRTC into
+# venv-vl; PROBE-VLM now checks NVRTC on its GPU first (g); its rerun follows the install:
+#after VENV-VL-NVRTC rerun PROBE-VLM
 #eval EVAL-e15-base e15_base2B_geo3k_T0.6 local:models/Qwen3-VL-2B-Instruct geo3k 4 0.6
 #eval EVAL-e15-base e15_base2B_mathvista_T0.6 local:models/Qwen3-VL-2B-Instruct mathvista 4 0.6
 #eval EVAL-e15-vlm e15_P5_s25_geo3k_T0.6 result:runs/E15-VLM-P5/global_step_25/actor/huggingface geo3k 4 0.6

@@ -37,7 +37,43 @@ echo "[opd_vlmref] ref inputs from the student's ids + 2 suffix tokens: (128, 61
 echo "(TaskRunner pid=1) step:1 - actor/pg_loss:${FAKE_LOSS:-0.0213} - actor/kl_loss:0.0 - response_length/mean:812.4 - timing_s/step:420" >> $d/train.log; exit 0
 SH
   printf '#!/usr/bin/env bash\necho ${FAKE_MEM:-0}\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi
-  export CALLS=$T/calls PATH=$T/bin:$PATH PVL_WAIT_STEP=0 PVL_PY=python3 PVL_REQUIRE_TORCH=0 PYTHONPATH=$T/py; : > $CALLS
+  # [v2.5.9z31] g: a fake torch for the NVRTC check only (the unit tests keep their no-torch path); FAKE_NVRTC_FAIL raises as on 06:09 UTC
+  mkdir -p $T/faketorch/torch
+  cat > $T/faketorch/torch/__init__.py <<'PY'
+import os
+int64 = "int64"
+class _L(list):
+    def tolist(self):
+        return list(self)
+    def all(self):
+        return all(self)
+def tensor(x, device=None, dtype=None):
+    return x
+def prod(x, dim=1):
+    if os.environ.get("FAKE_NVRTC_FAIL") == "1":
+        raise RuntimeError("\n__global__ void reduction_prod_kernel(ReduceJitOp r){\nnvrtc: error: invalid value for --gpu-architecture (-arch)")
+    out = []
+    for row in x:
+        p = 1
+        for v in row:
+            p *= v
+        out.append(p)
+    return _L(out)
+def linspace(a, b, n, device=None):
+    return [a + (b - a) * i / (n - 1) for i in range(n)]
+def isfinite(y):
+    return _L(True for _ in y)
+class special:
+    @staticmethod
+    def bessel_j0(y):
+        return y
+class cuda:
+    @staticmethod
+    def get_device_capability(i):
+        return (10, 3)
+PY
+  printf '#!/usr/bin/env bash\necho "vlpy $* CUDA=$CUDA_VISIBLE_DEVICES" | head -c 200 >> $CALLS; echo >> $CALLS\nif [ "$1" = - ] && [ "${2##*/}" = gpu_check.json ]; then PYTHONPATH=%s/faketorch:$PYTHONPATH exec python3 "$@"; fi\nexec python3 "$@"\n' $T > $T/bin/vlpy; chmod +x $T/bin/vlpy
+  export CALLS=$T/calls PATH=$T/bin:$PATH PVL_WAIT_STEP=0 PVL_PY=$T/bin/vlpy PVL_REQUIRE_TORCH=0 PYTHONPATH=$T/py; : > $CALLS
 }
 res() { python3 -c "import json, sys; print(json.load(open(sys.argv[1])).get(sys.argv[2], ''))" $T/root/runs/PROBE-VLM/report.json "$1"; }
 setup; bash $T/rb/scripts/probe_vlm.sh 3 > /dev/null 2>&1
@@ -53,4 +89,11 @@ setup; FAKE_OOM=1 bash $T/rb/scripts/probe_vlm.sh 3 > /dev/null 2>&1; check "c: 
 setup; PVL_PY=$T/root/venv-vl/bin/python bash $T/rb/scripts/probe_vlm.sh 3 > /dev/null 2>&1; check "no venv-vl is FAIL" "no venv-vl"; rm -rf $T
 setup; rm $T/root/models/Qwen3-VL-4B-Thinking/.fetch_ok; bash $T/rb/scripts/probe_vlm.sh 3 > $T/o 2>&1; ok "[v2.5.9z3] the teacher not in: WAIT_INPUTS, no .done" 'grep -q "^WAIT_INPUTS PROBE-VLM: Qwen3-VL-4B-Thinking not in" $T/o && [ ! -f $T/root/runs/PROBE-VLM/.done ]'; rm -rf $T
 unset PYTHONPATH
+# [v2.5.9z31] g: the NVRTC check on the GPU first; its failure is a FAIL with its text before the unit tests, a2, b or the smoke
+setup; bash $T/rb/scripts/probe_vlm.sh 3 > /dev/null 2>&1
+ok "[v2.5.9z31] g runs first on GPU 3 (before the unit tests), gpu_check in the report (prod [24, 30], sm 10.3)" '[ "$(res result)" = PASS ] && grep -n "" $CALLS | grep "vlpy - .*gpu_check.json" | head -1 | grep -q "CUDA=3" && python3 -c "import json, sys; r = json.load(open(sys.argv[1]))[\"gpu_check\"]; assert r[\"prod\"] == [24, 30] and r[\"capability\"] == \"10.3\" and r[\"pass\"], r" $T/root/runs/PROBE-VLM/report.json && [ "$(grep -n "gpu_check.json" $CALLS | head -1 | cut -d: -f1)" -lt "$(grep -n "check same" $CALLS | head -1 | cut -d: -f1)" ]'
+rm -rf $T
+setup; FAKE_NVRTC_FAIL=1 bash $T/rb/scripts/probe_vlm.sh 3 > /dev/null 2>&1
+check "[v2.5.9z31] NVRTC refusing sm_103 is FAIL at g with its text" "g: NVRTC on the GPU: RuntimeError: nvrtc: error: invalid value for --gpu-architecture (-arch)"
+ok "[v2.5.9z31] nothing after g: no a2 / b check, no smoke" '! grep -q "^check " $CALLS && ! grep -q "^run_vlm" $CALLS'; rm -rf $T
 [ $fails = 0 ] && echo "PROBE_VLM_TEST PASS ($n checks)" || echo "PROBE_VLM_TEST FAIL ($fails of $n)"
