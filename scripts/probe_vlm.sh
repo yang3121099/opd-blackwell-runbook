@@ -10,12 +10,15 @@
 #     suffix the arm uses (think if it passes, else empty = E15-VLM-P5e);
 #  c. a 1-step OPD smoke of E15-VLM-P5 (run_vlm.sh SMOKE=1): exit 0, no out of memory, step 1 logged with a finite actor loss.
 # report.json: each part's numbers; to logs/<node>/probe_vlm/ (private), an event, .done. PASS = all four. Usage: bash probe_vlm.sh <gpu>
+# [v2.5.9z28] (the reviewer's ruling 10-22 04:4x UTC; a recorded deviation of Q-051's pre-registration): the teacher is Qwen3-VL-4B-Thinking (was 8B-Thinking).
+# The 8B's vision tower has head_dim 1152 / 16 = 72, which this flash-attn build refuses ("does not support headdim not being a
+# multiple of 32": the first PROBE-VLM, 03:28 UTC, at b's teacher step); the 4B's (like the 2B student's) is 1024 / 16 = 64.
 set -uo pipefail
 G=$1; source "$(dirname "$0")/env.sh"
 T=PROBE-VLM; D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; mkdir -p $D
 [ -f $D/.done ] && { echo "TASK_ALREADY_DONE $T"; exit 0; }
 step() { echo "PROBE_VLM $(date -u +%T) $*" | tee -a $LOG; }
-PY=${PVL_PY:-$OPD_ROOT/venv-vl/bin/python}; S=${VL_STUDENT:-$OPD_ROOT/models/Qwen3-VL-2B-Instruct}; TE=${VL_TEACHER:-$OPD_ROOT/models/Qwen3-VL-8B-Thinking}
+PY=${PVL_PY:-$OPD_ROOT/venv-vl/bin/python}; S=${VL_STUDENT:-$OPD_ROOT/models/Qwen3-VL-2B-Instruct}; TE=${VL_TEACHER:-$OPD_ROOT/models/Qwen3-VL-4B-Thinking}   # [v2.5.9z28] was 8B-Thinking
 CHK="$RUNBOOK/code/analysis/vlm_teacher_check.py"; DATA=$OPD_ROOT/data/geo3k_train.parquet
 finish() {   # $1 = PASS / FAIL, $2 = reason
   python3 - "$D" "$1" "$2" <<'PY'

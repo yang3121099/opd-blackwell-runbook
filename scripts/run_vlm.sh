@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # E15-VLM-P5 (runbook v2.5.9z; Q-051, the reviewer's pre-registration research_program §3c): P5's OPD recipe for a vision-language
 # pair on ONE GPU, from venv-vl (vLLM 0.11.0, transformers 4.57): student Qwen3-VL-2B-Instruct (its own template, no think block),
-# teacher Qwen3-VL-8B-Thinking scoring on its thinking template. The teacher reads the student's own image-expanded prompt ids +
+# teacher Qwen3-VL-4B-Thinking ([v2.5.9z28]: was 8B-Thinking, whose vision head_dim 72 this flash-attn build refuses; a recorded
+# deviation of Q-051) scoring on its thinking template. The teacher reads the student's own image-expanded prompt ids +
 # '<think>\n' + the response (code/patches/opd_vlmref.py through vlmref_patch.py, OPD_VLM_REF=1): G-OPD's text re-tokenization would
 # drop the image. Data: Geometry3K train (data/geo3k_train.parquet, made by code/train/prep_geo3k.py from the node's copy when
 # missing), validation on its validation split every 25 steps; 128 prompts x 1 rollout a step, 4096-token responses, prompts up to
@@ -17,7 +18,7 @@ fi
 NAME=$TASK; [ "${SMOKE:-0}" = 1 ] && NAME=${PROBE_TASK:-smoke-$TASK}
 OUT=$OPD_ROOT/runs/$NAME; mkdir -p $OUT
 [ -f $OUT/.done ] && { echo "TASK_ALREADY_DONE $NAME"; exit 0; }
-STUDENT=${VL_STUDENT:-$OPD_ROOT/models/Qwen3-VL-2B-Instruct}; TEACHER=${VL_TEACHER:-$OPD_ROOT/models/Qwen3-VL-8B-Thinking}
+STUDENT=${VL_STUDENT:-$OPD_ROOT/models/Qwen3-VL-2B-Instruct}; TEACHER=${VL_TEACHER:-$OPD_ROOT/models/Qwen3-VL-4B-Thinking}   # [v2.5.9z28]
 V=${VENV_VL:-$OPD_ROOT/venv-vl}; TRAIN=$OPD_ROOT/data/geo3k_train.parquet; VAL=$OPD_ROOT/data/geo3k_validation.parquet
 NSTEPS=${VLM_STEPS:-50}; TBS=${VLM_TBS:-128}; MAXP=2048; MAXR=4096; SAVE=25; UW=25,$NSTEPS; VALB=True; TESTF=25
 [ "${SMOKE:-0}" = 1 ] && { NSTEPS=${SMOKE_STEPS:-1}; SAVE=-1; VALB=False; TESTF=-1; }
@@ -37,7 +38,7 @@ if python -c "import flash_attn" 2>/dev/null; then RMPAD=True; ATTN=flash_attent
 [ -f $OUT/config.yaml ] && echo "resumed: $(date -u +%FT%TZ)" >> $OUT/config.yaml || cat > $OUT/config.yaml <<CFG
 task: $TASK
 student: $STUDENT (Qwen3-VL-2B-Instruct, its own template)
-teacher: $TEACHER (ref; Qwen3-VL-8B-Thinking on its thinking template: the student's image-expanded prompt ids + the prefix '<think>\n' + the response, opd_vlmref.py)
+teacher: $TEACHER (ref; Qwen3-VL-4B-Thinking ([v2.5.9z28], was 8B) on its thinking template: the student's image-expanded prompt ids + the prefix '<think>\n' + the response, opd_vlmref.py)
 variant: $VARIANT (teacher suffix $(printf %q "$OPD_VLM_REF_SUFFIX"), from PROBE-VLM's check)
 algo: OPD (reverse-KL advantages, P5's recipe), ${TBS}x1, prompts <= $MAXP tokens, responses $MAXR, lr 3e-6, $NSTEPS steps
 data: Geometry3K train ($(basename $TRAIN)), validation $(basename $VAL)

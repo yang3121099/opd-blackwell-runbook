@@ -6,7 +6,7 @@ SRC=$(cd "$(dirname "$0")/.." && pwd); fails=0; n=0
 ok() { n=$((n + 1)); if eval "$2"; then :; else echo "  FAIL [$1]"; fails=$((fails + 1)); fi; }
 setup() {
   T=$(mktemp -d); mkdir -p $T/rb/scripts $T/rb/code/patches $T/rb/code/analysis $T/rb/code/train $T/root/runs $T/root/data $T/bin $T/py/verl/trainer/ppo
-  mkdir -p $T/root/models/Qwen3-VL-2B-Instruct $T/root/models/Qwen3-VL-8B-Thinking; : > $T/root/models/Qwen3-VL-2B-Instruct/.fetch_ok; : > $T/root/models/Qwen3-VL-8B-Thinking/.fetch_ok
+  mkdir -p $T/root/models/Qwen3-VL-2B-Instruct $T/root/models/Qwen3-VL-4B-Thinking; : > $T/root/models/Qwen3-VL-2B-Instruct/.fetch_ok; : > $T/root/models/Qwen3-VL-4B-Thinking/.fetch_ok
   : > $T/root/data/geo3k_train.parquet
   cp $SRC/scripts/probe_vlm.sh $T/rb/scripts/
   cp $SRC/code/patches/opd_vlmref.py $SRC/code/patches/vlmref_patch.py $SRC/code/patches/route_patch.py $SRC/code/patches/test_opd_vlmref.py $T/rb/code/patches/
@@ -51,6 +51,6 @@ setup; FAKE_PS=0.3 FAKE_PE=0.62 bash $T/rb/scripts/probe_vlm.sh 3 > /dev/null 2>
 setup; FAKE_LOSS=nan bash $T/rb/scripts/probe_vlm.sh 3 > /dev/null 2>&1; check "c: a NaN loss is FAIL" "no finite actor loss"; rm -rf $T
 setup; FAKE_OOM=1 bash $T/rb/scripts/probe_vlm.sh 3 > /dev/null 2>&1; check "c: out of memory is FAIL" "out of memory"; rm -rf $T
 setup; PVL_PY=$T/root/venv-vl/bin/python bash $T/rb/scripts/probe_vlm.sh 3 > /dev/null 2>&1; check "no venv-vl is FAIL" "no venv-vl"; rm -rf $T
-setup; rm $T/root/models/Qwen3-VL-8B-Thinking/.fetch_ok; bash $T/rb/scripts/probe_vlm.sh 3 > $T/o 2>&1; ok "[v2.5.9z3] the teacher not in: WAIT_INPUTS, no .done" 'grep -q "^WAIT_INPUTS PROBE-VLM: Qwen3-VL-8B-Thinking not in" $T/o && [ ! -f $T/root/runs/PROBE-VLM/.done ]'; rm -rf $T
+setup; rm $T/root/models/Qwen3-VL-4B-Thinking/.fetch_ok; bash $T/rb/scripts/probe_vlm.sh 3 > $T/o 2>&1; ok "[v2.5.9z3] the teacher not in: WAIT_INPUTS, no .done" 'grep -q "^WAIT_INPUTS PROBE-VLM: Qwen3-VL-4B-Thinking not in" $T/o && [ ! -f $T/root/runs/PROBE-VLM/.done ]'; rm -rf $T
 unset PYTHONPATH
 [ $fails = 0 ] && echo "PROBE_VLM_TEST PASS ($n checks)" || echo "PROBE_VLM_TEST FAIL ($fails of $n)"

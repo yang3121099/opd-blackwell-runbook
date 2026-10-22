@@ -1808,6 +1808,11 @@ b259z24  open   TOKCHECK-X5
 # b259zp / b259z (runbook v2.5.9z, Q-051, the reviewer's pre-registration research_program §3c; after b259x): PROBE-VLM (after PROBE-VLLM-VL),
 # then E15-VLM-P5 (Qwen3-VL-2B-Instruct taught by Qwen3-VL-8B-Thinking, Geometry3K, 50 steps). Readings: the base and s25 / s50 on
 # Geometry3K test (601) and MathVista testmini (1000), avg@4 T0.6 16K (gen_eval_vl.py, venv-vl), s50 paired against the base.
+# [v2.5.9z28] (the reviewer's ruling 10-22 04:4x UTC; a recorded deviation of Q-051, hypotheses H1-H3 unchanged): the teacher
+# is Qwen3-VL-4B-Thinking. PROBE-VLM failed 03:28 UTC at b's teacher step: this flash-attn build refuses the 8B's vision
+# head_dim 72 (1152 / 16); the 4B's is 64, like the student's. PROBE-VLLM-VL now checks the student and the 4B teacher;
+# `rerun PROBE-VLLM-VL` then `rerun PROBE-VLM` (it waits for the first; a2 re-checks the 4B's processor / tokenizer /
+# template). The 8B stays option B (its vision tower on SDPA), decided after the 4B results.
 #eval EVAL-e15-base e15_base2B_geo3k_T0.6 local:models/Qwen3-VL-2B-Instruct geo3k 4 0.6
 #eval EVAL-e15-base e15_base2B_mathvista_T0.6 local:models/Qwen3-VL-2B-Instruct mathvista 4 0.6
 #eval EVAL-e15-vlm e15_P5_s25_geo3k_T0.6 result:runs/E15-VLM-P5/global_step_25/actor/huggingface geo3k 4 0.6
