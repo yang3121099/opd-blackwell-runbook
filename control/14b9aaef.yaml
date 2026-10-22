@@ -492,3 +492,4 @@ commands:
   - {"seq": 490, "cmd": "du opd_root runs/EVAL-e12d-P5", "reason": "z60 (Q-066) inputs: the paired readings exist on the node (ops-lead's A1 condition)", "utc": "2026-10-22T16:03:25Z"}
   - {"seq": 491, "cmd": "du opd_root runs/EVAL-budA-4B", "reason": "z60 (Q-066) inputs: the paired readings exist on the node (ops-lead's A1 condition)", "utc": "2026-10-22T16:03:32Z"}
   - {"seq": 492, "cmd": "du opd_root runs/EVAL-budA-e12dP5rl-b", "reason": "z60 (Q-066) inputs: the paired readings exist on the node (ops-lead's A1 condition)", "utc": "2026-10-22T16:03:39Z"}
+  - {"seq": 493, "cmd": "du opd_root runs/EVAL-ext32k-4B", "reason": "z60 (Q-066) inputs: the paired readings exist on the node (ops-lead's A1 condition)", "utc": "2026-10-22T16:03:46Z"}
