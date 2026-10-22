@@ -473,3 +473,4 @@ commands:
   - {"seq": 471, "cmd": "kill-pgid 1619049", "reason": "ops-lead A1 05:1x UTC: stop the X5 base wrapper (bash + fetch_model.py parent) pull (192 connections stalled the proxy); DeepSeek keeps 64; resumes one at a time (PREFETCH_PAR=1)", "utc": "2026-10-22T05:10:43Z"}
   - {"seq": 472, "cmd": "signal 1619033 TERM", "reason": "ops-lead A1 05:1x UTC: stop the X5 Instruct pull (its fetch_model.py parent; its TERM handler kills the child group); kill-pgid refused (not a task session)", "utc": "2026-10-22T05:14:16Z"}
   - {"seq": 473, "cmd": "signal 1619053 TERM", "reason": "ops-lead A1 05:1x UTC: stop the X5 base pull (its fetch_model.py parent; its TERM handler kills the child group); DeepSeek keeps 64 connections", "utc": "2026-10-22T05:14:25Z"}
+  - {"seq": 474, "cmd": "snapshot logs/fetch_Idavidrein__gpqa.log", "reason": "executor: GPQA fetch_done 05:20 UTC, token_files for ops-lead", "utc": "2026-10-22T05:27:58Z"}
