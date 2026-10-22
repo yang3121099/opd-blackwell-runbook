@@ -1800,6 +1800,24 @@ b259z24  open   TOKCHECK-X5
 #split READINGS-EXTRA 06_P5fix4_s150 EVAL-e10c-P5-fix4/e10c_P5-fix4_s150_math500_T0.6_math500_no_think_t0.6.jsonl
 #split READINGS-EXTRA 06_P5RL_s100 EVAL-e12c-P5/e12c_P5_s100_math500_T0.6_math500_no_think_t0.6.jsonl
 #split READINGS-EXTRA 06_P0RL_s100 EVAL-e12c-P0/e12c_P0_s100_math500_T0.6_math500_no_think_t0.6.jsonl
+# [v2.5.9z35] (Fable via ops-lead 10-22 07:2x UTC; Runming: the easy / hard split must not show P5 alone) the full table: MATH-500
+# T0.6 16K readings of the other headline checkpoints (32K where no 16K reading exists, the label says so; 4B P5->RL+KL has no run)
+#split READINGS-EXTRA 17_think_32k EVAL-budB/budB_P0think_math500_T0.6_32k_math500_think_t0.6.jsonl
+#split READINGS-EXTRA 17_P2s150 E11b-P2/e11b_P2_math500_T0.6_math500_no_think_t0.6.jsonl
+#split READINGS-EXTRA 17_P5-8k_s50 EVAL-e12b-P5-8k/e12b_P5-8k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#split READINGS-EXTRA 17_P5-16k_s50 EVAL-e12b-P5-16k/e12b_P5-16k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#split READINGS-EXTRA 17_P5tail_s50 EVAL-tail/e10b_P5tail_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#split READINGS-EXTRA 17_P5smerge_s50 EVAL-smerge/e10b_P5smerge_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#split READINGS-EXTRA 4B_think EVAL-budF-4B/budF4B_P0think_math500_T0.6_16k_math500_think_t0.6.jsonl
+#split READINGS-EXTRA 4B_P2s150 EVAL-e10d-P2/e10d_P2_s150_math500_T0.6_math500_no_think_t0.6.jsonl
+#split READINGS-EXTRA 4B_P5self_s50 EVAL-e10d-P5self/e10d_P5self_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#split READINGS-EXTRA 4B_X1_s50 EVAL-e10d-x1/e10d_X1_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#split READINGS-EXTRA 4B_X2_s50 EVAL-e10d-x2/e10d_X2_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#split READINGS-EXTRA 4B_i2507_32k EVAL-i2507/i2507_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#split READINGS-EXTRA 4B_t2507_think_32k EVAL-t2507/t2507_math500_T0.6_32k_math500_think_t0.6.jsonl
+#split READINGS-EXTRA 06_think EVAL-budF-06/budF06_P0think_math500_T0.6_16k_math500_think_t0.6.jsonl
+#split READINGS-EXTRA 06_P5self_s50 EVAL-e10c-P5self/e10c_P5self_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#split READINGS-EXTRA 06_polish_s20 EVAL-polish/e10c_P5polish_s20_math500_T0.6_math500_no_think_t0.6.jsonl
 #frontier READINGS-EXTRA 06_base_think EVAL-budA06think/budget_curve.json budA06_P0think_math500_T0.6_32k_math500_think_t0.6
 #frontier READINGS-EXTRA 4B_base_think EVAL-budA-4Bthink/budget_curve.json budA4B_P0think_math500_T0.6_32k_math500_think_t0.6
 #frontier READINGS-EXTRA 4B_i2507 EVAL-i2507/budget_curve.json i2507_math500_T0.6_32k_math500_no_think_t0.6
