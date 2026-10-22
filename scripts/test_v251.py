@@ -1127,3 +1127,49 @@ def test_take_gpus_holds_with_soon_1440_without_eta_v2512a(tmp_path, soon, eta, 
               'FREE=(4); take_gpus A > /dev/null; echo "${#FREE[@]}"')
     out = sp.run(["bash", "-c", script], capture_output=True, text=True)
     assert out.stdout.strip() == ("0" if held else "1"), (out.stdout, out.stderr)
+
+
+def test_pulse_assets_ready_pulling_and_leak_free(env):   # [v2.5.9z13] the monitor page's assets: repo ids as owner__name, no path
+    r = env.root
+    m = r / "models" / "Qwen3-32B"; m.mkdir(parents=True)
+    (m / "a.safetensors").write_bytes(b"x" * 10)
+    json.dump({"repo": "Qwen/Qwen3-32B", "kind": "model", "prefix": "", "files": [["a.safetensors", 1500000000, "0" * 64], ["b", 500000000, "1" * 64]],
+               "utc": "2026-10-21T20:27:54Z"}, open(m / ".fetch_ok", "w"))
+    h = r / "data" / "hf" / "AI4Math__MathVista"; h.mkdir(parents=True)
+    json.dump({"repo": "AI4Math/MathVista", "kind": "dataset", "files": [["x.parquet", 1754088814, "2" * 64]], "utc": "2026-10-21T20:37:13Z"}, open(h / ".fetch_ok", "w"))
+    g = r / "data" / "git" / "xirui-li__ClawEnvKit"; g.mkdir(parents=True); (g / "f.py").write_bytes(b"y" * 2221858)
+    (g / ".fetch_ok").write_text("e7003442030e15c5e85f4c5f28a5e54774c6a21a\n")
+    p = r / "data" / "hf" / "MathLLMs__MathVision"; p.mkdir(parents=True); (p / "test.parquet.incomplete").write_bytes(b"z")
+    e = r / "models" / "Qwen3-14B"; e.mkdir(); (e / ".fetch_ok").write_text("")              # an old empty marker: a ready model, size by walk
+    (r / "data" / "hf" / "bad name").mkdir()                                                  # not a repo-shaped name: left out
+    a = env.c.assets_view()
+    assert a["Qwen__Qwen3-32B"] == {"state": "已就位", "at": "2026-10-21T20:27:54Z 2.00 GB"}
+    assert a["AI4Math__MathVista"] == {"state": "已就位", "at": "2026-10-21T20:37:13Z 1.75 GB"}
+    assert a["xirui-li__ClawEnvKit"]["state"] == "已就位" and a["xirui-li__ClawEnvKit"]["at"].endswith(" 0.00 GB")
+    assert a["MathLLMs__MathVision"] == {"state": "拉取中", "at": None} and a["Qwen3-14B"]["state"] == "已就位"
+    assert all("/" not in k and "bad" not in k for k in a)
+    p0 = env.c.build_pulse({}, "")
+    assert p0["assets"] == a and env.c.leak_check(p0["assets"]) == []
+
+
+def test_pulse_survives_assets_failure_once_event(env, monkeypatch):   # [v2.5.9z13] (ops-lead's A1 condition a)
+    def boom():
+        raise OSError("listdir failed")
+    monkeypatch.setattr(env.c, "assets_view", boom)
+    p = env.c.build_pulse({}, "")
+    assert p["assets"] is None and p["assets_dropped"] is None and "gpus" in p and env.c.leak_check(p) == []
+    env.c.build_pulse({}, "")                                                 # still failing: no second event
+    ev = lambda k: [n for n in os.listdir(env.c._p("events")) if n.endswith(f"_{k}.json")] if os.path.isdir(env.c._p("events")) else []
+    assert len(ev("assets_view_failed")) == 1
+    monkeypatch.setattr(env.c, "assets_view", lambda: {"Qwen__Qwen3-32B": {"state": "已就位", "at": "2026-10-21T20:27:54Z 65.54 GB"}})
+    p = env.c.build_pulse({}, "")
+    assert p["assets"] == {"Qwen__Qwen3-32B": {"state": "已就位", "at": "2026-10-21T20:27:54Z 65.54 GB"}} and len(ev("assets_view_ok")) == 1
+
+
+def test_pulse_drops_a_leaking_asset_entry(env, monkeypatch):   # [v2.5.9z13] (ops-lead's A1 condition b)
+    tok = sorted(env.c._forbidden_tokens())[0]
+    bad = f"x-{tok}"
+    assert env.c.leak_check({bad: {}})
+    monkeypatch.setattr(env.c, "assets_view", lambda: {"AI4Math__MathVista": {"state": "已就位", "at": "t 1.75 GB"}, bad: {"state": "拉取中", "at": None}})
+    p = env.c.build_pulse({}, "")
+    assert p["assets"] == {"AI4Math__MathVista": {"state": "已就位", "at": "t 1.75 GB"}} and p["assets_dropped"] == 1 and env.c.leak_check(p) == []

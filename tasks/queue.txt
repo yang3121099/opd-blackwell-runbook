@@ -1405,6 +1405,27 @@ olpd     open   EVAL-ext32k-17olpd
 #fetch dataset:BytedTsinghua-SIA/DAPO-Math-17k
 # 10-22 01:02 Beijing (17:02 UTC): Qwen3-VL-8B-Thinking in (.fetch_ok, 17.55 GB, ~3.6 MB/s); Qwen3-32B next (ops-lead's standing A1)
 #fetch Qwen/Qwen3-32B
+# [v2.5.9z13] (the prefetch list, ops-lead for the reviewer 10-22 07:3x Beijing; Runming: long-term models / data ahead, urgent ones at
+# once day or night): P1 HMMT-Feb-2025 (Q-044 holdout: pulled, not opened), BeyondAIME, Qwen3-VL-2B-Thinking, MathVision, MathVerse, MMK12
+# (1.48 GB, under the 5 GB line), DeepScaleR-Preview; P2 Qwen3-VL-4B-Instruct / -Thinking (Qwen3VLForConditionalGeneration, as VL-2B:
+# vLLM 0.11.0 + transformers 4.57.1 in venv-vl); GPQA last (gated "auto" on HF: its first attempt tells whether the node's account has
+# accepted the terms; a 401 / 403 is reported, Runming accepts on the HF page). Not pulled: Qwen3.5-9B / 2B (Qwen3_5ForConditionalGeneration
+# is in neither vLLM 0.11.0 nor transformers 4.57.1; vLLM added it 2026-02-09, so it needs a new venv), Qwen3-30B-A3B (P3).
+# BFCL v3 / ToolACE / Auto-ClawEval(-mini) are in place from opd-lab-assets@20608a5.
+#fetch dataset:MathArena/hmmt_feb_2025
+#fetch dataset:ByteDance-Seed/BeyondAIME
+#fetch Qwen/Qwen3-VL-2B-Thinking
+#fetch dataset:MathLLMs/MathVision
+#fetch dataset:AI4Math/MathVerse
+#fetch dataset:FanqingM/MMK12
+#fetch dataset:agentica-org/DeepScaleR-Preview-Dataset
+#fetch Qwen/Qwen3-VL-4B-Instruct
+#fetch Qwen/Qwen3-VL-4B-Thinking
+# (the reviewer 10-22 08:0x Beijing, via ops-lead) MMLU-Pro and IFEval: the headline checkpoints' general-ability regression check
+# (MMLU-Pro as a fixed-seed 1K subset on the node; the evaluation rows come later from the reviewer); pulled only for now
+#fetch dataset:TIGER-Lab/MMLU-Pro
+#fetch dataset:google/IFEval
+#fetch dataset:Idavidrein/gpqa
 #git xirui-li/ClawEnvKit e7003442030e15c5e85f4c5f28a5e54774c6a21a code
 # b259fp / b259f (runbook v2.5.9f, T1, reviewer A1 10-21): E12b-P5-stop2 = E12b-P5 with the graded stop reward (reward_stop2.py:
 # acc x (1 + 0.5 clip(1 - tail/1024, 0, 1)), tail = student tokens after the first \boxed{}, a cut response tail 1024), from P5
@@ -1845,3 +1866,9 @@ olpd     open   EVAL-ext32k-17olpd
 # b259ykl (runbook v2.5.9z12a, ops-lead 10-22 07:2x Beijing): E12b-P5-16k-kl (#gpus 2) moved ahead of the formal tasks that were
 # ready behind it (EVAL-ext32k-17smerge, PROBE-TERM4-06B, PROBE-E12B-R3, EVAL-e12b-P5s44-s50, E12b-P5-stop2), so the first GPUs
 # that free after EVAL-e12b-P5-16k go to it; with one GPU free it holds it (setenv GPUS_SOON_MIN / GPUS_HOLD_MIN, run_tasks.sh's hold).
+# [v2.5.9z13] (the reviewer's Q-030 checks 10-22, via ops-lead; CPU, readings already on the node; `rerun READINGS-EXTRA`) 1. lensel/* per
+# step of the three length-selected arms (kept 4 vs all 16: EOS, truncation, mean length; the first step with the kept EOS below 90%);
+# 2. lenS's 16K reading: 20 samples (seed 20261022), the last ~500 tokens of each classed loop / long reasoning; lenR's the same as a control
+#lensel READINGS-EXTRA q030 E10b-P5lenS E10b-P5lenR E10b-P5lenL
+#tails READINGS-EXTRA q030_lenS16k EVAL-len-S/e10b_P5lenS_s50_math500_T0.6_math500_no_think_t0.6.jsonl 20 20261022 500
+#tails READINGS-EXTRA q030_lenR16k EVAL-len-R/e10b_P5lenR_s50_math500_T0.6_math500_no_think_t0.6.jsonl 20 20261022 500

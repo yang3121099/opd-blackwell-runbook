@@ -956,6 +956,79 @@ def _num(x):
     return x if isinstance(x, (int, float)) and not isinstance(x, bool) else None
 
 
+ASSET_READY, ASSET_PULLING = "已就位", "拉取中"
+
+
+def _pulse_assets():
+    """(assets, dropped) for the pulse: assets_view() with every entry checked by leak_check on its own (a failing entry is left
+    out and counted), or (None, None) when assets_view() raises - the pulse goes on; one event assets_view_failed when it starts
+    failing (state.json assets_failed), assets_view_ok when it works again."""
+    failed = bool(json.loads(_read(_p("state.json"), "{}") or "{}").get("assets_failed"))
+    try:
+        a = assets_view()
+    except Exception as e:
+        if not failed:
+            state(assets_failed=True)
+            try:
+                event("node", "assets_view_failed", type(e).__name__)
+            except Exception:
+                pass
+        return None, None
+    if failed:
+        state(assets_failed=False)
+        try:
+            event("node", "assets_view_ok")
+        except Exception:
+            pass
+    keep = {k: v for k, v in a.items() if not leak_check({k: v})}
+    return keep, len(a) - len(keep)
+
+
+def assets_view():
+    """[v2.5.9z13] (ops-lead / Runming's monitor page 10-22) the pulse's assets: {<owner>__<name>: {"state": "已就位" | "拉取中",
+    "at": "<UTC> <size>"}} for models/, data/hf/ and data/git/. Ready = a .fetch_ok: a model's or dataset's records its repo, time and
+    files (the size is their sum); a git copy's holds the commit (its time is the file's, its size the copy's, cached by that mtime in
+    assets_cache.json). Pulling = no .fetch_ok, and partial files (.incomplete / .part) in it or a fetch process naming it. Names are
+    repo ids with "/" as "__" (the pulse's leak check refuses "/"), never a path."""
+    cache = json.loads(_read(_p("assets_cache.json"), "{}") or "{}"); out = {}
+    try:
+        procs = subprocess.run(["pgrep", "-af", "fetch_model[.]py|git_fetch[.]sh"], capture_output=True, text=True, timeout=10).stdout
+    except Exception:
+        procs = ""
+    fmt = lambda t, b: f"{t} {b / 1e9:.2f} GB" if b is not None else t
+    for sub in ("models", os.path.join("data", "hf"), os.path.join("data", "git")):
+        base = os.path.join(ROOT, sub)
+        for n in sorted(os.listdir(base)) if os.path.isdir(base) else []:
+            d = os.path.join(base, n)
+            if not os.path.isdir(d) or not re.fullmatch(r"[A-Za-z0-9._-]+", n):
+                continue
+            ok = os.path.join(d, ".fetch_ok")
+            if os.path.isfile(ok):
+                try:
+                    j = json.load(open(ok))
+                except ValueError:
+                    j = None
+                if isinstance(j, dict):
+                    name = str(j.get("repo") or n).replace("/", "__")
+                    size = sum(int(f[1]) for f in j.get("files") or [] if isinstance(f, (list, tuple)) and len(f) > 1 and str(f[1]).isdigit())
+                    at = fmt(str(j.get("utc") or ""), size or None)
+                else:   # a git copy: the commit
+                    name, m = n, os.path.getmtime(ok); key = f"{sub}/{n}"
+                    if (cache.get(key) or {}).get("mtime") != m:
+                        cache[key] = {"mtime": m, "bytes": sum(os.path.getsize(os.path.join(dp, f)) for dp, _, fs in os.walk(d) for f in fs
+                                                                if not os.path.islink(os.path.join(dp, f)))}
+                    at = fmt(time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(m)), cache[key]["bytes"])
+                if re.fullmatch(r"[A-Za-z0-9._-]+", name):
+                    out[name] = {"state": ASSET_READY, "at": at}
+            elif d in procs or any(f.endswith((".incomplete", ".part")) for _, _, fs in os.walk(d) for f in fs):
+                out[n] = {"state": ASSET_PULLING, "at": None}
+    try:
+        json.dump(cache, open(_p("assets_cache.json"), "w"))
+    except OSError:
+        pass
+    return out
+
+
 def build_pulse(st, gpu_csv):
     """The public pulse from the (private) status JSON and `nvidia-smi --query-gpu=index,utilization.gpu,memory.used,
     memory.total --format=csv,noheader,nounits`: numbers, task names, states and times only."""
@@ -1017,6 +1090,7 @@ def build_pulse(st, gpu_csv):
     alerts += [f"gpu_mem_high:{g['idx']}" for g in gpus if g["mem_used"] is not None and g["mem_used"] > lim and g["idx"] not in evals]
     t = lambda x: x if isinstance(x, str) and re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", x) else None
     du = st.get("our_du") if isinstance(st.get("our_du"), dict) else {}   # [v2.5.9c]
+    assets, dropped = _pulse_assets()   # [v2.5.9z13] a failure or a bad entry never stops the pulse
     head = st.get("runbook_head") if isinstance(st.get("runbook_head"), str) and re.fullmatch(r"[0-9a-f]{7,40}", st.get("runbook_head")) else None
     ver = st.get("runbook_version") if isinstance(st.get("runbook_version"), str) and re.fullmatch(r"v[0-9.]+", st.get("runbook_version")) else None
     return {"schema": 1, "utc": utc(), "node_id": node_id(), "status_utc": t(st.get("utc")), "runbook_head": head,
@@ -1029,6 +1103,7 @@ def build_pulse(st, gpu_csv):
                       {"idx": 1, "free_gb": _num(st.get("ckpt_disk_free_gb")), "alert": bool(st.get("ckpt_disk_alert")),
                        "total_gb": _num(st.get("ckpt_disk_total_gb")), "our_gb": _num(du.get("ckpt_gb")), "our_gb_utc": t(du.get("utc"))}],
             "alerts": sorted(set(alerts)),
+            "assets": assets, "assets_dropped": dropped,   # [v2.5.9z13]
             "control": {"applied_seq": _num(ctl.get("applied_seq")), "pending": _num(ctl.get("pending")),
                         "last_pull_utc": t(ctl.get("last_pull_utc"))}}
 

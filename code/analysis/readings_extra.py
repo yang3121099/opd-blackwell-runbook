@@ -16,6 +16,13 @@ generated again, no reading's own numbers changed.
    [<name>=<task>/<c>.jsonl ...]` line, the problems b solves at least once and a never (b_only), the reverse (a_only), and the
    counts solved by a, by b, by both and by neither, over the problems both readings have; each listed problem with every reading's
    n_correct / n_samples (an extra reading without the problem: null). Written to READINGS-EXTRA/coverage.json.
+5. [v2.5.9z13] (the reviewer's Q-030 checks 10-22) lensel: for each `#lensel READINGS-EXTRA <label> <task> [<task> ...]` line, per training
+   step of each length-selected arm (runs/<task>/lensel.jsonl), the EOS rate, truncation rate and mean length of the kept rollouts and of
+   all of them, and the first step whose kept EOS rate is below 90%. Written to READINGS-EXTRA/lensel.json.
+6. [v2.5.9z13] tails: for each `#tails READINGS-EXTRA <label> <task>/<file>.jsonl <n> <seed> <tail_tokens>` line, n samples drawn with
+   random.Random(seed) from the reading, each sample's last ~tail_tokens tokens (the text cut in proportion to n_tokens), classed "loop"
+   (the tail ends in >= 3 exact copies of a unit of 8-400 characters, or compresses to < LOOP_ZLIB 0.2 of its bytes with zlib) or "long"
+   (long reasoning / restatement); the counts and one tail end (<= 300 characters) per class. Written to READINGS-EXTRA/tails.json.
 Inputs missing on the node are listed, not guessed. Usage: python readings_extra.py <runs dir> <queue file> <out dir>
 """
 import json
@@ -85,6 +92,68 @@ def coverage(A, B, extras):
     return {"problems": len(common), "a_solved": len(sa), "b_solved": len(sb), "both": len(sa & sb),
             "neither": len(common) - len(sa | sb), "a_only": [row(p) for p in common if p in sa - sb],
             "b_only": [row(p) for p in common if p in sb - sa], "not_in_both": sorted(set(A) ^ set(B), key=pid_order)}
+
+
+def lensel_steps(path):
+    """{step: {"kept": [eos %, trunc %, mean len], "all": [...], "groups": n}} of a lensel.jsonl (one line per prompt group: len,
+    trunc, eos of every rollout and the kept indices)."""
+    by = {}
+    with open(path) as f:
+        for line in f:
+            if line.strip():
+                x = json.loads(line); by.setdefault(int(x["step"]), []).append(x)
+    stat = lambda v: [round(100 * sum(e for _, _, e in v) / len(v), 1), round(100 * sum(t for _, t, _ in v) / len(v), 1),
+                      round(sum(l for l, _, _ in v) / len(v))] if v else None
+    out = {}
+    for s, g in sorted(by.items()):
+        allv = [(l, t, e) for x in g for l, t, e in zip(x["len"], x["trunc"], x["eos"])]
+        kept = [(x["len"][i], x["trunc"][i], x["eos"][i]) for x in g for i in x["kept"]]
+        out[s] = {"kept": stat(kept), "all": stat(allv), "groups": len(g)}
+    return out
+
+
+LOOP_ZLIB = 0.2
+
+
+def loop_period(s, pmin=8, pmax=400, cycles=3):
+    """The shortest period p (pmin..pmax characters) such that s ends with `cycles` exact copies of its last p characters, else None."""
+    for p in range(pmin, min(pmax, len(s) // cycles) + 1):
+        if s.endswith(s[-p:] * cycles):
+            return p
+    return None
+
+
+def tail_of(rec, tail_tokens):
+    text, n = rec.get("text") or "", int(rec.get("n_tokens") or 0)
+    k = len(text) if n <= tail_tokens else max(1, int(len(text) * tail_tokens / n))
+    return text[-k:]
+
+
+def tails(path, n, seed, tail_tokens):
+    """n samples of a reading (random.Random(seed).sample over its lines, two streaming passes), each tail classed loop / long."""
+    import random
+    import zlib
+    with open(path) as f:
+        total = sum(1 for line in f if line.strip())
+    pick = set(random.Random(seed).sample(range(total), min(n, total)))
+    rows, i = [], 0
+    with open(path) as f:
+        for line in f:
+            if not line.strip():
+                continue
+            if i in pick:
+                r = json.loads(line); t = tail_of(r, tail_tokens); b = t.encode("utf-8")
+                per = loop_period(t); z = round(len(zlib.compress(b, 9)) / max(len(b), 1), 3)
+                rows.append({"pid": r.get("pid"), "sample": r.get("sample"), "n_tokens": r.get("n_tokens"), "finish_reason": r.get("finish_reason"),
+                             "correct": bool(r.get("correct")), "class": "loop" if per or z < LOOP_ZLIB else "long", "period": per, "zlib": z,
+                             "end": t[-300:]})
+            i += 1
+    out = {"lines": total, "n": len(rows), "seed": seed, "tail_tokens": tail_tokens, "loop_zlib": LOOP_ZLIB,
+           "counts": {c: sum(1 for x in rows if x["class"] == c) for c in ("loop", "long")},
+           "truncated": sum(1 for x in rows if x["finish_reason"] == "length"),
+           "example": {c: next((x["end"] for x in rows if x["class"] == c), None) for c in ("loop", "long")},
+           "samples": [{k: v for k, v in x.items() if k != "end"} for x in rows]}
+    return out
 
 
 def safe(rel):
@@ -166,7 +235,38 @@ def main(runs, qfile, out):
                 summary["missing"].append(rel)
         summary["coverage"][label] = dict(coverage(PB.reduce(pa), PB.reduce(pb), extras), a=a, b=b,
                                           extras={name: rel for name, rel in ex}, extras_missing=[n for n, _ in ex if n not in extras])
+    summary["lensel"] = {}
+    for row in queue_rows(qfile, "lensel"):   # [v2.5.9z13]
+        label, ts = row[0], row[1:]
+        res = {}
+        for t in ts:
+            p = os.path.join(runs, t, "lensel.jsonl")
+            if not safe(t) or "/" in t:
+                summary["missing"].append(f"{t}: refused path"); continue
+            if not os.path.exists(p):
+                summary["missing"].append(f"{t}/lensel.jsonl"); continue
+            st = lensel_steps(p)
+            res[t] = {"steps": st, "kept_eos_below_90_from": next((s for s, v in st.items() if v["kept"] and v["kept"][0] < 90), None)}
+        if res:
+            summary["lensel"][label] = res
+    summary["tails"] = {}
+    for row in queue_rows(qfile, "tails"):   # [v2.5.9z13]
+        label, rel = row[0], (row[1] if len(row) > 1 else None)
+        try:
+            n, seed, tt = int(row[2]), int(row[3]), int(row[4])
+        except (IndexError, ValueError):
+            summary["missing"].append(f"{label}: #tails needs <file> <n> <seed> <tail_tokens>"); continue
+        if not (rel and safe(rel)):
+            summary["missing"].append(f"{label}: refused path"); continue
+        p = os.path.join(runs, rel)
+        if not os.path.exists(p):
+            summary["missing"].append(rel); continue
+        summary["tails"][label] = dict(tails(p, n, seed, tt), reading=rel)
     fd = os.path.join(out, "up", "runs", "READINGS-EXTRA"); os.makedirs(fd, exist_ok=True)
+    if summary["lensel"]:
+        json.dump(summary["lensel"], open(os.path.join(fd, "lensel.json"), "w"), indent=1)
+    if summary["tails"]:
+        json.dump(summary["tails"], open(os.path.join(fd, "tails.json"), "w"), indent=1, ensure_ascii=False)
     json.dump(summary["pairs"], open(os.path.join(fd, "pairs.json"), "w"), indent=1)
     json.dump(summary["coverage"], open(os.path.join(fd, "coverage.json"), "w"), indent=1)
     json.dump(summary["frontier"], open(os.path.join(fd, "frontier_fill.json"), "w"), indent=1)
@@ -185,6 +285,10 @@ def main(runs, qfile, out):
     for k, v in summary["coverage"].items():
         show = lambda rows: "; ".join(f"{r['pid']} a {cnt(r['a'])} b {cnt(r['b'])}" + "".join(f" {n} {cnt(r.get(n))}" for n in v["extras"]) for r in rows) or "none"
         lines.append(f"{k} | {v['problems']} | {v['a_solved']} / {v['b_solved']} / {v['both']} / {v['neither']} | {show(v['b_only'])} | {show(v['a_only'])}")
+    for k, v in summary["lensel"].items():   # [v2.5.9z13]
+        lines.append(f"lensel {k}: kept EOS below 90% from step " + ", ".join(f"{t} {x['kept_eos_below_90_from']}" for t, x in v.items()))
+    for k, v in summary["tails"].items():
+        lines.append(f"tails {k}: {v['n']} of {v['lines']} (seed {v['seed']}, last ~{v['tail_tokens']} tokens): loop {v['counts']['loop']}, long {v['counts']['long']}, truncated {v['truncated']}")
     lines.append("missing: " + (", ".join(summary["missing"]) or "none"))
     lines.append("all-500 vs metrics mismatch: " + ("; ".join(summary.get("mismatch", [])) or "none"))
     open(os.path.join(out, "summary.txt"), "w").write("\n".join(lines) + "\n")

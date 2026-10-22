@@ -1,6 +1,7 @@
 """[v2.5.9x1] readings_extra.py on a fake runs directory: splits 1-100 / 101-500 / all / easy / hard, the frontier rows from a budget
 curve and a metrics.json, missing inputs listed, outputs where the upload expects them."""
 import json
+import random
 import os
 import tempfile
 
@@ -111,3 +112,51 @@ def test_coverq_extra_without_a_problem_is_null():
     A, B, E = {"p-0": [0, 4], "p-1": [1, 4]}, {"p-0": [3, 4], "p-1": [1, 4], "p-2": [1, 4]}, {"p-1": [4, 4]}
     c = X.coverage(A, B, {"e": E})
     assert c["b_only"] == [{"pid": "p-0", "a": [0, 4], "b": [3, 4], "e": None}] and c["not_in_both"] == ["p-2"] and c["problems"] == 2
+
+
+def test_lensel_steps_and_first_drop():   # [v2.5.9z13] (Q-030 check 1)
+    runs, out, q = setup()
+    d = os.path.join(runs, "E10b-P5lenS"); os.makedirs(d)
+    with open(os.path.join(d, "lensel.jsonl"), "w") as f:
+        for step, eos_kept in ((1, 4), (2, 4), (3, 3), (4, 1)):
+            for g in range(2):
+                eos = [1] * eos_kept + [0] * (16 - eos_kept)
+                f.write(json.dumps({"step": step, "group": g, "mode": "short", "len": [100] * eos_kept + [4096] * (16 - eos_kept),
+                                    "trunc": [1 - e for e in eos], "eos": eos, "score": [0.0] * 16, "kept": [0, 1, 2, 3]}) + "\n")
+    open(q, "a").write("#lensel READINGS-EXTRA q030 E10b-P5lenS E10b-P5lenX\n#lensel READINGS-EXTRA bad ../x\n")
+    s = X.main(runs, q, out)
+    st = s["lensel"]["q030"]["E10b-P5lenS"]
+    assert st["steps"][1] == {"kept": [100.0, 0.0, 100], "all": [25.0, 75.0, 3097], "groups": 2}
+    assert st["steps"][3]["kept"][0] == 75.0 and st["kept_eos_below_90_from"] == 3
+    assert "E10b-P5lenX/lensel.jsonl" in s["missing"] and any("refused path" in m for m in s["missing"])
+    assert json.load(open(os.path.join(out, "up", "runs", "READINGS-EXTRA", "lensel.json")))["q030"]["E10b-P5lenS"]["kept_eos_below_90_from"] == 3
+    assert "lensel q030: kept EOS below 90% from step E10b-P5lenS 3" in open(os.path.join(out, "summary.txt")).read()
+
+
+def test_tails_loop_and_long_fixed_seed():   # [v2.5.9z13] (Q-030 check 2)
+    runs, out, q = setup()
+    d = os.path.join(runs, "EVAL-len-S"); os.makedirs(d)
+    words = "the area of the triangle is half the base times the height so we compute each side length carefully and then".split()
+    with open(os.path.join(d, "s.jsonl"), "w") as f:
+        for i in range(10):
+            if i % 2:   # a loop: one unit repeated to the end
+                text = "Solve step by step. " + "Wait, let me recheck the sum of 3 and 4. " * 60
+            else:       # long reasoning: no repeated unit at the end
+                rr = random.Random(i); text = " ".join(rr.choice(words) + str(rr.randrange(1000)) for _ in range(400))
+            f.write(json.dumps({"pid": f"math500-{i}", "sample": 0, "n_tokens": len(text) // 4, "finish_reason": "length", "correct": False, "text": text}) + "\n")   # ~4 characters a token
+    open(q, "a").write("#tails READINGS-EXTRA lenS16k EVAL-len-S/s.jsonl 10 0 500\n#tails READINGS-EXTRA few EVAL-len-S/s.jsonl 4 7 500\n#tails READINGS-EXTRA nonum EVAL-len-S/s.jsonl x 0 500\n")
+    s = X.main(runs, q, out)
+    t = s["tails"]["lenS16k"]
+    assert t["n"] == 10 and t["counts"] == {"loop": 5, "long": 5} and t["truncated"] == 10 and t["seed"] == 0
+    assert "Wait, let me recheck" in t["example"]["loop"] and len(t["example"]["loop"]) <= 300 and len(t["example"]["long"]) <= 300
+    loops = [x for x in t["samples"] if x["class"] == "loop"]
+    assert all(x["period"] == len("Wait, let me recheck the sum of 3 and 4. ") for x in loops) and all(x["pid"] in ("math500-1", "math500-3", "math500-5", "math500-7", "math500-9") for x in loops)
+    a, b = s["tails"]["few"], X.main(runs, q, out)["tails"]["few"]
+    assert a["samples"] == b["samples"] and a["n"] == 4                       # the same seed, the same samples
+    assert any("nonum" in m for m in s["missing"])
+    assert "tails lenS16k: 10 of 10 (seed 0, last ~500 tokens): loop 5, long 5, truncated 10" in open(os.path.join(out, "summary.txt")).read()
+
+
+def test_loop_period_edges():
+    assert X.loop_period("abcdefgh" * 3) == 8 and X.loop_period("x" * 30) == 8   # a run of one character: its shortest unit of 8
+    assert X.loop_period("no repetition at the end of this sentence at all") is None
