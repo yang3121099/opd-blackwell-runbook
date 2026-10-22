@@ -39,8 +39,10 @@ def node(monkeypatch):
             raise subprocess.TimeoutExpired(cmd, k.get("timeout"))
         if node.mode == "fail":
             return types.SimpleNamespace(returncode=1, stdout="", stderr="hf put failed: HfHubHTTPError")
-        for f in os.listdir(stage):
-            remote[f"{cmd[4]}/{f}"] = os.path.getsize(os.path.join(stage, f)) + (1 if node.mode == "short" and f.endswith(".safetensors") else 0)
+        for r, _, fs in os.walk(stage):
+            for f in fs:
+                rel = os.path.relpath(os.path.join(r, f), stage).replace(os.sep, "/")
+                remote[f"{cmd[4]}/{rel}"] = os.path.getsize(os.path.join(r, f)) + (1 if node.mode == "short" and f.endswith(".safetensors") else 0)
         return types.SimpleNamespace(returncode=0, stdout="", stderr="")
     node.mode = "ok"
     monkeypatch.setattr(W.subprocess, "run", run)
@@ -184,4 +186,56 @@ def test_weights_linked_other_files_copied(node):   # [ops-lead's A1 condition] 
     ino = node.calls[0]["ino"]
     assert ino["model.safetensors"] == os.stat(os.path.join(h, "model.safetensors")).st_ino
     assert ino["config.json"] != os.stat(os.path.join(h, "config.json")).st_ino and ino["tokenizer.json"] != os.stat(os.path.join(h, "tokenizer.json")).st_ino
+
+
+def held_result(n, dst, utc="2026-10-22T09:00:00Z", log_mb=6):
+    h = os.path.join(n.ck, "weights_pending", dst); os.makedirs(os.path.join(h, "sub"), exist_ok=True)
+    open(os.path.join(h, "x_math500_no_think_t0.6.jsonl"), "w").write("{}\n" * 10)
+    open(os.path.join(h, "x.metrics.json"), "w").write("{}")
+    open(os.path.join(h, "sub", "pair.json"), "w").write("{}")
+    with open(os.path.join(h, "gen_eval.log"), "wb") as f:
+        f.write(b"x" * (log_mb * 10 ** 6))
+    with open(os.path.join(n.root, "control", "weights_pending.txt"), "a") as f:
+        f.write(f"{utc}\t{dst}\t{h}\t123\n")
+    return h
+
+
+@pytest.fixture
+def priv(node, monkeypatch):   # the private repository's view for verify_private
+    api = types.SimpleNamespace(get_paths_info=lambda repo, paths: [types.SimpleNamespace(path=p, size=node.remote[p]) for p in paths if p in node.remote])
+    monkeypatch.setattr(RM, "hf", lambda kind="public": (api, "me/priv" if kind == "private" else "me/pub"))
+    return node
+
+
+def test_held_results_go_private_first_and_while_paused(priv, monkeypatch):   # [v2.5.9z64] ops-lead's ruling 20:45 UTC
+    n = priv
+    open(os.path.join(n.root, "control.env"), "w").write("export WEIGHTS_REPLAY=0\n")   # the weights paused ...
+    hold(n, DST, utc="2026-10-22T08:00:00Z")
+    h = held_result(n, "runs/EVAL-budA-P5mix90")
+    st = {"items": 0, "bytes": 0, "fails": {"runs/EVAL-budA-P5mix90": {"n": 3, "last": time.time(), "why": "not a weight destination"}}}
+    json.dump(st, open(os.path.join(n.root, "control", "weights_replay.json"), "w"))     # z62's refusals do not hold it
+    r = W.once()
+    assert r.startswith("REPLAY_OK runs/EVAL-budA-P5mix90 (result)")                     # ... the result still goes
+    c = n.calls[0]
+    assert c["cmd"][2:] == ["runs/EVAL-budA-P5mix90"]                                     # no "public": the private repository
+    assert sorted(c["files"]) == ["gen_eval.log.tail.gz", "sub", "x.metrics.json", "x_math500_no_think_t0.6.jsonl"]
+    assert [l.split("\t")[1] for l in lines(n)] == [DST]                                  # struck; the weight stays
+    assert any("results_replayed" in e or "runs/EVAL-budA-P5mix90" in e for e in n.events)
+    assert os.path.getsize(os.path.join(h, "gen_eval.log")) == 6 * 10 ** 6                # the held copy untouched
+    assert W.once() == "REPLAY_OFF"                                                        # then the paused weights
+
+
+def test_log_tail_gz_at_most_5mb(priv):
+    import gzip
+    n = priv; held_result(n, "runs/EVAL-x", log_mb=7)
+    W.once()
+    p = [k for k in n.remote if k.endswith("gen_eval.log.tail.gz")][0]
+    assert n.remote[p] < 5 * 10 ** 6 + 100   # gzip of 5 MB of "x" is tiny; never the 7 MB log
+
+
+def test_result_not_verified_stays_listed(priv, monkeypatch):
+    n = priv; held_result(n, "runs/EVAL-y"); n.set("short")
+    real = W.verify_private
+    monkeypatch.setattr(W, "verify_private", lambda dst, staged: (False, "x.metrics.json: None != 2"))
+    assert "not verified" in W.once() and [l.split("\t")[1] for l in lines(n)] == ["runs/EVAL-y"]
 

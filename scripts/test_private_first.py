@@ -139,3 +139,17 @@ def test_outbox_ships_the_control_plane_first(root, monkeypatch):   # [v2.5.9z51
     monkeypatch.setattr(C, "remote_put", lambda src, dst: (sent.append(dst), True)[1])
     C.ship_outbox(budget_s=60)
     assert sent == ["status/n/events/e.json", "pulse/n.json", "status/n.json", "status/n/replies/482", "runs/E1/a.csv", "runs/E2/b.csv", "runs/E3/c.csv"]
+
+
+def test_a_big_result_jsonl_is_not_a_weight(root):   # [v2.5.9z64] only *.safetensors / *.bin (and ckpts/) are held back
+    d = os.path.join(root, "res"); os.makedirs(d)
+    with open(os.path.join(d, "x_math500_no_think_t0.6.jsonl"), "wb") as f:
+        f.truncate(150 * 10 ** 6)
+    assert not RM.is_weight(d, "runs/EVAL-x") and RM.is_weight(d, "ckpts/x")
+    open(os.path.join(d, "model.safetensors"), "w").write("w")
+    assert RM.is_weight(d, "runs/E1/global_step_1/actor/huggingface")
+    env = {k: v for k, v in dict(os.environ, OPD_ROOT=root, CKPT_ROOT=tempfile.mkdtemp()).items() if k != "HF_TOKEN"}
+    os.remove(os.path.join(d, "model.safetensors"))
+    r = subprocess.run([sys.executable, os.path.join(HERE, "remote.py"), "put", d, "runs/EVAL-x"], capture_output=True, text=True, env=env)
+    assert r.returncode == 1 and not os.path.exists(os.path.join(root, "control", "weights_pending.txt"))   # tried to upload, not held
+

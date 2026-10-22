@@ -14,6 +14,10 @@ heartbeat, not the control plane's outbox).
 - [ops-lead's A1 conditions] a failed item cools down 30 min x 2^(n-1) (at most 6 h) and the next one goes meanwhile; its third
   failure in a row is one weights_replay_stuck event. A hold whose real path is not under $CKPT_ROOT/weights_pending/ is refused.
 - Events: one weights_replayed event per batch (every WEIGHTS_REPLAY_BATCH items, and when nothing is left), not per file.
+- [v2.5.9z64] (ops-lead's ruling 10-22 20:45 UTC) a held RESULT directory (z50's is_weight held any directory with a file over
+  100 MB: six readings) goes first and is never paused: to the PRIVATE repository as an ordinary result (remote.py put, no public),
+  a log over 5 MB as its last 5 MB gzipped (<name>.tail.gz), timeout from its size at 0.4 MB/s; struck once get_paths_info on the
+  private repository shows every staged file at its size; one results_replayed event each.
 Usage: python weights_replay.py once -> REPLAY_IDLE | REPLAY_OFF | REPLAY_WAIT <why> | REPLAY_OK <dst> | REPLAY_FAIL <dst> <why>"""
 import fcntl
 import hashlib
@@ -178,9 +182,90 @@ def batch_event(done_now, left, dst=None):
     save(st)
 
 
+WEIGHT_DST = re.compile(r"runs/[A-Za-z0-9._-]+/global_step_\d+/actor/huggingface")
+RESULT_DST = re.compile(r"runs/[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*")
+LOG_TAIL = 5 * 10 ** 6
+
+
+def stage_result(hold, stage):
+    """The held result directory into stage: every file hard-linked (else copied) except a *.log over 5 MB, which becomes
+    <name>.tail.gz (its last 5 MB, gzipped); returns [(relative path, bytes)]."""
+    import gzip
+    out = []
+    for r, _, fs in os.walk(hold):
+        for f in fs:
+            src = os.path.join(r, f); rel = os.path.relpath(src, hold); t = os.path.join(stage, rel)
+            os.makedirs(os.path.dirname(t), exist_ok=True)
+            if f.endswith(".log") and os.path.getsize(src) > LOG_TAIL:
+                with open(src, "rb") as fh:
+                    fh.seek(os.path.getsize(src) - LOG_TAIL); data = fh.read()
+                t += ".tail.gz"; rel += ".tail.gz"
+                with gzip.open(t, "wb") as g:
+                    g.write(data)
+            else:
+                try:
+                    os.link(src, t)
+                except OSError:
+                    shutil.copy2(src, t)
+            out.append((rel.replace(os.sep, "/"), os.path.getsize(t)))
+    return out
+
+
+def verify_private(dst, staged):
+    api, repo = RM.hf("private")
+    info = {}
+    for i in range(0, len(staged), 50):
+        for x in api.get_paths_info(repo, [f"{dst}/{rel}" for rel, _ in staged[i:i + 50]]):
+            info[x.path] = getattr(x, "size", None)
+    for rel, size in staged:
+        if info.get(f"{dst}/{rel}") != size:
+            return False, f"{rel}: {info.get(f'{dst}/{rel}')} != {size}"
+    return True, ""
+
+
+def results_once(items):
+    """[v2.5.9z64] the oldest held result directory to the private repository (see the docstring); None if none is due."""
+    st, now = state(), time.time()
+    todo = sorted((it for it in items if not WEIGHT_DST.fullmatch(it[1].lstrip("/")) and RESULT_DST.fullmatch(it[1].lstrip("/"))
+                   and cooling(st, "result:" + it[1].lstrip("/"), now) <= 0), key=lambda it: it[0])   # its own key: z62's refusals of it do not count
+    if not todo:
+        return None
+    utc, dst, hold, size = todo[0]
+    dst = dst.lstrip("/")
+    base = os.path.realpath(os.path.join(os.environ.get("CKPT_ROOT", "/nonexistent"), "weights_pending"))
+    if not os.path.realpath(hold).startswith(base + os.sep) or not os.path.isdir(hold):
+        return failed("result:" + dst, "the hold path is not a directory under $CKPT_ROOT/weights_pending")
+    stage = os.path.join(os.path.dirname(hold.rstrip("/")), ".stage_" + hashlib.sha256(dst.encode()).hexdigest()[:12])
+    shutil.rmtree(stage, ignore_errors=True); os.makedirs(stage)
+    try:
+        staged = stage_result(hold, stage)
+        nbytes = sum(b for _, b in staged)
+        to = int(min(float(cfg("WEIGHTS_REPLAY_MAX_S", "21600")), nbytes / 1e6 / 0.4 * 1.5 + 600))
+        t0 = time.time()
+        try:
+            r = subprocess.run([sys.executable, os.path.join(HERE, "remote.py"), "put", stage, dst], capture_output=True, text=True,
+                               timeout=to, env=dict(os.environ, HF_HUB_ENABLE_HF_TRANSFER="0"))
+            rc, why = r.returncode, (r.stderr.strip().splitlines() or [""])[-1][:160]
+        except subprocess.TimeoutExpired:
+            rc, why = 1, f"timed out after {to} s"
+        secs = round(time.time() - t0, 1)
+        if rc:
+            return failed("result:" + dst, why)
+        try:
+            ok, why = verify_private(dst, staged)
+        except Exception as e:
+            ok, why = False, f"verify: {type(e).__name__}"
+        if not ok:
+            return failed("result:" + dst, f"not verified: {why}")
+    finally:
+        shutil.rmtree(stage, ignore_errors=True)
+    strike(dst, nbytes, secs)
+    st = state(); st["fails"].pop("result:" + dst, None); st["fails"].pop(dst, None); save(st)
+    event("results_replayed", f"{dst}: {len(staged)} file(s), {nbytes / 1e6:.0f} MB to the private repository in {secs} s")
+    return f"REPLAY_OK {dst} (result) {nbytes / 1e6:.0f} MB in {secs} s"
+
+
 def once():
-    if cfg("WEIGHTS_REPLAY", "1") != "1":
-        return "REPLAY_OFF"
     items = pending()
     if not items:
         return "REPLAY_IDLE"
@@ -189,6 +274,14 @@ def once():
     age = control_backlog()
     if age > float(cfg("REPLAY_OUTBOX_MAX_AGE", "600")):
         return f"REPLAY_WAIT a control-plane item waits {int(age)} s in the outbox"
+    r = results_once(items)   # [v2.5.9z64] held results first, whatever WEIGHTS_REPLAY says
+    if r:
+        return r
+    if cfg("WEIGHTS_REPLAY", "1") != "1":
+        return "REPLAY_OFF"
+    items = [it for it in items if WEIGHT_DST.fullmatch(it[1].lstrip("/"))]
+    if not items:
+        return "REPLAY_IDLE"
     q = ""
     try:
         q = open(os.path.join(os.environ.get("RUNBOOK", os.path.dirname(HERE)), "tasks", "queue.txt")).read()

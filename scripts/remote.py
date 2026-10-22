@@ -263,11 +263,13 @@ WEIGHT_MB = 100   # [v2.5.9z50] ops-lead's A1 condition: weights stay out of the
 
 
 def is_weight(src, dst):
-    """ckpts/ or any single file over WEIGHT_MB (a weight directory, a large generation file)."""
+    """ckpts/ or any weight file (*.safetensors, *.bin). [v2.5.9z64] (ops-lead's ruling 10-22 20:45 UTC) was: any single file over
+    WEIGHT_MB, which also held six readings' result directories (a generation jsonl over 100 MB) on the checkpoint disk, so they
+    reached neither repository; a result directory now goes up as a result, whatever its size."""
     if dst.lstrip("/").startswith("ckpts/"):
         return True
     files = [os.path.join(r, f) for r, _, fs in os.walk(src) for f in fs] if os.path.isdir(src) else [src]
-    return any(os.path.isfile(f) and os.path.getsize(f) > WEIGHT_MB * 1e6 for f in files)
+    return any(os.path.isfile(f) and f.endswith((".safetensors", ".bin")) for f in files)
 
 
 def defer_weight(src, dst):
