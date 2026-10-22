@@ -24,6 +24,8 @@ V=${VENV_VL:-$OPD_ROOT/venv-vl}; TRAIN=$OPD_ROOT/data/mmk12_train.parquet; VAL=$
 [ "${SMOKE:-0}" = 1 ] && { TRAIN=$OPD_ROOT/data/geo3k_train.parquet; VAL=$OPD_ROOT/data/geo3k_validation.parquet; }   # [v2.5.9z33] the smoke on Geometry3K
 NSTEPS=${VLM_STEPS:-50}; TBS=${VLM_TBS:-128}; MAXP=2048; MAXR=4096; SAVE=25; UW=25,$NSTEPS; VALB=True; TESTF=25
 [ "${SMOKE:-0}" = 1 ] && { NSTEPS=${SMOKE_STEPS:-1}; SAVE=-1; VALB=False; TESTF=-1; }
+# [v2.5.9z63] (PROBE-VLM 10-22 16:44 UTC: the smoke's 8 DataLoader workers died of a bus error, "No space left on device" writing
+# torch tensors to /dev/shm, which had ~5.3 GB free on the busy node) the images are loaded in the main process: VLM_DL_WORKERS (0)
 # [v2.5.9z1] the teacher's suffix PROBE-VLM chose (check_b.json): think = '<think>\n' (P5), empty = '<think>\n\n</think>\n\n' (variant P5e,
 # the thinking-only teacher's non-thinking reading); '<think>\n' when the check is not there yet (the probe's own smoke before b)
 SUF=$(python3 -c "import json, sys; print(json.load(open(sys.argv[1])).get('suffix') or 'think')" $OPD_ROOT/runs/PROBE-VLM/check_b.json 2> /dev/null || echo think)
@@ -61,6 +63,7 @@ python3 -m verl.trainer.main_ppo \
   data.train_files=$TRAIN data.val_files=$VAL data.image_key=images \
   data.train_batch_size=$TBS data.max_prompt_length=$MAXP data.max_response_length=$MAXR \
   data.filter_overlong_prompts=True data.truncation=error data.shuffle=True data.seed=42 data.return_raw_chat=True \
+  data.dataloader_num_workers=${VLM_DL_WORKERS:-0} \
   actor_rollout_ref.model.path=$STUDENT +actor_rollout_ref.ref.model.path=$TEACHER \
   +actor_rollout_ref.model.override_config.attn_implementation=$ATTN actor_rollout_ref.model.use_remove_padding=$RMPAD \
   actor_rollout_ref.actor.optim.lr=3e-6 actor_rollout_ref.actor.optim.lr_warmup_steps_ratio=0.0 \
