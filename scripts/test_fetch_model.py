@@ -209,3 +209,40 @@ def test_control_env_wins_over_the_environment(hub, par, monkeypatch, tmp_path):
     monkeypatch.setattr(F, "night", lambda t=None: False)
     assert F.conns_now() == 64 and F.day_max() == int(1e13)
 
+
+
+@pytest.mark.parametrize("code,ep_fail", [(401, None), (403, None), (401, "https://huggingface.co")])
+def test_gated_file_falls_back_to_the_token_download(hub, par, monkeypatch, tmp_path, code, ep_fail):
+    """[v2.5.9z25] par_fetch sends no token: a 401 / 403 from huggingface.co (a gated dataset, GPQA 10-22) fetches that file with
+    hf_hub_download and the token default (None: the library's own token, to huggingface.co only); a mirror never gets one."""
+    import urllib.error
+    import par_fetch
+    seen = []
+
+    def gated(url, dst, size, conns, **kw):
+        seen.append(url)
+        raise urllib.error.HTTPError(url, code, "Unauthorized", {}, None)
+    monkeypatch.setattr(par_fetch, "download", gated); monkeypatch.setattr(F, "night", lambda t=None: True)
+    if ep_fail:   # huggingface.co's download fails too: the mirror's 401 is not retried with a token
+        def dl(repo, filename, local_dir, endpoint=None, token=None, repo_type=None):
+            hub["dl_tokens"] = hub.get("dl_tokens", []) + [(endpoint, token)]
+            raise OSError("403 Forbidden: not in the authorized list")
+        monkeypatch.setattr(__import__("huggingface_hub"), "hf_hub_download", dl)
+    r = F.fetch("Idavidrein/gpqa", "m", str(tmp_path))
+    if not ep_fail:
+        assert r["ok"] is True and r["token_files"] == 2 and os.path.exists(tmp_path / "m" / ".fetch_ok")
+        assert hub["dl_tokens"] == [("https://huggingface.co", None)] * 2 and all("huggingface.co" in u for u in seen)
+    else:
+        assert r["ok"] is False and {t for _, t in hub["dl_tokens"]} == {None} and {e for e, _ in hub["dl_tokens"]} == {"https://huggingface.co"}
+        mirror = [e for e in r["errors"] if e["endpoint"] == "https://hf-mirror.com"]
+        assert mirror and all(e["error"] == "HTTPError" and str(code) in e["detail"] for e in mirror)   # raised, not retried with a token
+        assert any("403 Forbidden" in e["detail"] for e in r["errors"] if e["endpoint"] == "https://huggingface.co")
+
+
+def test_other_http_errors_are_not_retried_with_the_token(hub, par, monkeypatch, tmp_path):   # [v2.5.9z25] e.g. a 404 stays a failure
+    import urllib.error
+    import par_fetch
+    monkeypatch.setattr(par_fetch, "download", lambda url, *a, **kw: (_ for _ in ()).throw(urllib.error.HTTPError(url, 404, "Not Found", {}, None)))
+    monkeypatch.setattr(F, "night", lambda t=None: True)
+    r = F.fetch("Qwen/Qwen3-1.7B", "m", str(tmp_path))
+    assert r["ok"] is False and hub["calls"] == [] and all(e["detail"] == "HTTP Error 404: Not Found" for e in r["errors"])

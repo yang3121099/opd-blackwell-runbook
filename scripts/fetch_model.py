@@ -31,6 +31,7 @@ import signal
 import subprocess
 import sys
 import time
+import urllib.error
 
 os.environ.setdefault("HF_HUB_ETAG_TIMEOUT", "60")       # read by huggingface_hub at import
 os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "120")
@@ -158,7 +159,8 @@ def parallel_download(repo, path, size, local, ep):
     Range segments (par_fetch.py), FETCH_CONNS_NIGHT at night and FETCH_CONNS_DAY by day (both 32; [v2.5.9r] the day like the
     night); a file over FETCH_DAY_MAX_BYTES ([v2.5.9r] 1e13: no cap) only at night (outside it: not started, or stopped
     at the end of the window, Deferred);
-    every segment waits while result uploads time out. No token is sent (public repositories)."""
+    every segment waits while result uploads time out. No token is sent (public repositories); [v2.5.9z25] a 401 / 403 from
+    huggingface.co (a gated repository) makes fetch() take that file through hf_hub_download with the token instead."""
     from huggingface_hub import hf_hub_url
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import par_fetch
@@ -195,7 +197,7 @@ def fetch(repo, prefix, local):
                     errors.append({"endpoint": ep, "attempt": attempt, "error": "NoFiles", "detail": f"nothing under {prefix}"})
                     break
                 todo = missing(files, local)
-                deferred = []
+                deferred, token_files = [], []
                 for path, size, sha in sorted(todo, key=lambda x: x[1]):   # [v2.5.9q] small files first
                     p = os.path.join(local, path)
                     if os.path.isfile(p):
@@ -206,6 +208,14 @@ def fetch(repo, prefix, local):
                             got += parallel_download(repo, path, size, local, ep)["bytes"]
                         except par_fetch.Deferred as e:
                             deferred.append(str(e)); continue
+                        except urllib.error.HTTPError as e:   # [v2.5.9z25] a gated repository (GPQA 10-22: 401 on every try): par_fetch
+                            if e.code not in (401, 403) or tok is False:   # sends no token, so this file goes through hf_hub_download,
+                                raise                                      # one connection, the token to huggingface.co only
+                            for x in (p + ".part", p + ".part.segs"):
+                                if os.path.isfile(x):
+                                    os.remove(x)
+                            hf_hub_download(repo, filename=path, local_dir=local, endpoint=ep, token=tok, repo_type=REPO_TYPE)
+                            got += size; token_files.append(path)
                     else:
                         hf_hub_download(repo, filename=path, local_dir=local, endpoint=ep, token=tok, repo_type=REPO_TYPE)
                         got += size
@@ -219,7 +229,8 @@ def fetch(repo, prefix, local):
                     s = time.time() - t0
                     return {"ok": True, "endpoint": ep, "hf_transfer": bool(getattr(K, "HF_HUB_ENABLE_HF_TRANSFER", False)),
                             "files": len(files), "bytes": got, "seconds": round(s, 1),
-                            "mb_s": round(got / 1e6 / s, 1) if s > 0 and got else None, "errors": errors}
+                            "mb_s": round(got / 1e6 / s, 1) if s > 0 and got else None, "errors": errors,
+                            "token_files": len(token_files)}   # [v2.5.9z25] files fetched with the token after par_fetch's 401 / 403
                 errors.append({"endpoint": ep, "attempt": attempt, "error": "Incomplete", "detail": ", ".join(p for p, _, _ in todo)[:200]})
             except Exception as e:   # every failure is recorded; the next attempt / endpoint follows
                 errors.append({"endpoint": ep, "attempt": attempt, "error": type(e).__name__, "detail": str(e)[:200]})
