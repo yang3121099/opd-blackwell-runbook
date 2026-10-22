@@ -499,3 +499,4 @@ commands:
   - {"seq": 497, "cmd": "rerun PROBE-VLM", "reason": "z63: the smoke loads images in the main process (its 8 DataLoader workers died on a full /dev/shm, 16:44 UTC); Fable A1 for ops-lead", "utc": "2026-10-22T20:46:38Z"}
   - {"seq": 498, "cmd": "setenv STATUS_PUT_S=120", "reason": "ops-lead 21:42 UTC (Fable agreed): the private status every 120 s (was 300); HF clean for 2 h (hf_backoff 0, no 429)", "utc": "2026-10-22T21:47:05Z"}
   - {"seq": 499, "cmd": "setenv PULSE_PUT_S=120", "reason": "ops-lead 21:42 UTC (Fable agreed): the private pulse every 120 s (was 300); HF clean for 2 h", "utc": "2026-10-22T21:47:13Z"}
+  - {"seq": 500, "cmd": "setenv GH_HB=0", "reason": "Runming via Fable 21:5x: the GitHub fallback heartbeat shelved until he is back (stops the 15-min failed (auth) events; code and credential file kept)", "utc": "2026-10-22T21:51:38Z"}
