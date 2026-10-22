@@ -1406,13 +1406,14 @@ b259z24  open   TOKCHECK-X5
 # pulls, three at once (PREFETCH_PAR 3, each at the usual connection count): the student, the teacher, the base for reference (~3 GB
 # each); TOKCHECK-X5 (the CPU lane) reads their vocab / special tokens / chat template once all three are in
 # [v2.5.9z30] DeepSeek in (05:56 UTC, 3.56 GB): the student back to #fetch, alone; the base after it
+# [v2.5.9z36] the student in (07:12 UTC, 3.10 GB): the base back to #fetch, alone
 # [v2.5.9z29] (ops-lead's A1 05:1x UTC: one pull at a time) the student and the base deferred while DeepSeek pulls alone: three
 # pulls at 64 connections each (~192) stalled the proxy (an hour, ~0.85 MB/s in all), and the setenv PREFETCH_PAR=1 does not
 # reach the running loop (it reads PREFETCH_PAR from its start-up environment), so their retries would start them again. Back to
 # #fetch one at a time: the student once DeepSeek has its .fetch_ok, then the base.
 #fetch Qwen/Qwen2.5-Math-1.5B-Instruct
 #fetch deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B
-#fetch-deferred Qwen/Qwen2.5-Math-1.5B
+#fetch Qwen/Qwen2.5-Math-1.5B
 #fetch Qwen/Qwen3-VL-8B-Thinking
 #fetch Qwen/Qwen3-VL-2B-Instruct
 # 10-22 01:2x Beijing (Fable's Q-051, ops-lead): Geometry3K (verl's example set, ~100 MB, open licence) before Qwen3-32B, for PROBE-VLM / E15-VLM
