@@ -321,8 +321,17 @@ def main():
     if len(a) != 3:
         sys.exit(__doc__)
     repo, prefix, local = a
-    r = locked_fetch(repo, prefix, local)
-    r.update({"repo": repo, "prefix": prefix})
+    # [v2.5.9z50] a comma separated list of repositories (remote.py repo public while public uploads are paused: the private
+    # one first): each in turn until one has the files; the result names the one that did and keeps every failed attempt
+    tried, errs = [], []
+    for rp in [x for x in repo.split(",") if x]:
+        r = locked_fetch(rp, prefix, local)
+        tried.append(rp); errs += r.get("errors") or []
+        if r.get("ok"):
+            break
+    r.update({"repo": rp, "prefix": prefix, "repos_tried": len(tried)})
+    if not r.get("ok"):
+        r["errors"] = errs
     if not r.get("cached"):   # v2.5.5b: into control/transfers.jsonl like every upload
         try:
             sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); from remote import record_transfer

@@ -19,7 +19,7 @@ case $MODEL in
       || fin failed "model download incomplete: $MODEL (v2.5.4e fetch_model.py; see runs/adhoc_eval_$S/fetch.log)";;
   result:*)
     P=${MODEL#result:}; M=$CKPT_ROOT/adhoc_models/result/$P
-    PUB_REPO=$(python scripts/remote.py repo public 2>/dev/null); export PUB_REPO   # v2.5.1: weights live in the public repository
+    PUB_REPO=$(python scripts/remote.py repo public 2>/dev/null | cut -d, -f1); export PUB_REPO   # [v2.5.9z50] the first of the fetch order   # v2.5.1: weights live in the public repository
     has_weights $M || python -c "
 import os; from huggingface_hub import snapshot_download as s
 s(os.environ.get('PUB_REPO') or os.environ['HF_REPO'], allow_patterns=['$P/*'], local_dir='$CKPT_ROOT/adhoc_models/result', token=os.environ['HF_TOKEN'], endpoint=os.environ.get('HF_UPLOAD_ENDPOINT', 'https://huggingface.co'))";;

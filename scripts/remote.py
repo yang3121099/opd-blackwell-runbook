@@ -50,8 +50,39 @@ def split_mode():
     return os.path.exists(os.path.join(os.environ.get("OPD_ROOT", ""), "hf_repos.txt"))
 
 
+def _cfg(name, default):
+    """[v2.5.9z50] a setting from $OPD_ROOT/control.env (setenv; read on every call), else the environment, else the default."""
+    try:
+        for line in open(os.path.join(os.environ.get("OPD_ROOT", ""), "control.env")):
+            k, _, x = line.strip().removeprefix("export ").partition("=")
+            if k == name and x.strip().strip('"'):
+                return x.strip().strip('"')
+    except OSError:
+        pass
+    return os.environ.get(name) or default
+
+
+def public_paused():
+    """[v2.5.9z50] (Runming 10-22 20:2x Beijing via the reviewer: private first; the node lost the public repository from
+    11:17 UTC while the private one and GitHub worked) PUBLIC_UPLOADS=0, the default: every upload goes to the private
+    repository under the same path (the pulse as pulse/<node>.json, results as runs/...), and fetches try the private
+    repository before the public one. `setenv PUBLIC_UPLOADS=1` restores the split."""
+    return _cfg("PUBLIC_UPLOADS", "0") != "1"
+
+
 def klass(dst):
+    if public_paused():   # [v2.5.9z50]
+        return "private"
     return "public" if dst.lstrip("/").startswith(PUBLIC_PREFIXES) else "private"
+
+
+def fetch_repos():
+    """[v2.5.9z50] the repositories results are read from, in order, comma separated (fetch_model.py tries each): the private
+    one first while public uploads are paused (new results land there; older ones are still only public)."""
+    pub, priv = repos()
+    if public_paused() and priv and priv != pub:
+        return f"{priv},{pub}" if pub else priv
+    return pub
 
 
 def rename(dst):
@@ -160,8 +191,53 @@ def _drill_fault(dst=""):
     time.sleep(7200)
 
 
+WEIGHT_MB = 100   # [v2.5.9z50] ops-lead's A1 condition: weights stay out of the private repository while public uploads are paused
+
+
+def is_weight(src, dst):
+    """ckpts/ or any single file over WEIGHT_MB (a weight directory, a large generation file)."""
+    if dst.lstrip("/").startswith("ckpts/"):
+        return True
+    files = [os.path.join(r, f) for r, _, fs in os.walk(src) for f in fs] if os.path.isdir(src) else [src]
+    return any(os.path.isfile(f) and os.path.getsize(f) > WEIGHT_MB * 1e6 for f in files)
+
+
+def defer_weight(src, dst):
+    """[v2.5.9z50] a public-class weight upload while public uploads are paused: nothing goes to the private repository (its
+    quota is the status' and the receipts' too). The files are held under $CKPT_ROOT/weights_pending/<destination> (hard links
+    on the same disk, else copies) BEFORE the put reports success, because upload_sync.sh deletes its local bf16 copy (KEEP_BF16=0)
+    and the HF save after a successful put; one line in control/weights_pending.txt (utc, destination, the held copy, bytes) for
+    the public mirror or PUBLIC_UPLOADS=1 to send later. Without a checkpoint disk the put fails, so the caller keeps its files."""
+    import shutil
+    ck = os.environ.get("CKPT_ROOT", "")
+    if not ck or not os.path.isdir(ck):
+        raise RuntimeError("no checkpoint disk to hold a deferred weight upload")
+    hold = os.path.join(ck, "weights_pending", dst.lstrip("/"))
+    files = [os.path.join(r, f) for r, _, fs in os.walk(src) for f in fs] if os.path.isdir(src) else [src]
+    size = 0
+    for f in files:
+        if not os.path.isfile(f):
+            continue
+        t = os.path.join(hold, os.path.relpath(f, src)) if os.path.isdir(src) else os.path.join(hold, os.path.basename(f))
+        os.makedirs(os.path.dirname(t), exist_ok=True)
+        if os.path.lexists(t):
+            os.unlink(t)
+        try:
+            os.link(f, t)
+        except OSError:
+            shutil.copy2(f, t)
+        size += os.path.getsize(f)
+    d = os.path.join(os.environ.get("OPD_ROOT", ""), "control"); os.makedirs(d, exist_ok=True)
+    with open(os.path.join(d, "weights_pending.txt"), "a") as fh:
+        fh.write(f"{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}\t{dst}\t{hold}\t{size}\n")
+    return size
+
+
 def put(src, dst):
     _drill_fault(dst)   # v2.5.7zb: a no-op unless DRILL=1 and REMOTE_FAULT are set (zc: the status upload only)
+    if public_paused() and rename(dst).lstrip("/").startswith(PUBLIC_PREFIXES) and is_weight(src, dst):   # [v2.5.9z50]
+        record_transfer({"dir": "up", "dst": rename(dst), "deferred": "weights_pending", "bytes": defer_weight(src, rename(dst)), "ok": True})
+        return
     t0, ok = time.time(), False
     try:
         _put(src, dst); ok = True
@@ -356,13 +432,21 @@ def _put(src, dst):
 def done(task):
     if BACKEND != "hf":
         sys.exit(1)
-    api, repo = hf("public")
-    sys.exit(0 if api.file_exists(repo, f"runs/{task}/.done", repo_type="model") else 1)
+    for kind in (("private", "public") if public_paused() else ("public",)):   # [v2.5.9z50] the private repository first
+        try:
+            api, repo = hf(kind)
+            if api.file_exists(repo, f"runs/{task}/.done", repo_type="model"):
+                sys.exit(0)
+        except SystemExit:
+            raise
+        except Exception:
+            continue
+    sys.exit(1)
 
 
 if __name__ == "__main__":
     try:
         {"check": lambda: check(), "done": lambda: done(sys.argv[2]),
-         "repo": lambda: print(repos()[0 if sys.argv[2] == "public" else 1])}.get(sys.argv[1], lambda: put(sys.argv[2], sys.argv[3]))()
+         "repo": lambda: print(fetch_repos() if sys.argv[2] == "public" else repos()[1])}.get(sys.argv[1], lambda: put(sys.argv[2], sys.argv[3]))()   # [v2.5.9z50] repo public: the fetch order
     except Exception as e:   # never echo the exception text verbatim: it can contain request headers
         print(f"{BACKEND} {sys.argv[1]} failed: {type(e).__name__}", file=sys.stderr); sys.exit(1)

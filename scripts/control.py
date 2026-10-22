@@ -419,7 +419,9 @@ def ship_outbox(budget_s=None):
                 _rm(p); enqueue(it["src"], it["dst"])
             else:
                 json.dump(it, open(p + ".tmp", "w")); os.replace(p + ".tmp", p)
-        break
+        # [v2.5.9z50] (the reviewer / Runming 10-22: no head-of-line blocking) a failed item stays for the next pass and the
+        # pass goes on with the others (was: the pass ended here, and a failing public item held back status and receipts)
+        continue
     return shipped, dropped, failed
 
 
@@ -1119,6 +1121,12 @@ def pulse(status_path, upload=True):
     except Exception:
         q = ""
     p = build_pulse(st, q)
+    try:   # [v2.5.9z50] where the node's files go now; the public mirror's last time (none until the mirror exists)
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import remote as _rm_mod
+        p["source_policy"] = "private_first" if _rm_mod.public_paused() else "split"
+    except Exception:
+        p["source_policy"] = None
+    p["public_mirror_utc"] = _read(_p("public_mirror_utc"), "").strip() or None
     bad = leak_check(p)
     if bad:
         event("control", "pulse_refused", f"{len(bad)} string(s) failed the leak check")

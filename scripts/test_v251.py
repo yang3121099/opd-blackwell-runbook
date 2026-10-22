@@ -50,6 +50,7 @@ class FakeApi:
 def rem(tmp_path, monkeypatch):
     monkeypatch.setenv("OPD_ROOT", str(tmp_path)); monkeypatch.setenv("HF_REPO", "me/old"); monkeypatch.setenv("HF_TOKEN", "t")
     monkeypatch.setenv("OPD_NODE", "abcd1234"); monkeypatch.setenv("UPLOAD_BACKEND", "hf")
+    monkeypatch.setenv("PUBLIC_UPLOADS", "1")   # [v2.5.9z50] these are the split's tests (the default is now private first: test_private_first.py)
     monkeypatch.setattr(socket, "gethostname", lambda: "gpu-host-77.dc9.example-corp.com")
     monkeypatch.setattr(socket, "getfqdn", lambda: "gpu-host-77.dc9.example-corp.com")
     monkeypatch.setitem(sys.modules, "huggingface_hub", types.SimpleNamespace(

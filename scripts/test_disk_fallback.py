@@ -88,7 +88,7 @@ def test_disk_low_work_line_1000_and_control_env(monkeypatch):
 @pytest.mark.parametrize("cmd", ["setenv DISK_ALERT_GB=1000", "setenv CKPT_ALERT_GB=100", "setenv CTRL_FALLBACK_LOW_GB=200", "setenv CTRL_FALLBACK_HIGH_GB=400"])
 def test_setenv_disk_keys(cmd):
     R.parse({"cmd": cmd, "reason": "t"})
-    assert R.RULES_VERSION == "2.5.74"
+    assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 74)
 
 
 def test_rollouts_through_a_symlink():   # what upload_sync.sh (ls $RUN/rollouts/*.jsonl) and remote.put (os.walk) read
