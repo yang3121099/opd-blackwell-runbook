@@ -184,3 +184,26 @@ def test_think_for_reads_route_p():   # [v2.5.9z38] OPD_ROUTE_P reaches the coin
         for k, v in keep.items():
             os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
         R._labels = old
+
+
+def test_route_invert():   # [v2.5.9z45] (Q-063) OPD_ROUTE_INVERT=1: easy -> thinking, hard -> non-thinking; unknown still thinking; mix ignores it
+    lab = {"e": 0.875, "h": 0.0, "b": 0.5}
+    assert R.decide("e", "route", lab, invert=True) == (True, 0.875) and R.decide("h", "route", lab, invert=True) == (False, 0.0)
+    assert R.decide("b", "route", lab, invert=True) == (True, 0.5) and R.decide("b", "route", lab) == (False, 0.5)
+    assert R.decide("x", "route", lab, invert=True) == (True, None) and R.decide("x", "route", lab) == (True, None)
+    assert all(R.decide(k, "route", lab, invert=True)[0] != R.decide(k, "route", lab)[0] for k in lab)
+    d = tempfile.mkdtemp(); log = os.path.join(d, "route.jsonl")
+    lab_f = labels_file(d, [(R.key(msgs("easy")), 0.875, "train"), (R.key(msgs("hard")), 0.0, "train"), (R.key(msgs("m500")), 1.0, "math500")])
+    with env(OPD_ROUTE="route", OPD_ROUTE_LABELS=lab_f, OPD_ROUTE_LOG=log, OPD_ROUTE_INVERT="1"):
+        fresh()
+        got = [R.think_for(msgs(t)) for t in ("easy", "hard", "m500")]; rec = R.flush(3)
+    assert got == [True, False, True] and rec["invert"] is True and rec["think"] == 2 and rec["plain"] == 1 and rec["unknown"] == 1
+    assert json.loads(open(log).read().splitlines()[-1])["invert"] is True
+    with env(OPD_ROUTE="route", OPD_ROUTE_LABELS=lab_f, OPD_ROUTE_LOG=log, OPD_ROUTE_INVERT=None):
+        fresh()
+        got = [R.think_for(msgs(t)) for t in ("easy", "hard")]; rec = R.flush(2)
+    assert got == [False, True] and "invert" not in rec
+    with env(OPD_ROUTE="mix", OPD_ROUTE_LABELS=lab_f, OPD_ROUTE_LOG=log, OPD_ROUTE_INVERT="1", OPD_SEED="7"):
+        fresh()
+        g = R.think_for(msgs("easy")); rec = R.flush(1)
+    assert g == R.coin(R.key(msgs("easy")), 7) and "invert" not in rec

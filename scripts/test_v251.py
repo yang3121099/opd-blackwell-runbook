@@ -1236,7 +1236,7 @@ def test_run_and_rerun_accept_v259z43(env):   # [v2.5.9z43] (Q-058) E12b-P5-prog
     R.parse({"cmd": "rerun PROBE-PROG", "reason": "t"})
     with pytest.raises(R.Reject):
         R.parse({"cmd": "rerun PROBE-PROGX", "reason": "t"})
-    assert R.RULES_VERSION == "2.5.70"
+    assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 70)
 
 
 def test_prog_wiring_v259z43():   # [v2.5.9z43] task.sh routes the three names, PROBE-PROG takes the CPU lane, the uploader restarts at s25
@@ -1258,3 +1258,13 @@ def test_queue_prog_stage_before_diff4b_v259z43():   # [v2.5.9z43] ops-lead: Q-0
     evals = {x.split()[1] for x in q if x.startswith("#eval ")}
     for t in (s.split(":")[0] for s in stage):
         assert t in evals or t in ("E12b-P5-prog", "E12b-P5-prog-up"), t
+
+
+def test_run_and_rerun_accept_v259z45(env):   # [v2.5.9z45] (Q-063) E10b-P5route-inv and its gate PROBE-ROUTE-INV (rules 2.5.71)
+    for i, t in enumerate(("E10b-P5route-inv", "PROBE-ROUTE-INV")):
+        st, msg, _ = env.c.v_run([t], 110 + i)
+        assert st == "accepted", (t, msg)
+    for i, t in enumerate(("E10b-P5route-inv2", "E10b-P5mix-inv", "PROBE-ROUTE-INVX", "E10d-P5route-inv")):
+        assert env.c.v_run([t], 120 + i)[0] == "rejected", t
+    R.parse({"cmd": "rerun PROBE-ROUTE-INV", "reason": "t"})
+    assert R.RULES_VERSION == "2.5.71"

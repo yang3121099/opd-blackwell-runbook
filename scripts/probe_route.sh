@@ -9,9 +9,14 @@
 #     sampler order of PROBE-DIFF17 is the trainer's), every decision = its label (r >= 0.5 -> plain, else think); the smoke's
 #     config names the routing. report.json: per step think / plain / unknown, the steps' timing; to logs/<node>/probe_route/
 #     (private), an event, .done. PASS = all of it. Usage: bash probe_route.sh <gpu>
+# [v2.5.9z45] (Q-063, the reviewer 10-22: PROBE-ROUTE reused, the decisions checked by the reversed rule) PRT_TASK=PROBE-ROUTE-INV
+# PRT_ARM=E10b-P5route-inv PRT_INVERT=1 (task.sh): the same checks with the smoke of E10b-P5route-inv, every decision r >= 0.5 ->
+# think, else plain (unknown: think), every call's log line marked "invert": true, and the config's route_invert: line; the report
+# to logs/<node>/probe_route_inv, events probe_route_inv_*. Unset: PROBE-ROUTE as before.
 set -uo pipefail
 G=$1; source "$(dirname "$0")/env.sh"
-T=PROBE-ROUTE; D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; mkdir -p $D
+T=${PRT_TASK:-PROBE-ROUTE}; D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; mkdir -p $D
+NM=$(echo $T | tr A-Z- a-z_); INV=${PRT_INVERT:-0}   # [v2.5.9z45] probe_route / probe_route_inv
 LAB=${ROUTE_LABELS:-$OPD_ROOT/runs/PROBE-DIFF17/labels_17.jsonl}
 [ -f $D/.done ] && { echo "TASK_ALREADY_DONE $T"; exit 0; }
 step() { echo "PROBE_ROUTE $(date -u +%T) $*" | tee -a $LOG; }
@@ -28,8 +33,8 @@ json.dump(r, open(os.path.join(d, "report.json"), "w"), indent=1)
 PY
   mkdir -p $D/up; cp $D/report.json $LOG $D/unit_tests.txt $D/up/ 2> /dev/null; [ -f $D/smoke/train.log ] && tail -c 200000 $D/smoke/train.log > $D/up/train_tail.log
   [ -f $D/smoke/route.jsonl ] && cp $D/smoke/route.jsonl $D/up/
-  python3 $RUNBOOK/scripts/remote.py put $D/up logs/$(python3 $RUNBOOK/scripts/control.py node)/probe_route >> $LOG 2>&1 || step "report upload failed (kept in $D)"
-  python3 $RUNBOOK/scripts/control.py event $T "probe_route_$(echo $1 | tr A-Z a-z)" "$2" > /dev/null 2>&1
+  python3 $RUNBOOK/scripts/remote.py put $D/up logs/$(python3 $RUNBOOK/scripts/control.py node)/$NM >> $LOG 2>&1 || step "report upload failed (kept in $D)"
+  python3 $RUNBOOK/scripts/control.py event $T "${NM}_$(echo $1 | tr A-Z a-z)" "$2" > /dev/null 2>&1
   step "$1 $2"; touch $D/.done; exit 0
 }
 # 1. unit tests with the python the arm trains in
@@ -78,15 +83,17 @@ for _w in $(seq 19); do
 done
 step "start smoke gpu=$G"
 rm -rf $OPD_ROOT/runs/$T-smoke
-SMOKE=1 SMOKE_STEPS=${PRT_STEPS:-3} PROBE_TASK=$T-smoke bash $RUNBOOK/scripts/run_arm.sh $G E10b-P5route > $D/smoke.out 2>&1; rc=$?
+SMOKE=1 SMOKE_STEPS=${PRT_STEPS:-3} PROBE_TASK=$T-smoke bash $RUNBOOK/scripts/run_arm.sh $G ${PRT_ARM:-E10b-P5route} > $D/smoke.out 2>&1; rc=$?
 mkdir -p $D/smoke; cp $OPD_ROOT/runs/$T-smoke/train.log $OPD_ROOT/runs/$T-smoke/config.yaml $OPD_ROOT/runs/$T-smoke/route.jsonl $D/smoke/ 2> /dev/null
 python3 $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true
 [ $rc = 0 ] || finish FAIL "smoke exited $rc: $(tail -c 300 $D/smoke.out | tr '\n' ' ')"
 grep -q "CUDA out of memory\|OutOfMemoryError" $D/smoke/train.log 2> /dev/null && finish FAIL "out of memory in the smoke"
 grep -q "template per prompt: route" $D/smoke/config.yaml 2> /dev/null || finish FAIL "the smoke's config does not name the routing"
-python3 - "$LAB" "$D/smoke/route.jsonl" "$D/route_check.json" "${PRT_STEPS:-3}" "${PRT_TBS:-128}" "$RUNBOOK/code/patches" <<'PY'
+[ $INV = 1 ] && { grep -q "^route_invert: " $D/smoke/config.yaml 2> /dev/null || finish FAIL "the smoke's config does not name the reversed routing"; }   # [v2.5.9z45]
+python3 - "$LAB" "$D/smoke/route.jsonl" "$D/route_check.json" "${PRT_STEPS:-3}" "${PRT_TBS:-128}" "$RUNBOOK/code/patches" "$INV" <<'PY'
 import json, os, sys
 lab_p, log_p, out, steps, tbs = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4]), int(sys.argv[5])
+inv = sys.argv[7] == "1"   # [v2.5.9z45] the reversed rule
 sys.path.insert(0, sys.argv[6]); import opd_route as R
 lab = R.load_labels(lab_p)
 calls = [json.loads(x) for x in open(log_p)] if os.path.exists(log_p) else []
@@ -94,7 +101,7 @@ why, per = [], []
 if len(calls) != steps:
     why.append(f"{len(calls)} reference builds for {steps} steps")
 for c in calls:
-    bad = [d for d in c["decisions"] if d[1] != lab.get(d[0]) or d[2] != (d[1] is None or d[1] < 0.5)]
+    bad = [d for d in c["decisions"] if d[1] != lab.get(d[0]) or d[2] != (d[1] is None or (d[1] >= 0.5 if inv else d[1] < 0.5))]
     per.append({"call": c["call"], "rows": c["rows"], "think": c["think"], "plain": c["plain"], "unknown": c["unknown"], "mismatch": len(bad)})
     if c["rows"] != tbs or c["batch"] != tbs:
         why.append(f"call {c['call']}: {c['rows']} rows / batch {c['batch']}, expected {tbs} (one teacher pass per sample)")
@@ -104,6 +111,8 @@ for c in calls:
         why.append(f"call {c['call']}: {c['unknown']} prompts without a label (the sampler order differs)")
     if bad:
         why.append(f"call {c['call']}: {len(bad)} decisions not as labelled")
+    if bool(c.get("invert")) != inv:   # [v2.5.9z45]
+        why.append(f"call {c['call']}: logged invert={bool(c.get('invert'))}, expected {inv}")
 json.dump({"per_call": per, "why": why}, open(out, "w"), indent=1)
 print("; ".join(why))
 PY

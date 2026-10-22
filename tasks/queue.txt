@@ -104,10 +104,14 @@ b259z    open   E15-VLM-P5:PROBE-VLM EVAL-e15-vlm:E15-VLM-P5+EVAL-e15-base+EVAL-
 b259z31  open   VENV-VL-NVRTC
 b259z38p open   PROBE-MIXP
 b259z38  open   E10b-P5mix75:PROBE-MIXP+PROBE-ROUTE E10b-P5mix90:PROBE-MIXP+PROBE-ROUTE EVAL-e10b-P5mix75:E10b-P5mix75+EVAL-e10b-P5mix EVAL-e10b-P5mix90:E10b-P5mix90+EVAL-e10b-P5mix EVAL-budA-P5mix75:E10b-P5mix75 EVAL-budA-P5mix90:E10b-P5mix90
-tails43  open   E10b-P5tail-s43:PROBE-TAIL EVAL-tail-s43:E10b-P5tail-s43 EVAL-ext32k-17tail-s43:E10b-P5tail-s43
+# [v2.5.9z45] Fable 17:3x Beijing A+ (via ops-lead): mix90 -> t32 -> Q-063; Q-053's group moved here, before b259z45
 b259z9r  open   EVAL-ext32k-32Bthink-aime EVAL-32Bthink-math500
 b259z9p  open   PROBE-T32
 b259z9   open   E10d-P5-t32:PROBE-T32 EVAL-e10d-P5t32:E10d-P5-t32 EVAL-budA-e10dP5t32:E10d-P5-t32 EVAL-ext32k-4Bt32:E10d-P5-t32+EVAL-ext32k-32Bthink-aime
+# [v2.5.9z45] (Q-063; the reviewer and ops-lead: after mix90 and t32 (A+), before Q-061) the reversed route arm and its gate
+b259z45p open   PROBE-ROUTE-INV:PROBE-ROUTE
+b259z45  open   E10b-P5route-inv:PROBE-ROUTE-INV EVAL-e10b-P5route-inv:E10b-P5route-inv+EVAL-e10b-P5route+EVAL-e10b-P5mix EVAL-budA-P5route-inv:E10b-P5route-inv+EVAL-budA-P5route
+tails43  open   E10b-P5tail-s43:PROBE-TAIL EVAL-tail-s43:E10b-P5tail-s43 EVAL-ext32k-17tail-s43:E10b-P5tail-s43
 # [v2.5.9z41] ops-lead A1: the new readings and the replication after the registered arms (Q-060 b259z38p / b259z38, Q-053 b259z9p / b259z9): b259z41s, b259z41o, diff4b; Q-058 (the progressive-window arms) goes in before diff4b when written
 b259z41s open   E12b-P5-8k-s44:PROBE-E12B-8K EVAL-e12b-P5-8k-s44:E12b-P5-8k-s44 EVAL-budA-e12bP5-8k-s44:E12b-P5-8k-s44 EVAL-ext32k-17p5l8k-s44:E12b-P5-8k-s44 EVAL-ext32k-17p5l8k-s44-s25:E12b-P5-8k-s44+EVAL-ext32k-17p5l8k-s44
 b259z41o open   EVAL-ood32k-17base EVAL-ood32k-4Bbase EVAL-ood32k-17p5self:EVAL-ood32k-17base EVAL-ood32k-17p5l8k:EVAL-ood32k-17base EVAL-ood32k-4Bp5:EVAL-ood32k-4Bbase EVAL-ood32k-4Bp5self:EVAL-ood32k-4Bbase EVAL-ood32k-4Bx4:EVAL-ood32k-4Bbase
@@ -2223,3 +2227,23 @@ b259z24  open   TOKCHECK-X5
 #eval EVAL-budA-p5s44rl-s25 budAp5s44rl_s25_math500_T0.6_32k result:runs/E12b-P5-s44/global_step_25/actor/huggingface math500 4 0.6 32768
 #budget EVAL-budA-p5s44rl-s25 budget_curve_vsStart EVAL-budA17c/budA17c_E10bP5s44_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAp5s44rl_s25_math500_T0.6_32k EVAL-budA-p5s44rl-a/budAp5s44rl_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-p5s44rl-b/budAp5s44rl_s75_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-p5s44rl-b/budAp5s44rl_s100_math500_T0.6_32k_math500_no_think_t0.6.jsonl
 #budget EVAL-budA-p5s44rl-s25 budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA17c/budA17c_E10bP5s44_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAp5s44rl_s25_math500_T0.6_32k EVAL-budA-p5s44rl-a/budAp5s44rl_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-p5s44rl-b/budAp5s44rl_s75_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-p5s44rl-b/budAp5s44rl_s100_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+# [v2.5.9z45] (Q-063, the reviewer's pre-registration 10-22, research_program §3c) E10b-P5route-inv: E10b-P5route with the rule
+# reversed (easy, PROBE-DIFF17 r >= 0.5 -> the thinking teacher; hard -> the non-thinking one; OPD_ROUTE_INVERT=1), 1.7B from the
+# base, 50 steps, s50, the same labels; gated by PROBE-ROUTE-INV (probe_route.sh reused: the unit tests, a 3-step smoke, every
+# decision by the reversed rule, the log marked invert). Readings as route's: MATH-500 16K T0.6 / T1.0 (pairs as route's, plus route
+# and mix themselves), TWR, MATH-500 32K budget curves (plus one against route), a TERM4 row, a #split row; the 4K-wall step from
+# len_by_step.csv / wall.json (upload_sync.sh's lenwall, the event wall_cross reported when it lands)
+#eval EVAL-e10b-P5route-inv e10b_P5routeinv_s50_math500_T0.6 result:runs/E10b-P5route-inv/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-e10b-P5route-inv e10b_P5routeinv_s50_math500_T1.0 result:runs/E10b-P5route-inv/global_step_50/actor/huggingface math500 4 1.0
+#twr EVAL-e10b-P5route-inv e10b_P5routeinv_s50_math500_T0.6
+#pair EVAL-e10b-P5route-inv e10b_P5routeinv_s50_math500_T0.6 archive:runs/e10/e10_P5_1.7B_s50_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P2/e11b_P2_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e10b-P5self/e10b_P5self_s50_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e10b-P5route/e10b_P5route_s50_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e10b-P5mix/e10b_P5mix_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#pair EVAL-e10b-P5route-inv e10b_P5routeinv_s50_math500_T1.0 E11b-P2/e11b_P2_math500_T1.0_math500_no_think_t1.0.jsonl E11b-P5/e11b_P5_math500_T1.0_math500_no_think_t1.0.jsonl EVAL-e10b-P5route/e10b_P5route_s50_math500_T1.0_math500_no_think_t1.0.jsonl
+#eval EVAL-budA-P5route-inv budAP5routeinv_s50_math500_T0.6_32k result:runs/E10b-P5route-inv/global_step_50/actor/huggingface math500 4 0.6 32768
+#budget EVAL-budA-P5route-inv budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5routeinv_s50_math500_T0.6_32k
+#budget EVAL-budA-P5route-inv budget_curve_vsP5s150 EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5routeinv_s50_math500_T0.6_32k
+#budget EVAL-budA-P5route-inv budget_curve_vsP2s150 EVAL-budA17b/budA_E10bP2_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5routeinv_s50_math500_T0.6_32k
+#budget EVAL-budA-P5route-inv budget_curve_vsRoute EVAL-budA-P5route/budAP5route_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5routeinv_s50_math500_T0.6_32k
+#term PROBE-TERM4 17_P5routeinv result:runs/E10b-P5route-inv/global_step_50/actor/huggingface EVAL-e10b-P5route-inv/e10b_P5routeinv_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-e10b-P5route-inv rerun PROBE-TERM4
+#split READINGS-EXTRA 17_P5routeinv_s50 EVAL-e10b-P5route-inv/e10b_P5routeinv_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-e10b-P5route-inv rerun READINGS-EXTRA

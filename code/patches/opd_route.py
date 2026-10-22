@@ -4,7 +4,8 @@ The 8B teacher scores each response ONCE, in one of two templates chosen per pro
 (P5's teacher) or the non-thinking one (P2's teacher). Hooked into G-OPD's prepare_ref_model_inputs, where the P5 patch already
 sets `_think` per sample (route_patch.py; a no-op unless OPD_ROUTE is set):
   route: the prompt's pass rate r from PROBE-DIFF17 (the 1.7B base, non-thinking, k=8): r >= 0.5 (easy) -> non-thinking teacher,
-         otherwise (hard) -> thinking teacher;
+         otherwise (hard) -> thinking teacher; [v2.5.9z45] (Q-063, the reviewer 10-22, E10b-P5route-inv) OPD_ROUTE_INVERT=1 reverses
+         it: r >= 0.5 (easy) -> thinking teacher, otherwise (hard) -> non-thinking; the log line then says "invert": true;
   mix:   a fixed coin per prompt (sha1 of OPD_SEED and the prompt's key, p = 0.5): heads -> thinking teacher; the same prompt always
          gets the same teacher, independent of the labels. [v2.5.9z38] (Q-060, the reviewer 10-22) OPD_ROUTE_P = p: thinking teacher
          when int(sha1(...)[:8], 16) / 2**32 < p (E10b-P5mix75 / -P5mix90: 0.75 / 0.9; the prompts with the thinking teacher at a
@@ -16,7 +17,8 @@ Logged per call (one call per training step: the reference inputs of the whole b
 plain, unknown, and per row [key, r, think].
 
 Environment: OPD_ROUTE route|mix; OPD_ROUTE_LABELS (labels_17.jsonl of PROBE-DIFF17); OPD_ROUTE_THRESH (0.5); OPD_SEED (1234);
-OPD_ROUTE_P ([v2.5.9z38] mix's p, unset = the parity coin); OPD_ROUTE_LOG (path, optional).
+OPD_ROUTE_P ([v2.5.9z38] mix's p, unset = the parity coin); OPD_ROUTE_INVERT ([v2.5.9z45] 1: route reversed; mix / count ignore it);
+OPD_ROUTE_LOG (path, optional).
 """
 import hashlib
 import json
@@ -55,8 +57,8 @@ def coin(k, seed, p=None):
     return h % 2 == 0 if p is None else h / 2 ** 32 < p
 
 
-def decide(k, mode, labels, thresh=0.5, seed=1234, p=None):
-    """(think, r or None): the template for the prompt with key k."""
+def decide(k, mode, labels, thresh=0.5, seed=1234, p=None, invert=False):
+    """(think, r or None): the template for the prompt with key k ([v2.5.9z45] invert: route's rule reversed; unknown stays thinking)."""
     if mode not in MODES:
         raise ValueError(f"OPD_ROUTE must be one of {MODES}, got {mode!r}")
     r = labels.get(k)
@@ -64,7 +66,12 @@ def decide(k, mode, labels, thresh=0.5, seed=1234, p=None):
         return coin(k, seed, p), r
     if r is None:
         return True, None
-    return r < thresh, r
+    return (r >= thresh if invert else r < thresh), r
+
+
+def inverted():
+    """[v2.5.9z45] route reversed (OPD_ROUTE_INVERT=1, route mode only)."""
+    return os.environ.get("OPD_ROUTE") == "route" and os.environ.get("OPD_ROUTE_INVERT") == "1"
 
 
 def think_for(messages):
@@ -80,7 +87,7 @@ def think_for(messages):
     else:
         rp = os.environ.get("OPD_ROUTE_P")   # [v2.5.9z38]
         think, r = decide(k, mode, _labels, float(os.environ.get("OPD_ROUTE_THRESH", "0.5")), int(os.environ.get("OPD_SEED", "1234")),
-                          float(rp) if rp else None)
+                          float(rp) if rp else None, inverted())
     _rows.append([k, r, bool(think)])
     return think
 
@@ -93,6 +100,8 @@ def flush(n_batch):
     rec = {"call": _calls, "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "mode": os.environ.get("OPD_ROUTE", ""),
            "batch": int(n_batch), "rows": len(rows), "think": sum(1 for x in rows if x[2]), "plain": sum(1 for x in rows if not x[2]),
            "unknown": sum(1 for x in rows if x[1] is None) if os.environ.get("OPD_ROUTE") == "route" else 0, "decisions": rows}
+    if inverted():
+        rec["invert"] = True   # [v2.5.9z45]
     log = os.environ.get("OPD_ROUTE_LOG")
     if log:
         with open(log, "a") as f:

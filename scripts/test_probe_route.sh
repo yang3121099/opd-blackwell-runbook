@@ -29,11 +29,11 @@ PY
   cat > $T/rb/scripts/run_arm.sh <<'SH'
 echo "run_arm $* SMOKE=$SMOKE STEPS=$SMOKE_STEPS PROBE_TASK=$PROBE_TASK" >> $CALLS
 d=$OPD_ROOT/runs/$PROBE_TASK; mkdir -p $d
-printf "task: $2\nteacher: /m/Qwen3-8B (ref; think-template=1; param_offload=1)${FAKE_NOTE-; template per prompt: route (opd_route.py; ...)}\n" > $d/config.yaml
+printf "task: $2\nteacher: /m/Qwen3-8B (ref; think-template=1; param_offload=1)${FAKE_NOTE-; template per prompt: route (opd_route.py; ...)}\n${FAKE_INV_NOTE:-}" > $d/config.yaml
 for i in 1 2 3; do echo "(TaskRunner pid=1) step:$i - timing_s/step:300" >> $d/train.log; done
 python3 - $d/route.jsonl <<'PY'
 import json, os, sys
-mode = os.environ.get("FAKE_ROUTE", "ok"); rows = 64 if mode == "half" else 128
+mode = os.environ.get("FAKE_ROUTE", "ok"); rows = 64 if mode == "half" else 128; inv = os.environ.get("FAKE_INV") == "1"   # [v2.5.9z45] the reversed rule
 with open(sys.argv[1], "w") as f:
     for c in range(3):
         dec = []
@@ -42,12 +42,15 @@ with open(sys.argv[1], "w") as f:
             r = (i % 9) / 8; k = __import__("hashlib").sha1(f"p{i}".encode()).hexdigest()[:16]
             if mode == "unknown" and j == 5:
                 k, r = "deadbeefdeadbeef", None
-            think = r is None or r < 0.5
+            think = r is None or (r >= 0.5 if inv else r < 0.5)
             if mode == "wrong" and j == 7:
                 think = not think
             dec.append([k, r, think])
-        f.write(json.dumps({"call": c + 1, "batch": rows, "rows": rows, "think": sum(d[2] for d in dec), "plain": sum(not d[2] for d in dec),
-                            "unknown": sum(d[1] is None for d in dec), "decisions": dec}) + "\n")
+        rec = {"call": c + 1, "batch": rows, "rows": rows, "think": sum(d[2] for d in dec), "plain": sum(not d[2] for d in dec),
+               "unknown": sum(d[1] is None for d in dec), "decisions": dec}
+        if inv and os.environ.get("FAKE_NO_INVLOG") != "1":
+            rec["invert"] = True
+        f.write(json.dumps(rec) + "\n")
 PY
 exit ${FAKE_RC:-0}
 SH
@@ -69,4 +72,18 @@ setup; rm $T/root/runs/PROBE-DIFF17/labels_17.jsonl; bash $T/rb/scripts/probe_ro
 setup; printf "def prepare_ref_model_inputs(\n    batch,\n):\n    return batch\n" > $T/py/verl/trainer/ppo/ref_input_utils.py; bash $T/rb/scripts/probe_route.sh 4 > /dev/null 2>&1
 check "an installed file without the P5 anchor fails the unit tests" "unit tests"; rm -rf $T
 unset PYTHONPATH
+# [v2.5.9z45] (Q-063) PROBE-ROUTE-INV: the same probe for E10b-P5route-inv, the decisions by the reversed rule, its own report / events
+INVENV="PRT_TASK=PROBE-ROUTE-INV PRT_ARM=E10b-P5route-inv PRT_INVERT=1"
+resi() { python3 -c "import json, sys; print(json.load(open(sys.argv[1])).get(sys.argv[2], ''))" $T/root/runs/PROBE-ROUTE-INV/report.json "$1"; }
+setup; env $INVENV FAKE_INV=1 FAKE_INV_NOTE="route_invert: easy (r >= 0.5) -> thinking teacher" bash $T/rb/scripts/probe_route.sh 4 > /dev/null 2>&1
+ok "[v2.5.9z45] PROBE-ROUTE-INV: PASS with the reversed decisions; the smoke of E10b-P5route-inv; logs/<node>/probe_route_inv, probe_route_inv_pass; PROBE-ROUTE untouched" '[ "$(resi result)" = PASS ] && grep -q "^run_arm 4 E10b-P5route-inv SMOKE=1 STEPS=3 PROBE_TASK=PROBE-ROUTE-INV-smoke$" $CALLS && grep -q "^remote put $T/root/runs/PROBE-ROUTE-INV/up logs/abcd1234/probe_route_inv$" $CALLS && grep -q "^control event PROBE-ROUTE-INV probe_route_inv_pass " $CALLS && [ ! -e $T/root/runs/PROBE-ROUTE/report.json ]'
+rm -rf $T
+setup; env $INVENV FAKE_INV_NOTE="route_invert: x" bash $T/rb/scripts/probe_route.sh 4 > /dev/null 2>&1
+ok "[v2.5.9z45] PROBE-ROUTE-INV with route's own decisions is FAIL (decisions not as labelled; no invert mark)" '[ "$(resi result)" = FAIL ] && [[ "$(resi reason)" == *"decisions not as labelled"*"logged invert=False, expected True"* ]]'; rm -rf $T
+setup; env $INVENV FAKE_INV=1 FAKE_NO_INVLOG=1 FAKE_INV_NOTE="route_invert: x" bash $T/rb/scripts/probe_route.sh 4 > /dev/null 2>&1
+ok "[v2.5.9z45] reversed decisions without the log's invert mark is FAIL" '[ "$(resi result)" = FAIL ] && [[ "$(resi reason)" == *"logged invert=False, expected True"* ]] && [[ "$(resi reason)" != *"not as labelled"* ]]'; rm -rf $T
+setup; env $INVENV FAKE_INV=1 bash $T/rb/scripts/probe_route.sh 4 > /dev/null 2>&1
+ok "[v2.5.9z45] a config without route_invert: is FAIL" '[ "$(resi result)" = FAIL ] && [[ "$(resi reason)" == *"does not name the reversed routing"* ]]'; rm -rf $T
+setup; FAKE_INV=1 bash $T/rb/scripts/probe_route.sh 4 > /dev/null 2>&1
+ok "[v2.5.9z45] PROBE-ROUTE (not inverted) with reversed decisions stays FAIL" '[ "$(res result)" = FAIL ] && [[ "$(res reason)" == *"decisions not as labelled"*"logged invert=True, expected False"* ]]'; rm -rf $T
 [ $fails = 0 ] && echo "PROBE_ROUTE_TEST PASS ($n checks)" || echo "PROBE_ROUTE_TEST FAIL ($fails of $n)"
