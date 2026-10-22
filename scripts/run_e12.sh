@@ -27,6 +27,7 @@ source "$(dirname "$0")/env.sh"; source "$(dirname "$0")/dr.sh"; G=$1; T=$2; LAD
 # [v2.5.9y] (Q-045, the reviewer 10-22): 16k-kl = 16k (the 16384 limit, two GPUs) with kl's KL loss to the start (0.01,
 # low_var_kl, the reference = the start); gated by both of its parts' gates (PROBE-E12B-16K and PROBE-E12B-KL), no smoke of its own
 VAR=""; case $A in P5-kl|P5-stop|P5-stop2|P5-8k|P5-16k|P5-r3|P5-16k-kl) VAR=${A#P5-}; A=P5;; esac
+[ "$A" = P5-8k-s44 ] && { VAR=8k; A=P5-s44; }   # [v2.5.9z41] (the reviewer's padding ruling 10-22) E12b-P5-8k-s44: the 8K arm from E10b-P5-s44 s150
 # [v2.5.8h] (Runming 10-20 17:5x UTC via the reviewer, Q-028: the 4K limit costs too much): E12b-P5-8k / -16k = E12b-P5 with
 # max_response_length 8192 / 16384 and what the length forces: flash-attn with remove-padding (an SDPA micro-batch is
 # padded to its longest sequence), a token budget of at least prompt + response, vLLM batching above the model length
@@ -69,6 +70,7 @@ TBS=64; ADV=grpo; [ "$VAR" = r3 ] && { TBS=128; ADV=reinforce_plus_plus_baseline
 # v2.5.7c: venv-fa (flash-attn, remove-padding) only with VENV=fa and E12B_FA=1: the E12b ladder stays on one attention
 V=$OPD_ROOT/venv; [ "${VENV:-}" = fa ] && [ "${E12B_FA:-0}" = 1 ] && V=$OPD_ROOT/venv-fa
 case $T in E12d-*|E12b-P2-s43|E12b-P5-8k|E12b-P5-16k|E12b-P5-16k-kl) V=$OPD_ROOT/venv-fa;; esac   # v2.5.7o: new arms on flash-attn (reviewer 06:0x UTC); [v2.5.8h] the long limits
+[ $T = E12b-P5-8k-s44 ] && V=$OPD_ROOT/venv-fa   # [v2.5.9z41] as the 8K arm
 [ $LADDER = E12d ] && VLLM_UTIL=${E12D_VLLM_UTIL:-0.5}   # v2.5.7o: vLLM 0.5 for the 4B actor (a node-wide VLLM_UTIL does not reach it)
 source $V/bin/activate
 # [v2.5.8a] E12c-P0's start, the 0.6B base, from a local copy: $OPD_ROOT/models/Qwen3-0.6B, else the Hugging Face cache
@@ -120,6 +122,7 @@ VALB=True; TESTF=25; [ $SM = 1 ] && { STEPS=${SMOKE_STEPS:-3}; SAVE=-1; VALB=Fal
 # readings (where does P5 -> RL lose the 32K ceiling), so they are uploaded as bf16 like the last step; until now
 # upload_sync deleted every step not uploaded (E12b-P5-s43 lost s25 / s50 / s75 that way)
 UW=$STEPS; case $T in E12b-P5-s44|E12d-P5) UW=25,50,75,$STEPS;; E12b-P5-8k|E12b-P5-16k|E12b-P5-r3|E12b-P5-16k-kl) UW=25,$STEPS;; esac   # [v2.5.8h] the long limits: s25 too   # E12d-P5: the same across sizes (reviewer A1 08:0x UTC)
+[ $T = E12b-P5-8k-s44 ] && UW=25,$STEPS   # [v2.5.9z41] as the 8K arm: s25 too
 # [v2.5.8b] the variant's settings (KL loss and its reference; the reward function)
 KL="actor_rollout_ref.actor.use_kl_loss=False"; REWARD=$RUNBOOK/code/train/reward_mathverify.py
 # [v2.5.8c] stop: the stop reward, counting the student's tokens (its start's tokenizer) against the 4K response limit

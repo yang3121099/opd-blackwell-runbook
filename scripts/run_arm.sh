@@ -87,7 +87,7 @@ SMERGE=0; [ $TASK = E10b-P5stopmerge ] && { SMERGE=1; BASE=E10b-P5; }
 # opd_tailswap.py, OPD_TAILSWAP=1): up to the first complete \boxed{} of a response the teacher's log-probs are P5's (thinking
 # reading); after it they come from a second reference pass of the same 8B on the non-thinking template (P2's reading). 50 steps;
 # train.log tail/* and runs/<task>/tailswap.jsonl per step. Gated by PROBE-TAIL.
-TAIL=0; [ $TASK = E10b-P5tail ] && { TAIL=1; BASE=E10b-P5; }
+TAIL=0; [[ $TASK == E10b-P5tail || $TASK == E10b-P5tail-s43 ]] && { TAIL=1; BASE=E10b-P5; }   # [v2.5.9z41] -s43: data.seed 43 (the seed parse above)
 # [v2.5.9x] (Q-041 / Q-042, the reviewer's pre-registration 10-22): E10b-P5route / E10b-P5mix = P5's recipe from the base with the
 # 8B teacher's template chosen per prompt (code/patches/opd_route.py through route_patch.py; one teacher pass per sample): route =
 # PROBE-DIFF17's pass rate r of the 1.7B base (r >= 0.5: the non-thinking template, P2's teacher; else the thinking one, P5's);
