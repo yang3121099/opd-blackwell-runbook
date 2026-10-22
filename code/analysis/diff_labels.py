@@ -10,8 +10,12 @@ training prompts, gen_eval.grade for MATH-500). Prompts:
 Each prompt is keyed by key(): the sha1 of its (last) user message, the same function opd_route.py applies to the trainer's
 raw_prompt. Output <out>/labels_<tag>.jsonl (one line per prompt: split, pos (sampler position or MATH-500 index), key, k, n, r,
 mean_len, trunc) and <out>/report_<tag>.json (counts, the histogram of k, the easy share r >= 0.5, mean length, truncation, timing).
+[v2.5.9z27] (the reviewer's A1 10-22) MATH-500 was graded with bool() of gen_eval.grade's (ok, pred) tuple, always true: the first
+run's 500 MATH-500 labels were all k=8. Now grade(...)[0]; the report says "math500_grader": "v2". --only math500 redoes the
+MATH-500 part alone: the train lines of the existing labels_<tag>.jsonl are kept byte for byte (opd_route.py reads them), the
+file is replaced atomically, and the report keeps its train part.
 Usage: python diff_labels.py --model <path> --tag 17|4b --train <dapo_train.parquet> --out <dir> [--steps 50 --tbs 128 --seed 42
-       --maxp 1024 --k 8 --max_tokens 4096 --limit N]
+       --maxp 1024 --k 8 --max_tokens 4096 --limit N --only math500]
 """
 import argparse
 import hashlib
@@ -68,7 +72,7 @@ def grader(split):
         return lambda text, gold, src: float(reward_mathverify.compute_score(src, text, gold))
     sys.path.insert(0, os.path.join(HERE, "..", "eval"))
     import gen_eval
-    return lambda text, gold, src: float(bool(gen_eval.grade(text, gold)))
+    return lambda text, gold, src: float(bool(gen_eval.grade(text, gold)[0]))   # [v2.5.9z27] grade returns (ok, pred)
 
 
 def summarize(rows, k):
@@ -93,6 +97,32 @@ def label(llm, tokenizer, prompts, split, k, max_tokens, chat_kwargs, sp_factory
     return rows
 
 
+def write_labels(out, tag, train_lines, rows_mp):
+    """[v2.5.9z27] labels_<tag>.jsonl = the train lines as given (strings, kept byte for byte) + the MATH-500 rows; atomic."""
+    p = os.path.join(out, f"labels_{tag}.jsonl"); tmp = p + ".tmp"
+    with open(tmp, "w") as f:
+        for x in train_lines:
+            f.write(x if x.endswith("\n") else x + "\n")
+        for r in rows_mp:
+            f.write(json.dumps(r) + "\n")
+    os.replace(tmp, p)
+
+
+def redo_math500(out, tag, rows_mp, k, seconds):
+    """[v2.5.9z27] --only math500: keep the existing train lines and report part, put the new MATH-500 rows and summary in."""
+    p = os.path.join(out, f"labels_{tag}.jsonl")
+    train_lines = [x for x in open(p) if x.strip() and json.loads(x).get("split") == "train"]
+    write_labels(out, tag, train_lines, rows_mp)
+    rp = os.path.join(out, f"report_{tag}.json")
+    rep = json.load(open(rp))
+    rep["math500"] = summarize(rows_mp, k)
+    rep.setdefault("seconds", {})["math500"] = seconds
+    rep["math500_grader"] = "v2"
+    rep["math500_redone_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    json.dump(rep, open(rp, "w"), indent=1)
+    return rep, len(train_lines)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", required=True); ap.add_argument("--tag", required=True, choices=["17", "4b"])
@@ -101,25 +131,29 @@ def main():
     ap.add_argument("--seed", type=int, default=42); ap.add_argument("--maxp", type=int, default=1024)
     ap.add_argument("--k", type=int, default=8); ap.add_argument("--max_tokens", type=int, default=4096)
     ap.add_argument("--limit", type=int, default=0, help="tests / smoke: only the first N prompts of each split")
+    ap.add_argument("--only", choices=["math500"], default=None, help="[v2.5.9z27] redo the MATH-500 part alone")
     a = ap.parse_args()
     from transformers import AutoTokenizer
     import vllm
     tok = AutoTokenizer.from_pretrained(a.model)
     ck = {"enable_thinking": False}
     t0 = time.time()
-    tr, n_rows, n_fit = train_prompts(a.train, tok, a.steps, a.tbs, a.seed, a.maxp, ck)
+    tr, n_rows, n_fit = train_prompts(a.train, tok, a.steps, a.tbs, a.seed, a.maxp, ck) if not a.only else ([], 0, 0)
     mp = math500_prompts()
     if a.limit:
         tr, mp = tr[: a.limit], mp[: a.limit]
     llm = vllm.LLM(model=a.model, seed=0, max_model_len=a.maxp + a.max_tokens + 64, gpu_memory_utilization=float(os.environ.get("DIFF_UTIL", "0.85")))
     sp = lambda k, m: vllm.SamplingParams(n=k, temperature=1.0, top_p=1.0, top_k=-1, max_tokens=m, seed=0)
     os.makedirs(a.out, exist_ok=True)
+    if a.only:   # [v2.5.9z27]
+        t1 = time.time(); rows_mp = label(llm, tok, mp, "math500", a.k, a.max_tokens, ck, sp)
+        rep, n_tr = redo_math500(a.out, a.tag, rows_mp, a.k, round(time.time() - t1, 1))
+        print("DIFF_LABELS", json.dumps({"only": "math500", "train_lines_kept": n_tr, "math500": rep["math500"]}))
+        return
     rows_tr = label(llm, tok, tr, "train", a.k, a.max_tokens, ck, sp); t1 = time.time()
     rows_mp = label(llm, tok, mp, "math500", a.k, a.max_tokens, ck, sp); t2 = time.time()
-    with open(os.path.join(a.out, f"labels_{a.tag}.jsonl"), "w") as f:
-        for r in rows_tr + rows_mp:
-            f.write(json.dumps(r) + "\n")
-    rep = {"tag": a.tag, "model": os.path.basename(a.model.rstrip("/")), "k": a.k, "temperature": 1.0, "max_tokens": a.max_tokens,
+    write_labels(a.out, a.tag, [json.dumps(r) for r in rows_tr], rows_mp)
+    rep = {"tag": a.tag, "math500_grader": "v2", "model": os.path.basename(a.model.rstrip("/")), "k": a.k, "temperature": 1.0, "max_tokens": a.max_tokens,
            "template": "non-thinking", "train_rows": n_rows, "train_rows_fit": n_fit, "train_selected": len(rows_tr),
            "steps": a.steps, "tbs": a.tbs, "seed": a.seed, "train": summarize(rows_tr, a.k), "math500": summarize(rows_mp, a.k),
            "seconds": {"train": round(t1 - t0, 1), "math500": round(t2 - t1, 1)}, "vllm": vllm.__version__}

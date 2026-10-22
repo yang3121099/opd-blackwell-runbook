@@ -8,6 +8,10 @@
 # truncation) and report_<tag>.json (histogram of k, the easy share r >= 0.5, timing) to the public result repository as
 # runs/PROBE-DIFF17 (path-free: hashes and numbers); probe.log to logs/<node>/probe_diff17/ (private); an event; .done.
 # PASS = exit 0, every selected prompt labelled (6400 + 500). E10b-P5route reads labels_17.jsonl. Usage: bash probe_diff17.sh <gpu> [4b]
+# [v2.5.9z27] (the reviewer's A1 10-22) PASS also needs labels that are not degenerate: MATH-500 mean r < 0.99 and train mean r in
+# [0.1, 0.9] (the first run's MATH-500 labels were all k=8: bool() of gen_eval.grade's tuple). When labels_<tag>.jsonl already holds
+# the full train part and report_<tag>.json has no "math500_grader" (that first run), only the MATH-500 part is redone
+# (diff_labels.py --only math500: the train lines kept byte for byte, the file replaced atomically).
 set -uo pipefail
 G=$1; source "$(dirname "$0")/env.sh"; source ${VENV_EVAL:-$OPD_ROOT/venv}/bin/activate
 TAG=17; T=PROBE-DIFF17; M=$STUDENT_17B
@@ -39,12 +43,17 @@ for _w in $(seq 19); do
   [ "${used:-1}" -le 1024 ] && break; [ $_w = 19 ] && finish FAIL "gpu $G not empty after 180 s"; sleep ${PDF_WAIT_STEP:-10}
 done
 step "start gpu=$G model=$(basename $M) tag=$TAG"
+ONLY=""; NTR=$(( ${DIFF_STEPS:-50} * ${DIFF_TBS:-128} ))   # [v2.5.9z27]
+if [ -z "${DIFF_LIMIT:-}" ] && [ -f $OUTD/report_$TAG.json ] && ! grep -q '"math500_grader"' $OUTD/report_$TAG.json \
+   && [ "$(grep -c '"split": "train"' $OUTD/labels_$TAG.jsonl 2> /dev/null)" = $NTR ]; then ONLY="--only math500"; step "MATH-500 part only (the $NTR train labels kept)"; fi
 CUDA_VISIBLE_DEVICES=$G python $RUNBOOK/code/analysis/diff_labels.py --model $M --tag $TAG --train $OPD_ROOT/data/dapo_train.parquet \
   --out $OUTD --steps ${DIFF_STEPS:-50} --tbs ${DIFF_TBS:-128} --seed ${DIFF_SEED:-42} --maxp 1024 --k 8 --max_tokens 4096 \
-  $([ -n "${DIFF_LIMIT:-}" ] && echo --limit $DIFF_LIMIT) > $D/gen.out 2>&1; rc=$?
+  $([ -n "${DIFF_LIMIT:-}" ] && echo --limit $DIFF_LIMIT) $ONLY > $D/gen.out 2>&1; rc=$?
 python3 $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true
 [ $rc = 0 ] || finish FAIL "diff_labels exited $rc: $(tail -c 300 $D/gen.out | tr '\n' ' ')"
 WANT=$(( ${DIFF_LIMIT:-0} > 0 ? 2 * ${DIFF_LIMIT:-0} : ${DIFF_STEPS:-50} * ${DIFF_TBS:-128} + 500 ))
 GOT=$(wc -l < $OUTD/labels_$TAG.jsonl 2> /dev/null | tr -d ' ')
 [ "${GOT:-0}" = $WANT ] || finish FAIL "labels_$TAG.jsonl has ${GOT:-0} prompts, expected $WANT"
-finish PASS "$GOT prompts labelled; $(python3 -c "import json; r = json.load(open('$OUTD/report_$TAG.json')); print('train easy share', r['train']['easy_share'], 'mean r', r['train']['mean_r'], '| math500 easy share', r['math500']['easy_share'])")"
+BAD=$(python3 -c "import json, sys; r = json.load(open(sys.argv[1])); m, t = r['math500']['mean_r'], r['train']['mean_r']; print(('math500 mean r %s >= 0.99' % m if m >= 0.99 else '') + ('; ' if m >= 0.99 and not 0.1 <= t <= 0.9 else '') + ('train mean r %s outside [0.1, 0.9]' % t if not 0.1 <= t <= 0.9 else ''))" $OUTD/report_$TAG.json 2>&1 | tail -1)
+[ -z "$BAD" ] || finish FAIL "degenerate labels: $BAD"   # [v2.5.9z27]
+finish PASS "$GOT prompts labelled; $(python3 -c "import json; r = json.load(open('$OUTD/report_$TAG.json')); print('train easy share', r['train']['easy_share'], 'mean r', r['train']['mean_r'], '| math500 easy share', r['math500']['easy_share'], 'mean r', r['math500']['mean_r'], 'grader', r.get('math500_grader'))")"
