@@ -20,7 +20,8 @@ setup() {
   python3 -m venv --without-pip $T/root/venv-vl
   SP=$($T/root/venv-vl/bin/python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')
   dist() { mkdir -p $SP/$1-$2.dist-info; printf 'Metadata-Version: 2.1\nName: %s\nVersion: %s\n' $1 $2 > $SP/$1-$2.dist-info/METADATA; }
-  dist torch 2.8.0+cu128; dist flash_attn 2.8.3; dist nvidia_cuda_nvrtc_cu12 12.8.93
+  dist torch 2.8.0; dist flash_attn 2.8.3; dist nvidia_cuda_nvrtc_cu12 12.8.93   # [v2.5.9z57] venv-vl's torch: the PyPI build, "2.8.0"
+  mkdir -p $SP/torch; printf "__version__ = '2.8.0'\ncuda: Optional[str] = '${FAKE_TORCH_CUDA:-12.8}'\n" > $SP/torch/version.py
   mkdir -p $SP/nvidia/cuda_nvrtc/lib $SP/pip; echo 12.8 > $SP/nvidia/cuda_nvrtc/lib/libnvrtc.so.12; : > $SP/pip/__init__.py
   cat > $SP/pip/__main__.py <<'PY'
 import glob, os, shutil, sys
@@ -53,7 +54,7 @@ D=runs/VENV-VL-NVRTC
 # 1. PASS
 setup; H0=$(cat $T/root/venv-fa/lib/marker); bash $T/rb/scripts/venv_vl_nvrtc.sh > /dev/null 2>&1
 ok "PASS: the pinned wheel fetched (sha256 by wheel_fetch) and installed offline, --no-deps, in venv-vl only" '[ "$(res result)" = PASS ] && grep -q "^wheel_fetch $T/root/$D/wheels nvidia-cuda-nvrtc-cu12==12.9.86 PARFIRST=1 CONNS=16$" $CALLS && grep -q "^pip install --no-index --find-links $T/root/$D/wheels --no-deps nvidia-cuda-nvrtc-cu12==12.9.86 in $T/root/venv-vl$" $CALLS && [ "$(grep -c "^pip install" $CALLS)" = 1 ]'
-ok "checks: torch 2.8.0+cu128, flash-attn 2.8.3, the wheel at 12.9.86, libnvrtc.so.12 (a relative path)" 'python3 -c "import json, sys; c = json.load(open(sys.argv[1]))[\"checks\"]; assert c[\"torch\"] == \"2.8.0+cu128\" and c[\"flash_attn\"] == \"2.8.3\" and c[\"nvrtc_wheel\"] == \"12.9.86\" and c[\"libnvrtc\"] == [\"nvidia/cuda_nvrtc/lib/libnvrtc.so.12\"] and c[\"pass\"], c" $T/root/$D/report.json'
+ok "checks: torch 2.8.0 as before the install (z57), its CUDA 12.8, flash-attn 2.8.3, the wheel at 12.9.86, libnvrtc.so.12 (a relative path)" 'python3 -c "import json, sys; c = json.load(open(sys.argv[1]))[\"checks\"]; assert c[\"torch\"] == c[\"torch_pre\"] == \"2.8.0\" and c[\"torch_cuda\"] == \"12.8\" and c[\"flash_attn\"] == \"2.8.3\" and c[\"nvrtc_wheel\"] == \"12.9.86\" and c[\"libnvrtc\"] == [\"nvidia/cuda_nvrtc/lib/libnvrtc.so.12\"] and c[\"pass\"], c" $T/root/$D/report.json'
 ok "requirements.lock: pip check verbatim on top (the torch-wants-12.8 line kept, not a failure), then pip freeze; manifest with the sha256" 'head -1 $T/root/$D/requirements.lock | grep -q "^# pip check" && sed -n 2p $T/root/$D/requirements.lock | grep -q "has requirement nvidia-cuda-nvrtc-cu12==12.8.93" && grep -q "^# pip freeze" $T/root/$D/requirements.lock && grep -q 210cf05005a447e2 $T/root/$D/manifest.json'
 ok "lock, manifest and report to logs/<node>/venv_vl_nvrtc (private), event pass, .done; venv-fa untouched" 'grep -q "^remote put $T/root/$D/up logs/abcd1234/venv_vl_nvrtc$" $CALLS && [ -f $T/root/$D/up/requirements.lock ] && [ -f $T/root/$D/up/manifest.json ] && grep -q "^control event VENV-VL-NVRTC venv_vl_nvrtc_pass" $CALLS && [ -f $T/root/$D/.done ] && [ "$(cat $T/root/venv-fa/lib/marker)" = "$H0" ] && ! grep -q "venv-fa" $CALLS'
 rm -rf $T
@@ -65,6 +66,7 @@ rm -rf $T
 # 3. FAILs, no .done
 check() { ok "$1" '[ "$(res result)" = FAIL ] && [[ "$(res reason)" == *"'"$2"'"* ]] && [ ! -f $T/root/$D/.done ]'; }
 setup; FAKE_TORCH_BUMP=1 bash $T/rb/scripts/venv_vl_nvrtc.sh > /dev/null 2>&1; check "torch changed by the install is FAIL" "2.9.0+cu129"; rm -rf $T
+FAKE_TORCH_CUDA=12.9 setup; bash $T/rb/scripts/venv_vl_nvrtc.sh > /dev/null 2>&1; check "[v2.5.9z57] a torch built for CUDA 12.9 is FAIL" "torch_cuda 12.9"; rm -rf $T
 setup; FAKE_WHEEL_FAIL=1 bash $T/rb/scripts/venv_vl_nvrtc.sh > /dev/null 2>&1; check "a failed wheel fetch is FAIL (and nothing installed)" "wheel: WHEEL nvidia-cuda-nvrtc-cu12 sha256 mismatch"; ok "no install after a failed fetch" '! grep -q "^pip install" $CALLS'; rm -rf $T
 setup; mv $T/root/venv-vl $T/vvl; ln -s $T/vvl $T/root/venv-vl; bash $T/rb/scripts/venv_vl_nvrtc.sh > /dev/null 2>&1; check "a venv-vl that is a link is FAIL, untouched" "venv-vl with bin/python"; rm -rf $T
 setup; NVRTC_PIN=nvidia-cuda-nvrtc-cu12==12.8.93 bash $T/rb/scripts/venv_vl_nvrtc.sh > /dev/null 2>&1; check "a pin outside 12.9 is FAIL" "is not nvidia-cuda-nvrtc-cu12==12.9.<x>"; rm -rf $T

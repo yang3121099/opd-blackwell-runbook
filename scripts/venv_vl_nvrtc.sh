@@ -15,7 +15,9 @@
 #   2. the pinned wheel (NVRTC_PIN, default nvidia-cuda-nvrtc-cu12==12.9.86) by wheel_fetch.py (PyPI's sha256 checked; [v2.5.9z34]
 #      WHEEL_PAR_FIRST=1, NVRTC_CONNS (16) connections: the first try, 06:44 UTC, was its own one-connection probe at 0.069 MB/s
 #      and timed out), installed offline with --no-index --no-deps: the resolver touches nothing else
-#   3. checks (no GPU visible): torch still 2.8.0+cu128, flash-attn still 2.8.3, nvidia-cuda-nvrtc-cu12 at the pin, libnvrtc.so.12
+#   3. checks (no GPU visible): torch's version string the same as before the install ([v2.5.9z57] ops-lead: venv-vl's torch is the
+#      PyPI build, "2.8.0", whose CUDA is 12.8; the check wanted "2.8.0+cu128" and failed at 13:31 UTC 10-22 with nothing wrong) and
+#      torch.version.cuda 12.8, flash-attn still 2.8.3, nvidia-cuda-nvrtc-cu12 at the pin, libnvrtc.so.12
 #      in site-packages/nvidia/cuda_nvrtc/lib; `pip check` verbatim at the top of requirements.lock (a line that torch wants NVRTC
 #      12.8 is expected: recorded, not a failure), then pip freeze
 # Report runs/VENV-VL-NVRTC/{report.json, requirements.lock, manifest.json (the wheel's sha256), nvrtc.log} to
@@ -100,6 +102,7 @@ step "start: $PIN into \$OPD_ROOT/venv-vl"
 # 2. the wheel, sha256-checked, installed offline without dependencies
 WHEEL_PAR_FIRST=1 FETCH_CONNS=${NVRTC_CONNS:-16} $NI python3 $RUNBOOK/scripts/wheel_fetch.py $D/wheels $PIN >> $LOG 2>&1 || finish FAIL "wheel: $(grep -h '^WHEEL.*Error\|^WHEEL.*sha256 ' $LOG | tail -2 | tr '\n' ' ')"   # [v2.5.9z34]
 cp $D/wheels/manifest.json $D/manifest.json 2> /dev/null
+CUDA_VISIBLE_DEVICES= $PY -c "from importlib import metadata as M; print(M.version('torch'))" > $D/torch_pre.txt 2>> $LOG   # [v2.5.9z57] before the install
 $NI $PIP install --no-index --find-links $D/wheels --no-deps "$PIN" >> $LOG 2>&1 || finish FAIL "offline install of $PIN failed"
 if ! guard post >> $LOG 2>&1; then   # [ops-lead's A1 condition b]
   python3 $RUNBOOK/scripts/control.py event $T venv_contamination "libnvrtc sha256 in venv / venv-fa changed during the venv-vl install" > /dev/null 2>&1
@@ -107,10 +110,17 @@ if ! guard post >> $LOG 2>&1; then   # [ops-lead's A1 condition b]
 fi
 # 3. checks
 { echo "# pip check ($(date -u +%FT%TZ); a line that torch wants nvidia-cuda-nvrtc-cu12 12.8 is expected)"; $PIP check 2>&1; echo "# pip freeze"; $PIP freeze 2>&1; } > $D/requirements.lock
-CUDA_VISIBLE_DEVICES= $PY - "$D/checks.json" "${PIN#*==}" >> $LOG 2>&1 <<'PY'
+CUDA_VISIBLE_DEVICES= $PY - "$D/checks.json" "${PIN#*==}" "$(cat $D/torch_pre.txt 2> /dev/null)" >> $LOG 2>&1 <<'PY'
 import glob, json, os, sys, sysconfig
 from importlib import metadata as M
-out, want = sys.argv[1], sys.argv[2]
+out, want, pre = sys.argv[1], sys.argv[2], sys.argv[3]
+def torch_cuda(sp):   # [v2.5.9z57] torch.version.cuda from torch/version.py, without importing torch
+    import re
+    try:
+        m = re.search(r"^cuda\s*(?::[^=\n]*)?=\s*['\"]([^'\"]+)['\"]", open(os.path.join(sp, "torch", "version.py")).read(), re.M)
+        return m.group(1) if m else None
+    except OSError:
+        return None
 def ver(*names):
     for n in names:
         try:
@@ -120,11 +130,12 @@ def ver(*names):
     return None
 sp = sysconfig.get_paths()["purelib"]
 lib = sorted(glob.glob(os.path.join(sp, "nvidia", "cuda_nvrtc", "lib", "libnvrtc.so.12*")))
-c = {"torch": ver("torch"), "flash_attn": ver("flash_attn", "flash-attn"), "nvrtc_wheel": ver("nvidia-cuda-nvrtc-cu12"),
-     "libnvrtc": [os.path.relpath(x, sp) for x in lib]}
-c["pass"] = c["torch"] == "2.8.0+cu128" and (c["flash_attn"] or "").startswith("2.8.3") and c["nvrtc_wheel"] == want and bool(lib)
+c = {"torch": ver("torch"), "torch_pre": pre or None, "torch_cuda": torch_cuda(sp), "flash_attn": ver("flash_attn", "flash-attn"),
+     "nvrtc_wheel": ver("nvidia-cuda-nvrtc-cu12"), "libnvrtc": [os.path.relpath(x, sp) for x in lib]}
+c["pass"] = (bool(pre) and c["torch"] == pre and c["torch_cuda"] == "12.8" and (c["flash_attn"] or "").startswith("2.8.3")
+             and c["nvrtc_wheel"] == want and bool(lib))
 json.dump(c, open(out, "w"), indent=1); print("NVRTC_CHECKS", json.dumps(c))
 sys.exit(0 if c["pass"] else 1)
 PY
-[ $? = 0 ] || finish FAIL "checks: $(python3 -c "import json, sys; c = json.load(open(sys.argv[1])); print(', '.join(k + ' ' + str(c.get(k)) for k in ('torch', 'flash_attn', 'nvrtc_wheel', 'libnvrtc')))" $D/checks.json 2>&1 | tail -1)"
+[ $? = 0 ] || finish FAIL "checks: $(python3 -c "import json, sys; c = json.load(open(sys.argv[1])); print(', '.join(k + ' ' + str(c.get(k)) for k in ('torch', 'torch_pre', 'torch_cuda', 'flash_attn', 'nvrtc_wheel', 'libnvrtc')))" $D/checks.json 2>&1 | tail -1)"
 finish PASS "$PIN in venv-vl; torch $(python3 -c "import json, sys; c = json.load(open(sys.argv[1])); print(c['torch'] + ', flash-attn ' + c['flash_attn'] + ', ' + ' '.join(c['libnvrtc']))" $D/checks.json); pip check: $(sed -n 2p $D/requirements.lock | cut -c1-120)"
