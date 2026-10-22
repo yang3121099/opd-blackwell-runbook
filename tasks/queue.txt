@@ -1427,7 +1427,8 @@ olpd     open   EVAL-ext32k-17olpd
 # (MMLU-Pro as a fixed-seed 1K subset on the node; the evaluation rows come later from the reviewer); pulled only for now
 #fetch dataset:TIGER-Lab/MMLU-Pro
 #fetch dataset:google/IFEval
-#fetch dataset:Idavidrein/gpqa
+# [v2.5.9z20] #fetch dataset:Idavidrein/gpqa removed (ops-lead 10-22): HTTP 401 Unauthorized from huggingface.co and hf-mirror.com every
+# ~12 min since 01:29 UTC (gated: the node's account has not accepted the dataset's terms); back once Runming accepts them on its page
 #git xirui-li/ClawEnvKit e7003442030e15c5e85f4c5f28a5e54774c6a21a code
 # b259fp / b259f (runbook v2.5.9f, T1, reviewer A1 10-21): E12b-P5-stop2 = E12b-P5 with the graded stop reward (reward_stop2.py:
 # acc x (1 + 0.5 clip(1 - tail/1024, 0, 1)), tail = student tokens after the first \boxed{}, a cut response tail 1024), from P5
@@ -1912,41 +1913,41 @@ olpd     open   EVAL-ext32k-17olpd
 # else "answer is (X)", else unparsed (metrics unparsed_rate); mean length and truncation as always. A bench whose #fetch copy is not in
 # yet makes its task wait (WAIT_INPUTS; GPQA is gated). IFEval comes in the next version (a grading-only venv).
 #eval EVAL-gm-17base gm_17base_mmlupro1k_T0_4k Qwen/Qwen3-1.7B mmlupro1k 1 0 4096 no_think
-#eval EVAL-gm-17base gm_17base_gpqa_T0.6_16k Qwen/Qwen3-1.7B gpqa 4 0.6 16384 no_think
+#eval-deferred EVAL-gm-17base gm_17base_gpqa_T0.6_16k Qwen/Qwen3-1.7B gpqa 4 0.6 16384 no_think
 #eval EVAL-gm-17think gm_17think_mmlupro1k_T0_16k Qwen/Qwen3-1.7B mmlupro1k 1 0 16384 think
-#eval EVAL-gm-17think gm_17think_gpqa_T0.6_16k Qwen/Qwen3-1.7B gpqa 4 0.6 16384 think
+#eval-deferred EVAL-gm-17think gm_17think_gpqa_T0.6_16k Qwen/Qwen3-1.7B gpqa 4 0.6 16384 think
 #eval EVAL-gm-17P5 gm_17P5_mmlupro1k_T0_4k result:runs/E10b-P5/global_step_150/actor/huggingface mmlupro1k 1 0 4096 no_think
-#eval EVAL-gm-17P5 gm_17P5_gpqa_T0.6_16k result:runs/E10b-P5/global_step_150/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval-deferred EVAL-gm-17P5 gm_17P5_gpqa_T0.6_16k result:runs/E10b-P5/global_step_150/actor/huggingface gpqa 4 0.6 16384 no_think
 #eval EVAL-gm-17P5self gm_17P5self_mmlupro1k_T0_4k result:runs/E10b-P5self/global_step_50/actor/huggingface mmlupro1k 1 0 4096 no_think
-#eval EVAL-gm-17P5self gm_17P5self_gpqa_T0.6_16k result:runs/E10b-P5self/global_step_50/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval-deferred EVAL-gm-17P5self gm_17P5self_gpqa_T0.6_16k result:runs/E10b-P5self/global_step_50/actor/huggingface gpqa 4 0.6 16384 no_think
 #eval EVAL-gm-17P5rl gm_17P5rl_mmlupro1k_T0_4k result:runs/E12b-P5/global_step_100/actor/huggingface mmlupro1k 1 0 4096 no_think
-#eval EVAL-gm-17P5rl gm_17P5rl_gpqa_T0.6_16k result:runs/E12b-P5/global_step_100/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval-deferred EVAL-gm-17P5rl gm_17P5rl_gpqa_T0.6_16k result:runs/E12b-P5/global_step_100/actor/huggingface gpqa 4 0.6 16384 no_think
 #eval EVAL-gm-17P5kl gm_17P5kl_mmlupro1k_T0_4k result:runs/E12b-P5-kl/global_step_100/actor/huggingface mmlupro1k 1 0 4096 no_think
-#eval EVAL-gm-17P5kl gm_17P5kl_gpqa_T0.6_16k result:runs/E12b-P5-kl/global_step_100/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval-deferred EVAL-gm-17P5kl gm_17P5kl_gpqa_T0.6_16k result:runs/E12b-P5-kl/global_step_100/actor/huggingface gpqa 4 0.6 16384 no_think
 #eval EVAL-gm-17P5l8k gm_17P5l8k_mmlupro1k_T0_4k result:runs/E12b-P5-8k/global_step_50/actor/huggingface mmlupro1k 1 0 4096 no_think
-#eval EVAL-gm-17P5l8k gm_17P5l8k_gpqa_T0.6_16k result:runs/E12b-P5-8k/global_step_50/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval-deferred EVAL-gm-17P5l8k gm_17P5l8k_gpqa_T0.6_16k result:runs/E12b-P5-8k/global_step_50/actor/huggingface gpqa 4 0.6 16384 no_think
 #eval EVAL-gm-4Bbase gm_4Bbase_mmlupro1k_T0_4k Qwen/Qwen3-4B mmlupro1k 1 0 4096 no_think
-#eval EVAL-gm-4Bbase gm_4Bbase_gpqa_T0.6_16k Qwen/Qwen3-4B gpqa 4 0.6 16384 no_think
+#eval-deferred EVAL-gm-4Bbase gm_4Bbase_gpqa_T0.6_16k Qwen/Qwen3-4B gpqa 4 0.6 16384 no_think
 #eval EVAL-gm-4Bthink gm_4Bthink_mmlupro1k_T0_16k Qwen/Qwen3-4B mmlupro1k 1 0 16384 think
-#eval EVAL-gm-4Bthink gm_4Bthink_gpqa_T0.6_16k Qwen/Qwen3-4B gpqa 4 0.6 16384 think
+#eval-deferred EVAL-gm-4Bthink gm_4Bthink_gpqa_T0.6_16k Qwen/Qwen3-4B gpqa 4 0.6 16384 think
 #eval EVAL-gm-4BP5 gm_4BP5_mmlupro1k_T0_4k result:runs/E10d-P5/global_step_150/actor/huggingface mmlupro1k 1 0 4096 no_think
-#eval EVAL-gm-4BP5 gm_4BP5_gpqa_T0.6_16k result:runs/E10d-P5/global_step_150/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval-deferred EVAL-gm-4BP5 gm_4BP5_gpqa_T0.6_16k result:runs/E10d-P5/global_step_150/actor/huggingface gpqa 4 0.6 16384 no_think
 #eval EVAL-gm-4BP5self gm_4BP5self_mmlupro1k_T0_4k result:runs/E10d-P5self/global_step_50/actor/huggingface mmlupro1k 1 0 4096 no_think
-#eval EVAL-gm-4BP5self gm_4BP5self_gpqa_T0.6_16k result:runs/E10d-P5self/global_step_50/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval-deferred EVAL-gm-4BP5self gm_4BP5self_gpqa_T0.6_16k result:runs/E10d-P5self/global_step_50/actor/huggingface gpqa 4 0.6 16384 no_think
 #eval EVAL-gm-4BP5rl gm_4BP5rl_mmlupro1k_T0_4k result:runs/E12d-P5/global_step_100/actor/huggingface mmlupro1k 1 0 4096 no_think
-#eval EVAL-gm-4BP5rl gm_4BP5rl_gpqa_T0.6_16k result:runs/E12d-P5/global_step_100/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval-deferred EVAL-gm-4BP5rl gm_4BP5rl_gpqa_T0.6_16k result:runs/E12d-P5/global_step_100/actor/huggingface gpqa 4 0.6 16384 no_think
 #eval EVAL-gm-4BX4 gm_4BX4_mmlupro1k_T0_4k result:runs/E10d-X4/global_step_50/actor/huggingface mmlupro1k 1 0 4096 no_think
-#eval EVAL-gm-4BX4 gm_4BX4_gpqa_T0.6_16k result:runs/E10d-X4/global_step_50/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval-deferred EVAL-gm-4BX4 gm_4BX4_gpqa_T0.6_16k result:runs/E10d-X4/global_step_50/actor/huggingface gpqa 4 0.6 16384 no_think
 #eval EVAL-gm-4Bi2507 gm_4Bi2507_mmlupro1k_T0_4k Qwen/Qwen3-4B-Instruct-2507 mmlupro1k 1 0 4096 no_think
-#eval EVAL-gm-4Bi2507 gm_4Bi2507_gpqa_T0.6_16k Qwen/Qwen3-4B-Instruct-2507 gpqa 4 0.6 16384 no_think
+#eval-deferred EVAL-gm-4Bi2507 gm_4Bi2507_gpqa_T0.6_16k Qwen/Qwen3-4B-Instruct-2507 gpqa 4 0.6 16384 no_think
 #eval EVAL-gm-06base gm_06base_mmlupro1k_T0_4k Qwen/Qwen3-0.6B mmlupro1k 1 0 4096 no_think
-#eval EVAL-gm-06base gm_06base_gpqa_T0.6_16k Qwen/Qwen3-0.6B gpqa 4 0.6 16384 no_think
+#eval-deferred EVAL-gm-06base gm_06base_gpqa_T0.6_16k Qwen/Qwen3-0.6B gpqa 4 0.6 16384 no_think
 #eval EVAL-gm-06think gm_06think_mmlupro1k_T0_16k Qwen/Qwen3-0.6B mmlupro1k 1 0 16384 think
-#eval EVAL-gm-06think gm_06think_gpqa_T0.6_16k Qwen/Qwen3-0.6B gpqa 4 0.6 16384 think
+#eval-deferred EVAL-gm-06think gm_06think_gpqa_T0.6_16k Qwen/Qwen3-0.6B gpqa 4 0.6 16384 think
 #eval EVAL-gm-06P5 gm_06P5_mmlupro1k_T0_4k result:runs/E10c-P5-fix4/global_step_150/actor/huggingface mmlupro1k 1 0 4096 no_think
-#eval EVAL-gm-06P5 gm_06P5_gpqa_T0.6_16k result:runs/E10c-P5-fix4/global_step_150/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval-deferred EVAL-gm-06P5 gm_06P5_gpqa_T0.6_16k result:runs/E10c-P5-fix4/global_step_150/actor/huggingface gpqa 4 0.6 16384 no_think
 #eval EVAL-gm-06P5rl gm_06P5rl_mmlupro1k_T0_4k result:runs/E12c-P5/global_step_100/actor/huggingface mmlupro1k 1 0 4096 no_think
-#eval EVAL-gm-06P5rl gm_06P5rl_gpqa_T0.6_16k result:runs/E12c-P5/global_step_100/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval-deferred EVAL-gm-06P5rl gm_06P5rl_gpqa_T0.6_16k result:runs/E12c-P5/global_step_100/actor/huggingface gpqa 4 0.6 16384 no_think
 # [v2.5.9z17] (the reviewer's Q-040 H3, via ops-lead 10-22) tail-swap s50 against P5 s150 on MATH-500 32K, problem-level paired bootstrap;
 # READINGS-EXTRA reruns by itself once EVAL-tail and then EVAL-len-cmp are done (#after rows, 9z12)
 #pairq READINGS-EXTRA tail32k_vs_P5s150_32k EVAL-tail/budAtail_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl
@@ -1956,3 +1957,5 @@ olpd     open   EVAL-ext32k-17olpd
 # (no GPU, no network): per-layer weight differences of five 4B models (P5 s150, P5self s50, base -> RL s100, Thinking-2507,
 # Instruct-2507) against Qwen3-4B, |Delta| / |W|, the unchanged share, pairwise cosines, the top-10 singular-value share; report
 # and summary to the private repository. A model not on the node is a report row (never downloaded); `rerun PROBE-WDIFF` then.
+# [v2.5.9z20] the 18 gpqa rows of b259z15 are #eval-deferred (not read) until GPQA is on the node: a row whose data is missing makes its
+# task wait and relaunch every 10 min, and each relaunch costs the dispatcher a 90 s pause; the MMLU-Pro rows of the same tasks run.

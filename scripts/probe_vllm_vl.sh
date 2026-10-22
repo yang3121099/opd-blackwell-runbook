@@ -45,31 +45,41 @@ done
 step "start gpu=$G model=$(basename $M)"
 ( while true; do echo "$(date -u +%s),$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $G | tr -d ' ')" >> $D/mem.csv; sleep 2; done ) &
 MP=$!; trap 'kill $MP 2> /dev/null' EXIT   # [v2.5.9z3] the sampler never outlives the probe
-CUDA_VISIBLE_DEVICES=$G timeout ${PVV_TIMEOUT:-900} $PY - "$M" "$DS" "$D/gen.json" > $D/gen.out 2>&1 <<'PY'
+# [v2.5.9z20] the check runs from a file, its body under __main__: vLLM 0.11's engine core is a spawned process that re-imports the
+# main module by its path, and from stdin that path is '<stdin>' (10-22 01:36 UTC: FileNotFoundError, "Engine core initialization failed")
+cat > $D/gen_check.py <<'PY'
 import glob, io, json, os, sys, time
-m, ds, out = sys.argv[1:4]
-r = {}
-import torch, vllm
-from PIL import Image
-r.update(vllm=vllm.__version__, torch=torch.__version__, capability=".".join(map(str, torch.cuda.get_device_capability(0))))
-import pyarrow.parquet as pq
-f = sorted(glob.glob(os.path.join(ds, "**", "*test*.parquet"), recursive=True))[0]
-row = pq.read_table(f).slice(0, 1).to_pylist()[0]
-img = row["images"][0] if isinstance(row.get("images"), list) else row["images"]
-img = Image.open(io.BytesIO(img["bytes"] if isinstance(img, dict) else img)).convert("RGB")
-q = str(row.get("problem", row.get("question", ""))).replace("<image>", "").strip()
-r.update(data_file=os.path.relpath(f, ds), image_size=list(img.size))
-from transformers import AutoProcessor
-proc = AutoProcessor.from_pretrained(m)
-msgs = [{"role": "user", "content": [{"type": "image"}, {"type": "text", "text": q}]}]
-prompt = proc.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)
-t0 = time.time()
-llm = vllm.LLM(model=m, max_model_len=8192, gpu_memory_utilization=float(os.environ.get("PVV_UTIL", "0.5")), limit_mm_per_prompt={"image": 1}, seed=0)
-r["load_s"] = round(time.time() - t0, 1); t1 = time.time()
-o = llm.generate([{"prompt": prompt, "multi_modal_data": {"image": img}}], vllm.SamplingParams(temperature=0, max_tokens=512))[0].outputs[0]
-r.update(gen_s=round(time.time() - t1, 1), answer=o.text[:300], answer_tokens=len(o.token_ids), finish_reason=o.finish_reason, reference=str(row.get("answer", ""))[:50])
-json.dump(r, open(out, "w"), indent=1); print("GEN_OK", json.dumps(r)[:500])
+
+
+def main():
+    m, ds, out = sys.argv[1:4]
+    r = {}
+    import torch, vllm
+    from PIL import Image
+    r.update(vllm=vllm.__version__, torch=torch.__version__, capability=".".join(map(str, torch.cuda.get_device_capability(0))))
+    import pyarrow.parquet as pq
+    f = sorted(glob.glob(os.path.join(ds, "**", "*test*.parquet"), recursive=True))[0]
+    row = pq.read_table(f).slice(0, 1).to_pylist()[0]
+    img = row["images"][0] if isinstance(row.get("images"), list) else row["images"]
+    img = Image.open(io.BytesIO(img["bytes"] if isinstance(img, dict) else img)).convert("RGB")
+    q = str(row.get("problem", row.get("question", ""))).replace("<image>", "").strip()
+    r.update(data_file=os.path.relpath(f, ds), image_size=list(img.size))
+    from transformers import AutoProcessor
+    proc = AutoProcessor.from_pretrained(m)
+    msgs = [{"role": "user", "content": [{"type": "image"}, {"type": "text", "text": q}]}]
+    prompt = proc.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)
+    t0 = time.time()
+    llm = vllm.LLM(model=m, max_model_len=8192, gpu_memory_utilization=float(os.environ.get("PVV_UTIL", "0.5")), limit_mm_per_prompt={"image": 1}, seed=0)
+    r["load_s"] = round(time.time() - t0, 1); t1 = time.time()
+    o = llm.generate([{"prompt": prompt, "multi_modal_data": {"image": img}}], vllm.SamplingParams(temperature=0, max_tokens=512))[0].outputs[0]
+    r.update(gen_s=round(time.time() - t1, 1), answer=o.text[:300], answer_tokens=len(o.token_ids), finish_reason=o.finish_reason, reference=str(row.get("answer", ""))[:50])
+    json.dump(r, open(out, "w"), indent=1); print("GEN_OK", json.dumps(r)[:500])
+
+
+if __name__ == "__main__":
+    main()
 PY
+CUDA_VISIBLE_DEVICES=$G timeout ${PVV_TIMEOUT:-900} $PY $D/gen_check.py "$M" "$DS" "$D/gen.json" > $D/gen.out 2>&1
 rc=$?
 kill $MP 2> /dev/null
 python3 $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true
