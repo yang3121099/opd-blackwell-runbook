@@ -457,3 +457,4 @@ commands:
   - {"seq": 455, "cmd": "rerun READINGS-EXTRA", "reason": "v2.5.9z13: Q-030 #lensel / #tails rows", "utc": "2026-10-22T00:09:24Z"}
   - {"seq": 456, "cmd": "setenv GPUS_SOON_MIN=1440", "reason": "ops-lead's hold for E12b-P5-16k-kl (v2.5.9z12a): EVAL-e12b-P5-16k on its last row; no other #gpus task ready", "utc": "2026-10-22T00:27:40Z"}
   - {"seq": 457, "cmd": "setenv GPUS_HOLD_MIN=45", "reason": "ops-lead's hold for E12b-P5-16k-kl (v2.5.9z12a): 45 min turns", "utc": "2026-10-22T00:27:49Z"}
+  - {"seq": 458, "cmd": "setenv GPUS_SOON_MIN=", "reason": "E12b-P5-16k-kl started on GPUs 2,6: hold settings back to default (ops-lead's condition)", "utc": "2026-10-22T01:13:32Z"}
