@@ -36,6 +36,81 @@ BENCH_SOURCES = {
 }
 
 
+# [v2.5.9z15] (the reviewer 10-22, Runming: "too few metrics?") multiple-choice benches, read from the node's #fetch copies under
+# $OPD_ROOT/data/hf (no network): gpqa = GPQA-Diamond (198; the four options shuffled per question with a fixed seed, by_level = its
+# domain), mmlupro1k = 1,000 MMLU-Pro test questions drawn with a fixed seed (up to ten options, by_level = its subject). The answer is a
+# letter: the one in the last \boxed{}, else MMLU-Pro's own extraction "answer is (X)", else unparsed (wrong; metrics: unparsed_rate).
+MC_SOURCES = {"gpqa": ("Idavidrein__gpqa", "gpqa_diamond.csv", "Idavidrein/gpqa (diamond)"),
+              "mmlupro1k": ("TIGER-Lab__MMLU-Pro", "data/test-00000-of-00001.parquet", "TIGER-Lab/MMLU-Pro (test, 1K by seed)")}
+MC_SEED, MMLUPRO_N, LETTERS = 20261022, 1000, "ABCDEFGHIJ"
+MC_SUFFIX = "\nPlease reason step by step, and put the letter of your final answer within \\boxed{}."
+
+
+def mc_problem(question, options):
+    return str(question).strip() + "\n\n" + "\n".join(f"{LETTERS[i]}) {str(o).strip()}" for i, o in enumerate(options))
+
+
+def gpqa_rows(df):
+    import random
+    rows = []
+    for i, ex in enumerate(df.to_dict("records")):
+        opts = [ex["Correct Answer"], ex["Incorrect Answer 1"], ex["Incorrect Answer 2"], ex["Incorrect Answer 3"]]
+        order = list(range(4)); random.Random(f"{MC_SEED}-gpqa-{i}").shuffle(order)
+        rows.append({"pid": f"gpqa-{i}", "problem": mc_problem(ex["Question"], [opts[j] for j in order]), "answer": LETTERS[order.index(0)],
+                     "letters": LETTERS[:4], "level": ex.get("High-level domain"), "source": MC_SOURCES["gpqa"][2]})
+    return rows
+
+
+def mmlupro_rows(df, n=MMLUPRO_N):
+    import random
+    recs = df.to_dict("records")
+    rows = []
+    for i in sorted(random.Random(MC_SEED).sample(range(len(recs)), min(n, len(recs)))):
+        ex = recs[i]; opts = list(ex["options"])   # as given: the gold letter indexes this list
+        rows.append({"pid": f"mmlupro1k-{ex['question_id']}", "problem": mc_problem(ex["question"], opts), "answer": str(ex["answer"]).strip(),
+                     "letters": LETTERS[:len(opts)], "level": ex.get("category"), "source": MC_SOURCES["mmlupro1k"][2]})
+    return rows
+
+
+def load_mc(name, limit=None):
+    import pandas as pd
+    d, f, _ = MC_SOURCES[name]
+    p = os.path.join(os.environ.get("OPD_ROOT", ""), "data", "hf", d, f)
+    if not os.path.exists(p):
+        raise SystemExit(f"WAIT_INPUTS {name}: {d}/{f} is not on the node (its #fetch line)")
+    rows = gpqa_rows(pd.read_csv(p)) if name == "gpqa" else mmlupro_rows(pd.read_parquet(p))
+    return rows[:limit] if limit else rows
+
+
+def boxed_content(text):
+    """The content of the last \\boxed{...} (braces balanced), else None."""
+    i = text.rfind("\\boxed{")
+    if i < 0:
+        return None
+    j, depth = i + len("\\boxed{"), 1
+    for k in range(j, len(text)):
+        depth += {"{": 1, "}": -1}.get(text[k], 0)
+        if depth == 0:
+            return text[j:k]
+    return None
+
+
+def grade_letter(text, gold, letters="ABCD"):
+    """(correct, predicted letter or None): the letter in the last \\boxed{} ("A", "(A)", "A)", "A. ...", "\\text{A}"), else MMLU-Pro's
+    extraction "answer is (X)" (its last match); a letter outside this question's options counts as unparsed."""
+    pred, seg = None, boxed_content(text)
+    if seg is not None:
+        s = re.sub(r"\\(?:text|mathrm|textbf)\{([^}]*)\}", r"\1", seg).strip()
+        m = re.fullmatch(r"\(?\s*([A-J])\s*\)?(?:[.:)]\s*.*)?", s, re.S)
+        pred = m.group(1) if m else None
+    if pred is None:
+        hits = re.findall(r"answer is \(?([A-J])\)?", text)
+        pred = hits[-1] if hits else None
+    if pred is not None and pred not in letters:
+        pred = None
+    return pred == gold, pred
+
+
 def olympiad_answer(raw):
     """OlympiadBench final_answer: a Python list as text; drop every $ and join several items with ', ' (Math-Verify then
     compares the tuple)."""
@@ -48,6 +123,8 @@ def olympiad_answer(raw):
 
 
 def load_bench(name, limit=None):
+    if name in MC_SOURCES:   # [v2.5.9z15]
+        return load_mc(name, limit)
     from datasets import load_dataset
     errors = []
     for src in BENCH_SOURCES[name]:
@@ -129,14 +206,15 @@ def pass_at_k(n, c, k):
 
 def make_record(r, si, c, mode):
     text = c.text
-    ok, pred = grade(text, r["answer"])
+    mc = "letters" in r   # [v2.5.9z15] a multiple-choice question: the letter, no maths grading
+    ok, pred = grade_letter(text, r["answer"], r["letters"]) if mc else grade(text, r["answer"])
     trunc = c.finish_reason == "length"
     return {"pid": r["pid"], "sample": si, "level": r["level"], "gold": r["answer"],
             "pred": pred, "correct": ok, "n_tokens": len(c.token_ids),
             "finish_reason": c.finish_reason, "terminated": not trunc,
             "think_closed": ("</think>" in text) if mode == "think" else None,
-            "first_correct_pos": first_correct_pos(text, r["answer"]),
-            "first_value_pos_loose": first_correct_pos(text, r["answer"], loose=True),
+            "first_correct_pos": None if mc else first_correct_pos(text, r["answer"]),
+            "first_value_pos_loose": None if mc else first_correct_pos(text, r["answer"], loose=True),
             "grader_version": GRADER_VERSION, "token_ids": list(c.token_ids), "text": text}
 
 
@@ -162,6 +240,7 @@ def compute_metrics(args, rows, recs, gen_s):
                               "mean_tokens": round(sum(t for _, t in v) / len(v), 1)}
                      for l, v in sorted(by_level.items())},
         "gen_seconds": round(gen_s, 1), "source": rows[0]["source"],
+        **({"unparsed_rate": round(sum(1 for r in recs if r["pred"] is None) / len(recs), 4)} if args.bench in MC_SOURCES else {}),   # [v2.5.9z15]
     }
 
 
@@ -208,7 +287,7 @@ def resume_state(part, meta, args, rows, K):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", required=True)
-    ap.add_argument("--bench", required=True, choices=list(BENCH_SOURCES))
+    ap.add_argument("--bench", required=True, choices=list(BENCH_SOURCES) + list(MC_SOURCES))
     ap.add_argument("--mode", required=True, choices=["think", "no_think"])
     ap.add_argument("--n", type=int, default=4)
     ap.add_argument("--temperature", type=float, default=0.6)
@@ -234,7 +313,7 @@ def main():
     tok = AutoTokenizer.from_pretrained(args.model)
     prompts = []
     for r in rows:
-        msgs = [{"role": "user", "content": r["problem"] + PROMPT_SUFFIX}]
+        msgs = [{"role": "user", "content": r["problem"] + (MC_SUFFIX if args.bench in MC_SOURCES else PROMPT_SUFFIX)}]
         kw = {"enable_thinking": args.mode == "think"}
         try:
             prompts.append(tok.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True, **kw))

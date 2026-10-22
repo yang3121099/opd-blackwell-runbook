@@ -76,7 +76,10 @@ while read -r TAG MODEL BENCH N TEMP MAXT MODE; do
   resolve_model "$MODEL"; rc=$?
   [ $rc = 1 ] && { echo "MODEL_FETCH_FAILED $TAG: $MODEL (see $OUT/fetch.log)"; ok=0; continue; }
   [ $rc = 2 ] && { echo "MODEL_MISSING $TAG: $MODEL"; ok=0; continue; }
-  case $TEMP in 1.0) SAMP="--temperature 1.0 --top_p 1.0 --top_k 0";; *) SAMP="--temperature 0.6 --top_p 0.95 --top_k 0";; esac
+  case $TEMP in 1.0) SAMP="--temperature 1.0 --top_p 1.0 --top_k 0";; 0) SAMP="--temperature 0 --top_p 1.0 --top_k 0";; *) SAMP="--temperature 0.6 --top_p 0.95 --top_k 0";; esac   # [v2.5.9z15] 0: greedy
+  # [v2.5.9z15] a multiple-choice bench reads the node's #fetch copy: while it is not in, the task waits (no attempt; 9z3)
+  case $BENCH in gpqa) DS=Idavidrein__gpqa;; mmlupro1k) DS=TIGER-Lab__MMLU-Pro;; *) DS="";; esac
+  if [ -n "$DS" ] && [ ! -f $OPD_ROOT/data/hf/$DS/.fetch_ok ]; then echo "WAIT_INPUTS $T: $DS not in (no .fetch_ok)"; exit 1; fi
   case $BENCH in aime24|aime25|amc23) K=10;; *) K=50;; esac
   gpu_wait_free $G || { python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1; gpu_wait_free $G 120; }   # [v2.5.8] the previous engine gone first
   echo "EVAL_START $(date -u +%T) $TAG"

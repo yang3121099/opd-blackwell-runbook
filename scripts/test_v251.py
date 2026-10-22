@@ -1173,3 +1173,20 @@ def test_pulse_drops_a_leaking_asset_entry(env, monkeypatch):   # [v2.5.9z13] (o
     monkeypatch.setattr(env.c, "assets_view", lambda: {"AI4Math__MathVista": {"state": "已就位", "at": "t 1.75 GB"}, bad: {"state": "拉取中", "at": None}})
     p = env.c.build_pulse({}, "")
     assert p["assets"] == {"AI4Math__MathVista": {"state": "已就位", "at": "t 1.75 GB"}} and p["assets_dropped"] == 1 and env.c.leak_check(p) == []
+
+
+@pytest.mark.parametrize("args,ok", [(["Qwen/Qwen3-4B", "mmlupro1k", "1", "0", "4096", "no_think"], True), (["Qwen/Qwen3-4B", "gpqa", "4", "0.6", "16384", "think"], True),
+                                     (["Qwen/Qwen3-4B", "gpqa", "4", "0.5", "16384", "think"], False), (["Qwen/Qwen3-4B", "ifeval", "1", "0", "4096", "no_think"], False)])
+def test_eval_args_mc_benches_and_greedy_v259z15(args, ok):   # [2.5.62]
+    if ok:
+        R.check_eval_args(args)
+    else:
+        with pytest.raises(R.Reject):
+            R.check_eval_args(args)
+
+
+def test_run_queue_eval_greedy_and_mc_wait_v259z15():
+    src = open(os.path.join(HERE, "run_queue_eval.sh")).read()
+    assert '0) SAMP="--temperature 0 --top_p 1.0 --top_k 0";;' in src
+    assert 'case $BENCH in gpqa) DS=Idavidrein__gpqa;; mmlupro1k) DS=TIGER-Lab__MMLU-Pro;; *) DS="";; esac' in src
+    assert 'echo "WAIT_INPUTS $T: $DS not in (no .fetch_ok)"; exit 1' in src

@@ -105,6 +105,7 @@ b259z9r  open   EVAL-ext32k-32Bthink-aime EVAL-32Bthink-math500
 b259z9p  open   PROBE-T32
 b259z9   open   E10d-P5-t32:PROBE-T32 EVAL-e10d-P5t32:E10d-P5-t32 EVAL-budA-e10dP5t32:E10d-P5-t32 EVAL-ext32k-4Bt32:E10d-P5-t32+EVAL-ext32k-32Bthink-aime
 b259q028 open   EVAL-ext32k-17p5l8k-s25
+b259z15  open   EVAL-gm-17base EVAL-gm-17think EVAL-gm-17P5 EVAL-gm-17P5self EVAL-gm-17P5rl EVAL-gm-17P5kl EVAL-gm-17P5l8k EVAL-gm-4Bbase EVAL-gm-4Bthink EVAL-gm-4BP5 EVAL-gm-4BP5self EVAL-gm-4BP5rl EVAL-gm-4BX4 EVAL-gm-4Bi2507 EVAL-gm-06base EVAL-gm-06think EVAL-gm-06P5 EVAL-gm-06P5rl
 diff4b   open   PROBE-DIFF17-4B:PROBE-DIFF17
 rx       open   READINGS-EXTRA
 night1   open   EVAL-ext-06p5rl EVAL-ext-x1 EVAL-ext-x2 EVAL-ext-x4:E10d-X4 EVAL-ext32k-17p5selfrl-s43 EVAL-ext-17p5selfrl-s43 EVAL-ext-17p5self-s43 EVAL-budA-17p2rl-s43 EVAL-budA-4Bp2s43
@@ -1904,3 +1905,44 @@ olpd     open   EVAL-ext32k-17olpd
 #fppair READINGS-EXTRA q056 e12d_P5_s100 e10d_P5_s150 e12d_P0_s100 e10d_P0
 #fppair READINGS-EXTRA q056 e12c_P5_s100 e10c_P5-fix4_s150 e12c_P0_s100 e10c_base06
 #fppair READINGS-EXTRA q056 e10d_X4_s50 i2507 4B_think
+# b259z15 (runbook v2.5.9z15; the reviewer 10-22, Runming: "too few metrics?") general-ability regression of the headline checkpoints,
+# after the formal readings, before the pads: MMLU-Pro 1K (fixed seed 20261022) avg@1 greedy at 4K (the thinking-mode references at 16K: 4K
+# would cut their thinking), then GPQA-Diamond avg@4 T0.6 16K (by_level = physics / chemistry / biology); the letter from the last \boxed{},
+# else "answer is (X)", else unparsed (metrics unparsed_rate); mean length and truncation as always. A bench whose #fetch copy is not in
+# yet makes its task wait (WAIT_INPUTS; GPQA is gated). IFEval comes in the next version (a grading-only venv).
+#eval EVAL-gm-17base gm_17base_mmlupro1k_T0_4k Qwen/Qwen3-1.7B mmlupro1k 1 0 4096 no_think
+#eval EVAL-gm-17base gm_17base_gpqa_T0.6_16k Qwen/Qwen3-1.7B gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-17think gm_17think_mmlupro1k_T0_16k Qwen/Qwen3-1.7B mmlupro1k 1 0 16384 think
+#eval EVAL-gm-17think gm_17think_gpqa_T0.6_16k Qwen/Qwen3-1.7B gpqa 4 0.6 16384 think
+#eval EVAL-gm-17P5 gm_17P5_mmlupro1k_T0_4k result:runs/E10b-P5/global_step_150/actor/huggingface mmlupro1k 1 0 4096 no_think
+#eval EVAL-gm-17P5 gm_17P5_gpqa_T0.6_16k result:runs/E10b-P5/global_step_150/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-17P5self gm_17P5self_mmlupro1k_T0_4k result:runs/E10b-P5self/global_step_50/actor/huggingface mmlupro1k 1 0 4096 no_think
+#eval EVAL-gm-17P5self gm_17P5self_gpqa_T0.6_16k result:runs/E10b-P5self/global_step_50/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-17P5rl gm_17P5rl_mmlupro1k_T0_4k result:runs/E12b-P5/global_step_100/actor/huggingface mmlupro1k 1 0 4096 no_think
+#eval EVAL-gm-17P5rl gm_17P5rl_gpqa_T0.6_16k result:runs/E12b-P5/global_step_100/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-17P5kl gm_17P5kl_mmlupro1k_T0_4k result:runs/E12b-P5-kl/global_step_100/actor/huggingface mmlupro1k 1 0 4096 no_think
+#eval EVAL-gm-17P5kl gm_17P5kl_gpqa_T0.6_16k result:runs/E12b-P5-kl/global_step_100/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-17P5l8k gm_17P5l8k_mmlupro1k_T0_4k result:runs/E12b-P5-8k/global_step_50/actor/huggingface mmlupro1k 1 0 4096 no_think
+#eval EVAL-gm-17P5l8k gm_17P5l8k_gpqa_T0.6_16k result:runs/E12b-P5-8k/global_step_50/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-4Bbase gm_4Bbase_mmlupro1k_T0_4k Qwen/Qwen3-4B mmlupro1k 1 0 4096 no_think
+#eval EVAL-gm-4Bbase gm_4Bbase_gpqa_T0.6_16k Qwen/Qwen3-4B gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-4Bthink gm_4Bthink_mmlupro1k_T0_16k Qwen/Qwen3-4B mmlupro1k 1 0 16384 think
+#eval EVAL-gm-4Bthink gm_4Bthink_gpqa_T0.6_16k Qwen/Qwen3-4B gpqa 4 0.6 16384 think
+#eval EVAL-gm-4BP5 gm_4BP5_mmlupro1k_T0_4k result:runs/E10d-P5/global_step_150/actor/huggingface mmlupro1k 1 0 4096 no_think
+#eval EVAL-gm-4BP5 gm_4BP5_gpqa_T0.6_16k result:runs/E10d-P5/global_step_150/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-4BP5self gm_4BP5self_mmlupro1k_T0_4k result:runs/E10d-P5self/global_step_50/actor/huggingface mmlupro1k 1 0 4096 no_think
+#eval EVAL-gm-4BP5self gm_4BP5self_gpqa_T0.6_16k result:runs/E10d-P5self/global_step_50/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-4BP5rl gm_4BP5rl_mmlupro1k_T0_4k result:runs/E12d-P5/global_step_100/actor/huggingface mmlupro1k 1 0 4096 no_think
+#eval EVAL-gm-4BP5rl gm_4BP5rl_gpqa_T0.6_16k result:runs/E12d-P5/global_step_100/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-4BX4 gm_4BX4_mmlupro1k_T0_4k result:runs/E10d-X4/global_step_50/actor/huggingface mmlupro1k 1 0 4096 no_think
+#eval EVAL-gm-4BX4 gm_4BX4_gpqa_T0.6_16k result:runs/E10d-X4/global_step_50/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-4Bi2507 gm_4Bi2507_mmlupro1k_T0_4k Qwen/Qwen3-4B-Instruct-2507 mmlupro1k 1 0 4096 no_think
+#eval EVAL-gm-4Bi2507 gm_4Bi2507_gpqa_T0.6_16k Qwen/Qwen3-4B-Instruct-2507 gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-06base gm_06base_mmlupro1k_T0_4k Qwen/Qwen3-0.6B mmlupro1k 1 0 4096 no_think
+#eval EVAL-gm-06base gm_06base_gpqa_T0.6_16k Qwen/Qwen3-0.6B gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-06think gm_06think_mmlupro1k_T0_16k Qwen/Qwen3-0.6B mmlupro1k 1 0 16384 think
+#eval EVAL-gm-06think gm_06think_gpqa_T0.6_16k Qwen/Qwen3-0.6B gpqa 4 0.6 16384 think
+#eval EVAL-gm-06P5 gm_06P5_mmlupro1k_T0_4k result:runs/E10c-P5-fix4/global_step_150/actor/huggingface mmlupro1k 1 0 4096 no_think
+#eval EVAL-gm-06P5 gm_06P5_gpqa_T0.6_16k result:runs/E10c-P5-fix4/global_step_150/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-06P5rl gm_06P5rl_mmlupro1k_T0_4k result:runs/E12c-P5/global_step_100/actor/huggingface mmlupro1k 1 0 4096 no_think
+#eval EVAL-gm-06P5rl gm_06P5rl_gpqa_T0.6_16k result:runs/E12c-P5/global_step_100/actor/huggingface gpqa 4 0.6 16384 no_think
