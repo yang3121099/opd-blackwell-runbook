@@ -110,7 +110,7 @@ b259z9p  open   PROBE-T32
 b259z9   open   E10d-P5-t32:PROBE-T32 EVAL-e10d-P5t32:E10d-P5-t32 EVAL-budA-e10dP5t32:E10d-P5-t32 EVAL-ext32k-4Bt32:E10d-P5-t32+EVAL-ext32k-32Bthink-aime
 # [v2.5.9z41] ops-lead A1: the new readings and the replication after the registered arms (Q-060 b259z38p / b259z38, Q-053 b259z9p / b259z9): b259z41s, b259z41o, diff4b; Q-058 (the progressive-window arms) goes in before diff4b when written
 b259z41s open   E12b-P5-8k-s44:PROBE-E12B-8K EVAL-e12b-P5-8k-s44:E12b-P5-8k-s44 EVAL-budA-e12bP5-8k-s44:E12b-P5-8k-s44 EVAL-ext32k-17p5l8k-s44:E12b-P5-8k-s44 EVAL-ext32k-17p5l8k-s44-s25:E12b-P5-8k-s44+EVAL-ext32k-17p5l8k-s44
-b259z41o open   EVAL-ood32k-17base EVAL-ood32k-4Bbase EVAL-ood32k-17p5:EVAL-ood32k-17base EVAL-ood32k-17p5self:EVAL-ood32k-17base EVAL-ood32k-17p5l8k:EVAL-ood32k-17base EVAL-ood32k-17p5kl:EVAL-ood32k-17base EVAL-ood32k-4Bp5:EVAL-ood32k-4Bbase EVAL-ood32k-4Bp5self:EVAL-ood32k-4Bbase EVAL-ood32k-4Bx4:EVAL-ood32k-4Bbase
+b259z41o open   EVAL-ood32k-17base EVAL-ood32k-4Bbase EVAL-ood32k-17p5self:EVAL-ood32k-17base EVAL-ood32k-17p5l8k:EVAL-ood32k-17base EVAL-ood32k-4Bp5:EVAL-ood32k-4Bbase EVAL-ood32k-4Bp5self:EVAL-ood32k-4Bbase EVAL-ood32k-4Bx4:EVAL-ood32k-4Bbase
 diff4b   open   PROBE-DIFF17-4B:PROBE-DIFF17
 b259q028 open   EVAL-ext32k-17p5l8k-s25
 b259z15  open   EVAL-gm-17base EVAL-gm-17think EVAL-gm-17P5 EVAL-gm-17P5self EVAL-gm-17P5rl EVAL-gm-17P5kl EVAL-gm-17P5l8k EVAL-gm-4Bbase EVAL-gm-4Bthink EVAL-gm-4BP5 EVAL-gm-4BP5self EVAL-gm-4BP5rl EVAL-gm-4BX4 EVAL-gm-4Bi2507 EVAL-gm-06base EVAL-gm-06think EVAL-gm-06P5 EVAL-gm-06P5rl
@@ -2083,12 +2083,12 @@ b259z24  open   TOKCHECK-X5
 #eval EVAL-ood32k-17base ood32k_base17_amc23_T0.6 Qwen/Qwen3-1.7B amc23 8 0.6 32768
 #eval EVAL-ood32k-17base ood32k_base17_minervamath_T0.6 Qwen/Qwen3-1.7B minervamath 4 0.6 32768
 #eval EVAL-ood32k-17base ood32k_base17_olympiadbench_T0.6 Qwen/Qwen3-1.7B olympiadbench 4 0.6 32768
-#eval EVAL-ood32k-17p5 ood32k_E10bP5_s150_amc23_T0.6 result:runs/E10b-P5/global_step_150/actor/huggingface amc23 8 0.6 32768
-#eval EVAL-ood32k-17p5 ood32k_E10bP5_s150_minervamath_T0.6 result:runs/E10b-P5/global_step_150/actor/huggingface minervamath 4 0.6 32768
-#eval EVAL-ood32k-17p5 ood32k_E10bP5_s150_olympiadbench_T0.6 result:runs/E10b-P5/global_step_150/actor/huggingface olympiadbench 4 0.6 32768
-#pair EVAL-ood32k-17p5 ood32k_E10bP5_s150_amc23_T0.6 EVAL-ood32k-17base/ood32k_base17_amc23_T0.6_amc23_no_think_t0.6.jsonl
-#pair EVAL-ood32k-17p5 ood32k_E10bP5_s150_minervamath_T0.6 EVAL-ood32k-17base/ood32k_base17_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
-#pair EVAL-ood32k-17p5 ood32k_E10bP5_s150_olympiadbench_T0.6 EVAL-ood32k-17base/ood32k_base17_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
+# [v2.5.9z42] (queue; ops-lead 10-22 08:4x UTC, the scheduler's find) EVAL-ood32k-17p5 / -17p5kl dropped: the same checkpoints, sets,
+# samples (avg@8 / 4 / 4), T0.6 and 32768 as EVAL-ext32k-17sets-a / -b (fill13, done 10-21); the base pairs against those readings
+# instead (sign here: base - checkpoint, the reading's own minus the reference)
+#pair EVAL-ood32k-17base ood32k_base17_amc23_T0.6 EVAL-ext32k-17sets-a/ext32k17_E10bP5_s150_amc23_T0.6_amc23_no_think_t0.6.jsonl EVAL-ext32k-17sets-b/ext32k17_E12bP5kl_s100_amc23_T0.6_amc23_no_think_t0.6.jsonl
+#pair EVAL-ood32k-17base ood32k_base17_minervamath_T0.6 EVAL-ext32k-17sets-a/ext32k17_E10bP5_s150_minervamath_T0.6_minervamath_no_think_t0.6.jsonl EVAL-ext32k-17sets-b/ext32k17_E12bP5kl_s100_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
+#pair EVAL-ood32k-17base ood32k_base17_olympiadbench_T0.6 EVAL-ext32k-17sets-a/ext32k17_E10bP5_s150_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl EVAL-ext32k-17sets-b/ext32k17_E12bP5kl_s100_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
 #eval EVAL-ood32k-17p5self ood32k_E10bP5self_s50_amc23_T0.6 result:runs/E10b-P5self/global_step_50/actor/huggingface amc23 8 0.6 32768
 #eval EVAL-ood32k-17p5self ood32k_E10bP5self_s50_minervamath_T0.6 result:runs/E10b-P5self/global_step_50/actor/huggingface minervamath 4 0.6 32768
 #eval EVAL-ood32k-17p5self ood32k_E10bP5self_s50_olympiadbench_T0.6 result:runs/E10b-P5self/global_step_50/actor/huggingface olympiadbench 4 0.6 32768
@@ -2101,12 +2101,6 @@ b259z24  open   TOKCHECK-X5
 #pair EVAL-ood32k-17p5l8k ood32k_E12bP5l8k_s50_amc23_T0.6 EVAL-ood32k-17base/ood32k_base17_amc23_T0.6_amc23_no_think_t0.6.jsonl
 #pair EVAL-ood32k-17p5l8k ood32k_E12bP5l8k_s50_minervamath_T0.6 EVAL-ood32k-17base/ood32k_base17_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
 #pair EVAL-ood32k-17p5l8k ood32k_E12bP5l8k_s50_olympiadbench_T0.6 EVAL-ood32k-17base/ood32k_base17_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
-#eval EVAL-ood32k-17p5kl ood32k_E12bP5kl_s100_amc23_T0.6 result:runs/E12b-P5-kl/global_step_100/actor/huggingface amc23 8 0.6 32768
-#eval EVAL-ood32k-17p5kl ood32k_E12bP5kl_s100_minervamath_T0.6 result:runs/E12b-P5-kl/global_step_100/actor/huggingface minervamath 4 0.6 32768
-#eval EVAL-ood32k-17p5kl ood32k_E12bP5kl_s100_olympiadbench_T0.6 result:runs/E12b-P5-kl/global_step_100/actor/huggingface olympiadbench 4 0.6 32768
-#pair EVAL-ood32k-17p5kl ood32k_E12bP5kl_s100_amc23_T0.6 EVAL-ood32k-17base/ood32k_base17_amc23_T0.6_amc23_no_think_t0.6.jsonl
-#pair EVAL-ood32k-17p5kl ood32k_E12bP5kl_s100_minervamath_T0.6 EVAL-ood32k-17base/ood32k_base17_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
-#pair EVAL-ood32k-17p5kl ood32k_E12bP5kl_s100_olympiadbench_T0.6 EVAL-ood32k-17base/ood32k_base17_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
 #eval EVAL-ood32k-4Bbase ood32k_base4B_amc23_T0.6 Qwen/Qwen3-4B amc23 8 0.6 32768
 #eval EVAL-ood32k-4Bbase ood32k_base4B_minervamath_T0.6 Qwen/Qwen3-4B minervamath 4 0.6 32768
 #eval EVAL-ood32k-4Bbase ood32k_base4B_olympiadbench_T0.6 Qwen/Qwen3-4B olympiadbench 4 0.6 32768
