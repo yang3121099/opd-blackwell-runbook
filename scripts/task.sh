@@ -20,6 +20,8 @@ case $T in
   E11b-*)  [[ $T =~ ^E11b-(P0|($ARMS)(-s(43|44))?|(P2|P5)-t14)$ ]] || exit 2; bash $RUNBOOK/scripts/run_eval.sh $G $T;;   # v2.5.6c: seed arms too
   SFT-P1)  bash $RUNBOOK/scripts/run_sft.sh $G $T;;
   E12b-P5-8k-s44) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z41] (padding ruling 10-22) the 8K arm from E10b-P5-s44 s150
+  E12b-P5-prog) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z43] (Q-058) the 4K recipe from E12b-P5-8k s25 (shrink the window)
+  E12b-P5-prog-up) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z43] (Q-058) the 8K recipe from E12b-P5-s44 s25 (grow the window)
   E12b-*)  [[ $T =~ ^E12b-(P0|P1|$ARMS|P5-s4[34]|P2-s43|P5self|P5self-s43|P5-kl|P5-stop|P5-stop2|P5-8k|P5-16k|P5-r3|P5-16k-kl)$ ]] || exit 2; bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # v2.5.6j: P5-s43; v2.5.7n: P5-s44; v2.5.7o: P2-s43; [v2.5.8a] P5self; [v2.5.8b] P5-kl; [v2.5.8c] P5-stop; [v2.5.9f] P5-stop2
   E12c-*)  [[ $T =~ ^E12c-(P0|P5)$ ]] || exit 2; bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.8a] the 0.6B GRPO ladder (Q-023)
   E12d-*)  [[ $T =~ ^E12d-(P0|P5)$ ]] || exit 2; bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # v2.5.7o: the 4B GRPO ladder
@@ -60,6 +62,7 @@ case $T in
   PROBE-STOPMERGE-UNIT) PSM_UNIT_ONLY=1 bash $RUNBOOK/scripts/probe_stopmerge.sh cpu;;   # [v2.5.9z6] its unit tests + the installed hooks' guards only (the CPU lane)
   TOKCHECK-X5) bash $RUNBOOK/scripts/tok_check.sh;;
   PROBE-MIXP) bash $RUNBOOK/scripts/probe_mixp.sh;;   # [v2.5.9z38] (Q-060): the gate of E10b-P5mix75 / -P5mix90, the coin at p (the CPU lane)
+  PROBE-PROG) bash $RUNBOOK/scripts/probe_prog.sh;;   # [v2.5.9z43] (Q-058): the gate of E12b-P5-prog / -prog-up, the continuation file and the starts (the CPU lane)
   VENV-VL-NVRTC) bash $RUNBOOK/scripts/venv_vl_nvrtc.sh;;   # [v2.5.9z31] (ops-lead, Q-051): CUDA 12.9's NVRTC into venv-vl (sm_103), the CPU lane   # [v2.5.9z24] (ops-lead, Q-057): vocab / special tokens / chat template of the X5 trio once pulled (the CPU lane)
   PROBE-TAIL) bash $RUNBOOK/scripts/probe_tail.sh $G;;   # [v2.5.9n] (T4): the gate of E10b-P5tail
   PROBE-POLISH) bash $RUNBOOK/scripts/probe_polish.sh $G;;   # [v2.5.9u] (T2): the gate of E10c-P5-polish

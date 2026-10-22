@@ -1225,3 +1225,36 @@ def test_term_rows_name_an_eval_output_v259z38():   # [v2.5.9z38] the reviewer 1
     bad = [f[-1] for f in (l.split() for l in lines) if len(f) >= 5 and f[0] == "#term" and f[-1].endswith(".jsonl")
            and f[-1].split("/")[0] in evals and f[-1] not in outs]
     assert not bad, f"#term rows naming no #eval output: {bad}"
+
+
+def test_run_and_rerun_accept_v259z43(env):   # [v2.5.9z43] (Q-058) E12b-P5-prog / -prog-up, their gate PROBE-PROG (rules 2.5.70)
+    for i, t in enumerate(("E12b-P5-prog", "E12b-P5-prog-up", "PROBE-PROG")):
+        st, msg, _ = env.c.v_run([t], 80 + i)
+        assert st == "accepted", (t, msg)
+    for i, t in enumerate(("E12b-P5-prog-down", "E12b-P5-progup", "PROBE-PROG2", "E12d-P5-prog", "E10b-P5-prog")):
+        assert env.c.v_run([t], 90 + i)[0] == "rejected", t
+    R.parse({"cmd": "rerun PROBE-PROG", "reason": "t"})
+    with pytest.raises(R.Reject):
+        R.parse({"cmd": "rerun PROBE-PROGX", "reason": "t"})
+    assert R.RULES_VERSION == "2.5.70"
+
+
+def test_prog_wiring_v259z43():   # [v2.5.9z43] task.sh routes the three names, PROBE-PROG takes the CPU lane, the uploader restarts at s25
+    import subprocess
+    task = open(os.path.join(HERE, "task.sh")).read(); rt = open(os.path.join(HERE, "run_tasks.sh")).read()
+    assert "  E12b-P5-prog) bash $RUNBOOK/scripts/run_e12.sh $G $T;;" in task and "  E12b-P5-prog-up) bash $RUNBOOK/scripts/run_e12.sh $G $T;;" in task
+    assert "  PROBE-PROG) bash $RUNBOOK/scripts/probe_prog.sh;;" in task
+    line = next(x for x in rt.splitlines() if x.startswith("cpu_task() {"))
+    out = subprocess.run(["bash", "-c", line + "\nfor t in PROBE-PROG PROBE-MIXP E12b-P5-prog EVAL-x; do cpu_task $t && printf \"$t \"; done"], capture_output=True, text=True).stdout
+    assert out == "PROBE-PROG PROBE-MIXP "
+    assert "        E12b-P5-prog|E12b-P5-prog-up) env KEEP_BF16=0 UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-25} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh" in rt
+
+
+def test_queue_prog_stage_before_diff4b_v259z43():   # [v2.5.9z43] ops-lead: Q-058 before diff4b, after b259z41o; every task of the stage has rows or a branch
+    q = open(os.path.join(HERE, "..", "tasks", "queue.txt")).read().splitlines()
+    names = [x.split()[0] for x in q if x and not x.startswith("#") and len(x.split()) > 2 and x.split()[1] == "open"]
+    assert names.index("b259z41o") < names.index("b259z43p") < names.index("b259z43") < names.index("diff4b")
+    stage = next(x for x in q if x.startswith("b259z43 ")).split()[2:]
+    evals = {x.split()[1] for x in q if x.startswith("#eval ")}
+    for t in (s.split(":")[0] for s in stage):
+        assert t in evals or t in ("E12b-P5-prog", "E12b-P5-prog-up"), t

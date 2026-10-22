@@ -107,7 +107,7 @@ dead() { [ "$(attempts $1)" -ge 3 ]; }
 running() { pgrep -f "task.sh ([0-9]+(,[0-9]+)*|cpu) $1\$" >/dev/null; }   # [v2.5.8] cpu: a CPU-lane task; [v2.5.9a] a,b: a #gpus task
 # [v2.5.8] (reviewer 08:5x UTC 10-19: CPU phases without a GPU slot) CPU-only tasks run in a lane of their own, "gpu" cpu,
 # at most CPU_MAX (default 1) at once; STRICT-C1 held a GPU slot for its rejudge (and three on its failed attempts)
-cpu_task() { case $1 in STRICT-C1|PROBE-NET|PROBE-NET2|BUILD-VENV-VL|READINGS-EXTRA|PROBE-STOPMERGE-UNIT|PROBE-WDIFF|TOKCHECK-X5|VENV-VL-NVRTC|PROBE-MIXP) return 0;; esac; return 1; }   # [v2.5.9c] PROBE-NET; [v2.5.9h] PROBE-NET2; [v2.5.9y1] BUILD-VENV-VL; [v2.5.9x1] READINGS-EXTRA; [v2.5.9z6] PROBE-STOPMERGE-UNIT; [v2.5.9z18] PROBE-WDIFF; [v2.5.9z24] TOKCHECK-X5; [v2.5.9z31] VENV-VL-NVRTC; [v2.5.9z38] PROBE-MIXP
+cpu_task() { case $1 in STRICT-C1|PROBE-NET|PROBE-NET2|BUILD-VENV-VL|READINGS-EXTRA|PROBE-STOPMERGE-UNIT|PROBE-WDIFF|TOKCHECK-X5|VENV-VL-NVRTC|PROBE-MIXP|PROBE-PROG) return 0;; esac; return 1; }   # [v2.5.9c] PROBE-NET; [v2.5.9h] PROBE-NET2; [v2.5.9y1] BUILD-VENV-VL; [v2.5.9x1] READINGS-EXTRA; [v2.5.9z6] PROBE-STOPMERGE-UNIT; [v2.5.9z18] PROBE-WDIFF; [v2.5.9z24] TOKCHECK-X5; [v2.5.9z31] VENV-VL-NVRTC; [v2.5.9z38] PROBE-MIXP
 cpu_busy() { [ "$(pgrep -f "task.sh cpu [A-Za-z0-9._-]+\$" | wc -l | tr -d ' ')" -ge "${CPU_MAX:-1}" ]; }
 free_gpus() { for i in $(seq 0 $((NGPU-1))); do
     # v2.5.4d: a GPU given to a task stays taken while its task.sh / ad-hoc evaluation runs, also before the task touches it
@@ -207,8 +207,15 @@ fetch_pass() {
       Qwen/*|deepseek-ai/*) [[ $m =~ ^Qwen/Qwen3-(VL-)?[0-9.]+B(-Instruct|-Thinking)?(-[0-9]{4})?$ || $m =~ ^Qwen/Qwen2\.5-Math-[0-9.]+B(-Instruct)?$ || $m =~ ^deepseek-ai/DeepSeek-R1-Distill-Qwen-[0-9.]+B$ ]] || continue
         r=$m; nm=${m#*/}; d=$OPD_ROOT/models/$nm; ds="";;   # [v2.5.9z24] the two Q-057 families
       dataset:*) r=${m#dataset:}; [[ $r =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || continue; d=$OPD_ROOT/data/hf/${r/\//__}; ds=--dataset; nm=${r/\//__};;
+      # [v2.5.9z43] (ops-lead's A1 of Q-058) result:runs/<run>/global_step_<n>/actor/huggingface = a start in this node's public result
+      # repository, pulled ahead of its arm into adhoc_models/result (where run_e12.sh and the readings look), outside the CPU lane,
+      # with at most RESULT_FETCH_CONNS (32) connections until the node-wide budget exists
+      result:runs/*) pp=${m#result:}; [[ $pp =~ ^runs/E1[0-2][bcd]-[A-Za-z0-9._-]+/global_step_[0-9]+/actor/huggingface$ ]] || continue
+        d=$CKPT_ROOT/adhoc_models/result/$pp; [ -f $d/.fetch_ok ] && continue; r=$(python $RUNBOOK/scripts/remote.py repo public) || continue; ds=""
+        nm=result_$(echo $pp | cut -d/ -f2)_s${pp#*/global_step_}; nm=${nm%%/*};;
       *) continue;;
     esac
+    case $m in result:*) pre=$pp; dst=${d%/$pp}; cap="FETCH_CONNS_CAP=${RESULT_FETCH_CONNS:-32}";; *) pre=""; dst=$d; cap="";; esac   # [v2.5.9z43]
     [ -f $d/.fetch_ok ] && continue
     pgrep -f "fetch_model\.py .* --task FETCH-${nm//./\\.}( |\$)" > /dev/null && continue   # [v2.5.9z24] already being pulled
     [ -n "$(find $d.fetch_fail -mmin -${FETCH_RETRY_MIN:-10} 2>/dev/null)" ] && continue
@@ -216,7 +223,7 @@ fetch_pass() {
     # [v2.5.9e] slow background pulls (0.03-0.05 MB/s through the proxy, PROBE-NET 10-21): niced, idle I/O class, each call
     # bounded by FETCH_TIMEOUT_BG (6 h; the partial files stay and the next call goes on), retried after FETCH_RETRY_MIN (10)
     io=""; command -v ionice > /dev/null && io="ionice -c3"
-    setsid nohup bash -c "FETCH_TIMEOUT=${FETCH_TIMEOUT_BG:-21600} FETCH_PARALLEL=${FETCH_PARALLEL_BG:-1} nice -n 19 $io python $RUNBOOK/scripts/fetch_model.py $r '' $d $ds --task FETCH-$nm >> $OPD_ROOT/logs/fetch_$nm.log 2>&1 && rm -f $d.fetch_fail || touch $d.fetch_fail" < /dev/null > /dev/null 2>&1 &
+    setsid nohup bash -c "FETCH_TIMEOUT=${FETCH_TIMEOUT_BG:-21600} FETCH_PARALLEL=${FETCH_PARALLEL_BG:-1} $cap nice -n 19 $io python $RUNBOOK/scripts/fetch_model.py $r '$pre' $dst $ds --task FETCH-$nm >> $OPD_ROOT/logs/fetch_$nm.log 2>&1 && rm -f $d.fetch_fail || touch $d.fetch_fail" < /dev/null > /dev/null 2>&1 &
     date +%s > ${CDIR:-$OPD_ROOT/control}/fetch_progress.t
     n=$((n + 1))   # [v2.5.9z24] (was: return)
   done; }
@@ -321,6 +328,7 @@ while true; do
         # [v2.5.9z41] mix75 / mix90 (9z38 left them to the s150 default here) and tail-s43: s50; 8k-s44: s25 / s50, as their arms
         E10b-P5mix75|E10b-P5mix90|E10b-P5tail-s43) env UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-50} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;
         E12b-P5-8k-s44) env KEEP_BF16=0 UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-25,50} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;
+        E12b-P5-prog|E12b-P5-prog-up) env KEEP_BF16=0 UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-25} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;   # [v2.5.9z43] (Q-058) their last step (25 = total s50)
         E10b-P5route|E10b-P5mix|E10b-P5tail|E10b-P5stopmerge|E10b-P5top10|E10b-P5rand10m|E10b-P5think|E10b-P5self|E10b-P5self-s43|E10d-P5self|E10c-P5self|E10b-P2self|E10b-P5len[SLR]) env UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-50} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;   # v2.5.7r: the 50-step arms
         E10d-X1|E10d-X2|E10d-X4) env UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-25,50} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;   # [v2.5.8i] the X arms: s25 and s50
         E10d-P5-t32) env UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-25,50} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;   # [v2.5.9z9] (Q-053): s25 and s50

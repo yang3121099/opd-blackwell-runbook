@@ -151,7 +151,9 @@ def day_max():   # [v2.5.9r] Runming 10-21 23:3x Beijing: by day as at night (no
 
 
 def conns_now():   # [v2.5.9r] the same 32 by day and at night unless setenv says otherwise (PROBE-NET2's best)
-    return int(_cfg("FETCH_CONNS_NIGHT", "32") if night() else _cfg("FETCH_CONNS_DAY", "32"))
+    n = int(_cfg("FETCH_CONNS_NIGHT", "32") if night() else _cfg("FETCH_CONNS_DAY", "32"))
+    cap = os.environ.get("FETCH_CONNS_CAP", "")   # [v2.5.9z43] (ops-lead 10-22, until the node-wide connection budget) one pull's
+    return min(n, int(cap)) if cap.isdigit() and int(cap) > 0 else n   # ceiling, from its own environment only (not setenv)
 
 
 def parallel_download(repo, path, size, local, ep):

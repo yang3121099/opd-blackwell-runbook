@@ -406,6 +406,22 @@ rm -rf $T/root/models; : > $CALLS; export HOLD=3 PREFETCH_PAR=1; fp3; sleep 0.5;
 ok "[v2.5.9z24] PREFETCH_PAR=1: one pull at a time" '[ "$(grep -c "^fetch " $CALLS)" = 1 ]'
 sleep 3; unset HOLD PREFETCH_PAR
 rm -rf $T
+# 3c4. [v2.5.9z43] (ops-lead's A1 of Q-058) fetch_pass: "#fetch result:runs/<E1x run>/global_step_<n>/actor/huggingface" -> the public
+#      repository's path into adhoc_models/result (prefix = the path), in parallel with at most RESULT_FETCH_CONNS (32) connections
+#      (FETCH_CONNS_CAP), once; a start already in (.fetch_ok) and other paths not pulled
+T=$(mktemp -d); mkdir -p $T/rb/scripts $T/root/logs $T/root/control $T/bin $T/ck
+printf 'import sys, os; open(os.environ["CALLS"], "a").write("fetch " + " ".join(sys.argv[1:]) + " cap=" + os.environ.get("FETCH_CONNS_CAP", "") + " par=" + os.environ.get("FETCH_PARALLEL", "") + "\\n"); p = os.path.join(sys.argv[3], sys.argv[2]); os.makedirs(p, exist_ok=True); open(os.path.join(p, ".fetch_ok"), "w").write("ok")\n' > $T/rb/scripts/fetch_model.py
+printf 'import sys; sys.argv[1:3] == ["repo", "public"] and print("me/pub")\n' > $T/rb/scripts/remote.py
+printf 'version: 2\n#fetch result:runs/E12b-P5-s44/global_step_25/actor/huggingface\n#fetch result:runs/E12b-P5-8k/global_step_25/actor/huggingface\n#fetch result:runs/../etc/global_step_1/actor/huggingface\n#fetch result:runs/EVAL-x/global_step_1/actor/huggingface\n#fetch result:runs/E12b-P5/global_step_25/actor\n#fetch result:x/E12b-P5/global_step_25/actor/huggingface\n' > $T/q.txt
+R8=$T/ck/adhoc_models/result/runs/E12b-P5-8k/global_step_25/actor/huggingface; mkdir -p $R8; : > $R8/.fetch_ok
+export CALLS=$T/calls; : > $CALLS
+printf '#!/usr/bin/env bash\nexec "$@"\n' > $T/bin/setsid; printf '#!/usr/bin/env bash\nexec python3 "$@"\n' > $T/bin/python; chmod +x $T/bin/setsid $T/bin/python
+fp4() { ( PATH=$T/bin:$PATH OPD_ROOT=$T/root RUNBOOK=$T/rb CKPT_ROOT=$T/ck Q=$T/q.txt CDIR=$T/root/control; eval "$(sed -n '/^fetch_pass() {/,/^  done; }$/p' $SRC/scripts/run_tasks.sh)"; fetch_progress() { :; }; fetch_pass; sleep 1.5 ); }
+fp4; fp4
+ok "[v2.5.9z43] #fetch result: the s44 start into adhoc_models/result once, parallel, at most 32 connections; the 8k one already in and bad paths not pulled" '[ "$(grep -c "^fetch " $CALLS)" = 1 ] && grep -q "^fetch me/pub runs/E12b-P5-s44/global_step_25/actor/huggingface $T/ck/adhoc_models/result --task FETCH-result_E12b-P5-s44_s25 cap=32 par=1$" $CALLS && [ -f $T/ck/adhoc_models/result/runs/E12b-P5-s44/global_step_25/actor/huggingface/.fetch_ok ]'
+rm -rf $T/ck/adhoc_models/result/runs/E12b-P5-s44; : > $CALLS; ( export RESULT_FETCH_CONNS=16; fp4 )
+ok "[v2.5.9z43] RESULT_FETCH_CONNS sets the ceiling" 'grep -q " cap=16 par=1$" $CALLS'
+rm -rf $T
 # 3d. v2.5.7za heartbeat hb_to(): a timed-out upload (exit 124) is logged and sent as an event, the loop goes on; others pass through
 T=$(mktemp -d); mkdir -p $T/rb/scripts $T/root/logs $T/bin
 printf '#!/usr/bin/env bash\necho "timeout $*" >> %s; [ "$1" = -k ] && shift 2; shift; [ "$3" = hang ] && exit 124; "$@"\n' $T/targs > $T/bin/timeout; chmod +x $T/bin/timeout

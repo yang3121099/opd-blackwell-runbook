@@ -246,3 +246,14 @@ def test_other_http_errors_are_not_retried_with_the_token(hub, par, monkeypatch,
     monkeypatch.setattr(F, "night", lambda t=None: True)
     r = F.fetch("Qwen/Qwen3-1.7B", "m", str(tmp_path))
     assert r["ok"] is False and hub["calls"] == [] and all(e["detail"] == "HTTP Error 404: Not Found" for e in r["errors"])
+
+
+def test_conns_cap_from_the_environment_only(monkeypatch, tmp_path):   # [v2.5.9z43] FETCH_CONNS_CAP: one pull's ceiling (fetch_pass's result: pulls)
+    os.makedirs(tmp_path / "root"); (tmp_path / "root" / "control.env").write_text("FETCH_CONNS_DAY=64\nFETCH_CONNS_CAP=8\n")
+    monkeypatch.setenv("OPD_ROOT", str(tmp_path / "root")); monkeypatch.setattr(F, "night", lambda t=None: False)
+    monkeypatch.delenv("FETCH_CONNS_CAP", raising=False)
+    assert F.conns_now() == 64   # a FETCH_CONNS_CAP in control.env is not read
+    monkeypatch.setenv("FETCH_CONNS_CAP", "32"); assert F.conns_now() == 32
+    monkeypatch.setenv("FETCH_CONNS_CAP", "128"); assert F.conns_now() == 64
+    for bad in ("", "0", "x", "-4"):
+        monkeypatch.setenv("FETCH_CONNS_CAP", bad); assert F.conns_now() == 64

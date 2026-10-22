@@ -28,6 +28,7 @@ source "$(dirname "$0")/env.sh"; source "$(dirname "$0")/dr.sh"; G=$1; T=$2; LAD
 # low_var_kl, the reference = the start); gated by both of its parts' gates (PROBE-E12B-16K and PROBE-E12B-KL), no smoke of its own
 VAR=""; case $A in P5-kl|P5-stop|P5-stop2|P5-8k|P5-16k|P5-r3|P5-16k-kl) VAR=${A#P5-}; A=P5;; esac
 [ "$A" = P5-8k-s44 ] && { VAR=8k; A=P5-s44; }   # [v2.5.9z41] (the reviewer's padding ruling 10-22) E12b-P5-8k-s44: the 8K arm from E10b-P5-s44 s150
+[ "$A" = P5-prog-up ] && VAR=8k   # [v2.5.9z43] (Q-058) the grow-window arm: the 8K recipe (its gate PROBE-E12B-8K too)
 # [v2.5.8h] (Runming 10-20 17:5x UTC via the reviewer, Q-028: the 4K limit costs too much): E12b-P5-8k / -16k = E12b-P5 with
 # max_response_length 8192 / 16384 and what the length forces: flash-attn with remove-padding (an SDPA micro-batch is
 # padded to its longest sequence), a token budget of at least prompt + response, vLLM batching above the model length
@@ -40,6 +41,19 @@ fi
 SRC=E10b; [ $LADDER = E12d ] && SRC=E10d   # v2.5.7o: the preparation run a start comes from
 SRUN=$SRC-$A; [ $LADDER = E12c ] && SRUN=E10c-$A-fix4   # [v2.5.8a] the 0.6B starts: E10c-<arm>-fix4, this node's 0.6B batching
 SS=150; case $A in P5self|P5self-s43) SS=50;; esac       # [v2.5.8a] E10b-P5self ran 50 steps; [v2.5.8e] its seed 43 too
+# [v2.5.9z43] (Q-058, the reviewer's pre-registration 10-22) the progressive-window arms continue a run's step 25 for 25 more
+# steps (PROG_STEPS): E12b-P5-prog = E12b-P5's recipe (4K) from E12b-P5-8k s25 (shrink), E12b-P5-prog-up = the 8K recipe from
+# E12b-P5-s44 s25 (grow). Both read the continuation file PROBE-PROG built and checked against the parents' rollouts
+# (data/dapo_train_skip1600_s4242.parquet: the sampler's first batch is the parents' step 26, not step 1 again) and start only
+# after PROBE-PROG passed (it also put both starts on this node). Weights only: the optimizer starts afresh (E12b keeps no
+# resume state of step 25); the learning rate is constant, so no schedule is skipped.
+PROG=""; [[ $T == E12b-P5-prog || $T == E12b-P5-prog-up ]] && PROG=1
+[ $T = E12b-P5-prog ] && { SRUN=E12b-P5-8k; SS=25; }
+[ $T = E12b-P5-prog-up ] && { SRUN=E12b-P5-s44; SS=25; }
+if [ -n "$PROG" ] && [ "${SMOKE:-0}" != 1 ]; then
+  grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-PROG/report.json 2> /dev/null || { echo "PROBE-PROG has not passed: $T not started"; exit 3; }
+fi
+TRAINF=$OPD_ROOT/data/dapo_train.parquet; [ -n "$PROG" ] && TRAINF=$OPD_ROOT/data/dapo_train_skip1600_s4242.parquet
 # [v2.5.8a] an E12c task starts only after PROBE-E12C passed (the smoke itself is exempt)
 if [ $LADDER = E12c ] && [ "${SMOKE:-0}" != 1 ]; then
   grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-E12C/report.json 2> /dev/null || { echo "PROBE-E12C has not passed: $T not started"; exit 3; }
@@ -65,12 +79,14 @@ if [ $A != P0 ] && ! has_weights $START; then
 fi
 case $A in P0|P1|P2|P3|P5|P5-s43|P5-s44|P2-s43|P5self|P5self-s43) STEPS=100;; *) STEPS=60;; esac   # v2.5.6j: P5-s43 = the headline chain's second seed (queue v3 V3-c2); v2.5.7n: P5-s44 its third (from the flash-attn arm)
 case $VAR in 8k|16k|16k-kl) STEPS=${E12B_LONG_STEPS:-50};; r3) STEPS=${E12B_R3_STEPS:-50};; esac   # [v2.5.8h] reviewer 17:4x UTC: 50 steps (constant lr: extendable)
+[ -n "$PROG" ] && STEPS=${PROG_STEPS:-25}   # [v2.5.9z43] 25 more steps (total s50)
 [ $A = P0 ] || has_weights $START || { echo "missing start checkpoint $START"; exit 1; }
 TBS=64; ADV=grpo; [ "$VAR" = r3 ] && { TBS=128; ADV=reinforce_plus_plus_baseline; }   # [v2.5.9w]
 # v2.5.7c: venv-fa (flash-attn, remove-padding) only with VENV=fa and E12B_FA=1: the E12b ladder stays on one attention
 V=$OPD_ROOT/venv; [ "${VENV:-}" = fa ] && [ "${E12B_FA:-0}" = 1 ] && V=$OPD_ROOT/venv-fa
 case $T in E12d-*|E12b-P2-s43|E12b-P5-8k|E12b-P5-16k|E12b-P5-16k-kl) V=$OPD_ROOT/venv-fa;; esac   # v2.5.7o: new arms on flash-attn (reviewer 06:0x UTC); [v2.5.8h] the long limits
 [ $T = E12b-P5-8k-s44 ] && V=$OPD_ROOT/venv-fa   # [v2.5.9z41] as the 8K arm
+[ $T = E12b-P5-prog-up ] && V=$OPD_ROOT/venv-fa   # [v2.5.9z43] as the 8K arm
 [ $LADDER = E12d ] && VLLM_UTIL=${E12D_VLLM_UTIL:-0.5}   # v2.5.7o: vLLM 0.5 for the 4B actor (a node-wide VLLM_UTIL does not reach it)
 source $V/bin/activate
 # [v2.5.8a] E12c-P0's start, the 0.6B base, from a local copy: $OPD_ROOT/models/Qwen3-0.6B, else the Hugging Face cache
@@ -132,6 +148,8 @@ KL="actor_rollout_ref.actor.use_kl_loss=False"; REWARD=$RUNBOOK/code/train/rewar
 # [v2.5.9w] r3's group drop on (OPD_VARDROP), off for every other run
 export OPD_VARDROP= OPD_VARDROP_LOG=; [ "$VAR" = r3 ] && export OPD_VARDROP=1 OPD_VARDROP_K=${R3_KEEP_GROUPS:-64} OPD_VARDROP_LOG=$OUT/vardrop.jsonl OPD_SEED=${OPD_SEED:-1234}
 [ "${DRYRUN:-0}" = 1 ] && [ "$VAR" = r3 ] && echo "DRYRUN_R3 adv=$ADV tbs=$TBS vardrop=$OPD_VARDROP k=$OPD_VARDROP_K log=$(basename $OPD_VARDROP_LOG) seed=$OPD_SEED"   # tests
+[ -n "$PROG" ] && ! grep -q "^continues:" $OUT/config.yaml && echo "continues: $SRUN s$SS for $STEPS steps (weights, a fresh optimizer); data from the parents' step $((SS + 1)) on ($(basename $TRAINF))" >> $OUT/config.yaml   # [v2.5.9z43]
+[ "${DRYRUN:-0}" = 1 ] && [ -n "$PROG" ] && echo "DRYRUN_PROG train=$(basename $TRAINF) from=$SRUN s$SS"   # [v2.5.9z43] tests
 [ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $NAME start=$START steps=$STEPS save=$SAVE contents=$CONTENTS kern=[$KERN] gc=$GCK venv=$(basename $V) ngpu=$NG rmpad=$RMPAD upload=${UPLOAD_WEIGHTS:-$UW} vllm=${VLLM_UTIL:-0.6} var=${VAR:-none} kl=[$KL] reward=$(basename $REWARD)"; exit 0; }   # tests
 if [ $SM = 0 ]; then
   ckpt_link $OUT
@@ -145,7 +163,7 @@ python3 -m verl.trainer.main_ppo \
   algorithm.rollout_correction.rollout_is=token algorithm.rollout_correction.rollout_is_threshold=5.0 \
   algorithm.rollout_correction.rollout_rs=null algorithm.rollout_correction.bypass_mode=false \
   actor_rollout_ref.rollout.calculate_log_probs=true \
-  data.train_files=$OPD_ROOT/data/dapo_train.parquet data.val_files=$OPD_ROOT/data/math500_100.parquet \
+  data.train_files=$TRAINF data.val_files=$OPD_ROOT/data/math500_100.parquet \
   data.train_batch_size=$TBS data.max_prompt_length=1024 data.max_response_length=$MAXR \
   data.filter_overlong_prompts=True data.truncation=error data.shuffle=True data.seed=4242 data.return_raw_chat=True \
   +data.apply_chat_template_kwargs.enable_thinking=False \
