@@ -42,6 +42,28 @@ lenwall() {   # [v2.5.9z38] (Q-060) an OPD run's per-step length / clip and its 
   n=$(awk 'NR > 1' $RUN/len_by_step.csv 2> /dev/null | grep -c .); u=$(cat $RUN/.len_uploaded 2> /dev/null || echo 0)
   [ $n -ge $(( u + ${LEN_EVERY:-5} )) ] && echo len_by_step.csv >> $RUN/.up_due && { echo $n > $RUN/.len_uploaded; echo "LEN_UP $TASK $n steps $(date -u +%T) (queued)"; }
   return 0; }
+x5alert() {   # [v2.5.9z59] (Fable 10-22) an E16 step whose responses carry special ids in more than X5_SPECIAL_ALERT (2%) of its rows: one event
+  [ -f $RUN/x5.jsonl ] || return 0
+  python3 - $RUN/x5.jsonl $RUN/.x5_seen $TASK "${X5_SPECIAL_ALERT:-0.02}" $RUNBOOK/scripts/control.py <<'PY'
+import json, subprocess, sys
+log, seen_f, task, lim, ctl = sys.argv[1], sys.argv[2], sys.argv[3], float(sys.argv[4]), sys.argv[5]
+lines = open(log).read().splitlines()
+try:
+    seen = int(open(seen_f).read().strip() or 0)
+except (OSError, ValueError):
+    seen = 0
+for l in lines[seen:]:
+    try:
+        c = json.loads(l)
+    except ValueError:
+        continue
+    n = c.get("rows_special", sum((c.get("masked") or {}).values())); r = c.get("rows") or 0
+    if r and n / r > lim:
+        subprocess.run([sys.executable, ctl, "event", task, "x5_special_rows",
+                        f"call {c.get('call')}: {n} of {r} rows ({n / r:.1%} > {lim:.0%}) {json.dumps(c.get('masked'))}"])
+open(seen_f, "w").write(str(len(lines)))
+PY
+}
 [ "$DRY" = 1 ] || python $RUNBOOK/scripts/remote.py check || { echo "UPLOAD_STOP: backend not usable (token or repo missing?)"; exit 1; }
 echo "UPLOAD_SETTINGS $(date -u +%FT%TZ) $TASK UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-all} KEEP_LOCAL_HF=${KEEP_LOCAL_HF:-0} KEEP_BF16=${KEEP_BF16:-1} DRY=$DRY"   # [v2.5.8]
 while true; do
@@ -74,6 +96,7 @@ while true; do
   # its rollout_stats.csv every round from the settled dumps (older than 60 s; only new steps are read), uploaded to
   # runs/<task>/ each time it has STATS_EVERY (10) more rows than at the last upload: s10, s20, ...
   case $TASK in E10[bcd]-*) grep -q '^finished:' $RUN/config.yaml 2>/dev/null || lenwall;; esac   # [v2.5.9z38]
+  case $TASK in E16-*) x5alert;; esac   # [v2.5.9z59]
   case $TASK in E12[bcd]-*) if ! grep -q '^finished:' $RUN/config.yaml 2>/dev/null && stats 60; then
     n=$(awk 'NR > 1' $RUN/rollout_stats.csv 2> /dev/null | grep -c .); u=$(cat $RUN/.stats_uploaded 2> /dev/null || echo 0)
     [ $n -ge $(( u + ${STATS_EVERY:-10} )) ] && echo rollout_stats.csv >> $RUN/.up_due \

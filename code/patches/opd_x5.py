@@ -58,7 +58,7 @@ def apply_rows(rows_ids, rows_mask):
     """For lists of rows: (new ids rows, new mask rows, counts). Pure: the tests and map_ids share it."""
     out_ids, out_mask = [], []
     c = {"rows": len(rows_ids), "terminated": 0, "term_151645": 0, "term_151643": 0, "mapped": 0, "truncated": 0, "empty": 0,
-         "masked": {}}
+         "masked": {}, "rows_special": 0}   # [v2.5.9z59] rows_special: rows with a special id inside (those positions out of the loss)
     for ids, mask in zip(rows_ids, rows_mask):
         ids, mask = list(ids), list(mask)
         t, mp, drop = plan_row(ids, mask)
@@ -72,6 +72,7 @@ def apply_rows(rows_ids, rows_mask):
         for i in drop:
             c["masked"][str(ids[i])] = c["masked"].get(str(ids[i]), 0) + 1
             mask[i] = 0
+        c["rows_special"] += bool(drop)
         out_ids.append(ids); out_mask.append(mask)
     return out_ids, out_mask, c
 

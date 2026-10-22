@@ -43,7 +43,7 @@ def test_plan_and_apply_rows():
     assert ids[1] == rows[1] and ids[2] == rows[2] and mask[2] == masks[2]
     assert ids[3] == [a, 151644, 151648, 151645, 151643] and mask[3] == [1, 0, 0, 0, 1]
     assert cnt == {"rows": 5, "terminated": 3, "term_151645": 2, "term_151643": 1, "mapped": 3, "truncated": 1, "empty": 1,
-                   "masked": {"151644": 1, "151648": 1, "151645": 1}}
+                   "masked": {"151644": 1, "151648": 1, "151645": 1}, "rows_special": 1}   # [v2.5.9z59] one row, three ids
     assert rows[0][2] == 151645 and masks[3] == [1, 1, 1, 1, 1]   # the inputs untouched
 
 

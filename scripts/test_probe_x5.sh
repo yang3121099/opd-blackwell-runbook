@@ -44,7 +44,8 @@ mode = os.environ.get("FAKE_X5", "ok"); rows = 64 if mode == "rows64" else 128
 with open(sys.argv[1], "w") as f:
     for c in range(3):
         rec = {"call": c + 1, "rows": rows, "terminated": 100, "term_151645": 98, "term_151643": 2, "mapped": 99 if mode == "unmapped" else 100,
-               "truncated": rows - 100, "empty": 0, "masked": {"151644": 1} if mode == "masked" else {},
+               "truncated": rows - 100, "empty": 0, "masked": {"151644": 1} if mode == "masked" else {"151644": 5} if mode == "masked5" else {},
+               "rows_special": 1 if mode == "masked" else 5 if mode == "masked5" else 0,
                "prompt_tail": "1+1?<｜Assistant｜><think>\n" + ("<think>\n" if mode == "tail2" else ""), "empty_think": False}
         f.write(json.dumps(rec) + "\n")
 PY
@@ -57,12 +58,13 @@ res() { python3 -c "import json, sys; v = json.load(open(sys.argv[1])).get(sys.a
 setup; bash $T/rb/scripts/probe_x5.sh 4 > /dev/null 2>&1
 ok "PASS: unit tests (the hooks into the installed file's shape), student / teacher measured, a 3-step smoke of E16-X5, upload, event, .done" '[ "$(res result)" = PASS ] && grep -q "passed, 0 failed, 0 skipped$" $T/root/runs/PROBE-X5/unit_tests.txt && grep -q "^run_arm 4 E16-X5 SMOKE=1 STEPS=3 PROBE_TASK=PROBE-X5-smoke$" $CALLS && grep -q "^remote put $T/root/runs/PROBE-X5/up logs/abcd1234/probe_x5$" $CALLS && grep -q "^control event PROBE-X5 probe_x5_pass " $CALLS && [ -f $T/root/runs/PROBE-X5/.done ]'
 ok "the student first (its model, 64), then the teacher (its model), each with the probe's dir" '[ "$(grep "^x5_probe" $CALLS | head -1)" = "x5_probe student --model $T/root/models/Qwen2.5-Math-1.5B-Instruct --out $T/root/runs/PROBE-X5 --n 64" ] && [ "$(grep "^x5_probe" $CALLS | tail -1)" = "x5_probe teacher --model $T/root/models/DeepSeek-R1-Distill-Qwen-1.5B --out $T/root/runs/PROBE-X5 --n 64" ]'
-ok "the report: the student, the teacher, the smoke totals, x5e from the teacher; the reason names the numbers" '[ "$(res x5e)" = true ] && [[ "$(res smoke)" == *"\"terminated\": 300"* ]] && [[ "$(res teacher)" == *"\"completion\": 0.95"* ]] && [[ "$(res reason)" == *"think 0.12, empty 0.7 (n 52; x5e True); smoke 384 rows, 300 terminated (294 / 6) all mapped, no special id inside"* ]]'
+ok "the report: the student, the teacher, the smoke totals, x5e from the teacher; the reason names the numbers" '[ "$(res x5e)" = true ] && [[ "$(res smoke)" == *"\"terminated\": 300"* ]] && [[ "$(res teacher)" == *"\"completion\": 0.95"* ]] && [[ "$(res reason)" == *"think 0.12, empty 0.7 (n 52; x5e True); smoke 384 rows, 300 terminated (294 / 6) all mapped, special ids inside 0 of 384 rows (<= 1%, out of the loss)"* ]]'
 out=$(bash $T/rb/scripts/probe_x5.sh 4 2>&1); ok "a second run after .done does nothing" '[ "$out" = "TASK_ALREADY_DONE PROBE-X5" ]'; rm -rf $T
 check() { ok "$1" '[ "$(res result)" = FAIL ] && [[ "$(res reason)" == *"'"$2"'"* ]] && grep -q "^control event PROBE-X5 probe_x5_fail " $CALLS'; }
 setup; rm $T/root/models/DeepSeek-R1-Distill-Qwen-1.5B/.fetch_ok; out=$(bash $T/rb/scripts/probe_x5.sh 4 2>&1); rc=$?
 ok "the teacher not in: WAIT_INPUTS, exit 1, nothing run, no report" '[ $rc = 1 ] && [ "$out" = "WAIT_INPUTS PROBE-X5: DeepSeek-R1-Distill-Qwen-1.5B not in (no .fetch_ok)" ] && [ ! -s $CALLS ] && [ ! -e $T/root/runs/PROBE-X5/report.json ]'; rm -rf $T
-setup; FAKE_X5=masked bash $T/rb/scripts/probe_x5.sh 4 > /dev/null 2>&1; check "a special id inside a response is FAIL" "special ids inside responses {'151644': 1} (expected none)"; rm -rf $T
+setup; FAKE_X5=masked bash $T/rb/scripts/probe_x5.sh 4 > /dev/null 2>&1; ok "[v2.5.9z59] special ids inside 3 of 384 rows (0.8%, <= 1%) is PASS" '[ "$(res result)" = PASS ] && [[ "$(res reason)" == *"special ids inside 3 of 384 rows"* ]]'; rm -rf $T
+setup; FAKE_X5=masked5 bash $T/rb/scripts/probe_x5.sh 4 > /dev/null 2>&1; check "[v2.5.9z59] special ids inside 15 of 384 rows (3.9% > 1%) is FAIL" "special ids inside responses in 15 of 384 rows (3.91% > 1%)"; rm -rf $T
 setup; FAKE_X5=unmapped bash $T/rb/scripts/probe_x5.sh 4 > /dev/null 2>&1; check "a terminated response not mapped is FAIL" "mapped 99 != terminated 100"; rm -rf $T
 setup; FAKE_X5=tail2 bash $T/rb/scripts/probe_x5.sh 4 > /dev/null 2>&1; check "two <think> at the teacher prompt's end is FAIL" "teacher prompt tail"; rm -rf $T
 setup; FAKE_X5=rows64 bash $T/rb/scripts/probe_x5.sh 4 > /dev/null 2>&1; check "rows != 128 is FAIL" "64 rows, expected 128"; rm -rf $T
