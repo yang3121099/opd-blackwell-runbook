@@ -30,6 +30,9 @@ generated again, no reading's own numbers changed.
    as a 16K one); `#fppair READINGS-EXTRA <label> <name> <ref> [<ref> ...]` lines are the table's rows. Per model the per-problem accuracy
    (avg over its samples) and mean length vectors; per pair Pearson r of accuracy (r_acc) and of length (r_len), and over the problems
    binarised at accuracy >= 0.5 the phi coefficient and the agreement rate; for all problems, 1-100 and 101-500. fingerprint.json.
+   [v2.5.9z22] `#fpdis READINGS-EXTRA <label> <student> <teacher> <self>` (the reviewer's sharpest test of Q-056): over the problems where
+   the teacher and the student's own thinking mode disagree (binarised at 0.5), the share where the student sides with each, their
+   difference and a two-sided exact binomial p (H0: half and half).
 Inputs missing on the node are listed, not guessed. Usage: python readings_extra.py <runs dir> <queue file> <out dir>
 """
 import json
@@ -200,6 +203,27 @@ def fp_compare(va, vb, part=None):
             "chance": round(pa * pb + (1 - pa) * (1 - pb), 4) if idx else None}
 
 
+def binom_two_sided(k, n):
+    """Exact two-sided binomial p of k successes in n at p = 0.5 (the doubled smaller tail, at most 1)."""
+    from math import comb
+    if n == 0:
+        return None
+    tail = sum(comb(n, i) for i in range(0, min(k, n - k) + 1)) / 2 ** n
+    return round(min(1.0, 2 * tail), 6)
+
+
+def fp_disagree(vs, vt, vo):
+    """[v2.5.9z22] on the problems all three have where the teacher (vt) and the student's own thinking mode (vo) disagree (binarised
+    at accuracy >= 0.5): their count, the student's (vs) share agreeing with each, the difference (self - teacher) and the binomial p."""
+    b = lambda v, i: v[i][0] >= 0.5
+    idx = [i for i in sorted(vs) if i in vt and i in vo and b(vt, i) != b(vo, i)]
+    k_self = sum(1 for i in idx if b(vs, i) == b(vo, i))
+    n = len(idx)
+    return {"n": n, "with_teacher": round((n - k_self) / n, 4) if n else None, "with_self": round(k_self / n, 4) if n else None,
+            "diff": round((2 * k_self - n) / n, 4) if n else None, "p": binom_two_sided(k_self, n),
+            "teacher_right": sum(1 for i in idx if b(vt, i)), "self_right": sum(1 for i in idx if b(vo, i))}
+
+
 def fp_auto(runs):
     """{stem: <task>/<file>} of the 16K avg@4 T0.6 MATH-500 readings under runs/ (metrics.json max_tokens 16384, 2000 lines)."""
     import re
@@ -332,7 +356,7 @@ def main(runs, qfile, out):
         summary["tails"][label] = dict(tails(p, n, seed, tt), reading=rel)
     summary["fingerprint"] = {}
     fp_rows = [l.split() for l in open(qfile)]
-    fp_rows = [f for f in fp_rows if len(f) >= 3 and f[0] in ("#fpauto", "#fpmodel", "#fppair") and f[1] == "READINGS-EXTRA"]
+    fp_rows = [f for f in fp_rows if len(f) >= 3 and f[0] in ("#fpauto", "#fpmodel", "#fppair", "#fpdis") and f[1] == "READINGS-EXTRA"]
     fp_full = {}
     for label in sorted({f[2] for f in fp_rows}):   # [v2.5.9z14]
         models = {}
@@ -363,11 +387,19 @@ def main(runs, qfile, out):
                     rows.append({"a": a, "b": b, **{part: mat[part][a][b] for part in ("all", "1-100", "101-500")}})
                 else:
                     summary["missing"].append(f"{label} pair {a} / {b}: no reading")
+        dis = []
+        for f in fp_rows:   # [v2.5.9z22]
+            if f[0] == "#fpdis" and f[2] == label and len(f) >= 6:
+                st, te, so = f[3], f[4], f[5]
+                if all(x in vec for x in (st, te, so)):
+                    dis.append(dict(student=st, teacher=te, own_thinking=so, **fp_disagree(vec[st], vec[te], vec[so])))
+                else:
+                    summary["missing"].append(f"{label} disagreement {st} / {te} / {so}: no reading")
         summary["fingerprint"][label] = {"models": {n: {"reading": models[n][0], "cap": models[n][1],
                                                         "acc": round(100 * sum(v[0] for v in vec[n].values()) / len(vec[n]), 2),
                                                         "mean_len": round(sum(v[1] for v in vec[n].values()) / len(vec[n]), 1),
                                                         "problems": len(vec[n])} for n in names},
-                                         "pairs": rows}
+                                         "pairs": rows, "disagreement": dis}
         fp_full[label] = dict(summary["fingerprint"][label], matrix=mat)
     fd = os.path.join(out, "up", "runs", "READINGS-EXTRA"); os.makedirs(fd, exist_ok=True)
     if fp_full:
@@ -398,6 +430,8 @@ def main(runs, qfile, out):
         lines.append(f"fingerprint {k} ({len(v['models'])} models): a vs b | all r_acc / phi / agree (chance) / r_len | 1-100 | 101-500")
         f = lambda c: f"{c['r_acc']} / {c['phi']} / {c['agree']} ({c.get('chance')}) / {c['r_len']}"
         lines += [f"{r['a']} vs {r['b']} | {f(r['all'])} | {f(r['1-100'])} | {f(r['101-500'])}" for r in v["pairs"]]
+        lines += [f"disagreement {d['student']}: teacher {d['teacher']} vs own thinking {d['own_thinking']}: n {d['n']}, with teacher {d['with_teacher']}, "
+                  f"with own thinking {d['with_self']}, diff {d['diff']}, p {d['p']}" for d in v.get("disagreement", [])]
     for k, v in summary["lensel"].items():   # [v2.5.9z13]
         lines.append(f"lensel {k}: kept EOS below 90% from step " + ", ".join(f"{t} {x['kept_eos_below_90_from']}" for t, x in v.items()))
     for k, v in summary["tails"].items():

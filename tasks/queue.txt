@@ -1964,3 +1964,10 @@ olpd     open   EVAL-ext32k-17olpd
 #term PROBE-TERM4 17_P5smerge result:runs/E10b-P5stopmerge/global_step_50/actor/huggingface EVAL-smerge/e10b_P5smerge_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 #term PROBE-TERM4 17_P5tail result:runs/E10b-P5tail/global_step_50/actor/huggingface EVAL-tail/e10b_P5tail_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 #after EVAL-smerge rerun PROBE-TERM4
+# [v2.5.9z22] (the reviewer's Q-056 addition 10-22) the disagreement subset: the problems where the teacher and the student's own thinking
+# mode disagree; the student's share on each side, the difference and an exact binomial p (P5 at three sizes against the 8B teacher; X4
+# against its Instruct-2507 teacher); `rerun READINGS-EXTRA`
+#fpdis READINGS-EXTRA q056 e11b_P5 8B_think 17_think
+#fpdis READINGS-EXTRA q056 e10d_P5_s150 8B_think 4B_think
+#fpdis READINGS-EXTRA q056 e10c_P5-fix4_s150 8B_think 06_think
+#fpdis READINGS-EXTRA q056 e10d_X4_s50 i2507 4B_think

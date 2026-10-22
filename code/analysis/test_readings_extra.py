@@ -204,3 +204,13 @@ def test_fp_compare_constant_and_parts():
     assert c["r_acc"] is None and c["phi"] is None and c["agree"] == 0.2 and c["n"] == 500   # a constant vector has no correlation
     assert c["chance"] == 0.2                                   # [v2.5.9z17] pa = 1, pb = 0.2: 1 x 0.2 + 0 x 0.8
     assert X.fp_compare(va, vb, "1-100")["agree"] == 1.0 and X.fp_compare(va, vb, "101-500")["agree"] == 0.0
+
+
+def test_fp_disagree_and_binomial():   # [v2.5.9z22] (Q-056) the disagreement subset of teacher and own thinking
+    vt = {i: (1.0 if i < 10 else 0.0, 0) for i in range(20)}            # the teacher solves 0-9
+    vo = {i: (1.0 if 5 <= i < 15 else 0.0, 0) for i in range(20)}       # own thinking solves 5-14: they disagree on 0-4 and 10-14
+    vs = {i: (0.75 if 5 <= i < 15 or i == 0 else 0.25, 0) for i in range(20)}   # the student sides with own thinking on 9 of 10
+    d = X.fp_disagree(vs, vt, vo)
+    assert d == {"n": 10, "with_teacher": 0.1, "with_self": 0.9, "diff": 0.8, "p": 0.021484, "teacher_right": 5, "self_right": 5}
+    assert X.fp_disagree(vs, vt, vt)["n"] == 0 and X.fp_disagree(vs, vt, vt)["p"] is None   # teacher = own thinking: no subset
+    assert X.binom_two_sided(5, 10) == 1.0 and X.binom_two_sided(0, 10) == 0.001953
