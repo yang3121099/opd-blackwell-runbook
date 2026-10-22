@@ -135,12 +135,13 @@ night1   open   EVAL-ext-06p5rl EVAL-ext-x1 EVAL-ext-x2 EVAL-ext-x4:E10d-X4 EVAL
 b259ip   open   PROBE-ROLLOUT-U60 PROBE-ROLLOUT-U85 PROBE-ROLLOUT-U75
 night2   open   EVAL-ext-17s44mid EVAL-ext-4Bmid EVAL-budA-17p2seeds
 fill14   open   EVAL-ext-4Bmid25 EVAL-ext-4Bmid75 EVAL-ext-17s44mid75 EVAL-budA-e12bP13 EVAL-ext-17p5l8k:E12b-P5-8k EVAL-ext-17stop2:E12b-P5-stop2 EVAL-ext-17p5l16k:E12b-P5-16k
+fill15   open   EVAL-ext32k-17route EVAL-ext32k-17mix EVAL-ext32k-17mix75 EVAL-ext32k-17mix90 EVAL-ext32k-17mix60:E10b-P5mix60 EVAL-ext32k-17routeinv:E10b-P5route-inv EVAL-ext-17route EVAL-ext-17mix EVAL-ext-17mix75 EVAL-ext-17mix90
 olpd     open   EVAL-ext32k-17olpd
 b259z24  open   TOKCHECK-X5
 # [v2.5.9m] padding stages (ops-lead, Runming 10-21 21:2x Beijing): dispatched after every other stage, each group in file order;
 # every later fill list gets a #pad line too (a #pad line holds stage names only)
 # [v2.5.9z41] diff4b out of #pad (formal: after Q-058, before Q-059; its stage line now after b259z41s); tails43 in (until TERM4 H2)
-#pad night1 night2 fill14 olpd tails43
+#pad night1 night2 fill14 olpd tails43 fill15
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T0.6 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T1.0 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 1.0
 #eval EVAL-e10c-fix4-s43 e10c_P4lowlr-fix4-s43_s150_math500_T0.6 result:runs/E10c-P4lowlr-fix4-s43/global_step_150/actor/huggingface math500 4 0.6
@@ -2305,3 +2306,64 @@ b259z24  open   TOKCHECK-X5
 #after EVAL-e10b-P5mix60 rerun PROBE-TERM4
 #split READINGS-EXTRA 17_P5mix60_s50 EVAL-e10b-P5mix60/e10b_P5mix60_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 #after EVAL-e10b-P5mix60 rerun READINGS-EXTRA
+# fill15 (sched-preempt draft 10-22 12:4x UTC, for ops-lead A1; Runming is away 10-23, so the 24 h offline-window rule applies)
+# Projection (11:17 pulse + private-repo events to 12:27 UTC; the public pulse stopped at 11:17): with today's queue (v2.5.9z47) and the
+# Q-059 placeholder, the GPUs run dry between 10:24 and 13:17 UTC 10-23. Short of busy-until 14:00 UTC 10-23 (24 h after tonight's
+# 22:00 Beijing evaluation) by ~18 GPU-h, of 16:00 UTC 10-23 (end of Runming's day out) by ~34 GPU-h. Two risks widen it by ~16 GPU-h
+# each: Q-059's diff is not written yet, and Q-058 waits for E12b-P5-s44 s25, which comes over the broken public path until z50.
+# This list adds ~16 GPU-h of readings from local checkpoints (each s50 below was already fetched by its own MATH-500 reading; mix60 /
+# route-inv wait for their training). After it the reserve still falls short of 16:00 UTC 10-23 if Q-058 / Q-059 slip: a new arm is
+# needed for that (for Fable, see the note at the end). Pad order: after fill14, before olpd (the reviewer's lowest).
+#
+# Why: the routing / mixing family (Q-041 route, Q-042 mix, Q-060 mix 0.6 / 0.75 / 0.9, Q-063 route-inv) has MATH-500 16K / 32K only;
+# every other 1.7B arm (P5, P5self, tail, stop-merged, length-selected) also has AIME24/25 avg@16 32K, and the headline ones the
+# out-of-distribution sets. These rows put the family on the same footing: whether the non-thinking teacher's share costs the
+# [pushed 10-22 15:1x UTC by the executor; ops-lead A1 (sched-preempt draft)]
+#eval EVAL-ext32k-17route ext32k17_P5route_s50_aime24_T0.6 result:runs/E10b-P5route/global_step_50/actor/huggingface aime24 16 0.6 32768
+#pair EVAL-ext32k-17route ext32k17_P5route_s50_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#eval EVAL-ext32k-17route ext32k17_P5route_s50_aime25_T0.6 result:runs/E10b-P5route/global_step_50/actor/huggingface aime25 16 0.6 32768
+#pair EVAL-ext32k-17route ext32k17_P5route_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
+#eval EVAL-ext32k-17mix ext32k17_P5mix_s50_aime24_T0.6 result:runs/E10b-P5mix/global_step_50/actor/huggingface aime24 16 0.6 32768
+#pair EVAL-ext32k-17mix ext32k17_P5mix_s50_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#eval EVAL-ext32k-17mix ext32k17_P5mix_s50_aime25_T0.6 result:runs/E10b-P5mix/global_step_50/actor/huggingface aime25 16 0.6 32768
+#pair EVAL-ext32k-17mix ext32k17_P5mix_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
+#eval EVAL-ext32k-17mix75 ext32k17_P5mix75_s50_aime24_T0.6 result:runs/E10b-P5mix75/global_step_50/actor/huggingface aime24 16 0.6 32768
+#pair EVAL-ext32k-17mix75 ext32k17_P5mix75_s50_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#eval EVAL-ext32k-17mix75 ext32k17_P5mix75_s50_aime25_T0.6 result:runs/E10b-P5mix75/global_step_50/actor/huggingface aime25 16 0.6 32768
+#pair EVAL-ext32k-17mix75 ext32k17_P5mix75_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
+#eval EVAL-ext32k-17mix90 ext32k17_P5mix90_s50_aime24_T0.6 result:runs/E10b-P5mix90/global_step_50/actor/huggingface aime24 16 0.6 32768
+#pair EVAL-ext32k-17mix90 ext32k17_P5mix90_s50_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#eval EVAL-ext32k-17mix90 ext32k17_P5mix90_s50_aime25_T0.6 result:runs/E10b-P5mix90/global_step_50/actor/huggingface aime25 16 0.6 32768
+#pair EVAL-ext32k-17mix90 ext32k17_P5mix90_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
+#eval EVAL-ext32k-17mix60 ext32k17_P5mix60_s50_aime24_T0.6 result:runs/E10b-P5mix60/global_step_50/actor/huggingface aime24 16 0.6 32768
+#pair EVAL-ext32k-17mix60 ext32k17_P5mix60_s50_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#eval EVAL-ext32k-17mix60 ext32k17_P5mix60_s50_aime25_T0.6 result:runs/E10b-P5mix60/global_step_50/actor/huggingface aime25 16 0.6 32768
+#pair EVAL-ext32k-17mix60 ext32k17_P5mix60_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
+#eval EVAL-ext32k-17routeinv ext32k17_P5routeinv_s50_aime24_T0.6 result:runs/E10b-P5route-inv/global_step_50/actor/huggingface aime24 16 0.6 32768
+#pair EVAL-ext32k-17routeinv ext32k17_P5routeinv_s50_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#eval EVAL-ext32k-17routeinv ext32k17_P5routeinv_s50_aime25_T0.6 result:runs/E10b-P5route-inv/global_step_50/actor/huggingface aime25 16 0.6 32768
+#pair EVAL-ext32k-17routeinv ext32k17_P5routeinv_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
+#eval EVAL-ext-17route ext_P5route_s50_amc23_T0.6 result:runs/E10b-P5route/global_step_50/actor/huggingface amc23 8 0.6
+#pair EVAL-ext-17route ext_P5route_s50_amc23_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_amc23_T0.6_amc23_no_think_t0.6.jsonl EVAL-ext-E10b-P5self/ext_E10bP5self_amc23_T0.6_amc23_no_think_t0.6.jsonl
+#eval EVAL-ext-17route ext_P5route_s50_minervamath_T0.6 result:runs/E10b-P5route/global_step_50/actor/huggingface minervamath 4 0.6
+#pair EVAL-ext-17route ext_P5route_s50_minervamath_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_minervamath_T0.6_minervamath_no_think_t0.6.jsonl EVAL-ext-E10b-P5self/ext_E10bP5self_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
+#eval EVAL-ext-17route ext_P5route_s50_olympiadbench_T0.6 result:runs/E10b-P5route/global_step_50/actor/huggingface olympiadbench 4 0.6
+#pair EVAL-ext-17route ext_P5route_s50_olympiadbench_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl EVAL-ext-E10b-P5self/ext_E10bP5self_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
+#eval EVAL-ext-17mix ext_P5mix_s50_amc23_T0.6 result:runs/E10b-P5mix/global_step_50/actor/huggingface amc23 8 0.6
+#pair EVAL-ext-17mix ext_P5mix_s50_amc23_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_amc23_T0.6_amc23_no_think_t0.6.jsonl EVAL-ext-E10b-P5self/ext_E10bP5self_amc23_T0.6_amc23_no_think_t0.6.jsonl
+#eval EVAL-ext-17mix ext_P5mix_s50_minervamath_T0.6 result:runs/E10b-P5mix/global_step_50/actor/huggingface minervamath 4 0.6
+#pair EVAL-ext-17mix ext_P5mix_s50_minervamath_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_minervamath_T0.6_minervamath_no_think_t0.6.jsonl EVAL-ext-E10b-P5self/ext_E10bP5self_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
+#eval EVAL-ext-17mix ext_P5mix_s50_olympiadbench_T0.6 result:runs/E10b-P5mix/global_step_50/actor/huggingface olympiadbench 4 0.6
+#pair EVAL-ext-17mix ext_P5mix_s50_olympiadbench_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl EVAL-ext-E10b-P5self/ext_E10bP5self_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
+#eval EVAL-ext-17mix75 ext_P5mix75_s50_amc23_T0.6 result:runs/E10b-P5mix75/global_step_50/actor/huggingface amc23 8 0.6
+#pair EVAL-ext-17mix75 ext_P5mix75_s50_amc23_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_amc23_T0.6_amc23_no_think_t0.6.jsonl EVAL-ext-E10b-P5self/ext_E10bP5self_amc23_T0.6_amc23_no_think_t0.6.jsonl
+#eval EVAL-ext-17mix75 ext_P5mix75_s50_minervamath_T0.6 result:runs/E10b-P5mix75/global_step_50/actor/huggingface minervamath 4 0.6
+#pair EVAL-ext-17mix75 ext_P5mix75_s50_minervamath_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_minervamath_T0.6_minervamath_no_think_t0.6.jsonl EVAL-ext-E10b-P5self/ext_E10bP5self_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
+#eval EVAL-ext-17mix75 ext_P5mix75_s50_olympiadbench_T0.6 result:runs/E10b-P5mix75/global_step_50/actor/huggingface olympiadbench 4 0.6
+#pair EVAL-ext-17mix75 ext_P5mix75_s50_olympiadbench_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl EVAL-ext-E10b-P5self/ext_E10bP5self_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
+#eval EVAL-ext-17mix90 ext_P5mix90_s50_amc23_T0.6 result:runs/E10b-P5mix90/global_step_50/actor/huggingface amc23 8 0.6
+#pair EVAL-ext-17mix90 ext_P5mix90_s50_amc23_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_amc23_T0.6_amc23_no_think_t0.6.jsonl EVAL-ext-E10b-P5self/ext_E10bP5self_amc23_T0.6_amc23_no_think_t0.6.jsonl
+#eval EVAL-ext-17mix90 ext_P5mix90_s50_minervamath_T0.6 result:runs/E10b-P5mix90/global_step_50/actor/huggingface minervamath 4 0.6
+#pair EVAL-ext-17mix90 ext_P5mix90_s50_minervamath_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_minervamath_T0.6_minervamath_no_think_t0.6.jsonl EVAL-ext-E10b-P5self/ext_E10bP5self_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
+#eval EVAL-ext-17mix90 ext_P5mix90_s50_olympiadbench_T0.6 result:runs/E10b-P5mix90/global_step_50/actor/huggingface olympiadbench 4 0.6
+#pair EVAL-ext-17mix90 ext_P5mix90_s50_olympiadbench_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl EVAL-ext-E10b-P5self/ext_E10bP5self_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
