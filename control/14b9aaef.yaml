@@ -481,3 +481,4 @@ commands:
   - {"seq": 479, "cmd": "kill-pgid 2367471", "reason": "ops-lead A1 07:5x UTC: VENV-VL-NVRTC attempt 2 (old code) stuck in wheel_fetch's one-connection download since 07:06, holding the CPU lane; nothing installed; attempt 3 uses 9z34 (16 connections)", "utc": "2026-10-22T07:50:58Z"}
   - {"seq": 480, "cmd": "rerun PROBE-T32", "reason": "v2.5.9z40 (ops-lead A1): the rollout at 0.4; an out of memory retries with the optimizer offloaded; HOLD above 20 projected hours", "utc": "2026-10-22T07:52:50Z"}
   - {"seq": 481, "cmd": "rerun PROBE-MIXP", "reason": "v2.5.9z47 (ops-lead A1 10-22 10:4x UTC): PROBE-MIXP now checks p = 0.6 (share and nesting) for E10b-P5mix60", "utc": "2026-10-22T10:43:20Z"}
+  - {"seq": 482, "cmd": "logs heartbeat 60", "reason": "pulse / status stale since 11:17 UTC: the heartbeat's log tail (ops-lead URGENT)", "utc": "2026-10-22T11:53:18Z"}
