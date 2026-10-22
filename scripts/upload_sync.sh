@@ -43,11 +43,13 @@ lenwall() {   # [v2.5.9z38] (Q-060) an OPD run's per-step length / clip and its 
   [ $n -ge $(( u + ${LEN_EVERY:-5} )) ] && echo len_by_step.csv >> $RUN/.up_due && { echo $n > $RUN/.len_uploaded; echo "LEN_UP $TASK $n steps $(date -u +%T) (queued)"; }
   return 0; }
 x5alert() {   # [v2.5.9z59] (Fable 10-22) an E16 step whose responses carry special ids in more than X5_SPECIAL_ALERT (2%) of its rows: one event
+  [ "$DRY" = 1 ] && return 0   # [v2.5.9z61] (ops-lead's follow-up) as lenwall
   [ -f $RUN/x5.jsonl ] || return 0
   python3 - $RUN/x5.jsonl $RUN/.x5_seen $TASK "${X5_SPECIAL_ALERT:-0.02}" $RUNBOOK/scripts/control.py <<'PY'
 import json, subprocess, sys
 log, seen_f, task, lim, ctl = sys.argv[1], sys.argv[2], sys.argv[3], float(sys.argv[4]), sys.argv[5]
-lines = open(log).read().splitlines()
+raw = open(log).read()
+lines = raw.split("\n")[:-1]   # [v2.5.9z61] (ops-lead's follow-up) whole lines only: a line still being written waits for the next round
 try:
     seen = int(open(seen_f).read().strip() or 0)
 except (OSError, ValueError):

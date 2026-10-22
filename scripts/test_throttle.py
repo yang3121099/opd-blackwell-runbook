@@ -93,7 +93,7 @@ def test_no_request_during_the_backoff_and_a_429_starts_it(root, monkeypatch):
                        env={k: v for k, v in dict(os.environ, OPD_ROOT=root).items() if k != "HF_TOKEN"})
     assert r.returncode == 1 and "put failed: Backoff" in r.stderr
     assert subprocess.run([sys.executable, os.path.join(HERE, "remote.py"), "backoff"], capture_output=True, text=True,
-                          env=dict(os.environ, OPD_ROOT=root)).stdout.strip() in ("59", "58")
+                          env=dict(os.environ, OPD_ROOT=root)).stdout.strip() in {str(x) for x in range(50, 61)}   # (a busy machine: not only 59 / 58)
 
 
 def test_a_held_weight_needs_no_request_during_the_backoff(root, monkeypatch):

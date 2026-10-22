@@ -34,10 +34,12 @@ Usage: python term_probe.py --teacher <8B dir> --inputs <tsv: tag, model dir, ge
 """
 import argparse
 import bisect
+import hashlib
 import json
 import os
 import re
 import sys
+import time
 from collections import defaultdict
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -304,6 +306,7 @@ def main():
     ap.add_argument("--no_teacher_nothink", action="store_true")
     ap.add_argument("--no_teacher", action="store_true")   # v2.5.7m (PROBE-TERM3): the teacher's values depend on the text only
     ap.add_argument("--term4", action="store_true")        # v2.5.7z (PROBE-TERM4)
+    ap.add_argument("--cache_dir", default=None)   # [v2.5.9z61] per-model results kept for the next run (rerun after a new row)
     a = ap.parse_args()
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -317,6 +320,15 @@ def main():
     report = {"method": __doc__.split("Usage:")[0].strip(), "markers": MARKERS.decode(), "models": {}, "pairs": {}}
     per = {}
     sf = open(a.samples, "w") if a.samples else None
+    code = hashlib.sha256(open(os.path.abspath(__file__), "rb").read()).hexdigest()
+
+    def weights(d):   # [ops-lead's A1 condition] the weights' sizes and mtimes: a result: model fetched again keeps its path
+        if not os.path.isdir(d):
+            return d
+        return sorted((n, os.path.getsize(os.path.join(d, n)), int(os.path.getmtime(os.path.join(d, n)))) for n in os.listdir(d)
+                      if n.endswith((".safetensors", ".bin", ".json", ".txt", ".model")) and os.path.isfile(os.path.join(d, n)))
+    if a.cache_dir:
+        os.makedirs(a.cache_dir, exist_ok=True)
     for line in open(a.inputs):
         f = line.rstrip("\n").split("\t")
         if len(f) < 5 or line.startswith("#"):
@@ -325,6 +337,33 @@ def main():
         info = {"model": mid, "generations": src}
         if mdir == "-" or not os.path.isfile(gens):
             info["error"] = src if mdir == "-" else "generations missing"; report["models"][tag] = info; continue
+        # [v2.5.9z61] (ops-lead 10-22: a rerun for one new row measured every model again, ~0.75 GPU-h) the same tag, model path
+        # and weights (names, sizes, mtimes), generations (path, size, mtime), template, prompt suffix, options and this file's
+        # sha256: the last run's result, its per-problem values and its samples are used as they are (info["source"] says which)
+        st = os.stat(gens)
+        key = json.dumps([tag, mdir, weights(mdir), gens, st.st_size, int(st.st_mtime), len(f) > 5 and f[5] == "think", PROMPT_SUFFIX,
+                          a.term4, a.no_teacher, a.no_teacher_nothink, a.max_per_model, a.teacher if not a.no_teacher else None, code])
+        cf = os.path.join(a.cache_dir, re.sub(r"[^A-Za-z0-9._-]", "_", tag) + ".json") if a.cache_dir else None
+        if cf and os.path.exists(cf):
+            try:
+                c = json.load(open(cf))
+            except (OSError, ValueError):
+                c = {}
+            try:   # [ops-lead's A1 condition] the same key but a cache missing a field: measured again, never a crash
+                if c.get("key") == key:
+                    rinfo = dict(c["info"], reused=True, source=f"reused (measured {c['info']['measured_utc']})")
+                    rper = {k: {int(pid): v for pid, v in d.items()} for k, d in c["per"].items()}
+                    rsamples = [json.dumps(row) for row in c["samples"]]
+                    report["models"][tag] = rinfo; per[tag] = rper
+                    for row in rsamples:
+                        if sf:
+                            sf.write(row + "\n")
+                    print(json.dumps({"tag": tag, "reused": True}), flush=True)
+                    json.dump(report, open(a.out, "w"), indent=1)
+                    continue
+            except (KeyError, TypeError, ValueError, AttributeError):
+                pass
+        rows_out = []
         tok = AutoTokenizer.from_pretrained(mdir); student = load(mdir)
         think = len(f) > 5 and f[5] == "think"   # v2.5.7z: the model's own generation template
         info["template"] = "thinking" if think else "non-thinking"
@@ -385,12 +424,17 @@ def main():
                         allv[k + ("_truncated" if r["finish_reason"] == "length" else "_terminated")].append(vals[k])
             if sf:
                 sf.write(json.dumps(row) + "\n")
+            rows_out.append(row)
         n = max(cnt["generations"], 1)
         info.update(generations=cnt["generations"], trunc_rate=round(cnt["truncated"] / n, 4), anchor_rate=round(1 - cnt["no_anchor"] / n, 4),
                     cases={c: cnt[c] for c in ("nl", "eos_first", "none", "no_anchor", "env_nl", "env_eos", "env_none", "last_env_nl", "last_env_eos", "last_env_none")},
                     marker_frac_pooled=round(pooled[0] / pooled[1], 5) if pooled[1] else None,
                     measures={k: describe(v, m.get(k, {})) for k, v in allv.items()})
+        info.update(measured_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), source="measured")
         report["models"][tag] = info; per[tag] = m
+        if cf:   # [v2.5.9z61]
+            json.dump({"key": key, "info": info, "per": {k: {str(pid): v for pid, v in d.items()} for k, d in m.items()}, "samples": rows_out},
+                      open(cf + ".tmp", "w")); os.replace(cf + ".tmp", cf)
         print(json.dumps({"tag": tag, "trunc_rate": info["trunc_rate"], **{k: info["measures"][k].get("mean") for k in ("p_stop_nl", "p_stop_env_nl", "p_stop_max16", "marker_frac", "teacher_stop_env_nl") if k in info["measures"]}}), flush=True)
         del student; torch.cuda.empty_cache()
         json.dump(report, open(a.out, "w"), indent=1)   # partial report after every model

@@ -83,7 +83,7 @@ done <<< "$(awk -v t="$QT" '$1 == "#term" && $2 == t {print $3, $4, $5, $6}' "$Q
 [ -s $D/inputs.tsv ] || { step "no #term lines for $T"; exit 1; }
 step "measure $(wc -l < $D/inputs.tsv) models"
 CUDA_VISIBLE_DEVICES=$G python $RUNBOOK/code/analysis/term_probe.py --teacher $TEACHER --inputs $D/inputs.tsv --out $D/report.json \
-  --samples $D/samples.jsonl $([ $T = PROBE-TERM3 ] && echo --no_teacher) $([[ $T == PROBE-TERM4 || $T == PROBE-TERM4-4B || $T == PROBE-TERM4-06B ]] && echo --no_teacher --term4) >> $LOG 2>&1; rc=$?
+  --samples $D/samples.jsonl --cache_dir $D/cache $([ $T = PROBE-TERM3 ] && echo --no_teacher) $([[ $T == PROBE-TERM4 || $T == PROBE-TERM4-4B || $T == PROBE-TERM4-06B ]] && echo --no_teacher --term4) >> $LOG 2>&1; rc=$?
 python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true
 cp $D/report.json $D/samples.jsonl $D/up/ 2> /dev/null
 python $RUNBOOK/scripts/remote.py put $D/up runs/$T >> $LOG 2>&1 || { step "report upload failed (kept in $D)"; rc=1; }
