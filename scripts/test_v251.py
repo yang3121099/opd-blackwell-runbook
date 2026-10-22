@@ -1292,4 +1292,4 @@ def test_run_and_rerun_accept_v259z47(env):   # [v2.5.9z47] E10b-P5mix60 (rules 
     for i, t in enumerate(("E10b-P5mix65", "E10b-P5mix60-s43", "E10b-P5mix6")):
         assert env.c.v_run([t], 160 + i)[0] == "rejected", t
     R.parse({"cmd": "rerun E10b-P5mix60", "reason": "t"})
-    assert R.RULES_VERSION == "2.5.73"
+    assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 73)

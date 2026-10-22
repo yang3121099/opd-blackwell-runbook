@@ -350,6 +350,7 @@ while true; do
   [ "${DRY:-0}" != 1 ] && git_pass   # [v2.5.9c]
   [ "${DRY:-0}" != 1 ] && python $RUNBOOK/scripts/control.py auto_reruns "$Q"   # [v2.5.9z12] the queue's #at / #after rerun lines
   disk_guard   # [v2.5.9z12]
+  python $RUNBOOK/scripts/control.py disk_fallback > /dev/null 2>&1 || true   # [v2.5.9z48] the control plane off a full work disk
   READY=0; RT=""; HELD=""   # [v2.5.9z12] this pass's ready-but-not-started GPU tasks, and the trainings the disk guard held
   FREE=($(free_gpus)); earlier_finished=1; rm -f $CDIR/held.json   # [v2.5.9c] a hold is written again by take_gpus
   verify_busy && FREE=()   # a remote rerun_verify owns the GPUs

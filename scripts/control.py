@@ -1112,6 +1112,10 @@ def pulse(status_path, upload=True):
     """Write control/pulse.json and, when the uploads are split (hf_repos.txt), upload it as pulse/<node>.json to the
     public repository. A pulse with any string that fails leak_check is not written; an event records the refusal
     (with the number of strings, never the strings)."""
+    try:
+        disk_fallback(blocking=False)   # [v2.5.9z48] every minute, besides run_tasks.sh's rounds; never waits on the lock
+    except Exception:
+        pass
     st = json.loads(_read(status_path, "{}") or "{}")
     try:
         q = subprocess.run(["nvidia-smi", "--query-gpu=index,utilization.gpu,memory.used,memory.total", "--format=csv,noheader,nounits"],
@@ -1119,6 +1123,7 @@ def pulse(status_path, upload=True):
     except Exception:
         q = ""
     p = build_pulse(st, q)
+    p["disk_fallback"] = os.path.islink(os.path.join(ROOT, "control"))   # [v2.5.9z48]
     bad = leak_check(p)
     if bad:
         event("control", "pulse_refused", f"{len(bad)} string(s) failed the leak check")
@@ -1980,16 +1985,123 @@ def auto_reruns(qfile, now=None):
     return out
 
 
+def _cfg(name, default):
+    """[v2.5.9z48] a setting from $OPD_ROOT/control.env (setenv; read on every call, so a running loop sees it), else the
+    environment, else the default."""
+    try:
+        for line in open(os.path.join(ROOT, "control.env")):
+            k, _, x = line.strip().removeprefix("export ").partition("=")
+            if k == name and x.strip().strip('"'):
+                return x.strip().strip('"')
+    except OSError:
+        pass
+    return os.environ.get(name) or default
+
+
 def disk_low():
-    """The disks below the heartbeat's alert lines: 'work' (OPD_ROOT, DISK_ALERT_GB 30) and / or 'ckpt' (CKPT_ROOT,
-    CKPT_ALERT_GB 100), space separated; '' when both are above. run_tasks.sh holds new trainings while it is not empty."""
+    """The disks below the heartbeat's alert lines: 'work' (OPD_ROOT, DISK_ALERT_GB) and / or 'ckpt' (CKPT_ROOT,
+    CKPT_ALERT_GB 100), space separated; '' when both are above. run_tasks.sh holds new trainings while it is not empty.
+    [v2.5.9z48] (ops-lead / the reviewer 10-22 19:0x Beijing: the shared work disk lost ~4.8 TB to others in 30 min) the work
+    line 1000 GB (was 30), both lines read from control.env first (`setenv DISK_ALERT_GB=` / `CKPT_ALERT_GB=` apply at once)."""
     low = []
-    for name, path, var, dflt in (("work", ROOT, "DISK_ALERT_GB", "30"), ("ckpt", os.environ.get("CKPT_ROOT", ""), "CKPT_ALERT_GB", "100")):
+    for name, path, var, dflt in (("work", ROOT, "DISK_ALERT_GB", "1000"), ("ckpt", os.environ.get("CKPT_ROOT", ""), "CKPT_ALERT_GB", "100")):
         if path and os.path.isdir(path):
             s = os.statvfs(path)
-            if s.f_bavail * s.f_frsize / 1e9 < float(os.environ.get(var, dflt)):
+            if s.f_bavail * s.f_frsize / 1e9 < float(_cfg(var, dflt)):
                 low.append(name)
     return " ".join(low)
+
+
+# [v2.5.9z48] (the reviewer 10-22 19:0x Beijing via ops-lead; the 10-19 control-plane hang) the control plane's small writes
+# leave the work disk before it fills: below CTRL_FALLBACK_LOW_GB (200) free, $OPD_ROOT/control (heartbeat, pulse, events,
+# receipts, the upload outbox) and $OPD_ROOT/logs move to $CKPT_ROOT/opd_fallback/<name> and their old paths become symlinks
+# to it, so every writer goes on unchanged; above CTRL_FALLBACK_HIGH_GB (400) they move back (the gap: no flapping). The old
+# directory stays as <name>.pre_fallback_<utc> and the fallback copy as opd_fallback/<name>.<utc>: nothing is removed. Below
+# DISK_FULL_GB (1) one event disk_write_fail per episode: running tasks' writes there may fail, and nothing is stopped.
+FALLBACK_DIRS = ("control", "logs")
+
+
+def _free_gb(path):
+    s = os.statvfs(path)
+    return s.f_bavail * s.f_frsize / 1e9
+
+
+def _sync_tree(src, dst):
+    """Copy the files of src that dst lacks or has older (small files); nothing removed. The number copied."""
+    n = 0
+    for dirpath, _, files in os.walk(src):
+        d = os.path.join(dst, os.path.relpath(dirpath, src))
+        os.makedirs(d, exist_ok=True)
+        for f in files:
+            s, t = os.path.join(dirpath, f), os.path.join(d, f)
+            try:
+                if not os.path.exists(t) or os.path.getmtime(s) > os.path.getmtime(t):
+                    shutil.copy2(s, t); n += 1
+            except OSError:
+                pass
+    return n
+
+
+def disk_fallback(root=None, ckpt=None, free_fn=None, emit=True, stamp=None, check_dev=True, blocking=True):
+    """One check (run_tasks.sh every round, the pulse every minute): 'on' / 'off' / 'switched_on' / 'switched_off', or 'n/a'
+    (no checkpoint disk apart from the work disk). [ops-lead's A1 condition] blocking=False (the pulse): 'busy' at once when another
+    check holds the lock (a move of logs/ can take minutes; the pulse must never wait: the 10-19 hang)."""
+    import fcntl
+    root = root or ROOT
+    ckpt = ckpt if ckpt is not None else os.environ.get("CKPT_ROOT", "")
+    if not ckpt or not os.path.isdir(ckpt) or (check_dev and os.stat(ckpt).st_dev == os.stat(root).st_dev):
+        return "n/a"
+    free = (free_fn or _free_gb)(root)
+    low, high = float(_cfg("CTRL_FALLBACK_LOW_GB", "200")), float(_cfg("CTRL_FALLBACK_HIGH_GB", "400"))
+    fb = os.path.join(ckpt, "opd_fallback"); os.makedirs(fb, exist_ok=True)
+    stamp = stamp or time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    with open(os.path.join(fb, ".lock"), "w") as lk:
+        try:
+            fcntl.flock(lk, fcntl.LOCK_EX if blocking else fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return "busy"
+        active = os.path.islink(os.path.join(root, "control"))
+        state = "on" if active else "off"
+        if not active and free < low:
+            for n in FALLBACK_DIRS:
+                p, q = os.path.join(root, n), os.path.join(fb, n)
+                if os.path.islink(p):
+                    continue
+                os.makedirs(p, exist_ok=True); _sync_tree(p, q)
+                tmp = p + ".fb_link"
+                if os.path.lexists(tmp):
+                    os.unlink(tmp)
+                os.symlink(q, tmp)
+                old = f"{p}.pre_fallback_{stamp}"
+                os.rename(p, old); os.rename(tmp, p)
+                _sync_tree(old, q)   # what was written between the first copy and the swap
+            state = "switched_on"
+        elif active and free > high:
+            for n in FALLBACK_DIRS:
+                p, q = os.path.join(root, n), os.path.join(fb, n)
+                if not os.path.islink(p):
+                    continue
+                back, off = p + ".fb_back", p + ".fb_off"
+                os.makedirs(back, exist_ok=True); _sync_tree(q, back)
+                if os.path.lexists(off):
+                    os.unlink(off)
+                os.rename(p, off); os.rename(back, p); _sync_tree(q, p); os.unlink(off)
+                os.rename(q, f"{q}.{stamp}")   # the fallback copy stays on the checkpoint disk
+            state = "switched_off"
+        mark = os.path.join(fb, "disk_full_reported")
+        full = free < float(_cfg("DISK_FULL_GB", "1"))
+        if full and not os.path.exists(mark):
+            open(mark, "w").write(stamp)
+            if emit:
+                event("node", "disk_write_fail", f"work disk {free:.1f} GB free: running tasks' writes there (train.log, rollouts, "
+                      "readings) may fail; nothing is stopped")
+        elif not full and free > 10 and os.path.exists(mark):
+            os.unlink(mark)
+    if emit and state.startswith("switched"):
+        event("node", "disk_fallback_" + ("on" if state == "switched_on" else "off"),
+              f"work disk {free:.1f} GB free (lines {low:.0f} / {high:.0f} GB): control/ and logs/ "
+              + ("on the checkpoint disk" if state == "switched_on" else "back on the work disk"))
+    return state
 
 
 RESERVE_ALERT_MIN = int(os.environ.get("RESERVE_ALERT_MIN", "10"))
@@ -2300,6 +2412,8 @@ if __name__ == "__main__":
         do_du(int(sys.argv[2]), sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else "")
     elif cmd == "do_rm_ours":
         do_rm_ours(int(sys.argv[2]), sys.argv[3], sys.argv[4])
+    elif cmd == "disk_fallback":   # [v2.5.9z48] run_tasks.sh every round
+        print("DISK_FALLBACK", disk_fallback())
     elif cmd == "lru_clean":   # [v2.5.8] heartbeat.sh every round; nothing unless LOCAL_LRU_GB is set
         g = lru_clean(); print(f"LRU_FREED {g} GB") if g else None
     elif cmd == "ship_outbox":   # [v2.5.8] uploader.sh, one pass

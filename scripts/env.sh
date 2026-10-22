@@ -48,6 +48,13 @@ export CKPT_CANDIDATES=$(ckpt_candidates)   # colon list of candidate bases (v2.
 ckpt_link() {   # <task dir>: its ckpt becomes a symlink into $CKPT_ROOT; a real ckpt dir from an older run stays as it is
   local t=$(basename "$1"); mkdir -p "$CKPT_ROOT/$t/ckpt"
   [ -e "$1/ckpt" ] || [ -L "$1/ckpt" ] || ln -s "$CKPT_ROOT/$t/ckpt" "$1/ckpt"; }
+# [v2.5.9z48] (ops-lead 10-22: the shared work disk) a new run's per-step rollout dumps go to $CKPT_ROOT as its ckpt does: an absent
+# or empty rollouts dir becomes a symlink to $CKPT_ROOT/<task>/rollouts; a run that already dumped (a running or resumed one) keeps
+# its real dir. upload_sync.sh reads $RUN/rollouts through the link (the result repository's path unchanged); du does not follow it
+rollouts_link() {
+  local t=$(basename "$1"); mkdir -p "$CKPT_ROOT/$t/rollouts"
+  [ -d "$1/rollouts" ] && [ ! -L "$1/rollouts" ] && [ -z "$(ls -A "$1/rollouts")" ] && rmdir "$1/rollouts"
+  [ -e "$1/rollouts" ] || [ -L "$1/rollouts" ] || ln -s "$CKPT_ROOT/$t/rollouts" "$1/rollouts"; }
 # v2.5.7b: the 4B student (V3-c5) from $OPD_ROOT/models/Qwen3-4B once PROBE-4B has fetched it, else its HF id
 # v2.5.7p (Q-015): the 14B teacher of the -t14 arms from $OPD_ROOT/models/Qwen3-14B once PROBE-T14 has fetched it
 # v2.5.7zd (10-19 15:5x UTC): also when the HF id was inherited. run_tasks, started before PROBE-T14 wrote .fetch_ok,

@@ -172,5 +172,12 @@ rm $T/base/root/runs/PROBE-E12B-8K/report.json; g7=$(DRYRUN=1 bash $T/rb/scripts
 ok "[v2.5.9z43] prog-up needs PROBE-E12B-8K as well" '[[ "$g7" == "PROBE-E12B-8K has not passed: E12b-P5-prog-up not started" ]]'
 echo '{"result": "PASS"}' > $T/base/root/runs/PROBE-E12B-8K/report.json; rm -rf $P44; : > $CALLS; bash $T/rb/scripts/run_e12.sh 0 E12b-P5-prog-up > $T/g8 2>&1
 ok "[v2.5.9z43] prog-up's start not here: fetched from the result repository (runs/E12b-P5-s44/global_step_25)" 'grep -q "^fetch me/pub runs/E12b-P5-s44/global_step_25/actor/huggingface $T/ck/adhoc_models/result --task E12b-P5-prog-up" $CALLS'
+# [v2.5.9z48] (ops-lead 10-22: the shared work disk) a new E12b run's rollouts dir is a symlink into $CKPT_ROOT (env.sh rollouts_link;
+# the trainer's rollout_data_dir stays $OUT/rollouts); a run that already dumped keeps its real dir; a smoke none
+sed -n '/^rollouts_link() {/,/^  \[ -e "\$1\/rollouts" \]/p' $SRC/scripts/env.sh >> $T/rb/scripts/env.sh
+mkdir -p $T/base/root/runs/E12d-P5/rollouts; echo '{}' > $T/base/root/runs/E12d-P5/rollouts/1.jsonl
+DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12d-P0 > /dev/null 2>&1; DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12d-P5 > /dev/null 2>&1
+SMOKE=1 PROBE_TASK=PROBE-ZZ DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12d-P0 > /dev/null 2>&1
+ok "[v2.5.9z48] rollouts: a new run's a link to \$CKPT_ROOT/<task>/rollouts; a run with dumps keeps its dir; a smoke a plain dir; the trainer still writes \$OUT/rollouts" '[ -L $T/base/root/runs/E12d-P0/rollouts ] && [ "$(readlink $T/base/root/runs/E12d-P0/rollouts)" = "$T/ck/E12d-P0/rollouts" ] && [ -d $T/ck/E12d-P0/rollouts ] && [ ! -L $T/base/root/runs/E12d-P5/rollouts ] && [ -s $T/base/root/runs/E12d-P5/rollouts/1.jsonl ] && [ -d $T/base/root/runs/PROBE-ZZ/rollouts ] && [ ! -L $T/base/root/runs/PROBE-ZZ/rollouts ] && grep -q "trainer.rollout_data_dir=\$OUT/rollouts " $SRC/scripts/run_e12.sh'
 rm -rf $T
 [ $fails = 0 ] && echo "DR_TEST PASS ($n checks)" || echo "DR_TEST FAIL ($fails of $n)"

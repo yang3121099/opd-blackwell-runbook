@@ -61,6 +61,7 @@ fi
 SM=${SMOKE:-0}; NAME=$T; [ $SM = 1 ] && NAME=${PROBE_TASK:-smoke-$T}
 OUT=$OPD_ROOT/runs/$NAME; mkdir -p $OUT/rollouts
 [ -f $OUT/.done ] && exit 0
+if [ $SM != 1 ] && declare -F rollouts_link > /dev/null; then rollouts_link $OUT; fi   # [v2.5.9z48] a new run's rollouts on $CKPT_ROOT (env.sh)
 case $A in
   P0) START=$STUDENT_17B; [ $LADDER = E12d ] && START=$STUDENT_4B; [ $LADDER = E12c ] && START=$STUDENT_06B;;   # [v2.5.8a] E12c
   P1) START=$OPD_ROOT/runs/SFT-P1/ckpt/global_step_$(cat $OPD_ROOT/runs/SFT-P1/final_step)/huggingface;;
