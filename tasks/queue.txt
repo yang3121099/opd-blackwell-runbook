@@ -106,6 +106,7 @@ b259z9p  open   PROBE-T32
 b259z9   open   E10d-P5-t32:PROBE-T32 EVAL-e10d-P5t32:E10d-P5-t32 EVAL-budA-e10dP5t32:E10d-P5-t32 EVAL-ext32k-4Bt32:E10d-P5-t32+EVAL-ext32k-32Bthink-aime
 b259q028 open   EVAL-ext32k-17p5l8k-s25
 b259z15  open   EVAL-gm-17base EVAL-gm-17think EVAL-gm-17P5 EVAL-gm-17P5self EVAL-gm-17P5rl EVAL-gm-17P5kl EVAL-gm-17P5l8k EVAL-gm-4Bbase EVAL-gm-4Bthink EVAL-gm-4BP5 EVAL-gm-4BP5self EVAL-gm-4BP5rl EVAL-gm-4BX4 EVAL-gm-4Bi2507 EVAL-gm-06base EVAL-gm-06think EVAL-gm-06P5 EVAL-gm-06P5rl
+b259z18  open   PROBE-WDIFF
 diff4b   open   PROBE-DIFF17-4B:PROBE-DIFF17
 rx       open   READINGS-EXTRA
 night1   open   EVAL-ext-06p5rl EVAL-ext-x1 EVAL-ext-x2 EVAL-ext-x4:E10d-X4 EVAL-ext32k-17p5selfrl-s43 EVAL-ext-17p5selfrl-s43 EVAL-ext-17p5self-s43 EVAL-budA-17p2rl-s43 EVAL-budA-4Bp2s43
@@ -1951,3 +1952,7 @@ olpd     open   EVAL-ext32k-17olpd
 #pairq READINGS-EXTRA tail32k_vs_P5s150_32k EVAL-tail/budAtail_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl
 #after EVAL-tail rerun READINGS-EXTRA
 #after EVAL-len-cmp rerun READINGS-EXTRA
+# b259z18 (runbook v2.5.9z18, the reviewer's Q-031; written 10-21 on a side session's branch, merged 10-22): PROBE-WDIFF in the CPU lane
+# (no GPU, no network): per-layer weight differences of five 4B models (P5 s150, P5self s50, base -> RL s100, Thinking-2507,
+# Instruct-2507) against Qwen3-4B, |Delta| / |W|, the unchanged share, pairwise cosines, the top-10 singular-value share; report
+# and summary to the private repository. A model not on the node is a report row (never downloaded); `rerun PROBE-WDIFF` then.
