@@ -455,3 +455,4 @@ commands:
   - {"seq": 453, "cmd": "snapshot data/hf/Team-ACE__ToolACE/.fetch_ok", "reason": "asset check for ops-lead (Runming's question via the monitor page): link + .fetch_ok of Team-ACE__ToolACE", "utc": "2026-10-21T23:43:33Z"}
   - {"seq": 454, "cmd": "snapshot data/hf/gorilla-llm__Berkeley-Function-Calling-Leaderboard/.fetch_ok", "reason": "asset check for ops-lead (Runming's question via the monitor page): link + .fetch_ok of gorilla-llm__Berkeley-Function-Calling-Leaderboard", "utc": "2026-10-21T23:43:41Z"}
   - {"seq": 455, "cmd": "rerun READINGS-EXTRA", "reason": "v2.5.9z13: Q-030 #lensel / #tails rows", "utc": "2026-10-22T00:09:24Z"}
+  - {"seq": 456, "cmd": "setenv GPUS_SOON_MIN=1440", "reason": "ops-lead's hold for E12b-P5-16k-kl (v2.5.9z12a): EVAL-e12b-P5-16k on its last row; no other #gpus task ready", "utc": "2026-10-22T00:27:40Z"}
