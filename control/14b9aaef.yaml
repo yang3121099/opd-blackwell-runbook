@@ -490,3 +490,4 @@ commands:
   - {"seq": 488, "cmd": "rerun PROBE-X5", "reason": "z59: special ids inside at most 1% of the smoke's rows (Fable's ruling 10-22 14:1x UTC; 13:32 run: 2 of 384)", "utc": "2026-10-22T15:40:49Z"}
   - {"seq": 489, "cmd": "du opd_root runs/EVAL-e10d-P5", "reason": "z60 (Q-066) inputs: the paired readings exist on the node (ops-lead's A1 condition)", "utc": "2026-10-22T16:03:18Z"}
   - {"seq": 490, "cmd": "du opd_root runs/EVAL-e12d-P5", "reason": "z60 (Q-066) inputs: the paired readings exist on the node (ops-lead's A1 condition)", "utc": "2026-10-22T16:03:25Z"}
+  - {"seq": 491, "cmd": "du opd_root runs/EVAL-budA-4B", "reason": "z60 (Q-066) inputs: the paired readings exist on the node (ops-lead's A1 condition)", "utc": "2026-10-22T16:03:32Z"}
