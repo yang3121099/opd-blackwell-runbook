@@ -488,3 +488,4 @@ commands:
   - {"seq": 486, "cmd": "rerun PROBE-TERM4", "reason": "attempt 3 died at 14:50 on the pre-z53 code (term_probe.py t4 None); z53's guard is on the node now (ops-lead standing approval)", "utc": "2026-10-22T15:12:28Z"}
   - {"seq": 487, "cmd": "rerun VENV-VL-NVRTC", "reason": "z57: the check now wants torch unchanged by the install and CUDA 12.8 (the PyPI build reports 2.8.0, not 2.8.0+cu128); ops-lead approval 10-22 15:2x UTC", "utc": "2026-10-22T15:18:56Z"}
   - {"seq": 488, "cmd": "rerun PROBE-X5", "reason": "z59: special ids inside at most 1% of the smoke's rows (Fable's ruling 10-22 14:1x UTC; 13:32 run: 2 of 384)", "utc": "2026-10-22T15:40:49Z"}
+  - {"seq": 489, "cmd": "du opd_root runs/EVAL-e10d-P5", "reason": "z60 (Q-066) inputs: the paired readings exist on the node (ops-lead's A1 condition)", "utc": "2026-10-22T16:03:18Z"}
