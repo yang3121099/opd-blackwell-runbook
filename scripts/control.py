@@ -1112,10 +1112,6 @@ def pulse(status_path, upload=True):
     """Write control/pulse.json and, when the uploads are split (hf_repos.txt), upload it as pulse/<node>.json to the
     public repository. A pulse with any string that fails leak_check is not written; an event records the refusal
     (with the number of strings, never the strings)."""
-    try:
-        disk_fallback(blocking=False)   # [v2.5.9z48] every minute, besides run_tasks.sh's rounds; never waits on the lock
-    except Exception:
-        pass
     st = json.loads(_read(status_path, "{}") or "{}")
     try:
         q = subprocess.run(["nvidia-smi", "--query-gpu=index,utilization.gpu,memory.used,memory.total", "--format=csv,noheader,nounits"],
@@ -1123,7 +1119,6 @@ def pulse(status_path, upload=True):
     except Exception:
         q = ""
     p = build_pulse(st, q)
-    p["disk_fallback"] = os.path.islink(os.path.join(ROOT, "control"))   # [v2.5.9z48]
     bad = leak_check(p)
     if bad:
         event("control", "pulse_refused", f"{len(bad)} string(s) failed the leak check")

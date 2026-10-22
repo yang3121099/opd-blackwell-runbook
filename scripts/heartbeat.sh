@@ -184,8 +184,7 @@ json.dump({"host": os.uname().nodename, "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ
            "tasks": tasks, "stale_task_dirs": stale, "gpus": gpu, "disk_free_gb": round(st.f_bavail * st.f_frsize / 1e9, 1),
            # v2.4: alert below DISK_ALERT_GB (30): one 1.7B save needs ~11 GB for a moment (fp32 HF + bf16 copy), a SPOT
            # resume save ~28 GB
-           "disk_alert": st.f_bavail * st.f_frsize / 1e9 < float(os.environ.get("DISK_ALERT_GB", "1000")),   # [v2.5.9z48] 1000 (was 30)
-           "disk_fallback": os.path.islink(os.path.join(root, "control")),   # [v2.5.9z48] control/ and logs/ on the checkpoint disk
+           "disk_alert": st.f_bavail * st.f_frsize / 1e9 < float(os.environ.get("DISK_ALERT_GB", "30")),
            # v2.4: the checkpoint disk ($CKPT_ROOT, e.g. /home on the B300 node) has its own reading and alert
            "ckpt_root": os.environ.get("CKPT_ROOT"),
            "ckpt_disk_free_gb": (lambda c: round(c.f_bavail * c.f_frsize / 1e9, 1))(os.statvfs(os.environ["CKPT_ROOT"])) if os.path.isdir(os.environ.get("CKPT_ROOT", "")) else None,
