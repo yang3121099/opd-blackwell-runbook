@@ -135,6 +135,8 @@ queue_defs = "\n".join(l for l in queue.splitlines() if not l.lstrip().startswit
 def in_queue(name):   # [v2.5.9m] "name:dep" entries count too (a task waiting on a dependency was missed and called stale)
     return re.search(r"(^|\s)" + re.escape(name) + r"(\s|$|:)", queue_defs, re.M) is not None
 pad_stages = {s for m in re.finditer(r"^#pad\s+(.*)$", queue, re.M) for s in m.group(1).split()}   # [v2.5.9m] padding stages
+_gr = re.findall(r"^export GPU_RELEASE=([0-9]+)$", open(os.path.join(root, "control.env")).read(), re.M) if os.path.exists(os.path.join(root, "control.env")) else []
+gpu_release_on = (_gr[-1] if _gr else "1") == "1"   # [v2.5.9z65a] setenv GPU_RELEASE=0: released GPUs are held as before
 pad_tasks = {t.split(":")[0] for m in re.finditer(r"^(\S+)\s+(?:open|auto|locked)\s+(.*)$", queue, re.M) if m.group(1) in pad_stages for t in m.group(2).split()}
 for d in sorted(x for x in glob.glob(os.path.join(root, "runs", "*")) if os.path.isdir(x) and not os.path.basename(x).startswith("smoke")):
     n = os.path.basename(d)   # [v2.5.8] a directory of a task no longer in the queue, not running and not done: counted, not listed
@@ -169,6 +171,8 @@ for d in sorted(x for x in glob.glob(os.path.join(root, "runs", "*")) if os.path
     t["gpu"] = lv[0] if lv else None; t["kind"] = kind(os.path.basename(d))
     t["gpus"] = lv[2] if lv else []   # [v2.5.9a] every GPU of the task (two for a #gpus 2 task); "gpu" stays the first
     t["started_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(lv[1])) if lv else None
+    if lv and gpu_release_on and os.path.exists(os.path.join(d, ".gpu_released")):   # [v2.5.9z65a] its GPU work over, its results going up
+        t["phase"] = "uploading"; t["released_gpu"] = t["gpu"]; t["gpu"] = None; t["gpus"] = []
     if t["state"] == "running" and t["kind"] in ("eval", "probe"):   # [v2.5.9s] never fails the heartbeat
         try:
             pr = progress(os.path.basename(d), t["log_tail"], queue)

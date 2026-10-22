@@ -67,6 +67,7 @@ if [ "$G" = prefetch ]; then
   [ $pok = 1 ] && { echo $HASH > $OUT/.inputs_ok; rm -f $OUT/.prefetch_fail; echo "PREFETCH_DONE $T"; exit 0; }
   rm -f $OUT/.inputs_ok; exit 1
 fi
+rm -f $OUT/.gpu_released   # [v2.5.9z65a] this attempt holds its GPU until its GPU work is over
 ok=1; touch $OUT/.models   # v2.5.6i: "<tag> <resolved model>" per reading, for a #twr line (kept across attempts)
 while read -r TAG MODEL BENCH N TEMP MAXT MODE; do
   MAXT=${MAXT:-16384}; MODE=${MODE:-no_think}
@@ -139,6 +140,11 @@ while read -r FR FMODEL FMODE; do
     && echo "FORCED_DONE $STEM" || { echo "FORCED_FAIL $STEM (see forced.log)"; ok=0; rm -f $OUT/$STEM.forced.json; }
   python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true
 done <<< "$(awk -v t="$T" '$1 == "#forced" && $2 == t {print $3, $4, $5}' "$Q")"
+# [v2.5.9z65a] (ops-lead 22:1x UTC 10-22) the GPU work is over (generations, TWR, forced answers): our processes off the GPU,
+# then .gpu_released lets run_tasks.sh give it to the next task while the pairs, the budgets and the upload below run
+python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true
+echo "$G $(date -u +%FT%TZ)" > $OUT/.gpu_released; echo "GPU_RELEASED $(date -u +%T) gpu=$G"
+export CUDA_VISIBLE_DEVICES=   # [ops-lead's A1 condition] a later step that touched the GPU fails here instead of sharing the next task's
 # v2.5.6r (reviewer A1 06:3x UTC): "#pair EVAL-<name> <tag> <ref> [<ref> ...]" = problem-level paired bootstrap of that
 # reading against each reference (code/analysis/paired_bootstrap.py, the lab's method: per-problem accuracy, 10000
 # resamples, seed 0, 95% percentile CI, wins / losses); a ref is <task dir>/<file>.jsonl under $OPD_ROOT/runs; the result

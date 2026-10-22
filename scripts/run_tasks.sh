@@ -109,10 +109,26 @@ running() { pgrep -f "task.sh ([0-9]+(,[0-9]+)*|cpu) $1\$" >/dev/null; }   # [v2
 # at most CPU_MAX (default 1) at once; STRICT-C1 held a GPU slot for its rejudge (and three on its failed attempts)
 cpu_task() { case $1 in STRICT-C1|PROBE-NET|PROBE-NET2|BUILD-VENV-VL|READINGS-EXTRA|PROBE-STOPMERGE-UNIT|PROBE-WDIFF|TOKCHECK-X5|VENV-VL-NVRTC|PROBE-MIXP|PROBE-PROG) return 0;; esac; return 1; }   # [v2.5.9c] PROBE-NET; [v2.5.9h] PROBE-NET2; [v2.5.9y1] BUILD-VENV-VL; [v2.5.9x1] READINGS-EXTRA; [v2.5.9z6] PROBE-STOPMERGE-UNIT; [v2.5.9z18] PROBE-WDIFF; [v2.5.9z24] TOKCHECK-X5; [v2.5.9z31] VENV-VL-NVRTC; [v2.5.9z38] PROBE-MIXP
 cpu_busy() { [ "$(pgrep -f "task.sh cpu [A-Za-z0-9._-]+\$" | wc -l | tr -d ' ')" -ge "${CPU_MAX:-1}" ]; }
+# [v2.5.9z65a] (ops-lead 22:1x UTC 10-22: GPU0, GPU3 and GPU5 idle at once, each evaluation uploading its results for 1-3 h
+# on one connection) an evaluation / TERM probe writes runs/<task>/.gpu_released ("<gpu> <utc>") once its last GPU step is
+# done and its processes on the GPU are reaped: the GPU is then free for the next task (nvidia-smi must still show it empty)
+# while the task pairs, budgets and uploads (still running, the same attempt; launch() removes the marker at every start).
+# `setenv GPU_RELEASE=0` holds the GPUs as before (read from control.env on every call).
+gpu_held() {   # $1 = a GPU: held by a task.sh / ad-hoc evaluation on it that has not released it
+  pgrep -f "scripts/(task|run_adhoc_eval)\.sh ([0-9]+,)*$1(,[0-9]+)*( |\$)" > /dev/null || return 1
+  [ "$(cenv GPU_RELEASE 1)" = 1 ] || return 0
+  pgrep -f "scripts/run_adhoc_eval\.sh $1( |\$)" > /dev/null && return 0
+  local t n=0
+  for t in $(ps -eo args= | sed -nE "s#^([^ ]*/)?bash [^ ]*scripts/task\.sh ([0-9]+,)*$1(,[0-9]+)* ([A-Za-z0-9._-]+)\$#\4#p" | sort -u); do
+    n=$((n + 1)); [ "$(cut -d' ' -f1 $OPD_ROOT/runs/$t/.gpu_released 2> /dev/null)" = "$1" ] || return 0
+  done
+  [ $n -gt 0 ] || return 0   # a task.sh on it whose name was not read: held
+  return 1
+}
 free_gpus() { for i in $(seq 0 $((NGPU-1))); do
     # v2.5.4d: a GPU given to a task stays taken while its task.sh / ad-hoc evaluation runs, also before the task touches it
     # (2026-10-17: FA-PROBE's CPU-only venv copy left GPU6 empty, and EVAL-bridge and EVAL-p5s43-s20 were started on it too)
-    pgrep -f "scripts/(task|run_adhoc_eval)\.sh ([0-9]+,)*$i(,[0-9]+)*( |\$)" > /dev/null && continue   # [v2.5.9a] also in a GPU list
+    gpu_held $i && continue   # [v2.5.9a] also in a GPU list; [v2.5.9z65a] not by a task that released it
     [ -z "$(nvidia-smi --query-compute-apps=pid --format=csv,noheader -i $i)" ] || continue
     [ "$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $i | tr -d ' ')" -le 2048 ] && echo $i; done; }
 # [v2.5.9a] (Runming via the reviewer 06:4x UTC 10-21: "a task heavy for one GPU gets two") "#gpus <task> <n>" lines of the
@@ -265,10 +281,10 @@ git_pass() {
 launch() { # gpu task   (v2.5: start / done / killed / failed also go to status/<node>/events/ as receipts; [v2.5.8] gpu cpu: no reap)
   # [v2.5.9z3] logs/<task>.log is written with '>' at each attempt (truncated), so the blocked / waiting checks below read this
   # attempt's output only: a line left by an earlier attempt never turns a real failure into blocked / waiting
-  mkdir -p $OPD_ROOT/runs/$2
+  mkdir -p $OPD_ROOT/runs/$2; rm -f $OPD_ROOT/runs/$2/.gpu_released   # [v2.5.9z65a] each attempt holds its GPU until it releases it
   python $RUNBOOK/scripts/control.py event $2 start "gpu=$1 attempt=$(( $(attempts $2) + 1 ))" > /dev/null 2>&1 &
   setsid nohup bash -c "bash $RUNBOOK/scripts/task.sh $1 $2 > $OPD_ROOT/logs/$2.log 2>&1
-    [ $1 = cpu ] || for _g in \$(echo $1 | tr , ' '); do python $RUNBOOK/scripts/control.py reap \$_g $2 > /dev/null 2>&1; done   # v2.5.4b: the task's orphaned vLLM / Ray processes off its GPU(s)
+    [ $1 = cpu ] || [ -f $OPD_ROOT/runs/$2/.gpu_released ] || for _g in \$(echo $1 | tr , ' '); do python $RUNBOOK/scripts/control.py reap \$_g $2 > /dev/null 2>&1; done   # v2.5.4b: the task's orphaned vLLM / Ray processes off its GPU(s); [v2.5.9z65a] not once released (reaped then; the GPU may be the next task's)
     if [ -f $OPD_ROOT/runs/$2/.done ]; then python $RUNBOOK/scripts/control.py event $2 done gpu=$1
     elif [ -f $OPD_ROOT/runs/$2/.killed ]; then python $RUNBOOK/scripts/control.py event $2 killed gpu=$1
     elif G=\$(grep -m1 -oE '^PROBE-[A-Z0-9-]+ has not passed: $2 not started' $OPD_ROOT/logs/$2.log | cut -d' ' -f1) && [ -n \"\$G\" ]; then   # [v2.5.9z3] its own gate check: blocked, no attempt

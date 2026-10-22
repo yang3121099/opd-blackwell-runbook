@@ -27,6 +27,7 @@
 set -uo pipefail
 G=$1; T=$2; source "$(dirname "$0")/env.sh"; source ${VENV_EVAL:-$OPD_ROOT/venv}/bin/activate
 D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; Q=${QUEUE_FILE:-$RUNBOOK/tasks/queue.txt}; mkdir -p $D/gen $D/up/gen
+rm -f $D/.gpu_released   # [v2.5.9z65a] this run holds its GPU until the measurement is over
 [ -f $D/.done ] && { echo "TASK_ALREADY_DONE $T"; exit 0; }
 step() { echo "TERM_PROBE $(date -u +%T) $*" | tee -a $LOG; }
 fetch_ckpt() { python $RUNBOOK/scripts/fetch_model.py yang31210999/opd-lab-ckpts "$1" "$CKPT_ROOT/adhoc_models" --task $T >> $D/fetch.log 2>&1; }
@@ -85,6 +86,8 @@ step "measure $(wc -l < $D/inputs.tsv) models"
 CUDA_VISIBLE_DEVICES=$G python $RUNBOOK/code/analysis/term_probe.py --teacher $TEACHER --inputs $D/inputs.tsv --out $D/report.json \
   --samples $D/samples.jsonl --cache_dir $D/cache $([ $T = PROBE-TERM3 ] && echo --no_teacher) $([[ $T == PROBE-TERM4 || $T == PROBE-TERM4-4B || $T == PROBE-TERM4-06B ]] && echo --no_teacher --term4) >> $LOG 2>&1; rc=$?
 python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true
+echo "$G $(date -u +%FT%TZ)" > $D/.gpu_released; step "GPU_RELEASED gpu=$G"   # [v2.5.9z65a] the uploads below without the GPU
+export CUDA_VISIBLE_DEVICES=   # [ops-lead's A1 condition] no GPU after the release
 cp $D/report.json $D/samples.jsonl $D/up/ 2> /dev/null
 python $RUNBOOK/scripts/remote.py put $D/up runs/$T >> $LOG 2>&1 || { step "report upload failed (kept in $D)"; rc=1; }
 mkdir -p $D/logs; cp $LOG $D/inputs.tsv $D/logs/ 2> /dev/null; tail -c 200000 $D/gen_eval.log > $D/logs/gen_eval.log 2> /dev/null

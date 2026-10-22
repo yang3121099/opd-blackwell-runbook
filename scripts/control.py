@@ -1276,6 +1276,8 @@ def build_pulse(st, gpu_csv):
                        and re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", v.get("started_utc")) else None}
         if isinstance(v.get("blocked_by"), str) and R.TASK_RE.match(v["blocked_by"]):   # [v2.5.9z3] the gate holding a blocked task
             tasks[name]["blocked_by"] = v["blocked_by"]
+        if v.get("phase") == "uploading":   # [v2.5.9z65a] its GPU released, its results still going up (no GPU listed)
+            tasks[name]["phase"] = "uploading"
         if v.get("pad") is True:   # [v2.5.9q] a padding reading (#pad stages, v2.5.9m): only when true, like the monitor page reads it
             tasks[name]["pad"] = True
         pr = _progress(v.get("progress"))   # [v2.5.9s] a running evaluation's progress for the monitor page
