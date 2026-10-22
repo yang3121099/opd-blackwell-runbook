@@ -2179,7 +2179,7 @@ b259z24  open   TOKCHECK-X5
 #eval EVAL-ext32k-17tail-s43 ext32k17_P5tail-s43_s50_aime25_T0.6 result:runs/E10b-P5tail-s43/global_step_50/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-17tail-s43 ext32k17_P5tail-s43_s50_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17smerge/ext32k17_P5smerge_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #pair EVAL-ext32k-17tail-s43 ext32k17_P5tail-s43_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17smerge/ext32k17_P5smerge_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
-#term PROBE-TERM4 17_P5tail-s43 result:runs/E10b-P5tail-s43/global_step_50/actor/huggingface EVAL-tail-s43/e10b_P5tail-s43_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+# [held 10-22 18:2xZ, ops-lead's rule: the arm has no s50 yet; restore when E10b-P5tail-s43 has s50] term PROBE-TERM4 17_P5tail-s43 result:runs/E10b-P5tail-s43/global_step_50/actor/huggingface EVAL-tail-s43/e10b_P5tail-s43_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 #pair EVAL-tail-s43 e10b_P5tail-s43_s50_math500_T0.6 EVAL-tail/e10b_P5tail_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 #after EVAL-tail-s43 rerun PROBE-TERM4
 # [v2.5.9z22] (the reviewer's Q-056 addition 10-22) the disagreement subset: the problems where the teacher and the student's own thinking
@@ -2281,7 +2281,7 @@ b259z24  open   TOKCHECK-X5
 #pair EVAL-x5 x5_s25_math500_T0.6 EVAL-x5-start/x5_start_math500_T0.6_math500_no_think_t0.6.jsonl
 #pair EVAL-x5 x5_s50_math500_T1.0 EVAL-x5-start/x5_start_math500_T1.0_math500_no_think_t1.0.jsonl
 #term PROBE-TERM4 15_x5start local:models/Qwen2.5-Math-1.5B-Instruct EVAL-x5-start/x5_start_math500_T0.6_math500_no_think_t0.6.jsonl
-# [held 10-22 14:3xZ, ops-lead: the arm has no s50 yet; restore before its EVAL ends] term PROBE-TERM4 15_x5s50 result:runs/E16-X5/global_step_50/actor/huggingface EVAL-x5/x5_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#term PROBE-TERM4 15_x5s50 result:runs/E16-X5/global_step_50/actor/huggingface EVAL-x5/x5_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 #after EVAL-x5 rerun PROBE-TERM4
 #fpmodel READINGS-EXTRA q057 x5_start EVAL-x5-start/x5_start_math500_T0.6_math500_no_think_t0.6.jsonl
 #fpmodel READINGS-EXTRA q057 x5_s50 EVAL-x5/x5_s50_math500_T0.6_math500_no_think_t0.6.jsonl
