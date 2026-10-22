@@ -39,6 +39,13 @@ rm -rf $T
 setup "g1       open   EVAL-a"; dry
 ok "1 ready on 2 GPUs: RESERVE ready=0 free=1" 'grep -q "^RESERVE ready=0 free=1 tasks=\[\] held=\[\]$" $T/dry.out'
 rm -rf $T
+# 3b. [v2.5.9z23] an EVAL task with a gpqa row starts only once GPQA's #fetch copy is in (mc_data_ok)
+setup "g1       open   EVAL-g"; printf '#eval EVAL-g g_mm local:models/Qwen3-1.7B mmlupro1k 1 0 4096\n#eval EVAL-g g_gp local:models/Qwen3-1.7B gpqa 4 0.6 16384\n' >> $T/rb/tasks/queue.txt
+mkdir -p $T/root/data/hf/TIGER-Lab__MMLU-Pro; : > $T/root/data/hf/TIGER-Lab__MMLU-Pro/.fetch_ok; dry
+ok "[v2.5.9z23] gpqa data missing: EVAL-g not started (nor counted ready)" '! grep -q "WOULD_START .* EVAL-g " $T/dry.out && grep -q "^RESERVE ready=0 free=2 " $T/dry.out'
+mkdir -p $T/root/data/hf/Idavidrein__gpqa; : > $T/root/data/hf/Idavidrein__gpqa/.fetch_ok; dry
+ok "[v2.5.9z23] both datasets in: EVAL-g starts" 'grep -q "WOULD_START .* EVAL-g " $T/dry.out'
+rm -rf $T
 # 4. the loop's own calls (outside DRY): auto_reruns before the dispatch, reserve_note after it
 ok "run_tasks.sh calls auto_reruns before the dispatch and reserve_note after it" 'a=$(grep -n "control.py auto_reruns \"\$Q\"" $SRC/scripts/run_tasks.sh | cut -d: -f1); b=$(grep -n "^  FREE=(\$(free_gpus))" $SRC/scripts/run_tasks.sh | cut -d: -f1); c=$(grep -n "control.py reserve_note \$READY" $SRC/scripts/run_tasks.sh | cut -d: -f1); [ -n "$a" ] && [ -n "$b" ] && [ -n "$c" ] && [ $a -lt $b ] && [ $b -lt $c ]'
 [ $fails = 0 ] && echo "OPS_GUARD_TEST PASS ($n checks)" || echo "OPS_GUARD_TEST FAIL ($fails of $n)"

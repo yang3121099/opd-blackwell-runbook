@@ -161,6 +161,11 @@ inputs_ok() { [ "$(cat $OPD_ROOT/runs/$1/.inputs_ok 2>/dev/null)" = "$(eval_hash
 result_only() { local m; m=$(awk -v t="$1" '$1 == "#eval" && $2 == t {print $4}' "$Q"); [ -n "$m" ] && ! echo "$m" | grep -qv '^result:'; }
 # [v2.5.8] an EVAL task with nothing to download (only Qwen/ base models and local: saves) is ready at once: on 10-19
 # the two readings switched to local: waited for a prefetch while trainings took the GPUs freed for them (15:33 UTC)
+# [v2.5.9z23] (ops-lead 10-22) an EVAL task whose #eval rows read a multiple-choice bench starts only once that dataset's #fetch copy is
+# in (.fetch_ok): a row without its data would make the task wait and relaunch every 10 min, a 90 s dispatcher pause each time
+mc_data_ok() { local b; for b in $(awk -v t="$1" '$1 == "#eval" && $2 == t {print $5}' "$Q" | sort -u); do
+    case $b in gpqa) [ -f $OPD_ROOT/data/hf/Idavidrein__gpqa/.fetch_ok ] || return 1;; mmlupro1k) [ -f $OPD_ROOT/data/hf/TIGER-Lab__MMLU-Pro/.fetch_ok ] || return 1;; esac
+  done; return 0; }
 no_fetch() { local m; m=$(awk -v t="$1" '$1 == "#eval" && $2 == t {print $4}' "$Q"); [ -n "$m" ] && ! echo "$m" | grep -qv -E '^(Qwen/|local:)'; }
 # [v2.5.8] up to PREFETCH_PAR (default 3) prefetches at once (10-19: one stuck prefetch held back every reading for an
 # hour), each ended after PREFETCH_TIMEOUT (default 5400 s); fetch_model.py locks each path, so two prefetches needing
@@ -352,7 +357,7 @@ while true; do
       fi
       unblock $t
       waiting $t && continue   # [v2.5.9z3]
-      case $t in EVAL-*) inputs_ok $t || result_only $t || no_fetch $t || continue;; esac   # v2.5.4e: no GPU while its models are being fetched ([v2.5.8] no_fetch)
+      case $t in EVAL-*) inputs_ok $t || result_only $t || no_fetch $t || continue; mc_data_ok $t || continue;; esac   # [v2.5.9z23] mc_data_ok   # v2.5.4e: no GPU while its models are being fetched ([v2.5.8] no_fetch)
       if cpu_task $t; then   # [v2.5.8] the CPU lane: no GPU taken
         cpu_busy && continue
         if [ "${DRY:-0}" = 1 ]; then echo "WOULD_START gpu=cpu $t (stage $stage, attempt $(( $(attempts $t) + 1 )))"; continue; fi
