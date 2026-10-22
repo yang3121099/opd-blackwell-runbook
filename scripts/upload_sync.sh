@@ -22,6 +22,13 @@ stats() {   # [v2.5.9g] $1 = settle seconds: <run>/rollout_stats.csv from the ru
   ls $RUN/rollouts/*.jsonl > /dev/null 2>&1 || return 1
   local out; out=$(cd $RUNBOOK && timeout 900 python code/analysis/e12_rollout_stats.py $RUN --tokenizer $STUDENT_17B --settle $1 2>&1) \
     || { echo "STATS_ERR $TASK $(echo "$out" | tail -1 | cut -c1-200)"; return 1; }; }
+lenwall() {   # [v2.5.9z38] (Q-060) an OPD run's per-step length / clip and its 4K-wall step (len_wall.py); the CSV every LEN_EVERY (5) steps
+  local w n u; w=$(timeout 120 python $RUNBOOK/scripts/len_wall.py $RUN $TASK 2> /dev/null | grep '^WALL ')
+  if [ -n "$w" ]; then echo "$w"; [ "$DRY" = 1 ] || python $RUNBOOK/scripts/control.py event $TASK wall_cross "${w#WALL $TASK }" > /dev/null 2>&1
+    up $RUN/wall.json runs/$TASK/wall.json > /dev/null 2>&1; fi
+  n=$(awk 'NR > 1' $RUN/len_by_step.csv 2> /dev/null | grep -c .); u=$(cat $RUN/.len_uploaded 2> /dev/null || echo 0)
+  [ $n -ge $(( u + ${LEN_EVERY:-5} )) ] && up $RUN/len_by_step.csv runs/$TASK/len_by_step.csv > /dev/null 2>&1 && { echo $n > $RUN/.len_uploaded; echo "LEN_UP $TASK $n steps $(date -u +%T)"; }
+  return 0; }
 [ "$DRY" = 1 ] || python $RUNBOOK/scripts/remote.py check || { echo "UPLOAD_STOP: backend not usable (token or repo missing?)"; exit 1; }
 echo "UPLOAD_SETTINGS $(date -u +%FT%TZ) $TASK UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-all} KEEP_LOCAL_HF=${KEEP_LOCAL_HF:-0} KEEP_BF16=${KEEP_BF16:-1} DRY=$DRY"   # [v2.5.8]
 while true; do
@@ -53,6 +60,7 @@ while true; do
   # [v2.5.9g] Q-034 (E12b-P5-stop2 is paused if its zero-variance groups average > 80% over s1-s10): while an E12 run trains,
   # its rollout_stats.csv every round from the settled dumps (older than 60 s; only new steps are read), uploaded to
   # runs/<task>/ each time it has STATS_EVERY (10) more rows than at the last upload: s10, s20, ...
+  case $TASK in E10[bcd]-*) grep -q '^finished:' $RUN/config.yaml 2>/dev/null || lenwall;; esac   # [v2.5.9z38]
   case $TASK in E12[bcd]-*) if ! grep -q '^finished:' $RUN/config.yaml 2>/dev/null && stats 60; then
     n=$(awk 'NR > 1' $RUN/rollout_stats.csv 2> /dev/null | grep -c .); u=$(cat $RUN/.stats_uploaded 2> /dev/null || echo 0)
     [ $n -ge $(( u + ${STATS_EVERY:-10} )) ] && up $RUN/rollout_stats.csv runs/$TASK/rollout_stats.csv > /dev/null 2>&1 \
@@ -61,7 +69,8 @@ while true; do
   if grep -q '^finished:' $RUN/config.yaml 2>/dev/null && [ $pend = 0 ]; then
     [ -f $RUN/train.log ] && python $RUNBOOK/scripts/metrics_jsonl.py $RUN/train.log > $RUN/metrics.jsonl
     case $TASK in E12[bcd]-*) stats 0;; esac   # [v2.5.9g] complete, whether or not run_e12.sh's own pass (after finished:) is done
-    for f in train.log config.yaml metrics.jsonl rollout_stats.csv lensel.jsonl stopmerge.jsonl tailswap.jsonl; do [ -f $RUN/$f ] && up $RUN/$f runs/$TASK/$f; done   # [v2.5.8m] lensel.jsonl: the length-selected arms' per-prompt record
+    case $TASK in E10[bcd]-*) lenwall;; esac   # [v2.5.9z38] the last steps' rows and a late wall
+    for f in train.log config.yaml metrics.jsonl rollout_stats.csv lensel.jsonl stopmerge.jsonl tailswap.jsonl len_by_step.csv; do [ -f $RUN/$f ] && up $RUN/$f runs/$TASK/$f; done   # [v2.5.8m] lensel.jsonl: the length-selected arms' per-prompt record
     [ -d $RUN/rollouts ] && up $RUN/rollouts runs/$TASK/rollouts
     [ -f $RUN/.done ] && up $RUN/.done runs/$TASK/.done
     echo "UPLOAD_DONE $TASK $(date -u +%T)"

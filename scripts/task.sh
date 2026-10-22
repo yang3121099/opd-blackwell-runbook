@@ -13,7 +13,7 @@ case $G in *,*) [[ $T =~ ^(E10[bcd]-|E12[bcd]-|PROBE-2GPU$) ]] || { echo "$T tak
 [ -f $OPD_ROOT/runs/$T/.oom ] && [ -z "${FIXED_MICRO_BSZ:-}" ] && { export FIXED_MICRO_BSZ=4; echo "OOM_RETRY $T with FIXED_MICRO_BSZ=4"; }
 ARMS="P2|P3|P4lowlr|P5|P6|P6r|P2noEOS|Pstop|P6rand|P6top5|P4EOSpen|P5top10|P5rand10m"
 case $T in
-  E10b-*)  [[ $T =~ ^E10b-(($ARMS)(-s(43|44))?|(P2|P5)-t14|P5think|P5self|P5self-s43|P2self|P5len[SLR]|P5stopmerge|P5tail|P5route|P5mix)$ ]] || exit 2; bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # v2.5.7p: -t14; v2.5.7r: P5think; v2.5.7v: P5self; [v2.5.8e] P5self-s43
+  E10b-*)  [[ $T =~ ^E10b-(($ARMS)(-s(43|44))?|(P2|P5)-t14|P5think|P5self|P5self-s43|P2self|P5len[SLR]|P5stopmerge|P5tail|P5route|P5mix|P5mix75|P5mix90)$ ]] || exit 2; bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # v2.5.7p: -t14; v2.5.7r: P5think; v2.5.7v: P5self; [v2.5.8e] P5self-s43
   E10c-*)  [[ $T =~ ^E10c-(($ARMS)-(fix4|dyn16k|dyn6144)(-s43)?|P5-polish|P5self)$ ]] || exit 2; bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # v2.5.6f: 0.6B, V3-c1; v2.5.7g: dyn6144, -s43
   E10d-*)  [[ $T =~ ^E10d-((P2|P5)(-s43)?|P5self|X1|X2|X4|P5-t32)$ ]] || exit 2; bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # v2.5.7b: 4B student, V3-c5; v2.5.7o: -s43
   E11b-*)  [[ $T =~ ^E11b-(P0|($ARMS)(-s(43|44))?|(P2|P5)-t14)$ ]] || exit 2; bash $RUNBOOK/scripts/run_eval.sh $G $T;;   # v2.5.6c: seed arms too
@@ -57,6 +57,7 @@ case $T in
   PROBE-WDIFF) bash $RUNBOOK/scripts/probe_wdiff.sh cpu;;   # [v2.5.9z18] (Q-031): per-layer weight differences of five 4B models vs Qwen3-4B (the CPU lane)
   PROBE-STOPMERGE-UNIT) PSM_UNIT_ONLY=1 bash $RUNBOOK/scripts/probe_stopmerge.sh cpu;;   # [v2.5.9z6] its unit tests + the installed hooks' guards only (the CPU lane)
   TOKCHECK-X5) bash $RUNBOOK/scripts/tok_check.sh;;
+  PROBE-MIXP) bash $RUNBOOK/scripts/probe_mixp.sh;;   # [v2.5.9z38] (Q-060): the gate of E10b-P5mix75 / -P5mix90, the coin at p (the CPU lane)
   VENV-VL-NVRTC) bash $RUNBOOK/scripts/venv_vl_nvrtc.sh;;   # [v2.5.9z31] (ops-lead, Q-051): CUDA 12.9's NVRTC into venv-vl (sm_103), the CPU lane   # [v2.5.9z24] (ops-lead, Q-057): vocab / special tokens / chat template of the X5 trio once pulled (the CPU lane)
   PROBE-TAIL) bash $RUNBOOK/scripts/probe_tail.sh $G;;   # [v2.5.9n] (T4): the gate of E10b-P5tail
   PROBE-POLISH) bash $RUNBOOK/scripts/probe_polish.sh $G;;   # [v2.5.9u] (T2): the gate of E10c-P5-polish

@@ -6,7 +6,9 @@ sets `_think` per sample (route_patch.py; a no-op unless OPD_ROUTE is set):
   route: the prompt's pass rate r from PROBE-DIFF17 (the 1.7B base, non-thinking, k=8): r >= 0.5 (easy) -> non-thinking teacher,
          otherwise (hard) -> thinking teacher;
   mix:   a fixed coin per prompt (sha1 of OPD_SEED and the prompt's key, p = 0.5): heads -> thinking teacher; the same prompt always
-         gets the same teacher, independent of the labels.
+         gets the same teacher, independent of the labels. [v2.5.9z38] (Q-060, the reviewer 10-22) OPD_ROUTE_P = p: thinking teacher
+         when int(sha1(...)[:8], 16) / 2**32 < p (E10b-P5mix75 / -P5mix90: 0.75 / 0.9; the prompts with the thinking teacher at a
+         smaller p are a subset of those at a larger one); unset: the parity coin E10b-P5mix ran with (p = 0.5), unchanged.
   count: [v2.5.9z9] (Q-053, PROBE-T32's smoke) the template unchanged (the P5 patch's own choice, OPD_REF_THINK), the call only
          logged: the teacher's input rows per call against the batch.
 A prompt without a label is routed to the thinking teacher (P5's default) and counted as unknown; PROBE-ROUTE requires none.
@@ -14,7 +16,7 @@ Logged per call (one call per training step: the reference inputs of the whole b
 plain, unknown, and per row [key, r, think].
 
 Environment: OPD_ROUTE route|mix; OPD_ROUTE_LABELS (labels_17.jsonl of PROBE-DIFF17); OPD_ROUTE_THRESH (0.5); OPD_SEED (1234);
-OPD_ROUTE_LOG (path, optional).
+OPD_ROUTE_P ([v2.5.9z38] mix's p, unset = the parity coin); OPD_ROUTE_LOG (path, optional).
 """
 import hashlib
 import json
@@ -46,18 +48,20 @@ def load_labels(path):
     return out
 
 
-def coin(k, seed):
-    """mix: True (thinking teacher) for about half the prompts, fixed per (seed, prompt)."""
-    return int(hashlib.sha1(f"{seed}:{k}".encode()).hexdigest()[:8], 16) % 2 == 0
+def coin(k, seed, p=None):
+    """mix: True (thinking teacher), fixed per (seed, prompt): about half the prompts by parity (p None, E10b-P5mix), or ([v2.5.9z38])
+    the prompts whose hash fraction is below p."""
+    h = int(hashlib.sha1(f"{seed}:{k}".encode()).hexdigest()[:8], 16)
+    return h % 2 == 0 if p is None else h / 2 ** 32 < p
 
 
-def decide(k, mode, labels, thresh=0.5, seed=1234):
+def decide(k, mode, labels, thresh=0.5, seed=1234, p=None):
     """(think, r or None): the template for the prompt with key k."""
     if mode not in MODES:
         raise ValueError(f"OPD_ROUTE must be one of {MODES}, got {mode!r}")
     r = labels.get(k)
     if mode == "mix":
-        return coin(k, seed), r
+        return coin(k, seed, p), r
     if r is None:
         return True, None
     return r < thresh, r
@@ -74,7 +78,9 @@ def think_for(messages):
     if mode == "count":   # [v2.5.9z9] P5's template as without the hook
         think, r = os.environ.get("OPD_REF_THINK") == "1", None
     else:
-        think, r = decide(k, mode, _labels, float(os.environ.get("OPD_ROUTE_THRESH", "0.5")), int(os.environ.get("OPD_SEED", "1234")))
+        rp = os.environ.get("OPD_ROUTE_P")   # [v2.5.9z38]
+        think, r = decide(k, mode, _labels, float(os.environ.get("OPD_ROUTE_THRESH", "0.5")), int(os.environ.get("OPD_SEED", "1234")),
+                          float(rp) if rp else None)
     _rows.append([k, r, bool(think)])
     return think
 

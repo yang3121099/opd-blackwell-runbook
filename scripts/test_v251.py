@@ -1206,3 +1206,22 @@ def test_setenv_pt32_max_hours_v259z40():   # [2.5.67] PROBE-T32's HOLD limit, s
     R.parse({"cmd": "setenv PT32_MAX_HOURS=30", "reason": "t"})
     with pytest.raises(R.Reject):
         R.parse({"cmd": "setenv PT32_MAX_HOUR=30", "reason": "t"})
+
+
+def _eval_outputs(lines):
+    """{<task>/<tag>_<bench>_<mode>_t<T>.jsonl} of the #eval rows, as gen_eval.py / gen_eval_vl.py name them."""
+    out = set()
+    for f in (l.split() for l in lines):
+        if len(f) >= 7 and f[0] == "#eval":
+            mode = f[9] if len(f) > 9 else (f[8] if len(f) > 8 and not f[8].isdigit() else "no_think")
+            out.add(f"{f[1]}/{f[2]}_{f[4]}_{mode}_t{float(f[6])}.jsonl")
+    return out
+
+
+def test_term_rows_name_an_eval_output_v259z38():   # [v2.5.9z38] the reviewer 10-22: 9z38's TERM4 rows named e10b_P5mix7575_s50_...
+    q = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tasks", "queue.txt")
+    lines = open(q).read().splitlines()
+    outs, evals = _eval_outputs(lines), {l.split()[1] for l in lines if l.startswith("#eval ")}
+    bad = [f[-1] for f in (l.split() for l in lines) if len(f) >= 5 and f[0] == "#term" and f[-1].endswith(".jsonl")
+           and f[-1].split("/")[0] in evals and f[-1] not in outs]
+    assert not bad, f"#term rows naming no #eval output: {bad}"

@@ -157,3 +157,30 @@ def test_sampler_order_matches_randperm():
     g = torch.Generator(); g.manual_seed(42)
     want = list(torch.utils.data.RandomSampler(list(range(1000)), generator=g))
     assert D.sampler_order(1000, 42) == want and D.sampler_order(1000, 43) != want
+
+
+def test_mix_coin_with_p():   # [v2.5.9z38] (Q-060) a threshold coin at p; unset p keeps E10b-P5mix's parity coin
+    import hashlib
+    ks = [R.key(msgs(f"p{i}")) for i in range(6400)]
+    for p in (0.75, 0.9):
+        share = sum(R.coin(k, 1234, p) for k in ks) / len(ks)
+        assert abs(share - p) < 0.02, (p, share)
+    assert all(R.coin(k, 1234, 0.9) for k in ks if R.coin(k, 1234, 0.75))   # nested: thinking at 0.75 -> thinking at 0.9
+    assert [R.coin(k, 1234) for k in ks[:300]] == [int(hashlib.sha1(f"1234:{k}".encode()).hexdigest()[:8], 16) % 2 == 0 for k in ks[:300]]   # parity as run
+    assert R.decide(ks[0], "mix", {}, p=0.9) == (R.coin(ks[0], 1234, 0.9), None)
+
+
+def test_think_for_reads_route_p():   # [v2.5.9z38] OPD_ROUTE_P reaches the coin (no pytest fixtures: PROBE-ROUTE calls tests directly)
+    import os
+    keep = {k: os.environ.get(k) for k in ("OPD_ROUTE", "OPD_ROUTE_LABELS", "OPD_ROUTE_P")}; old = R._labels
+    try:
+        ks = [msgs(f"q{i}") for i in range(400)]
+        os.environ.update(OPD_ROUTE="mix", OPD_ROUTE_LABELS="", OPD_ROUTE_P="0.9"); R._labels = None
+        share = sum(R.think_for(m) for m in ks) / len(ks)
+        assert 0.84 < share < 0.96
+        del os.environ["OPD_ROUTE_P"]
+        assert [R.think_for(m) for m in ks[:50]] == [R.coin(R.key(m), 1234) for m in ks[:50]]
+    finally:
+        for k, v in keep.items():
+            os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
+        R._labels = old

@@ -92,7 +92,10 @@ TAIL=0; [ $TASK = E10b-P5tail ] && { TAIL=1; BASE=E10b-P5; }
 # 8B teacher's template chosen per prompt (code/patches/opd_route.py through route_patch.py; one teacher pass per sample): route =
 # PROBE-DIFF17's pass rate r of the 1.7B base (r >= 0.5: the non-thinking template, P2's teacher; else the thinking one, P5's);
 # mix = a fixed coin per prompt (p = 0.5, OPD_SEED). 50 steps, s50 uploaded; runs/<task>/route.jsonl per step. Gated by PROBE-ROUTE.
-ROUTE=""; case $TASK in E10b-P5route) ROUTE=route; BASE=E10b-P5;; E10b-P5mix) ROUTE=mix; BASE=E10b-P5;; esac
+# [v2.5.9z38] (Q-060, the reviewer 10-22) E10b-P5mix75 / -P5mix90: the same with the coin at p = 0.75 / 0.9 (OPD_ROUTE_P; a threshold
+# coin, opd_route.coin); gated by PROBE-MIXP (the coin's share at both p over the 6400 labels, the unit tests)
+ROUTE=""; ROUTE_P=""; case $TASK in E10b-P5route) ROUTE=route; BASE=E10b-P5;; E10b-P5mix) ROUTE=mix; BASE=E10b-P5;;
+  E10b-P5mix75) ROUTE=mix; ROUTE_P=0.75; BASE=E10b-P5;; E10b-P5mix90) ROUTE=mix; ROUTE_P=0.9; BASE=E10b-P5;; esac
 case $BASE in
   E10b-P2) ARM=P2; LR=3e-6;; E10b-P3) ARM=P3; LR=3e-6;; E10b-P4lowlr) ARM=P4; LR=6e-7;; E10b-P5) ARM=P5; LR=3e-6;;
   E10b-P6) ARM=P6; LR=3e-6;; E10b-P6r) ARM=P6r; LR=3e-6;; E10b-P2noEOS) ARM=P2noEOS; LR=3e-6;;
@@ -138,6 +141,7 @@ fi
 # [v2.5.9x] the routed / mixed arms start only after PROBE-ROUTE passed (the unit tests on the node + a 3-step smoke of route)
 if [ -n "$ROUTE" ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
   grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-ROUTE/report.json 2> /dev/null || { echo "PROBE-ROUTE has not passed: $TASK not started"; exit 3; }
+  [ -z "$ROUTE_P" ] || grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-MIXP/report.json 2> /dev/null || { echo "PROBE-MIXP has not passed: $TASK not started"; exit 3; }   # [v2.5.9z38]
 fi
 # [v2.5.9n] the tail-swap arm starts only after PROBE-TAIL passed (the unit tests on the node + a 3-step smoke)
 if [ $TAIL = 1 ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
@@ -230,7 +234,8 @@ if [ -n "$LENSEL" ]; then TBS=${LENSEL_PROMPTS:-32}; RN=${LENSEL_N:-16}; LK=${LE
   export OPD_LENSEL=$LENSEL OPD_LENSEL_K=$LK OPD_LENSEL_LOG=$OUT/lensel.jsonl; fi
 unset OPD_STOPMERGE OPD_STOPMERGE_LOG; [ $SMERGE = 1 ] && export OPD_STOPMERGE=1 OPD_STOPMERGE_LOG=$OUT/stopmerge.jsonl   # [v2.5.9l]
 unset OPD_TAILSWAP OPD_TAILSWAP_LOG; [ $TAIL = 1 ] && export OPD_TAILSWAP=1 OPD_TAILSWAP_LOG=$OUT/tailswap.jsonl   # [v2.5.9n]
-unset OPD_ROUTE OPD_ROUTE_LABELS OPD_ROUTE_LOG; [ -n "$ROUTE" ] && export OPD_ROUTE=$ROUTE OPD_ROUTE_LABELS=${ROUTE_LABELS:-$OPD_ROOT/runs/PROBE-DIFF17/labels_17.jsonl} OPD_ROUTE_LOG=$OUT/route.jsonl   # [v2.5.9x]
+unset OPD_ROUTE OPD_ROUTE_LABELS OPD_ROUTE_LOG OPD_ROUTE_P; [ -n "$ROUTE" ] && export OPD_ROUTE=$ROUTE OPD_ROUTE_LABELS=${ROUTE_LABELS:-$OPD_ROOT/runs/PROBE-DIFF17/labels_17.jsonl} OPD_ROUTE_LOG=$OUT/route.jsonl   # [v2.5.9x]
+[ -n "$ROUTE_P" ] && export OPD_ROUTE_P=$ROUTE_P   # [v2.5.9z38]
 [ $T32 = 1 ] && [ "${SMOKE:-0}" = 1 ] && export OPD_ROUTE=count OPD_ROUTE_LOG=$OUT/route.jsonl   # [v2.5.9z9] PROBE-T32: the teacher's rows per call
 # [v2.5.9b] the data, prompt length and logged reward: math by default, the tool-call parquet for a tool arm
 TRAIN=$OPD_ROOT/data/dapo_train.parquet; VAL=$OPD_ROOT/data/math500_100.parquet; MAXP=1024; REWARD=$RUNBOOK/code/train/reward_mathverify.py
@@ -249,7 +254,7 @@ ROLL_UTIL=${VLLM_UTIL:-0.5}; ACT_OPT_OFF=False
   [ "${SMOKE:-0}" != 1 ] && [ -s $OPD_ROOT/runs/PROBE-T32/escalation.txt ] && ACT_OPT_OFF=True; }
 [ "${DRYRUN:-0}" = 1 ] && [ $SMERGE = 1 ] && echo "DRYRUN_STOPMERGE OPD_STOPMERGE=${OPD_STOPMERGE:-} log=$(basename ${OPD_STOPMERGE_LOG:-none}) kern=[$KERN]"   # [v2.5.9l] tests
 [ "${DRYRUN:-0}" = 1 ] && [ $POLISH = 1 ] && echo "DRYRUN_POLISH student=$(echo $STUDENT | sed 's|.*/runs/|runs/|') teacher=$TEACHER"   # [v2.5.9u] tests
-[ "${DRYRUN:-0}" = 1 ] && [ -n "$ROUTE" ] && echo "DRYRUN_ROUTE OPD_ROUTE=${OPD_ROUTE:-} labels=$(echo ${OPD_ROUTE_LABELS:-none} | sed 's|.*/runs/|runs/|') log=$(basename ${OPD_ROUTE_LOG:-none})"   # [v2.5.9x] tests
+[ "${DRYRUN:-0}" = 1 ] && [ -n "$ROUTE" ] && echo "DRYRUN_ROUTE OPD_ROUTE=${OPD_ROUTE:-} labels=$(echo ${OPD_ROUTE_LABELS:-none} | sed 's|.*/runs/|runs/|') log=$(basename ${OPD_ROUTE_LOG:-none})$([ -n "${OPD_ROUTE_P:-}" ] && echo " p=$OPD_ROUTE_P")"   # [v2.5.9x] tests
 [ "${DRYRUN:-0}" = 1 ] && [ $T32 = 1 ] && echo "DRYRUN_T32 teacher=$(echo $TEACHER | sed 's|.*/models/|models/|') offload=$TEACHER_OFFLOAD save=$SAVE upload=$UW route=${OPD_ROUTE:-none} log=$(basename ${OPD_ROUTE_LOG:-none}) util=$ROLL_UTIL optoff=$ACT_OPT_OFF"   # [v2.5.9z9] tests
 [ "${DRYRUN:-0}" = 1 ] && [ $TAIL = 1 ] && echo "DRYRUN_TAILSWAP OPD_TAILSWAP=${OPD_TAILSWAP:-} log=$(basename ${OPD_TAILSWAP_LOG:-none})"   # [v2.5.9n] tests
 [ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $TASK arm=$ARM lr=$LR seed=$SEED student=$STUDENT batch=[$BATCH] kern=[$KERN] gc=$GCK venv=$(basename ${VENV:-$OPD_ROOT/venv}) ngpu=$NG rmpad=$RMPAD tool=$TOOL maxp=$MAXP reward=$(basename $REWARD) lensel=${LENSEL:-none}/${TBS}x${RN}/mb$MBS sthink=$STHINK maxresp=$MAXRESP teacher=$TEACHER offload=${TEACHER_OFFLOAD:-1} variant=$OPD_VARIANT override=$OPD_VARIANT_OVERRIDE refthink=$OPD_REF_THINK steps=$NSTEPS"; exit 0; }   # tests

@@ -102,6 +102,8 @@ b259x    open   E10b-P5route:PROBE-ROUTE E10b-P5mix:PROBE-ROUTE EVAL-e10b-P5rout
 b259zp   open   PROBE-VLM:PROBE-VLLM-VL EVAL-e15-base:BUILD-VENV-VL EVAL-e15-base2:BUILD-VENV-VL
 b259z    open   E15-VLM-P5:PROBE-VLM EVAL-e15-vlm:E15-VLM-P5+EVAL-e15-base+EVAL-e15-base2
 b259z31  open   VENV-VL-NVRTC
+b259z38p open   PROBE-MIXP
+b259z38  open   E10b-P5mix75:PROBE-MIXP+PROBE-ROUTE E10b-P5mix90:PROBE-MIXP+PROBE-ROUTE EVAL-e10b-P5mix75:E10b-P5mix75+EVAL-e10b-P5mix EVAL-e10b-P5mix90:E10b-P5mix90+EVAL-e10b-P5mix EVAL-budA-P5mix75:E10b-P5mix75 EVAL-budA-P5mix90:E10b-P5mix90
 b259z9r  open   EVAL-ext32k-32Bthink-aime EVAL-32Bthink-math500
 b259z9p  open   PROBE-T32
 b259z9   open   E10d-P5-t32:PROBE-T32 EVAL-e10d-P5t32:E10d-P5-t32 EVAL-budA-e10dP5t32:E10d-P5-t32 EVAL-ext32k-4Bt32:E10d-P5-t32+EVAL-ext32k-32Bthink-aime
@@ -1776,6 +1778,41 @@ b259z24  open   TOKCHECK-X5
 #budget EVAL-budA-P5mix budget_curve_vsP5s150 EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5mix_s50_math500_T0.6_32k
 #budget EVAL-budA-P5mix budget_curve_vsP2s150 EVAL-budA17b/budA_E10bP2_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5mix_s50_math500_T0.6_32k
 #term PROBE-TERM4 17_P5mix result:runs/E10b-P5mix/global_step_50/actor/huggingface EVAL-e10b-P5mix/e10b_P5mix_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+# [v2.5.9z38] (the reviewer's Q-060 10-22, mixing dose; research_program §3c; after Q-058, before Q-059) E10b-P5mix75 / -P5mix90:
+# E10b-P5mix's recipe (1.7B, from the base, 50 steps, s50, the fixed coin) with the thinking teacher on a share p = 0.75 / 0.9 of
+# the prompts (OPD_ROUTE_P, a threshold coin), gated by PROBE-MIXP (CPU: the coin at both p over the 6400 labels, the unit tests).
+# Readings as route / mix: MATH-500 16K T0.6 / T1.0 (pairs as P5mix's, plus P5mix itself), TWR, MATH-500 32K budget curves, TERM4
+# rows, #split rows. The phase step (the first step at training mean length >= 0.9 x 4096; P5 s16, route s32, mix never) comes
+# from runs/<arm>/len_by_step.csv every 5 steps and wall.json / the event wall_cross (upload_sync.sh, len_wall.py). P5mix's own
+# #split row waits for its 16K reading.
+#eval EVAL-e10b-P5mix75 e10b_P5mix75_s50_math500_T0.6 result:runs/E10b-P5mix75/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-e10b-P5mix75 e10b_P5mix75_s50_math500_T1.0 result:runs/E10b-P5mix75/global_step_50/actor/huggingface math500 4 1.0
+#twr EVAL-e10b-P5mix75 e10b_P5mix75_s50_math500_T0.6
+#pair EVAL-e10b-P5mix75 e10b_P5mix75_s50_math500_T0.6 archive:runs/e10/e10_P5_1.7B_s50_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P2/e11b_P2_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e10b-P5self/e10b_P5self_s50_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e10b-P5route/e10b_P5route_s50_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e10b-P5mix/e10b_P5mix_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#pair EVAL-e10b-P5mix75 e10b_P5mix75_s50_math500_T1.0 E11b-P2/e11b_P2_math500_T1.0_math500_no_think_t1.0.jsonl E11b-P5/e11b_P5_math500_T1.0_math500_no_think_t1.0.jsonl
+#eval EVAL-budA-P5mix75 budAP5mix75_s50_math500_T0.6_32k result:runs/E10b-P5mix75/global_step_50/actor/huggingface math500 4 0.6 32768
+#budget EVAL-budA-P5mix75 budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5mix75_s50_math500_T0.6_32k
+#budget EVAL-budA-P5mix75 budget_curve_vsP5s150 EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5mix75_s50_math500_T0.6_32k
+#budget EVAL-budA-P5mix75 budget_curve_vsP2s150 EVAL-budA17b/budA_E10bP2_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5mix75_s50_math500_T0.6_32k
+#term PROBE-TERM4 17_P5mix75 result:runs/E10b-P5mix75/global_step_50/actor/huggingface EVAL-e10b-P5mix75/e10b_P5mix75_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-e10b-P5mix75 rerun PROBE-TERM4
+#split READINGS-EXTRA 17_P5mix75_s50 EVAL-e10b-P5mix75/e10b_P5mix75_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-e10b-P5mix75 rerun READINGS-EXTRA
+#eval EVAL-e10b-P5mix90 e10b_P5mix90_s50_math500_T0.6 result:runs/E10b-P5mix90/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-e10b-P5mix90 e10b_P5mix90_s50_math500_T1.0 result:runs/E10b-P5mix90/global_step_50/actor/huggingface math500 4 1.0
+#twr EVAL-e10b-P5mix90 e10b_P5mix90_s50_math500_T0.6
+#pair EVAL-e10b-P5mix90 e10b_P5mix90_s50_math500_T0.6 archive:runs/e10/e10_P5_1.7B_s50_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P2/e11b_P2_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e10b-P5self/e10b_P5self_s50_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e10b-P5route/e10b_P5route_s50_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e10b-P5mix/e10b_P5mix_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#pair EVAL-e10b-P5mix90 e10b_P5mix90_s50_math500_T1.0 E11b-P2/e11b_P2_math500_T1.0_math500_no_think_t1.0.jsonl E11b-P5/e11b_P5_math500_T1.0_math500_no_think_t1.0.jsonl
+#eval EVAL-budA-P5mix90 budAP5mix90_s50_math500_T0.6_32k result:runs/E10b-P5mix90/global_step_50/actor/huggingface math500 4 0.6 32768
+#budget EVAL-budA-P5mix90 budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5mix90_s50_math500_T0.6_32k
+#budget EVAL-budA-P5mix90 budget_curve_vsP5s150 EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5mix90_s50_math500_T0.6_32k
+#budget EVAL-budA-P5mix90 budget_curve_vsP2s150 EVAL-budA17b/budA_E10bP2_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5mix90_s50_math500_T0.6_32k
+#term PROBE-TERM4 17_P5mix90 result:runs/E10b-P5mix90/global_step_50/actor/huggingface EVAL-e10b-P5mix90/e10b_P5mix90_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-e10b-P5mix90 rerun PROBE-TERM4
+#split READINGS-EXTRA 17_P5mix90_s50 EVAL-e10b-P5mix90/e10b_P5mix90_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-e10b-P5mix90 rerun READINGS-EXTRA
+#split READINGS-EXTRA 17_P5mix_s50 EVAL-e10b-P5mix/e10b_P5mix_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-e10b-P5mix rerun READINGS-EXTRA
 # rx (runbook v2.5.9x1, a CPU pad; ops-lead's / the reviewer's batch 10-22): READINGS-EXTRA. MATH-500 16K readings of the headline arms split
 # by problems 1-100 (the in-training validation set) / 101-500, and easy / hard once PROBE-DIFF17's labels exist (`rerun READINGS-EXTRA`
 # then, and after E10b-P5route / -P5mix's readings with their #split lines); the cost frontier's missing 16K mean lengths. The lab's

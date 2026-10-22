@@ -2,7 +2,8 @@
 # PROBE-ROUTE (runbook v2.5.9x; Q-041 / Q-042, the reviewer's gate): the gate of E10b-P5route and E10b-P5mix.
 #  1. the unit tests of code/patches/test_opd_route.py on the node (P5's python, with torch: the sampler-order test runs too),
 #     GOPD_REF_INPUT_UTILS = the installed ref_input_utils.py (the hook's anchor found once, the patched file compiles);
-#  2. PROBE-DIFF17's labels_17.jsonl present, 6400 training prompts; the mix coin over them gives a thinking share in [0.45, 0.55];
+#  2. PROBE-DIFF17's labels_17.jsonl present, 6400 training prompts; the mix coin over them gives a thinking share in [0.45, 0.55]
+#     ([v2.5.9z38] with PRT_P = p: the threshold coin at p, a share in [p - 0.05, p + 0.05]);
 #  3. a 3-step smoke of E10b-P5route on ONE GPU, then per step (route.jsonl, one call per step): the reference inputs built
 #     once for the whole batch (rows = batch = 128: one teacher pass per sample), think + plain = rows, no unknown prompt (the
 #     sampler order of PROBE-DIFF17 is the trainer's), every decision = its label (r >= 0.5 -> plain, else think); the smoke's
@@ -61,14 +62,14 @@ step "unit tests: $(tail -1 $D/unit_tests.txt)"
 [ $rc = 0 ] || finish FAIL "unit tests: $(tail -1 $D/unit_tests.txt)"
 # 2. the labels and the mix coin over them
 [ -f "$LAB" ] || finish FAIL "no PROBE-DIFF17 labels ($(basename $LAB))"
-python3 - "$LAB" "$D/mix_check.json" "${OPD_SEED:-1234}" "$RUNBOOK/code/patches" <<'PY'
+python3 - "$LAB" "$D/mix_check.json" "${OPD_SEED:-1234}" "$RUNBOOK/code/patches" "${PRT_P:-}" <<'PY'
 import json, sys
 sys.path.insert(0, sys.argv[4]); import opd_route as R
-lab = R.load_labels(sys.argv[1]); seed = int(sys.argv[3])
-share = sum(R.coin(k, seed) for k in lab) / max(1, len(lab))
-json.dump({"train_labels": len(lab), "mix_think_share": round(share, 4), "easy_share": round(sum(1 for r in lab.values() if r >= 0.5) / max(1, len(lab)), 4)}, open(sys.argv[2], "w"))
+lab = R.load_labels(sys.argv[1]); seed = int(sys.argv[3]); p = float(sys.argv[5]) if sys.argv[5] else None   # [v2.5.9z38]
+share = sum(R.coin(k, seed, p) for k in lab) / max(1, len(lab))
+json.dump({"train_labels": len(lab), "mix_think_share": round(share, 4), "p": p, "easy_share": round(sum(1 for r in lab.values() if r >= 0.5) / max(1, len(lab)), 4)}, open(sys.argv[2], "w"))
 PY
-python3 -c "import json, sys; m = json.load(open(sys.argv[1])); sys.exit(0 if m['train_labels'] == int(sys.argv[2]) and 0.45 <= m['mix_think_share'] <= 0.55 else 1)" $D/mix_check.json ${PRT_TRAIN_LABELS:-6400} \
+python3 -c "import json, sys; m = json.load(open(sys.argv[1])); p = m.get('p') or 0.5; sys.exit(0 if m['train_labels'] == int(sys.argv[2]) and p - 0.05 <= m['mix_think_share'] <= p + 0.05 else 1)" $D/mix_check.json ${PRT_TRAIN_LABELS:-6400} \
   || finish FAIL "labels / mix coin: $(cat $D/mix_check.json)"
 # 3. the smoke
 for _w in $(seq 19); do
