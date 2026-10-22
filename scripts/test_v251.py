@@ -945,6 +945,15 @@ def test_image_benches_v259z():   # [2.5.58] geo3k / mathvista are evaluation be
     R.check_eval_args(["result:runs/E15-VLM-P5/global_step_50/actor/huggingface", "mathvista", "4", "0.6", "16384", "no_think"])
     with pytest.raises(R.Reject):
         R.check_eval_args(["local:models/Qwen3-VL-2B-Instruct", "chartqa", "4", "0.6", "16384", "no_think"])
+    R.check_eval_args(["local:models/Qwen3-VL-2B-Instruct", "mathvision", "1", "0", "16384", "no_think"])   # [2.5.66]
+    R.check_eval_args(["result:runs/E15-VLM-P5/global_step_50/actor/huggingface", "mathverse", "1", "0", "16384", "no_think"])
+
+
+def test_every_queue_eval_bench_is_accepted_v259z39():   # [2.5.66] 10-22: 9z33's mathvision / mathverse rows were refused on the node
+    import control_rules as R
+    q = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tasks", "queue.txt")
+    bad = sorted({f[4] for f in (l.split() for l in open(q)) if len(f) >= 5 and f[0] == "#eval" and f[4] not in R.BENCHES})
+    assert not bad, f"#eval benches the node refuses: {bad} (add them to control_rules.BENCHES)"
 
 
 def _task_sh_names():
