@@ -23,6 +23,13 @@ generated again, no reading's own numbers changed.
    random.Random(seed) from the reading, each sample's last ~tail_tokens tokens (the text cut in proportion to n_tokens), classed "loop"
    (the tail ends in >= 3 exact copies of a unit of 8-400 characters, or compresses to < LOOP_ZLIB 0.2 of its bytes with zlib) or "long"
    (long reasoning / restatement); the counts and one tail end (<= 300 characters) per class. Written to READINGS-EXTRA/tails.json.
+7. [v2.5.9z14] (the reviewer's Q-056, Runming's question 10-22) behaviour fingerprints of MATH-500 16K readings: `#fpauto READINGS-EXTRA
+   <label>` takes every reading under runs/ named <stem>_math500_T0.6_math500_<mode>_t0.6.jsonl with 4 samples a problem and max_tokens
+   16384 (its metrics.json), named <stem>; `#fpmodel READINGS-EXTRA <label> <name> <task>/<file>.jsonl [<cap>]` adds one under a name,
+   with <cap> read at that budget (a sample counts as correct only when n_tokens <= cap; its length is min(n_tokens, cap): a 32K reading
+   as a 16K one); `#fppair READINGS-EXTRA <label> <name> <ref> [<ref> ...]` lines are the table's rows. Per model the per-problem accuracy
+   (avg over its samples) and mean length vectors; per pair Pearson r of accuracy (r_acc) and of length (r_len), and over the problems
+   binarised at accuracy >= 0.5 the phi coefficient and the agreement rate; for all problems, 1-100 and 101-500. fingerprint.json.
 Inputs missing on the node are listed, not guessed. Usage: python readings_extra.py <runs dir> <queue file> <out dir>
 """
 import json
@@ -156,6 +163,64 @@ def tails(path, n, seed, tail_tokens):
     return out
 
 
+FP_NAME = r"^(?P<stem>.+)_math500_T0\.6_math500_(?:no_think|think)_t0\.6\.jsonl$"
+
+
+def fp_vectors(path, cap=None):
+    """{index: (accuracy, mean length)} of a MATH-500 reading, read at budget cap when given."""
+    acc, ln = {}, {}
+    for r in read_records(path):
+        i = pid_index(r["pid"]); n = r["n_tokens"]
+        ok = r["correct"] and (cap is None or n <= cap)
+        acc.setdefault(i, []).append(1.0 if ok else 0.0); ln.setdefault(i, []).append(min(n, cap) if cap else n)
+    return {i: (sum(acc[i]) / len(acc[i]), sum(ln[i]) / len(ln[i])) for i in acc}
+
+
+def _pearson(x, y):
+    n = len(x)
+    if n < 3:
+        return None
+    mx, my = sum(x) / n, sum(y) / n
+    sx = sum((a - mx) ** 2 for a in x); sy = sum((b - my) ** 2 for b in y)
+    if sx == 0 or sy == 0:
+        return None
+    return round(sum((a - mx) * (b - my) for a, b in zip(x, y)) / (sx * sy) ** 0.5, 4)
+
+
+def fp_compare(va, vb, part=None):
+    """r_acc, r_len, phi, agree (and the problem count) of two models over their common problems in part (None: all; "1-100"; "101-500")."""
+    keep = lambda i: part is None or (i < 100 if part == "1-100" else i >= 100)
+    idx = sorted(i for i in va if i in vb and keep(i))
+    aa, ab = [va[i][0] for i in idx], [vb[i][0] for i in idx]
+    ba, bb = [1.0 if x >= 0.5 else 0.0 for x in aa], [1.0 if x >= 0.5 else 0.0 for x in ab]
+    return {"n": len(idx), "r_acc": _pearson(aa, ab), "r_len": _pearson([va[i][1] for i in idx], [vb[i][1] for i in idx]),
+            "phi": _pearson(ba, bb), "agree": round(sum(1 for x, y in zip(ba, bb) if x == y) / len(idx), 4) if idx else None}
+
+
+def fp_auto(runs):
+    """{stem: <task>/<file>} of the 16K avg@4 T0.6 MATH-500 readings under runs/ (metrics.json max_tokens 16384, 2000 lines)."""
+    import re
+    out = {}
+    for t in sorted(os.listdir(runs)) if os.path.isdir(runs) else []:
+        d = os.path.join(runs, t)
+        for f in sorted(os.listdir(d)) if os.path.isdir(d) else []:
+            m = re.match(FP_NAME, f)
+            if not m or m.group("stem") in out:
+                continue
+            mp = os.path.join(d, f[:-len(".jsonl")] + ".metrics.json")
+            try:
+                mx = json.load(open(mp)).get("max_tokens") if os.path.exists(mp) else None
+            except ValueError:
+                mx = None
+            if mx != 16384:
+                continue
+            with open(os.path.join(d, f)) as fh:
+                if sum(1 for line in fh if line.strip()) != 2000:
+                    continue
+            out[m.group("stem")] = f"{t}/{f}"
+    return out
+
+
 def safe(rel):
     """[v2.5.9z3] a row's path: relative, no '..', under runs/ (anything else is refused and listed as missing)."""
     return bool(rel) and not os.path.isabs(rel) and ".." not in rel.split("/") and "\\" not in rel
@@ -262,7 +327,48 @@ def main(runs, qfile, out):
         if not os.path.exists(p):
             summary["missing"].append(rel); continue
         summary["tails"][label] = dict(tails(p, n, seed, tt), reading=rel)
+    summary["fingerprint"] = {}
+    fp_rows = [l.split() for l in open(qfile)]
+    fp_rows = [f for f in fp_rows if len(f) >= 3 and f[0] in ("#fpauto", "#fpmodel", "#fppair") and f[1] == "READINGS-EXTRA"]
+    fp_full = {}
+    for label in sorted({f[2] for f in fp_rows}):   # [v2.5.9z14]
+        models = {}
+        if any(f[0] == "#fpauto" and f[2] == label for f in fp_rows):
+            models.update({k: (v, None) for k, v in fp_auto(runs).items()})
+        for row in queue_rows(qfile, "fpmodel"):
+            if row[0] == label and len(row) >= 3:
+                name, rel, cap = row[1], row[2], (int(row[3]) if len(row) > 3 and row[3].isdigit() else None)
+                if not safe(rel):
+                    summary["missing"].append(f"{name}: refused path"); continue
+                models[name] = (rel, cap)
+        vec = {}
+        for name, (rel, cap) in sorted(models.items()):
+            p = os.path.join(runs, rel)
+            if os.path.exists(p):
+                vec[name] = fp_vectors(p, cap)
+            else:
+                summary["missing"].append(rel)
+        names = sorted(vec)
+        mat = {part or "all": {a: {b: fp_compare(vec[a], vec[b], part) for b in names if b != a} for a in names} for part in (None, "1-100", "101-500")}
+        rows = []
+        for row in queue_rows(qfile, "fppair"):
+            if row[0] != label:
+                continue
+            a = row[1]
+            for b in row[2:]:
+                if a in vec and b in vec:
+                    rows.append({"a": a, "b": b, **{part: mat[part][a][b] for part in ("all", "1-100", "101-500")}})
+                else:
+                    summary["missing"].append(f"{label} pair {a} / {b}: no reading")
+        summary["fingerprint"][label] = {"models": {n: {"reading": models[n][0], "cap": models[n][1],
+                                                        "acc": round(100 * sum(v[0] for v in vec[n].values()) / len(vec[n]), 2),
+                                                        "mean_len": round(sum(v[1] for v in vec[n].values()) / len(vec[n]), 1),
+                                                        "problems": len(vec[n])} for n in names},
+                                         "pairs": rows}
+        fp_full[label] = dict(summary["fingerprint"][label], matrix=mat)
     fd = os.path.join(out, "up", "runs", "READINGS-EXTRA"); os.makedirs(fd, exist_ok=True)
+    if fp_full:
+        json.dump(fp_full, open(os.path.join(fd, "fingerprint.json"), "w"))
     if summary["lensel"]:
         json.dump(summary["lensel"], open(os.path.join(fd, "lensel.json"), "w"), indent=1)
     if summary["tails"]:
@@ -285,6 +391,10 @@ def main(runs, qfile, out):
     for k, v in summary["coverage"].items():
         show = lambda rows: "; ".join(f"{r['pid']} a {cnt(r['a'])} b {cnt(r['b'])}" + "".join(f" {n} {cnt(r.get(n))}" for n in v["extras"]) for r in rows) or "none"
         lines.append(f"{k} | {v['problems']} | {v['a_solved']} / {v['b_solved']} / {v['both']} / {v['neither']} | {show(v['b_only'])} | {show(v['a_only'])}")
+    for k, v in summary["fingerprint"].items():   # [v2.5.9z14]
+        lines.append(f"fingerprint {k} ({len(v['models'])} models): a vs b | all r_acc / phi / agree / r_len | 1-100 | 101-500")
+        f = lambda c: f"{c['r_acc']} / {c['phi']} / {c['agree']} / {c['r_len']}"
+        lines += [f"{r['a']} vs {r['b']} | {f(r['all'])} | {f(r['1-100'])} | {f(r['101-500'])}" for r in v["pairs"]]
     for k, v in summary["lensel"].items():   # [v2.5.9z13]
         lines.append(f"lensel {k}: kept EOS below 90% from step " + ", ".join(f"{t} {x['kept_eos_below_90_from']}" for t, x in v.items()))
     for k, v in summary["tails"].items():

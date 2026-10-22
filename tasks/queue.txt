@@ -1872,3 +1872,35 @@ olpd     open   EVAL-ext32k-17olpd
 #lensel READINGS-EXTRA q030 E10b-P5lenS E10b-P5lenR E10b-P5lenL
 #tails READINGS-EXTRA q030_lenS16k EVAL-len-S/e10b_P5lenS_s50_math500_T0.6_math500_no_think_t0.6.jsonl 20 20261022 500
 #tails READINGS-EXTRA q030_lenR16k EVAL-len-R/e10b_P5lenR_s50_math500_T0.6_math500_no_think_t0.6.jsonl 20 20261022 500
+# [v2.5.9z14] (the reviewer's Q-056, research_program §3c; Runming's question 10-22) behaviour fingerprints: every MATH-500 16K avg@4 T0.6
+# reading on the node (#fpauto, named by its file stem) plus the thinking / 2507 references (#fpmodel; a 32K reading read at the 16K
+# budget: correct only when n_tokens <= 16384); per pair Pearson r of per-problem accuracy and length, phi and agreement of the problems
+# binarised at accuracy >= 0.5; all / 1-100 / 101-500. The table's rows (#fppair): P5 and P5self at 1.7B / 4B / 0.6B against {the
+# teacher's thinking mode (8B), their own thinking mode, their base}; P5 -> RL / KL / 8K against {P5 start, base -> RL, base}; the 4B /
+# 0.6B RL ladders the same way; X4 against {Instruct-2507, 4B thinking}. CPU, READINGS-EXTRA (`rerun READINGS-EXTRA`).
+#fpauto READINGS-EXTRA q056
+#fpmodel READINGS-EXTRA q056 8B_think EVAL-budA-8Bthink/budA8B_think_math500_T0.6_32k_math500_think_t0.6.jsonl 16384
+#fpmodel READINGS-EXTRA q056 17_think EVAL-budB/budB_P0think_math500_T0.6_32k_math500_think_t0.6.jsonl 16384
+#fpmodel READINGS-EXTRA q056 4B_think EVAL-budF-4B/budF4B_P0think_math500_T0.6_16k_math500_think_t0.6.jsonl
+#fpmodel READINGS-EXTRA q056 06_think EVAL-budF-06/budF06_P0think_math500_T0.6_16k_math500_think_t0.6.jsonl
+#fpmodel READINGS-EXTRA q056 i2507 EVAL-i2507/i2507_math500_T0.6_32k_math500_no_think_t0.6.jsonl 16384
+# (the reviewer's A1 10-22: the same arm at other data seeds first, the ceiling of the similarity the other rows are read against)
+#fppair READINGS-EXTRA q056 e11b_P5 e11b_P5-s43 e11b_P5-s44
+#fppair READINGS-EXTRA q056 e11b_P5-s43 e11b_P5-s44
+#fppair READINGS-EXTRA q056 e12b_P5_s100 e12b_P5-s43_s100 e12b_P5-s44_s100
+#fppair READINGS-EXTRA q056 e12b_P5-s43_s100 e12b_P5-s44_s100
+#fppair READINGS-EXTRA q056 e10b_P5self_s50 e10b_P5self-s43_s50
+#fppair READINGS-EXTRA q056 e10d_P5_s150 e10d_P5-s43_s150
+#fppair READINGS-EXTRA q056 e11b_P2 e11b_P2-s43 e11b_P2-s44
+#fppair READINGS-EXTRA q056 e11b_P5 8B_think 17_think e11b_P0
+#fppair READINGS-EXTRA q056 e10d_P5_s150 8B_think 4B_think e10d_P0
+#fppair READINGS-EXTRA q056 e10c_P5-fix4_s150 8B_think 06_think e10c_base06
+#fppair READINGS-EXTRA q056 e10b_P5self_s50 8B_think 17_think e11b_P0
+#fppair READINGS-EXTRA q056 e10d_P5self_s50 8B_think 4B_think e10d_P0
+#fppair READINGS-EXTRA q056 e10c_P5self_s50 8B_think 06_think e10c_base06
+#fppair READINGS-EXTRA q056 e12b_P5_s100 e11b_P5 e12b_P0_s100 e11b_P0
+#fppair READINGS-EXTRA q056 e12b_P5kl_s100 e11b_P5 e12b_P0_s100 e11b_P0
+#fppair READINGS-EXTRA q056 e12b_P5-8k_s50 e11b_P5 e12b_P0_s100 e11b_P0
+#fppair READINGS-EXTRA q056 e12d_P5_s100 e10d_P5_s150 e12d_P0_s100 e10d_P0
+#fppair READINGS-EXTRA q056 e12c_P5_s100 e10c_P5-fix4_s150 e12c_P0_s100 e10c_base06
+#fppair READINGS-EXTRA q056 e10d_X4_s50 i2507 4B_think

@@ -160,3 +160,46 @@ def test_tails_loop_and_long_fixed_seed():   # [v2.5.9z13] (Q-030 check 2)
 def test_loop_period_edges():
     assert X.loop_period("abcdefgh" * 3) == 8 and X.loop_period("x" * 30) == 8   # a run of one character: its shortest unit of 8
     assert X.loop_period("no repetition at the end of this sentence at all") is None
+
+
+def _m500(path, correct_of, tokens_of, n=4, max_tokens=16384):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        for i in range(500):
+            for s in range(n):
+                f.write(json.dumps({"pid": f"math500-{i}", "sample": s, "correct": correct_of(i, s), "n_tokens": tokens_of(i, s), "finish_reason": "stop"}) + "\n")
+    json.dump({"max_tokens": max_tokens}, open(path[:-len(".jsonl")] + ".metrics.json", "w"))
+
+
+def test_fingerprint_auto_named_capped_and_pairs():   # [v2.5.9z14] (Q-056)
+    runs, out, q = setup()
+    _m500(os.path.join(runs, "EVAL-a", "a_s50_math500_T0.6_math500_no_think_t0.6.jsonl"), lambda i, s: i % 2 == 0, lambda i, s: 1000 + i)
+    _m500(os.path.join(runs, "EVAL-b", "b_math500_T0.6_math500_no_think_t0.6.jsonl"), lambda i, s: i % 2 == 0 and s < 3, lambda i, s: 2000 + 2 * i)
+    _m500(os.path.join(runs, "EVAL-c", "anchor_math500_T0.6_math500_no_think_t0.6.jsonl"), lambda i, s: True, lambda i, s: 10, n=1, max_tokens=2048)   # an anchor: left out
+    # a 32K thinking reading: odd problems run past 16K -> at the 16K budget they are wrong
+    _m500(os.path.join(runs, "EVAL-t", "t_think_math500_T0.6_32k_math500_think_t0.6.jsonl"), lambda i, s: True, lambda i, s: 20000 if i % 2 else 9000, max_tokens=32768)
+    open(q, "a").write("#fpauto READINGS-EXTRA q056\n#fpmodel READINGS-EXTRA q056 T_think EVAL-t/t_think_math500_T0.6_32k_math500_think_t0.6.jsonl 16384\n"
+                       "#fppair READINGS-EXTRA q056 a_s50 T_think b nobody\n")
+    s = X.main(runs, q, out)
+    fp = s["fingerprint"]["q056"]
+    assert sorted(fp["models"]) == ["T_think", "a_s50", "b"]                        # the anchor is not a 16K avg@4 reading
+    assert fp["models"]["T_think"]["acc"] == 50.0 and fp["models"]["T_think"]["mean_len"] == 12692.0   # (16384 + 9000) / 2
+    assert fp["models"]["a_s50"]["acc"] == 50.0 and fp["models"]["b"]["acc"] == 37.5
+    ab = next(r for r in fp["pairs"] if r["b"] == "b")
+    assert ab["all"]["phi"] == 1.0 and ab["all"]["agree"] == 1.0 and ab["all"]["r_len"] == 1.0 and ab["all"]["n"] == 500
+    assert ab["1-100"]["n"] == 100 and ab["101-500"]["n"] == 400
+    at = next(r for r in fp["pairs"] if r["b"] == "T_think")
+    assert at["all"]["r_acc"] == 1.0 and abs(at["all"]["r_len"]) < 0.05   # the cap makes the 32K reading's accuracy that of a; lengths unrelated
+    assert any("q056 pair a_s50 / nobody" in m for m in s["missing"])
+    full = json.load(open(os.path.join(out, "up", "runs", "READINGS-EXTRA", "fingerprint.json")))
+    assert full["q056"]["matrix"]["all"]["a_s50"]["b"]["phi"] == 1.0 and "matrix" not in s["fingerprint"]["q056"]
+    t = open(os.path.join(out, "summary.txt")).read()
+    assert "fingerprint q056 (3 models)" in t and "a_s50 vs b | 1.0 / 1.0 / 1.0 / 1.0 |" in t
+
+
+def test_fp_compare_constant_and_parts():
+    va = {i: (1.0, 100.0) for i in range(500)}
+    vb = {i: (0.5 if i < 100 else 0.0, float(i)) for i in range(500)}
+    c = X.fp_compare(va, vb)
+    assert c["r_acc"] is None and c["phi"] is None and c["agree"] == 0.2 and c["n"] == 500   # a constant vector has no correlation
+    assert X.fp_compare(va, vb, "1-100")["agree"] == 1.0 and X.fp_compare(va, vb, "101-500")["agree"] == 0.0
