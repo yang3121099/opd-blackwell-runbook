@@ -355,8 +355,10 @@ def main():
                 vals["p_stop_nl"] = s.get(k_nl, (None,))[0]; vals["p_stop_any_nl"] = s.get(k_nl, (None, None))[1]
                 vals["p_stop_after_box"] = s.get(k_after, (None,))[0]
                 vals["p_stop_env_nl"] = s.get(k_env, (None,))[0]; vals["p_stop_max16"] = mx(s)
-                if a.term4:   # v2.5.7z
-                    t4 = term4_positions(pieces, ids)
+                t4 = term4_positions(pieces, ids) if a.term4 else None   # v2.5.7z
+                if a.term4 and t4 is None:   # [v2.5.9z53] an anchor but no final box (term4_positions: None): counted, no TERM4 measures
+                    cnt["term4_no_box"] += 1   # (10-22 12:41 and 13:46 UTC: PROBE-TERM4 died on t4["k_fb"] of None)
+                if t4 is not None:
                     kf16 = list(range(t4["k_fb"] + 1, min(t4["k_fb"] + 17, len(ids))))
                     kl16 = list(range(t4["k_last"] + 1, min(t4["k_last"] + 17, len(ids))))
                     pc = token_probs(student, sp[r["pid"]], ids, kf16, THINK_CLOSE)

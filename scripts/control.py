@@ -394,14 +394,50 @@ def uploader_alive():
     return t.isdigit() and time.time() - int(t) < int(os.environ.get("OUTBOX_STALE_S", "600"))
 
 
+# [v2.5.9z53] (Fable 10-22 14:1x UTC, ops-lead A1: after z51 / z52 the status and the receipts still did not reach the private
+# repository while the direct runs/ uploads did) the status, the private pulse and the receipts (and reply payloads) go up
+# directly, as runs/ does, bounded by CONTROL_PUT_TIMEOUT (60) s, never through the outbox; the z52 throttles stay (status and
+# pulse every 5 min); a failure is logged, one event per failing episode, and the next round writes again. CONTROL_DIRECT=0:
+# through the outbox as before.
+DIRECT_RE = re.compile(r"status/[^/]+\.json|pulse/[^/]+\.json|status/[^/]+/replies/[^/]+")
+
+
+def _direct_put(src, dst):
+    old = os.environ.get("REMOTE_PUT_TIMEOUT")
+    os.environ["REMOTE_PUT_TIMEOUT"] = _cfg("CONTROL_PUT_TIMEOUT", "60")
+    try:
+        ok = remote_put(src, dst)
+    finally:
+        os.environ.pop("REMOTE_PUT_TIMEOUT") if old is None else os.environ.__setitem__("REMOTE_PUT_TIMEOUT", old)
+    cls = "receipts" if "/replies/" in dst else dst.split("/")[0] + ("" if dst.startswith("pulse/") else "_json")
+    st = json.loads(_read(_p("direct_fail.json"), "{}") or "{}"); n = int(st.get(cls) or 0)
+    if ok and n:
+        st[cls] = 0; event("node", "control_direct_recovered", f"{cls} after {n} failed puts")
+    elif not ok:
+        st[cls] = n + 1
+        try:
+            with open(os.path.join(ROOT, "logs", "control_timeouts.log"), "a") as f:
+                f.write(f"{utc()} direct put failed {dst}\n")
+        except OSError:
+            pass
+        if n == 0:
+            event("node", "control_direct_failed", f"{cls}: {dst}")
+    if (ok and n) or not ok:
+        tmp = _p(f"direct_fail.json.{os.getpid()}.tmp"); json.dump(st, open(tmp, "w")); os.replace(tmp, _p("direct_fail.json"))
+    return ok
+
+
 def queue_put(src, dst, kind=None):
-    if os.environ.get("OUTBOX", "1") == "1" and uploader_alive():
+    direct = kind is None and DIRECT_RE.fullmatch(dst.lstrip("/")) and _cfg("CONTROL_DIRECT", "1") == "1"   # [v2.5.9z53]
+    if not direct and os.environ.get("OUTBOX", "1") == "1" and uploader_alive():
         return enqueue(src, dst, kind)
     k = _throttle({"dst": dst, "kind": kind})[0]   # [v2.5.9z52] the direct upload keeps the throttles of the latest-state items
     if k and k != "events":                         # (an event skipped here would be lost: those go up as before)
         if not _due({"dst": dst, "kind": kind}):
             return True
         _stamp([k])
+    if direct:
+        return _direct_put(src, dst)
     return remote_put(src, dst, kind) if kind else remote_put(src, dst)
 
 
@@ -500,6 +536,40 @@ def _ship_events(d, names):
     return (len(ev), dropped, 0) if ok else (0, dropped, len(ev))
 
 
+def diag_tails(force=False):
+    """[v2.5.9z53] (Fable 10-22) while the status does not reach the project: every DIAG_TAILS_S (1800) s, from the uploader's pass,
+    the last 200 lines of the control plane's logs (redacted) and the outbox's head (destination, tries, age) go directly to
+    logs/<node>/diag/ in the private repository, bounded by CONTROL_PUT_TIMEOUT."""
+    try:
+        iv = int(_cfg("DIAG_TAILS_S", "1800"))
+    except ValueError:
+        iv = 1800
+    last = _read(_p("diag_tails.t")).strip()
+    if iv <= 0 or (not force and last.isdigit() and time.time() - int(last) < iv):
+        return None
+    open(_p("diag_tails.t"), "w").write(str(int(time.time())))
+    out = _p("diag"); shutil.rmtree(out, ignore_errors=True); os.makedirs(out)
+    for f in ("heartbeat.err", "heartbeat.log", "uploader.log", "uploader.err", "control.log", "control_timeouts.log", "run_tasks.log", "watchdog.log", "gh_heartbeat.log", "gh_heartbeat.err"):
+        p = os.path.join(ROOT, "logs", f)
+        if os.path.exists(p):
+            open(os.path.join(out, f + ".tail"), "w").write(redact(_tail_lines(p, 200)))
+    d = _outbox(); now = time.time(); head = []
+    for n in _ship_order(d)[:40] if os.path.isdir(d) else []:
+        try:
+            it = json.load(open(os.path.join(d, n)))
+        except (OSError, ValueError):
+            continue
+        head.append({"dst": it.get("dst"), "kind": it.get("kind"), "fails": it.get("fails"), "age_s": int(now - int(n[:20]) / 1e9) if n[:20].isdigit() else None,
+                     "src_exists": os.path.exists(it.get("src", "")), "src_bytes": os.path.getsize(it["src"]) if os.path.isfile(it.get("src", "")) else None})
+    st = json.loads(_read(_p("state.json"), "{}") or "{}")
+    json.dump({"utc": utc(), "applied_seq": _read(_p("applied_seq")).strip(), "pending": st.get("pending"), "alerts": st.get("alerts"),
+               "outbox_items": len([n for n in os.listdir(d) if n.endswith(".json")]) if os.path.isdir(d) else 0, "outbox_head": head,
+               "put_stamps": _stamps(), "direct_fail": json.loads(_read(_p("direct_fail.json"), "{}") or "{}"), "hf_backoff_s": int(_backoff_left()),
+               "loops_age_s": {k: (lambda t: int(now - int(t)) if t.isdigit() else None)(_read(_p(f"loop_{k}")).strip()) for k in ("run_tasks", "heartbeat", "uploader")}},
+              open(os.path.join(out, "control_state.json"), "w"), indent=1)
+    return _direct_put(out, f"logs/{node_id()}/diag")
+
+
 def ship_outbox(budget_s=None):
     """One pass of uploader.sh: (shipped, dropped, failed). A missing src is dropped; the pass ends at the first failure
     or after OUTBOX_PASS_S (420 s); control/loop_uploader is refreshed after every item."""
@@ -507,6 +577,10 @@ def ship_outbox(budget_s=None):
     d = _outbox(); os.makedirs(d, exist_ok=True); t0 = time.time(); shipped = dropped = failed = 0
     if _backoff_left() > 0:   # [v2.5.9z52] the 429 backoff: nothing tried, nothing counted
         return shipped, dropped, failed
+    try:
+        diag_tails()   # [v2.5.9z53] every DIAG_TAILS_S
+    except Exception as e:
+        print(f"DIAG_TAILS_FAILED {type(e).__name__}", file=sys.stderr)
     names = _ship_order(d)
     shipped, dropped, failed = _ship_events(d, names)   # [v2.5.9z52] first, as the control plane's oldest items were
     stamps = _stamps()
@@ -797,13 +871,21 @@ def v_killpgid(a, seq, flags=None, entry=None):
 
 
 # ---------- v2.5: logs, snapshot (no argument), set, run/eval requests, update, upload, cancel ----------
+def _tail_lines(path, n, max_bytes=4 << 20):
+    """[v2.5.9z53] the last n lines of a file from at most its last max_bytes (seq 482 `logs heartbeat 60`, 10-22: the whole
+    heartbeat.log was read on the loaded shared disk; apply may have outlived APPLY_TIMEOUT on it every round)."""
+    with open(path, "rb") as f:
+        f.seek(0, 2); size = f.tell(); f.seek(max(0, size - max_bytes)); data = f.read().decode("utf-8", "replace")
+    return "".join(data.splitlines(True)[-n:])
+
+
 def v_logs(a, seq, flags=None, entry=None):
     t, n = a[0], int(a[1])
     src = os.path.join(ROOT, "logs", f"{t}.log")
     if not os.path.exists(src):
         return "rejected", f"no log for {t}", {}
     out = _p(f"req_{seq}"); shutil.rmtree(out, ignore_errors=True); os.makedirs(out)
-    open(os.path.join(out, "log_tail.txt"), "w").write(redact("".join(_read(src).splitlines(True)[-n:])))
+    open(os.path.join(out, "log_tail.txt"), "w").write(redact(_tail_lines(src, n)))   # [v2.5.9z53] was: the whole file read
     dest = f"status/{node_id()}/replies/{seq}"
     return ("ok", f"last {n} lines of logs/{t}.log", {"outputs": [f"{dest}/log_tail.txt"]}) if queue_put(out, dest) else ("failed", "upload failed", {})
 
@@ -2539,6 +2621,8 @@ if __name__ == "__main__":
         print("DISK_FALLBACK", disk_fallback())
     elif cmd == "lru_clean":   # [v2.5.8] heartbeat.sh every round; nothing unless LOCAL_LRU_GB is set
         g = lru_clean(); print(f"LRU_FREED {g} GB") if g else None
+    elif cmd == "diag_tails":   # [v2.5.9z53] at once (the uploader's pass sends them every DIAG_TAILS_S)
+        print("DIAG_TAILS", diag_tails(force=True))
     elif cmd == "ship_outbox":   # [v2.5.8] uploader.sh, one pass
         a, b, c = ship_outbox(); print(f"SHIPPED {a} DROPPED {b} FAILED {c} LEFT {len([n for n in os.listdir(_outbox()) if n.endswith('.json') and not n.startswith('.')])}")
     elif cmd == "put_q":   # [v2.5.8] heartbeat.sh: put_q <src> <dst> through the outbox (directly without a live uploader)

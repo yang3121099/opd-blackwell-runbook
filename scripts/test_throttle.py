@@ -32,6 +32,12 @@ def root(monkeypatch):
     return d
 
 
+@pytest.fixture(autouse=True)
+def through_the_outbox(monkeypatch):   # [v2.5.9z53] these tests are the outbox's: the control plane's items through it as before
+    monkeypatch.setenv("CONTROL_DIRECT", "0")
+    monkeypatch.setenv("DIAG_TAILS_S", "0")   # and no diagnostic upload in the pass
+
+
 def alive():
     open(C._p("loop_uploader"), "w").write(str(int(time.time())))
 

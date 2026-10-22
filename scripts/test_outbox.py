@@ -6,7 +6,15 @@ import json
 import os
 import time
 
+import pytest
+
 from test_control import env  # noqa: F401  (shared fixture)
+
+
+@pytest.fixture(autouse=True)
+def through_the_outbox(monkeypatch):   # [v2.5.9z53] these tests are the outbox's: the control plane's items through it as before
+    monkeypatch.setenv("CONTROL_DIRECT", "0")
+    monkeypatch.setenv("DIAG_TAILS_S", "0")   # and no diagnostic upload in the pass
 
 
 def alive(c):

@@ -25,6 +25,11 @@ def root(monkeypatch):
     return d
 
 
+@pytest.fixture(autouse=True)
+def no_diag(monkeypatch):   # [v2.5.9z53] no diagnostic upload inside these passes
+    monkeypatch.setenv("DIAG_TAILS_S", "0")
+
+
 def test_routing_private_first_by_default_and_the_switch(root):
     assert RM.public_paused() and RM.klass("runs/E1/x.json") == "private" and RM.klass("pulse/n.json") == "private"
     assert RM.fetch_repos() == "me/priv,me/pub"
