@@ -1199,3 +1199,10 @@ def test_run_queue_eval_greedy_and_mc_wait_v259z15():
     assert '0) SAMP="--temperature 0 --top_p 1.0 --top_k 0";;' in src
     assert 'case $BENCH in gpqa) DS=Idavidrein__gpqa;; mmlupro1k) DS=TIGER-Lab__MMLU-Pro;; *) DS="";; esac' in src
     assert 'echo "WAIT_INPUTS $T: $DS not in (no .fetch_ok)"; exit 1' in src
+
+
+def test_setenv_pt32_max_hours_v259z40():   # [2.5.67] PROBE-T32's HOLD limit, set after the reviewer's yes
+    import control_rules as R
+    R.parse({"cmd": "setenv PT32_MAX_HOURS=30", "reason": "t"})
+    with pytest.raises(R.Reject):
+        R.parse({"cmd": "setenv PT32_MAX_HOUR=30", "reason": "t"})

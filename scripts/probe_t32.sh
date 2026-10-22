@@ -12,6 +12,12 @@
 #   3. report.json: the checks, steps 2-3 mean per timing segment (ref = the 32B forward), projected hours for 50 steps, peak; to
 #      logs/<node>/probe_t32/ (private), an event, .done
 # run_arm.sh starts E10d-P5-t32 only after a PASS. Usage: bash probe_t32.sh <gpu>
+# [v2.5.9z40] (ops-lead's A1 10-22; the first run failed at vLLM's start-up: 127.6 of 267.7 GiB free, below 0.5 x total) the smoke runs with
+# the rollout's share at 0.4 (run_arm.sh, T32 only); after an out of memory one more smoke with the actor's optimizer offloaded
+# (T32_OPT_OFFLOAD=1; the 32B reference is offloaded already), named in the report. report.json adds per step: seconds, rollout
+# throughput (response tokens / gen seconds), verl's peak allocated / reserved GiB (the training phases), and the rollout's pool
+# (share x the GPU's total) next to the nvidia-smi peak. Projected hours for 50 steps above PT32_MAX_HOURS (20): result HOLD, not
+# PASS, so the arm does not start: the reviewer decides first (then `setenv PT32_MAX_HOURS=<h>` and `rerun PROBE-T32`, or not).
 set -uo pipefail
 G=$1; source "$(dirname "$0")/env.sh"
 T=PROBE-T32; D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; mkdir -p $D
@@ -20,7 +26,7 @@ rm -f $D/mem.csv   # [v2.5.9z11] this run's memory samples only (a rerun keeps t
 step() { echo "PROBE_T32 $(date -u +%T) $*" | tee -a $LOG; }
 M=${TEACHER_32B:-$OPD_ROOT/models/Qwen3-32B}
 [ -f $M/.fetch_ok ] && [ -f $M/config.json ] || { echo "WAIT_INPUTS $T: Qwen3-32B not in (no .fetch_ok or config.json)"; exit 1; }
-finish() {   # $1 = PASS / FAIL, $2 = reason
+finish() {   # $1 = PASS / FAIL / HOLD ([v2.5.9z40]), $2 = reason
   python3 - "$D" "$1" "$2" <<'PY'
 import json, os, sys
 sys.path.insert(0, os.path.join(os.environ["RUNBOOK"], "scripts"))
@@ -42,6 +48,27 @@ r["mean_s2plus"] = {k: round(sum(s[k] for s in late if s.get(k) is not None) / m
                     for k in ("gen", "old_log_prob", "ref", "update_actor", "step")} if late else {}
 r["projected_hours_50"] = round(50 * r["mean_s2plus"]["step"] / 3600, 1) if r["mean_s2plus"].get("step") else None
 r["response_length"] = [s.get("response_length/mean") for s in st]
+# [v2.5.9z40] per step: seconds, rollout throughput, verl's peak memory; the rollout's pool; the escalation; the hold limit
+import re
+per = []
+for st_i, body in re.findall(r"(?:^|[ )\]])step:(\d+) - (.*)", text):
+    g = lambda k: (lambda m: float(m.group(1)) if m else None)(re.search(re.escape(k) + r":([-0-9.e]+)", body))
+    L, gen, n = g("response_length/mean"), g("timing_s/gen"), int(os.environ.get("PT32_ROWS", "128"))
+    per.append({"step": int(st_i), "step_s": g("timing_s/step"), "gen_s": gen, "ref_s": g("timing_s/ref"), "update_s": g("timing_s/update_actor"),
+                "rollout_tok_s": round(L * n / gen, 1) if L and gen else None, "max_alloc_gib": g("perf/max_memory_allocated_gb"),
+                "max_reserved_gib": g("perf/max_memory_reserved_gb")})
+r["per_step"] = per
+try:
+    tot = float(open(os.path.join(d, "gpu_total_mib")).read().strip())
+except (OSError, ValueError):
+    tot = None
+util = float(os.environ.get("T32_VLLM_UTIL", "0.4"))
+r["rollout"] = {"gpu_memory_utilization": util, "pool_gib": round(util * tot / 1024, 1) if tot else None, "gpu_total_gib": round(tot / 1024, 1) if tot else None}
+try:
+    r["escalation"] = open(os.path.join(d, "escalation.txt")).read().strip() or None
+except OSError:
+    r["escalation"] = None
+r["hold_limit_hours"] = float(os.environ.get("PT32_MAX_HOURS", "20"))
 p = os.path.join(d, "checks.json")
 if os.path.exists(p):
     r["checks"] = json.load(open(p))
@@ -60,11 +87,20 @@ done
 step "start gpu=$G teacher \$OPD_ROOT/models/$(basename $M)"
 ( while true; do echo "$(date -u +%s),$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $G | tr -d ' ')" >> $D/mem.csv; sleep 5; done ) &
 MP=$!; trap 'kill $MP 2> /dev/null' EXIT
-rm -rf $OPD_ROOT/runs/$T-smoke
-TEACHER_32B=$M SMOKE=1 SMOKE_STEPS=${PT32_STEPS:-3} PROBE_TASK=$T-smoke bash $RUNBOOK/scripts/run_arm.sh $G E10d-P5-t32 > $D/smoke.out 2>&1; rc=$?
+nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits -i $G 2> /dev/null | tr -d ' ' > $D/gpu_total_mib   # [v2.5.9z40]
+: > $D/escalation.txt
+smoke() {   # $1 = T32_OPT_OFFLOAD (0 / 1); the smoke's files to $D/smoke
+  rm -rf $OPD_ROOT/runs/$T-smoke $D/smoke
+  T32_OPT_OFFLOAD=$1 TEACHER_32B=$M SMOKE=1 SMOKE_STEPS=${PT32_STEPS:-3} PROBE_TASK=$T-smoke bash $RUNBOOK/scripts/run_arm.sh $G E10d-P5-t32 > $D/smoke.out 2>&1; rc=$?
+  mkdir -p $D/smoke; cp $OPD_ROOT/runs/$T-smoke/train.log $OPD_ROOT/runs/$T-smoke/config.yaml $OPD_ROOT/runs/$T-smoke/route.jsonl $D/smoke/ 2> /dev/null
+  python3 $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true
+}
+smoke 0
+if grep -q "CUDA out of memory\|OutOfMemoryError" $D/smoke/train.log $D/smoke.out 2> /dev/null; then   # [v2.5.9z40] one more, the optimizer offloaded
+  step "out of memory: a second smoke with the actor's optimizer offloaded"; echo "actor optimizer offloaded after an out of memory in the first smoke" > $D/escalation.txt
+  cp $D/smoke.out $D/smoke_first.out 2> /dev/null; smoke 1
+fi
 kill $MP 2> /dev/null
-mkdir -p $D/smoke; cp $OPD_ROOT/runs/$T-smoke/train.log $OPD_ROOT/runs/$T-smoke/config.yaml $OPD_ROOT/runs/$T-smoke/route.jsonl $D/smoke/ 2> /dev/null
-python3 $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true
 peak=$(cut -d, -f2 $D/mem.csv 2> /dev/null | sort -n | tail -1)
 [ $rc = 0 ] || finish FAIL "smoke exited $rc: $(tail -c 300 $D/smoke.out | tr '\n' ' ')"
 grep -q "CUDA out of memory\|OutOfMemoryError" $D/smoke/train.log 2> /dev/null && finish FAIL "out of memory in the smoke"
@@ -99,4 +135,15 @@ print("; ".join(why))
 PY
 )
 [ -z "$why" ] || finish FAIL "$why"
-finish PASS "${PT32_STEPS:-3}-step smoke ok, peak ${peak} MiB; ${PT32_ROWS:-128} teacher rows per step on the thinking template (one reference call a step)"
+# [v2.5.9z40] above PT32_MAX_HOURS projected for 50 steps: HOLD (the arm stays gated; the reviewer decides first)
+ph=$(python3 - "$D" <<'PY'
+import os, sys
+sys.path.insert(0, os.path.join(os.environ["RUNBOOK"], "scripts"))
+from speed_probe import steps_of
+st = [s for s in steps_of(open(os.path.join(sys.argv[1], "smoke", "train.log"), errors="ignore").read()) if s["i"] >= 2 and s.get("step")]
+print(round(50 * sum(s["step"] for s in st) / len(st) / 3600, 1) if st else "")
+PY
+)
+[ -n "$ph" ] && python3 -c "import sys; sys.exit(0 if float(sys.argv[1]) > float(sys.argv[2]) else 1)" $ph ${PT32_MAX_HOURS:-20} \
+  && finish HOLD "projected ${ph} h for 50 steps > ${PT32_MAX_HOURS:-20} h: the reviewer decides before E10d-P5-t32 runs (smoke ok, peak ${peak} MiB$([ -s $D/escalation.txt ] && echo '; optimizer offloaded'))"
+finish PASS "${PT32_STEPS:-3}-step smoke ok, peak ${peak} MiB; ${PT32_ROWS:-128} teacher rows per step on the thinking template (one reference call a step)$([ -s $D/escalation.txt ] && echo '; optimizer offloaded after an out of memory'); projected ${ph:-?} h"

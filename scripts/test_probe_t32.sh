@@ -12,16 +12,17 @@ setup() {
   : > $T/root/models/Qwen3-32B/config.json; : > $T/root/models/Qwen3-32B/.fetch_ok
   # a fake smoke: train.log (3 steps), config.yaml (teacher line as run_arm writes it), route.jsonl (one call per step)
   cat > $T/rb/scripts/run_arm.sh <<'SH'
-echo "run_arm $* SMOKE=$SMOKE STEPS=$SMOKE_STEPS TEACHER_32B=$TEACHER_32B PROBE_TASK=$PROBE_TASK" >> $CALLS
+echo "run_arm $* SMOKE=$SMOKE STEPS=$SMOKE_STEPS TEACHER_32B=$TEACHER_32B PROBE_TASK=$PROBE_TASK OPTOFF=${T32_OPT_OFFLOAD:-}" >> $CALLS
 d=$OPD_ROOT/runs/$PROBE_TASK; mkdir -p $d
 printf 'task: %s\nstudent: /m/Qwen3-4B (no_think)\nteacher: %s (ref; think-template=%s; param_offload=1); the 32B teacher (Qwen3-32B) on its thinking template, offloaded\n' $PROBE_TASK ${FAKE_TEACHER:-$TEACHER_32B} ${FAKE_THINK:-1} > $d/config.yaml
 for i in $(seq 1 $SMOKE_STEPS); do
-  echo "(TaskRunner pid=1) step:$i - critic/score/mean:0.5 - timing_s/gen:100 - timing_s/ref:90 - timing_s/update_actor:150 - timing_s/step:$([ $i = 1 ] && echo 600 || echo 360) - response_length/mean:3000" >> $d/train.log
+  echo "(TaskRunner pid=1) step:$i - critic/score/mean:0.5 - timing_s/gen:100 - timing_s/ref:90 - timing_s/update_actor:150 - timing_s/step:$([ $i = 1 ] && echo 600 || echo ${FAKE_STEP:-360}) - response_length/mean:3000 - perf/max_memory_allocated_gb:121.5 - perf/max_memory_reserved_gb:130.2" >> $d/train.log
   [ $i -le $(( SMOKE_STEPS - ${FAKE_FEWER_CALLS:-0} )) ] && echo "{\"call\": $i, \"mode\": \"count\", \"batch\": 128, \"rows\": ${FAKE_ROWS:-128}, \"think\": ${FAKE_ROWS:-128}, \"plain\": 0}" >> $d/route.jsonl
 done
-sleep ${FAKE_SLEEP:-0}; [ "${FAKE_OOM:-0}" = 1 ] && { echo "torch.OutOfMemoryError: CUDA out of memory" >> $d/train.log; exit 1; }; exit 0
+sleep ${FAKE_SLEEP:-0}; [ "${FAKE_OOM:-0}" = 1 ] && { echo "torch.OutOfMemoryError: CUDA out of memory" >> $d/train.log; exit 1; }
+[ "${FAKE_OOM_FIRST:-0}" = 1 ] && [ "${T32_OPT_OFFLOAD:-0}" != 1 ] && { echo "torch.OutOfMemoryError: CUDA out of memory" >> $d/train.log; exit 1; }; exit 0
 SH
-  printf '#!/usr/bin/env bash\necho ${FAKE_MEM:-150000}\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi
+  printf '#!/usr/bin/env bash\ncase "$*" in *memory.total*) echo 274877;; *) echo ${FAKE_MEM:-150000};; esac\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi
   export CALLS=$T/calls PATH=$T/bin:$PATH PT32_WAIT_STEP=0; : > $CALLS
 }
 res() { python3 -c "import json, sys; print(json.load(open(sys.argv[1])).get(sys.argv[2], ''))" $T/root/runs/PROBE-T32/report.json "$1"; }
@@ -64,5 +65,18 @@ ok "OOM is FAIL" '[ "$(res result)" = FAIL ] && grep -q "^control event PROBE-T3
 rm -rf $T
 setup; FAKE_MEM=500 FAKE_SLEEP=1 PT32_PEAK_MIB=100 bash $T/rb/scripts/probe_t32.sh 3 > /dev/null 2>&1
 ok "peak over the limit is FAIL" '[ "$(res result)" = FAIL ] && why | grep -q "peak"'
+rm -rf $T
+# 6. [v2.5.9z40] the report's new fields; an out of memory once: a second smoke with the optimizer offloaded; projected > 20 h: HOLD
+setup; FAKE_MEM=0 bash $T/rb/scripts/probe_t32.sh 3 > /dev/null 2>&1
+ok "[v2.5.9z40] per step: seconds, rollout tok/s (3000 x 128 / 100 s), verl peaks; the rollout pool 0.4 x 268.4 GiB; no escalation" 'python3 -c "import json, sys; r = json.load(open(sys.argv[1])); p = r[\"per_step\"]; assert [x[\"step_s\"] for x in p] == [600.0, 360.0, 360.0] and p[1][\"rollout_tok_s\"] == 3840.0 and p[0][\"max_alloc_gib\"] == 121.5 and p[0][\"max_reserved_gib\"] == 130.2, p; assert r[\"rollout\"] == {\"gpu_memory_utilization\": 0.4, \"pool_gib\": 107.4, \"gpu_total_gib\": 268.4}, r[\"rollout\"]; assert r[\"escalation\"] is None and r[\"hold_limit_hours\"] == 20.0 and r[\"result\"] == \"PASS\"" $T/root/runs/PROBE-T32/report.json && [ "$(grep -c "^run_arm" $CALLS)" = 1 ] && grep -q "OPTOFF=0$" $CALLS'
+rm -rf $T
+setup; FAKE_MEM=0 FAKE_OOM_FIRST=1 bash $T/rb/scripts/probe_t32.sh 3 > /dev/null 2>&1
+ok "[v2.5.9z40] an out of memory in the first smoke: a second one with T32_OPT_OFFLOAD=1, PASS, the escalation named" '[ "$(res result)" = PASS ] && [ "$(grep -c "^run_arm" $CALLS)" = 2 ] && grep -q "OPTOFF=1$" $CALLS && [[ "$(res escalation)" == *"optimizer offloaded"* ]] && [[ "$(res reason)" == *"optimizer offloaded after an out of memory"* ]]'
+rm -rf $T
+setup; FAKE_MEM=0 FAKE_STEP=1500 bash $T/rb/scripts/probe_t32.sh 3 > /dev/null 2>&1
+ok "[v2.5.9z40] projected 20.8 h > 20: HOLD (not PASS), event probe_t32_hold, .done (the arm stays gated)" '[ "$(res result)" = HOLD ] && [[ "$(why)" == *"projected 20.8 h for 50 steps > 20 h"* ]] && grep -q "^control event PROBE-T32 probe_t32_hold" $CALLS && [ -f $T/root/runs/PROBE-T32/.done ]'
+rm -rf $T
+setup; FAKE_MEM=0 FAKE_STEP=1500 PT32_MAX_HOURS=30 bash $T/rb/scripts/probe_t32.sh 3 > /dev/null 2>&1
+ok "[v2.5.9z40] PT32_MAX_HOURS=30 (the reviewer's yes): the same smoke PASSes" '[ "$(res result)" = PASS ]'
 rm -rf $T
 [ $fails = 0 ] && echo "PROBE_T32_TEST PASS ($n checks)" || echo "PROBE_T32_TEST FAIL ($fails of $n)"
