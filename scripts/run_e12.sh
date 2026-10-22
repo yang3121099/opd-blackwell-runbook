@@ -142,6 +142,7 @@ VALB=True; TESTF=25; [ $SM = 1 ] && { STEPS=${SMOKE_STEPS:-3}; SAVE=-1; VALB=Fal
 # upload_sync deleted every step not uploaded (E12b-P5-s43 lost s25 / s50 / s75 that way)
 UW=$STEPS; case $T in E12b-P5-s44|E12d-P5) UW=25,50,75,$STEPS;; E12b-P5-8k|E12b-P5-16k|E12b-P5-r3|E12b-P5-16k-kl) UW=25,$STEPS;; esac   # [v2.5.8h] the long limits: s25 too   # E12d-P5: the same across sizes (reviewer A1 08:0x UTC)
 [ $T = E12b-P5-8k-s44 ] && UW=25,$STEPS   # [v2.5.9z41] as the 8K arm: s25 too
+[ $T = E12d-P5-8k ] && UW=25,$STEPS   # [v2.5.9z60] (Q-066) as the 8K arm: s25 and s50 up
 # [v2.5.8b] the variant's settings (KL loss and its reference; the reward function)
 KL="actor_rollout_ref.actor.use_kl_loss=False"; REWARD=$RUNBOOK/code/train/reward_mathverify.py
 # [v2.5.8c] stop: the stop reward, counting the student's tokens (its start's tokenizer) against the 4K response limit

@@ -1294,3 +1294,13 @@ def test_run_and_rerun_accept_v259z47(env):   # [v2.5.9z47] E10b-P5mix60 (rules 
         assert env.c.v_run([t], 160 + i)[0] == "rejected", t
     R.parse({"cmd": "rerun E10b-P5mix60", "reason": "t"})
     assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 73)
+
+
+def test_e12d_p5_8k_run_and_rerun_accepted():   # [v2.5.9z60] (ops-lead's A1 condition: Runming is away 10-23, a night failure must be rerunnable)
+    import re
+    for c in ("rerun E12d-P5-8k", "run E12d-P5-8k"):
+        R.parse({"cmd": c, "reason": "t"})
+    assert re.search(r"E12\[cd\]-\[A-Za-z0-9\._-\]\+", open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "control_rules.py")).read())
+    src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "task.sh")).read()
+    assert src.index("  E12d-P5-8k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;") < src.index("  E12d-*)")
+

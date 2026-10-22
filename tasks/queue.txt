@@ -124,6 +124,7 @@ b259z41o open   EVAL-ood32k-17base EVAL-ood32k-4Bbase EVAL-ood32k-17p5self:EVAL-
 b259z43p open   PROBE-PROG
 b259z43  open   E12b-P5-prog:PROBE-PROG E12b-P5-prog-up:PROBE-PROG+PROBE-E12B-8K EVAL-budA-p5s44rl-s25:PROBE-PROG EVAL-e12b-P5-prog:E12b-P5-prog EVAL-e12b-P5-prog-up:E12b-P5-prog-up EVAL-budA-e12bP5-prog:E12b-P5-prog EVAL-budA-e12bP5-prog-up:E12b-P5-prog-up+EVAL-budA-p5s44rl-s25 EVAL-ext32k-17prog:E12b-P5-prog+EVAL-ext32k-17p5l8k-s25 EVAL-ext32k-17prog-up:E12b-P5-prog-up
 diff4b   open   PROBE-DIFF17-4B:PROBE-DIFF17
+b259z60  open   E12d-P5-8k:PROBE-E12B-8K EVAL-e12d-P5-8k:E12d-P5-8k EVAL-budA-e12dP5-8k:E12d-P5-8k EVAL-ext32k-4Bp5l8k:E12d-P5-8k
 b259q028 open   EVAL-ext32k-17p5l8k-s25
 b259z15  open   EVAL-gm-17base EVAL-gm-17think EVAL-gm-17P5 EVAL-gm-17P5self EVAL-gm-17P5rl EVAL-gm-17P5kl EVAL-gm-17P5l8k EVAL-gm-4Bbase EVAL-gm-4Bthink EVAL-gm-4BP5 EVAL-gm-4BP5self EVAL-gm-4BP5rl EVAL-gm-4BX4 EVAL-gm-4Bi2507 EVAL-gm-06base EVAL-gm-06think EVAL-gm-06P5 EVAL-gm-06P5rl
 # [v2.5.9z32] (Runming 10-22 14:3x Beijing via ops-lead: every re-rank is an update; the needed work loses its padding tag and moves up)
@@ -2367,3 +2368,30 @@ b259z24  open   TOKCHECK-X5
 #pair EVAL-ext-17mix90 ext_P5mix90_s50_minervamath_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_minervamath_T0.6_minervamath_no_think_t0.6.jsonl EVAL-ext-E10b-P5self/ext_E10bP5self_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
 #eval EVAL-ext-17mix90 ext_P5mix90_s50_olympiadbench_T0.6 result:runs/E10b-P5mix90/global_step_50/actor/huggingface olympiadbench 4 0.6
 #pair EVAL-ext-17mix90 ext_P5mix90_s50_olympiadbench_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl EVAL-ext-E10b-P5self/ext_E10bP5self_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
+
+# [v2.5.9z60] Q-066 (Fable 10-22 20:3x Beijing, research_program Q-066; for Runming's day out 10-23, after Q-058 and before Q-059):
+# E12d-P5-8k = E12d-P5's recipe (4B, from E10d-P5 s150) with the response limit 4K -> 8K (the 8K arm's settings: flash-attn and
+# remove-padding in venv-fa, the token budget at least prompt + response), 50 steps, s25 / s50 up; gated by PROBE-E12B-8K. H1 s25
+# AIME24/25 32K each >= -2 vs the start; H2 s25 mean length compressed >= 1.3x; H3 s25 / s50 MATH-500 16K >= 92.30; H4 s50 AIME24
+# loss vs the start <= 7 (half of 4K's -14.58). Readings: MATH-500 16K at s25 / s50 paired with the start and E12d-P5 s100; the 32K
+# budget curves vs the start, the base and E12d-P5 s100; AIME24/25 32K avg@16 (pass@k in the metrics) at s25 / s50; TERM4-4B at s50
+# (held until the arm has s50: the row and its '#after EVAL-e12d-P5-8k rerun PROBE-TERM4-4B' line restored together, in one push).
+#eval EVAL-e12d-P5-8k e12d_P5-8k_s25_math500_T0.6 result:runs/E12d-P5-8k/global_step_25/actor/huggingface math500 4 0.6
+#eval EVAL-e12d-P5-8k e12d_P5-8k_s50_math500_T0.6 result:runs/E12d-P5-8k/global_step_50/actor/huggingface math500 4 0.6
+#pair EVAL-e12d-P5-8k e12d_P5-8k_s25_math500_T0.6 EVAL-e10d-P5/e10d_P5_s150_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e12d-P5/e12d_P5_s100_math500_T0.6_math500_no_think_t0.6.jsonl
+#pair EVAL-e12d-P5-8k e12d_P5-8k_s50_math500_T0.6 EVAL-e10d-P5/e10d_P5_s150_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e12d-P5/e12d_P5_s100_math500_T0.6_math500_no_think_t0.6.jsonl
+#eval EVAL-budA-e12dP5-8k budAe12dP5-8k_s25_math500_T0.6_32k result:runs/E12d-P5-8k/global_step_25/actor/huggingface math500 4 0.6 32768
+#eval EVAL-budA-e12dP5-8k budAe12dP5-8k_s50_math500_T0.6_32k result:runs/E12d-P5-8k/global_step_50/actor/huggingface math500 4 0.6 32768
+#budget EVAL-budA-e12dP5-8k budget_curve_vsStart EVAL-budA-4B/budA4B_E10dP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12dP5-8k_s25_math500_T0.6_32k budAe12dP5-8k_s50_math500_T0.6_32k
+#budget EVAL-budA-e12dP5-8k budget_curve EVAL-budA-4B/budA4B_base4B_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12dP5-8k_s25_math500_T0.6_32k budAe12dP5-8k_s50_math500_T0.6_32k
+#budget EVAL-budA-e12dP5-8k budget_curve_vs4K EVAL-budA-e12dP5rl-b/budAe12dP5rl_s100_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12dP5-8k_s25_math500_T0.6_32k budAe12dP5-8k_s50_math500_T0.6_32k
+#eval EVAL-ext32k-4Bp5l8k ext32k4B_E12dP5l8k_s25_aime24_T0.6 result:runs/E12d-P5-8k/global_step_25/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-4Bp5l8k ext32k4B_E12dP5l8k_s25_aime25_T0.6 result:runs/E12d-P5-8k/global_step_25/actor/huggingface aime25 16 0.6 32768
+#eval EVAL-ext32k-4Bp5l8k ext32k4B_E12dP5l8k_s50_aime24_T0.6 result:runs/E12d-P5-8k/global_step_50/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-4Bp5l8k ext32k4B_E12dP5l8k_s50_aime25_T0.6 result:runs/E12d-P5-8k/global_step_50/actor/huggingface aime25 16 0.6 32768
+#pair EVAL-ext32k-4Bp5l8k ext32k4B_E12dP5l8k_s25_aime24_T0.6 EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4Brl/ext32k4B_E12dP5_s100_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#pair EVAL-ext32k-4Bp5l8k ext32k4B_E12dP5l8k_s25_aime25_T0.6 EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Brl/ext32k4B_E12dP5_s100_aime25_T0.6_aime25_no_think_t0.6.jsonl
+#pair EVAL-ext32k-4Bp5l8k ext32k4B_E12dP5l8k_s50_aime24_T0.6 EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4Brl/ext32k4B_E12dP5_s100_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#pair EVAL-ext32k-4Bp5l8k ext32k4B_E12dP5l8k_s50_aime25_T0.6 EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Brl/ext32k4B_E12dP5_s100_aime25_T0.6_aime25_no_think_t0.6.jsonl
+# [held until E12d-P5-8k has s50] term PROBE-TERM4-4B 4B_P5l8k result:runs/E12d-P5-8k/global_step_50/actor/huggingface EVAL-e12d-P5-8k/e12d_P5-8k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+# [held until E12d-P5-8k has s50; restored together with the term row above] after EVAL-e12d-P5-8k rerun PROBE-TERM4-4B

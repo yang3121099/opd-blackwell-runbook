@@ -124,6 +124,9 @@ ok "[v2.5.8h] 16k config: the limit, 16K in algo, a dynamic budget of 17408 what
 ok "[v2.5.8h] 8k: 8192, budget 9216 (SDPA stub; 16384 with flash-attn), E12b-P5 keeps 4096" '[[ "$l3" == "DRYRUN E12b-P5-8k start=$S5 steps=50 "*"var=8k "* ]] && grep -q "^max_response_length: 8192$" $C8 && grep -q "ppo_max_token_len_per_gpu=9216" $C8 && grep -q "^max_response_length: 4096$" $T/base/root/runs/E12b-P5/config.yaml && grep -q "^algo: GRPO 64x8, 4K," $T/base/root/runs/E12b-P5/config.yaml'
 l4=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P5-8k-s44 2>&1 | tail -1)
 ok "[v2.5.9z41] E12b-P5-8k-s44: the 8K arm (8192, 50 steps, venv-fa, s25 / s50, gate PROBE-E12B-8K) from E10b-P5-s44 s150" '[[ "$l4" == "DRYRUN E12b-P5-8k-s44 start=$T/base/root/runs/E10b-P5-s44/ckpt/global_step_150/actor/huggingface_bf16 steps=50 "*"venv=venv-fa "*"upload=25,50 "*"var=8k "* ]] && grep -q "^max_response_length: 8192$" $T/base/root/runs/E12b-P5-8k-s44/config.yaml'
+mkdir -p $T/base/root/runs/E10d-P5/ckpt/global_step_150/actor/huggingface_bf16; : > $T/base/root/runs/E10d-P5/ckpt/global_step_150/actor/huggingface_bf16/model.safetensors
+l5=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12d-P5-8k 2>&1 | tail -1)
+ok "[v2.5.9z60] (Q-066) E12d-P5-8k: E12d-P5 (4B, from E10d-P5 s150) at 8192, 50 steps, venv-fa, vLLM 0.5, s25 / s50 up" '[[ "$l5" == "DRYRUN E12d-P5-8k start=$T/base/root/runs/E10d-P5/ckpt/global_step_150/actor/huggingface_bf16 steps=50 "*"venv=venv-fa "*"upload=25,50 vllm=0.5 var=8k "* ]] && grep -q "^max_response_length: 8192$" $T/base/root/runs/E12d-P5-8k/config.yaml'
 ok "[v2.5.8h] the command takes the limit and vLLM batching" 'grep -q "data.max_response_length=\$MAXR " $SRC/scripts/run_e12.sh && grep -q "rollout.max_num_batched_tokens=\$VBT " $SRC/scripts/run_e12.sh'
 # [v2.5.8c] E12b-P5-stop: refused before PROBE-E12B-STOP passed; then E12b-P5's path with the stop reward (no KL)
 t1=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P5-stop 2>&1 | tail -1)
