@@ -381,6 +381,22 @@ rm -f $T/root/logs/heartbeat.err; fp; fp; fp
 ok "[v2.5.9e] a dataset to data/hf/<owner>__<name> with --dataset and a 6 h cap, then the VL model; a bad id ignored" 'grep -q "^fetch BytedTsinghua-SIA/DAPO-Math-17k  $T/root/data/hf/BytedTsinghua-SIA__DAPO-Math-17k --dataset --task FETCH-BytedTsinghua-SIA__DAPO-Math-17k T=21600$" $CALLS && grep -q "^fetch Qwen/Qwen3-VL-2B-Instruct  $T/root/models/Qwen3-VL-2B-Instruct --task FETCH-Qwen3-VL-2B-Instruct T=21600$" $CALLS && [ "$(grep -c ^fetch $CALLS)" = 2 ] && ! grep -q bad $CALLS'
 ok "[v2.5.9e] background pulls are niced" 'grep -q "nice -n 19 \$io python \$RUNBOOK/scripts/fetch_model.py" $SRC/scripts/run_tasks.sh && grep -q "^fetch_progress() {" $SRC/scripts/run_tasks.sh'
 rm -rf $T
+# 3c3. [v2.5.9z24] fetch_pass: Q-057's two model families to models/<name>; other owners and names still skipped; up to PREFETCH_PAR
+#      (default 3) pulls at once, each name once; the next one after a pull ends
+T=$(mktemp -d); mkdir -p $T/rb/scripts $T/root/logs $T/root/control $T/bin
+printf 'import sys, os, time; open(os.environ["CALLS"], "a").write("fetch " + " ".join(sys.argv[1:]) + "\\n"); time.sleep(float(os.environ.get("HOLD", "0"))); os.makedirs(sys.argv[3], exist_ok=True); open(os.path.join(sys.argv[3], ".fetch_ok"), "w").write("ok")\n' > $T/rb/scripts/fetch_model.py
+printf 'version: 2\n#fetch Qwen/Qwen2.5-Math-1.5B-Instruct\n#fetch deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B\n#fetch Qwen/Qwen2.5-Math-1.5B\n#fetch Qwen/Qwen3-8B\n#fetch deepseek-ai/DeepSeek-V3\n#fetch deepseek-ai/DeepSeek-R1-Distill-Llama-8B\n#fetch Qwen/Qwen2.5-7B-Instruct\n#fetch evil/Qwen2.5-Math-1.5B\n#fetch Qwen/Qwen2.5-Math-1.5B-Instruct;x\n#fetch Qwen/Qwen2.5-Math-7B-Base\n' > $T/q.txt
+export CALLS=$T/calls; : > $CALLS
+printf '#!/usr/bin/env bash\nexec "$@"\n' > $T/bin/setsid; printf '#!/usr/bin/env bash\nexec python3 "$@"\n' > $T/bin/python; chmod +x $T/bin/setsid $T/bin/python
+fp3() { ( PATH=$T/bin:$PATH OPD_ROOT=$T/root RUNBOOK=$T/rb Q=$T/q.txt CDIR=$T/root/control; eval "$(sed -n '/^fetch_pass() {/,/^  done; }$/p' $SRC/scripts/run_tasks.sh)"; fetch_progress() { :; }; fetch_pass ); }
+export HOLD=4; fp3; sleep 1; fp3; sleep 0.5
+ok "[v2.5.9z24] 3 pulls at once: Qwen2.5-Math-1.5B-Instruct, DeepSeek-R1-Distill-Qwen-1.5B, Qwen2.5-Math-1.5B to models/<name>, none twice" '[ "$(grep -c "^fetch " $CALLS)" = 3 ] && grep -q "^fetch Qwen/Qwen2.5-Math-1.5B-Instruct  $T/root/models/Qwen2.5-Math-1.5B-Instruct --task FETCH-Qwen2.5-Math-1.5B-Instruct$" $CALLS && grep -q "^fetch deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B  $T/root/models/DeepSeek-R1-Distill-Qwen-1.5B --task FETCH-DeepSeek-R1-Distill-Qwen-1.5B$" $CALLS && grep -q "^fetch Qwen/Qwen2.5-Math-1.5B  $T/root/models/Qwen2.5-Math-1.5B --task FETCH-Qwen2.5-Math-1.5B$" $CALLS'
+sleep 4.5; export HOLD=0; fp3; sleep 1.5
+ok "[v2.5.9z24] after they end the 4th (Qwen3-8B); other owners / names never (DeepSeek-V3, Llama distill, Qwen2.5-7B, evil/, ;x, -Base)" '[ "$(grep -c "^fetch " $CALLS)" = 4 ] && grep -q "^fetch Qwen/Qwen3-8B " $CALLS && ! grep -qE "DeepSeek-V3|Llama|Qwen2\.5-7B|evil|;x|Base" $CALLS && [ ! -e $T/root/models/DeepSeek-V3 ]'
+rm -rf $T/root/models; : > $CALLS; export HOLD=3 PREFETCH_PAR=1; fp3; sleep 0.5; fp3; sleep 0.5
+ok "[v2.5.9z24] PREFETCH_PAR=1: one pull at a time" '[ "$(grep -c "^fetch " $CALLS)" = 1 ]'
+sleep 3; unset HOLD PREFETCH_PAR
+rm -rf $T
 # 3d. v2.5.7za heartbeat hb_to(): a timed-out upload (exit 124) is logged and sent as an event, the loop goes on; others pass through
 T=$(mktemp -d); mkdir -p $T/rb/scripts $T/root/logs $T/bin
 printf '#!/usr/bin/env bash\necho "timeout $*" >> %s; [ "$1" = -k ] && shift 2; shift; [ "$3" = hang ] && exit 124; "$@"\n' $T/targs > $T/bin/timeout; chmod +x $T/bin/timeout

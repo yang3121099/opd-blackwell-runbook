@@ -107,7 +107,7 @@ dead() { [ "$(attempts $1)" -ge 3 ]; }
 running() { pgrep -f "task.sh ([0-9]+(,[0-9]+)*|cpu) $1\$" >/dev/null; }   # [v2.5.8] cpu: a CPU-lane task; [v2.5.9a] a,b: a #gpus task
 # [v2.5.8] (reviewer 08:5x UTC 10-19: CPU phases without a GPU slot) CPU-only tasks run in a lane of their own, "gpu" cpu,
 # at most CPU_MAX (default 1) at once; STRICT-C1 held a GPU slot for its rejudge (and three on its failed attempts)
-cpu_task() { case $1 in STRICT-C1|PROBE-NET|PROBE-NET2|BUILD-VENV-VL|READINGS-EXTRA|PROBE-STOPMERGE-UNIT|PROBE-WDIFF) return 0;; esac; return 1; }   # [v2.5.9c] PROBE-NET; [v2.5.9h] PROBE-NET2; [v2.5.9y1] BUILD-VENV-VL; [v2.5.9x1] READINGS-EXTRA; [v2.5.9z6] PROBE-STOPMERGE-UNIT; [v2.5.9z18] PROBE-WDIFF
+cpu_task() { case $1 in STRICT-C1|PROBE-NET|PROBE-NET2|BUILD-VENV-VL|READINGS-EXTRA|PROBE-STOPMERGE-UNIT|PROBE-WDIFF|TOKCHECK-X5) return 0;; esac; return 1; }   # [v2.5.9c] PROBE-NET; [v2.5.9h] PROBE-NET2; [v2.5.9y1] BUILD-VENV-VL; [v2.5.9x1] READINGS-EXTRA; [v2.5.9z6] PROBE-STOPMERGE-UNIT; [v2.5.9z18] PROBE-WDIFF; [v2.5.9z24] TOKCHECK-X5
 cpu_busy() { [ "$(pgrep -f "task.sh cpu [A-Za-z0-9._-]+\$" | wc -l | tr -d ' ')" -ge "${CPU_MAX:-1}" ]; }
 free_gpus() { for i in $(seq 0 $((NGPU-1))); do
     # v2.5.4d: a GPU given to a task stays taken while its task.sh / ad-hoc evaluation runs, also before the task touches it
@@ -192,18 +192,25 @@ net2_unfreeze() {   # [v2.5.9i] (ops-lead's A1 of 9h) the slow pull a PROBE-NET2
 # v2.5.7w (reviewer 08:5x UTC): "#fetch Qwen/Qwen3-<n>B" lines of the queue = a model fetched to $OPD_ROOT/models/<name> in the
 # background, without a GPU (fetch_model.py: every file by size and sha256, .fetch_ok, events fetch_done / fetch_failed);
 # one model at a time, a failure retried after 30 min
+# [v2.5.9z24] (ops-lead 10-22, Q-057's urgent pulls) up to PREFETCH_PAR (default 3) #fetch pulls at once, each name once (was: one at a
+# time); the readings' prefetches above have their own count under the same cap. Models: Qwen3 (text, VL) and, for Q-057's X5 arm,
+# Qwen/Qwen2.5-Math-<n>B(-Instruct) and deepseek-ai/DeepSeek-R1-Distill-Qwen-<n>B (to models/<name>); any other owner or name is skipped
 fetch_pass() {
-  pgrep -f "fetch_model\.py .* --task FETCH-" > /dev/null && { fetch_progress; return; }
+  local n; n=$(ps -eo args= | grep -o "fetch_model\.py .* --task FETCH-[A-Za-z0-9._-]*" | sed 's/.*--task //' | sort -u | wc -l | tr -d ' ')   # [v2.5.9z24] distinct pulls
+  [ "${n:-0}" -gt 0 ] && fetch_progress
   # [v2.5.9e] no new pull while result uploads are timing out (the node's proxy is shared; results go first)
   [ -n "$(find $OPD_ROOT/logs/heartbeat.err -mmin -60 2> /dev/null)" ] && tail -20 $OPD_ROOT/logs/heartbeat.err | grep -q UPLOAD_TIMEOUT && return
   local m d r ds nm io
   for m in $(awk '$1 == "#fetch" {print $2}' "$Q"); do
+    [ "${n:-0}" -ge "${PREFETCH_PAR:-3}" ] && return   # [v2.5.9z24]
     case $m in   # [v2.5.9e] Qwen3 text and VL models, and datasets (dataset:<owner>/<name> -> data/hf/<owner>__<name>)
-      Qwen/*) [[ $m =~ ^Qwen/Qwen3-(VL-)?[0-9.]+B(-Instruct|-Thinking)?(-[0-9]{4})?$ ]] || continue; r=$m; d=$OPD_ROOT/models/${m#Qwen/}; ds=""; nm=${m#Qwen/};;
+      Qwen/*|deepseek-ai/*) [[ $m =~ ^Qwen/Qwen3-(VL-)?[0-9.]+B(-Instruct|-Thinking)?(-[0-9]{4})?$ || $m =~ ^Qwen/Qwen2\.5-Math-[0-9.]+B(-Instruct)?$ || $m =~ ^deepseek-ai/DeepSeek-R1-Distill-Qwen-[0-9.]+B$ ]] || continue
+        r=$m; nm=${m#*/}; d=$OPD_ROOT/models/$nm; ds="";;   # [v2.5.9z24] the two Q-057 families
       dataset:*) r=${m#dataset:}; [[ $r =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || continue; d=$OPD_ROOT/data/hf/${r/\//__}; ds=--dataset; nm=${r/\//__};;
       *) continue;;
     esac
     [ -f $d/.fetch_ok ] && continue
+    pgrep -f "fetch_model\.py .* --task FETCH-${nm//./\\.}( |\$)" > /dev/null && continue   # [v2.5.9z24] already being pulled
     [ -n "$(find $d.fetch_fail -mmin -${FETCH_RETRY_MIN:-10} 2>/dev/null)" ] && continue
     mkdir -p $(dirname $d) $OPD_ROOT/logs
     # [v2.5.9e] slow background pulls (0.03-0.05 MB/s through the proxy, PROBE-NET 10-21): niced, idle I/O class, each call
@@ -211,18 +218,18 @@ fetch_pass() {
     io=""; command -v ionice > /dev/null && io="ionice -c3"
     setsid nohup bash -c "FETCH_TIMEOUT=${FETCH_TIMEOUT_BG:-21600} FETCH_PARALLEL=${FETCH_PARALLEL_BG:-1} nice -n 19 $io python $RUNBOOK/scripts/fetch_model.py $r '' $d $ds --task FETCH-$nm >> $OPD_ROOT/logs/fetch_$nm.log 2>&1 && rm -f $d.fetch_fail || touch $d.fetch_fail" < /dev/null > /dev/null 2>&1 &
     date +%s > ${CDIR:-$OPD_ROOT/control}/fetch_progress.t
-    return
+    n=$((n + 1))   # [v2.5.9z24] (was: return)
   done; }
 # [v2.5.9e] while a pull runs: once an hour an event fetch_progress with the MB already on disk (its directory, partial
 # downloads included)
 fetch_progress() {
-  local c=${CDIR:-$OPD_ROOT/control} last p a d; last=$(cat $c/fetch_progress.t 2> /dev/null || echo 0)
+  local c=${CDIR:-$OPD_ROOT/control} last p a d seen=""; last=$(cat $c/fetch_progress.t 2> /dev/null || echo 0)
   [ $(( $(date +%s) - last )) -ge ${FETCH_PROGRESS_SEC:-3600} ] || return
   date +%s > $c/fetch_progress.t
   for p in $(pgrep -f "fetch_model\.py .* --task FETCH-"); do
     a=$(tr '\0' ' ' < /proc/$p/cmdline 2> /dev/null); d=$(echo "$a" | grep -oE "$OPD_ROOT/(models|data/hf)/[A-Za-z0-9._-]+" | head -1); [ -n "$d" ] || continue
+    case " $seen " in *" $d "*) continue;; esac; seen="$seen $d"   # [v2.5.9z24] one event per pull (was: the first pull only)
     python $RUNBOOK/scripts/control.py event FETCH-$(basename $d) fetch_progress "$(du -sm $d 2> /dev/null | cut -f1) MB on disk" > /dev/null 2>&1 &
-    break
   done; }
 # [v2.5.9c] (reviewer 10-21; Runming: "is ToolRL passed over too?") "#git <owner>/<repo> <40-hex commit>" lines of the queue = a
 # public GitHub repository at that commit onto $OPD_ROOT/data/git/<owner>__<repo> (git_fetch.sh: shallow, the commit

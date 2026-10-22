@@ -114,6 +114,7 @@ b259ip   open   PROBE-ROLLOUT-U60 PROBE-ROLLOUT-U85 PROBE-ROLLOUT-U75
 night2   open   EVAL-ext-17s44mid EVAL-ext-4Bmid EVAL-budA-17p2seeds
 fill14   open   EVAL-ext-4Bmid25 EVAL-ext-4Bmid75 EVAL-ext-17s44mid75 EVAL-budA-e12bP13 EVAL-ext-17p5l8k:E12b-P5-8k EVAL-ext-17stop2:E12b-P5-stop2 EVAL-ext-17p5l16k:E12b-P5-16k
 olpd     open   EVAL-ext32k-17olpd
+b259z24  open   TOKCHECK-X5
 # [v2.5.9m] padding stages (ops-lead, Runming 10-21 21:2x Beijing): dispatched after every other stage, each group in file order;
 # every later fill list gets a #pad line too (a #pad line holds stage names only)
 #pad night1 night2 fill14 olpd diff4b rx
@@ -1397,6 +1398,12 @@ olpd     open   EVAL-ext32k-17olpd
 # (4.3 GB, ~1-1.5 days), one at a time, niced; ClawEnvKit (MIT) code at a fixed commit, file list only
 # [v2.5.9q] (Fable 10-21 22:5x Beijing, ops-lead): the pulls in this order, one at a time; large files only at night (22:00-08:00
 # Beijing), in parallel segments (FETCH_PARALLEL); Qwen3-32B after VL-8B is in (the second-tier teacher-scale probe, not urgent)
+# [v2.5.9z24] (ops-lead 10-22 03:3x UTC; Fable's Q-057: OPD of a student without a thinking mode, Runming's idea) urgent, first among the
+# pulls, three at once (PREFETCH_PAR 3, each at the usual connection count): the student, the teacher, the base for reference (~3 GB
+# each); TOKCHECK-X5 (the CPU lane) reads their vocab / special tokens / chat template once all three are in
+#fetch Qwen/Qwen2.5-Math-1.5B-Instruct
+#fetch deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B
+#fetch Qwen/Qwen2.5-Math-1.5B
 #fetch Qwen/Qwen3-VL-8B-Thinking
 #fetch Qwen/Qwen3-VL-2B-Instruct
 # 10-22 01:2x Beijing (Fable's Q-051, ops-lead): Geometry3K (verl's example set, ~100 MB, open licence) before Qwen3-32B, for PROBE-VLM / E15-VLM

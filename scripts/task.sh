@@ -56,6 +56,7 @@ case $T in
   PROBE-STOPMERGE) bash $RUNBOOK/scripts/probe_stopmerge.sh $G;;   # [v2.5.9l] (Q-038): the gate of E10b-P5stopmerge
   PROBE-WDIFF) bash $RUNBOOK/scripts/probe_wdiff.sh cpu;;   # [v2.5.9z18] (Q-031): per-layer weight differences of five 4B models vs Qwen3-4B (the CPU lane)
   PROBE-STOPMERGE-UNIT) PSM_UNIT_ONLY=1 bash $RUNBOOK/scripts/probe_stopmerge.sh cpu;;   # [v2.5.9z6] its unit tests + the installed hooks' guards only (the CPU lane)
+  TOKCHECK-X5) bash $RUNBOOK/scripts/tok_check.sh;;   # [v2.5.9z24] (ops-lead, Q-057): vocab / special tokens / chat template of the X5 trio once pulled (the CPU lane)
   PROBE-TAIL) bash $RUNBOOK/scripts/probe_tail.sh $G;;   # [v2.5.9n] (T4): the gate of E10b-P5tail
   PROBE-POLISH) bash $RUNBOOK/scripts/probe_polish.sh $G;;   # [v2.5.9u] (T2): the gate of E10c-P5-polish
   PROBE-DIFF17) bash $RUNBOOK/scripts/probe_diff17.sh $G;;   # [v2.5.9x] (Q-041) difficulty labels, the 1.7B base
