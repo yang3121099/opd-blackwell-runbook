@@ -4,8 +4,9 @@
 # teacher Qwen3-VL-4B-Thinking ([v2.5.9z28]: was 8B-Thinking, whose vision head_dim 72 this flash-attn build refuses; a recorded
 # deviation of Q-051) scoring on its thinking template. The teacher reads the student's own image-expanded prompt ids +
 # '<think>\n' + the response (code/patches/opd_vlmref.py through vlmref_patch.py, OPD_VLM_REF=1): G-OPD's text re-tokenization would
-# drop the image. Data: Geometry3K train (data/geo3k_train.parquet, made by code/train/prep_geo3k.py from the node's copy when
-# missing), validation on its validation split every 25 steps; 128 prompts x 1 rollout a step, 4096-token responses, prompts up to
+# drop the image. Data ([v2.5.9z33], the reviewer's revision 10-22, Runming: the mainstream setting): MMK12 train
+# (data/mmk12_train.parquet, made by code/train/prep_mmk12.py from the node's copy when missing), validation every 25 steps on 300
+# rows of MMK12 test (data/mmk12_val.parquet); a smoke (SMOKE=1) stays on Geometry3K (geo3k_train, prep_geo3k.py); 128 prompts x 1 rollout a step, 4096-token responses, prompts up to
 # 2048 tokens (the image's tokens included), the maths reward (the last \boxed{} under Math-Verify). 50 steps, s25 / s50 uploaded.
 # Starts only after PROBE-VLM passed (the smoke itself is exempt). SMOKE=1 SMOKE_STEPS=n PROBE_TASK=<name>: n steps in runs/<name>,
 # no checkpoint, upload or validation. Usage: bash run_vlm.sh <gpu> E15-VLM-P5
@@ -19,7 +20,8 @@ NAME=$TASK; [ "${SMOKE:-0}" = 1 ] && NAME=${PROBE_TASK:-smoke-$TASK}
 OUT=$OPD_ROOT/runs/$NAME; mkdir -p $OUT
 [ -f $OUT/.done ] && { echo "TASK_ALREADY_DONE $NAME"; exit 0; }
 STUDENT=${VL_STUDENT:-$OPD_ROOT/models/Qwen3-VL-2B-Instruct}; TEACHER=${VL_TEACHER:-$OPD_ROOT/models/Qwen3-VL-4B-Thinking}   # [v2.5.9z28]
-V=${VENV_VL:-$OPD_ROOT/venv-vl}; TRAIN=$OPD_ROOT/data/geo3k_train.parquet; VAL=$OPD_ROOT/data/geo3k_validation.parquet
+V=${VENV_VL:-$OPD_ROOT/venv-vl}; TRAIN=$OPD_ROOT/data/mmk12_train.parquet; VAL=$OPD_ROOT/data/mmk12_val.parquet   # [v2.5.9z33] MMK12
+[ "${SMOKE:-0}" = 1 ] && { TRAIN=$OPD_ROOT/data/geo3k_train.parquet; VAL=$OPD_ROOT/data/geo3k_validation.parquet; }   # [v2.5.9z33] the smoke on Geometry3K
 NSTEPS=${VLM_STEPS:-50}; TBS=${VLM_TBS:-128}; MAXP=2048; MAXR=4096; SAVE=25; UW=25,$NSTEPS; VALB=True; TESTF=25
 [ "${SMOKE:-0}" = 1 ] && { NSTEPS=${SMOKE_STEPS:-1}; SAVE=-1; VALB=False; TESTF=-1; }
 # [v2.5.9z1] the teacher's suffix PROBE-VLM chose (check_b.json): think = '<think>\n' (P5), empty = '<think>\n\n</think>\n\n' (variant P5e,
@@ -31,8 +33,11 @@ export OPD_VLM_REF=1 OPD_VLM_REF_SUFFIX=${OPD_VLM_REF_SUFFIX:-$SUFTXT} OPD_VARIA
 for f in $STUDENT $TEACHER; do [ -f $f/.fetch_ok ] || { echo "MODEL_MISSING $(basename $f)"; exit 2; }; done
 [ -x $V/bin/python ] || { echo "no venv-vl"; exit 2; }
 source $V/bin/activate
-if [ ! -f $TRAIN ]; then python $RUNBOOK/code/train/prep_geo3k.py $OPD_ROOT/data/hf/hiyouga__geometry3k $OPD_ROOT/data || { echo "PREP_GEO3K_FAILED"; exit 2; }; fi
-[ -f $VAL ] || VAL=$OPD_ROOT/data/geo3k_test.parquet
+if [ ! -f $TRAIN ]; then case $TRAIN in
+  */mmk12_train.parquet) python $RUNBOOK/code/train/prep_mmk12.py $OPD_ROOT/data/hf/FanqingM__MMK12 $OPD_ROOT/data || { echo "PREP_MMK12_FAILED"; exit 2; };;   # [v2.5.9z33]
+  *) python $RUNBOOK/code/train/prep_geo3k.py $OPD_ROOT/data/hf/hiyouga__geometry3k $OPD_ROOT/data || { echo "PREP_GEO3K_FAILED"; exit 2; };;
+esac; fi
+case $TRAIN in */geo3k_train.parquet) [ -f $VAL ] || VAL=$OPD_ROOT/data/geo3k_test.parquet;; esac
 python $RUNBOOK/code/patches/vlmref_patch.py || { echo "VLMREF_PATCH_FAILED $TASK"; exit 1; }   # idempotent
 if python -c "import flash_attn" 2>/dev/null; then RMPAD=True; ATTN=flash_attention_2; else RMPAD=False; ATTN=sdpa; fi
 [ -f $OUT/config.yaml ] && echo "resumed: $(date -u +%FT%TZ)" >> $OUT/config.yaml || cat > $OUT/config.yaml <<CFG
@@ -41,7 +46,7 @@ student: $STUDENT (Qwen3-VL-2B-Instruct, its own template)
 teacher: $TEACHER (ref; Qwen3-VL-4B-Thinking ([v2.5.9z28], was 8B) on its thinking template: the student's image-expanded prompt ids + the prefix '<think>\n' + the response, opd_vlmref.py)
 variant: $VARIANT (teacher suffix $(printf %q "$OPD_VLM_REF_SUFFIX"), from PROBE-VLM's check)
 algo: OPD (reverse-KL advantages, P5's recipe), ${TBS}x1, prompts <= $MAXP tokens, responses $MAXR, lr 3e-6, $NSTEPS steps
-data: Geometry3K train ($(basename $TRAIN)), validation $(basename $VAL)
+data: train $(basename $TRAIN), validation $(basename $VAL) ([v2.5.9z33] MMK12; a smoke on Geometry3K)
 venv: $(basename $V); attention: $ATTN (remove-padding $RMPAD)
 started: $(date -u +%FT%TZ)
 CFG

@@ -84,7 +84,7 @@ while read -r TAG MODEL BENCH N TEMP MAXT MODE; do
   gpu_wait_free $G || { python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1; gpu_wait_free $G 120; }   # [v2.5.8] the previous engine gone first
   echo "EVAL_START $(date -u +%T) $TAG"
   EV=$RUNBOOK/code/eval/gen_eval.py; PYE=python   # [v2.5.9z] the image benches: gen_eval_vl.py in venv-vl (same arguments and file names)
-  case $BENCH in geo3k|mathvista) EV=$RUNBOOK/code/eval/gen_eval_vl.py; PYE=${VENV_VL:-$OPD_ROOT/venv-vl}/bin/python;; esac
+  case $BENCH in geo3k|mathvista|mathvision|mathverse) EV=$RUNBOOK/code/eval/gen_eval_vl.py; PYE=${VENV_VL:-$OPD_ROOT/venv-vl}/bin/python;; esac
   CUDA_VISIBLE_DEVICES=$G $PYE $EV --model $M --bench $BENCH --mode $MODE --n $N $SAMP \
     --max_tokens $MAXT --chunk $K --dtype $DT --tag $TAG --out $OUT >> $OUT/gen_eval.log 2>&1 || { echo "EVAL_FAIL $TAG"; ok=0; python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1; continue; }
   echo "EVAL_DONE $(date -u +%T) $TAG"; echo "$TAG $M" >> $OUT/.models
