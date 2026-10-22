@@ -465,3 +465,4 @@ commands:
   - {"seq": 463, "cmd": "rerun READINGS-EXTRA", "reason": "v2.5.9z22 (reviewer A1): Q-056 disagreement subset rows", "utc": "2026-10-22T03:23:53Z"}
   - {"seq": 464, "cmd": "snapshot logs/fetch_Idavidrein__gpqa.log", "reason": "executor: GPQA fetch errors after 9z23 (ops-lead: report if still 401)", "utc": "2026-10-22T04:08:27Z"}
   - {"seq": 465, "cmd": "rerun PROBE-DIFF17", "reason": "v2.5.9z27 (Fable A1): redo the MATH-500 labels alone (were void: bool of a tuple); train labels kept byte for byte", "utc": "2026-10-22T04:30:03Z"}
+  - {"seq": 466, "cmd": "rerun PROBE-VLLM-VL", "reason": "v2.5.9z28 (Fable A1): check the 2B student and the 4B-Thinking teacher (Q-051 deviation)", "utc": "2026-10-22T04:40:56Z"}
