@@ -99,6 +99,13 @@ ROUTE=""; ROUTE_P=""; case $TASK in E10b-P5route) ROUTE=route; BASE=E10b-P5;; E1
 # [v2.5.9z45] (Q-063, the reviewer's pre-registration 10-22) E10b-P5route-inv = E10b-P5route with the rule reversed (OPD_ROUTE_INVERT=1):
 # r >= 0.5 (easy) -> the thinking template, otherwise (hard) -> the non-thinking one; gated by PROBE-ROUTE-INV (probe_route.sh reused)
 ROUTE_INV=""; [ $TASK = E10b-P5route-inv ] && { ROUTE=route; ROUTE_INV=1; BASE=E10b-P5; }
+# [v2.5.9z46] (Q-057, the reviewer's design 10-22 14:4x Beijing, ruling A 10:0x UTC) E16-X5 / E16-X5e = P5's recipe for a student
+# without a thinking mode: Qwen2.5-Math-1.5B-Instruct taught by DeepSeek-R1-Distill-Qwen-1.5B on its thinking template, 50 steps,
+# s25 / s50. The student has 4096 positions (no rope_scaling): prompts 1024 + responses 3072 (the ruled deviation from 4K). Its
+# vocabulary is the teacher's but for 151643-151649 (opd_x5.py through x5_patch.py: one '<think>\n' at the teacher prompt's end,
+# E16-X5e an empty thought; the stop id at the response's end read as the teacher's EOS 151643; the other special ids out of the
+# loss); runs/<task>/x5.jsonl per step. Waits for both models (WAIT_INPUTS), then gated by PROBE-X5.
+X5=0; X5E=0; case $TASK in E16-X5) X5=1; BASE=E10b-P5;; E16-X5e) X5=1; X5E=1; BASE=E10b-P5;; esac
 case $BASE in
   E10b-P2) ARM=P2; LR=3e-6;; E10b-P3) ARM=P3; LR=3e-6;; E10b-P4lowlr) ARM=P4; LR=6e-7;; E10b-P5) ARM=P5; LR=3e-6;;
   E10b-P6) ARM=P6; LR=3e-6;; E10b-P6r) ARM=P6r; LR=3e-6;; E10b-P2noEOS) ARM=P2noEOS; LR=3e-6;;
@@ -124,6 +131,11 @@ fi
 if [ -n "$XARM" ]; then   # [v2.5.8i] hub ids, resolved to the local HF cache after the venv is active
   STUDENT=${STUDENT_I2507:-Qwen/Qwen3-4B-Instruct-2507}; TEACHER=${TEACHER_T2507:-Qwen/Qwen3-4B-Thinking-2507}; [ $XARM = X2 ] && TEACHER=$STUDENT_4B
   [ $XARM = X4 ] && { STUDENT=$STUDENT_4B; TEACHER=${STUDENT_I2507:-Qwen/Qwen3-4B-Instruct-2507}; }   # [v2.5.8l]
+fi
+[ $X5 = 1 ] && { STUDENT=${STUDENT_X5:-$OPD_ROOT/models/Qwen2.5-Math-1.5B-Instruct}; TEACHER=${TEACHER_X5:-$OPD_ROOT/models/DeepSeek-R1-Distill-Qwen-1.5B}; MAXRESP=${X5_MAXRESP:-3072}; }   # [v2.5.9z46]
+if [ $X5 = 1 ] && [ "${DRYRUN:-0}" != 1 ]; then   # [v2.5.9z46] the two models in (fetch_model.py's .fetch_ok), then the gate
+  for m in $STUDENT $TEACHER; do [ -f $m/.fetch_ok ] || { echo "WAIT_INPUTS $TASK: $(basename $m) not in (no .fetch_ok)"; exit 1; }; done
+  [ "${SMOKE:-0}" = 1 ] || grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-X5/report.json 2> /dev/null || { echo "PROBE-X5 has not passed: $TASK not started"; exit 3; }
 fi
 # [v2.5.8i] an X arm starts only after its gate PROBE-X2507-<X1|X2|X4> passed (prompt templates + a 3-step smoke)
 if [ -n "$XARM" ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
@@ -211,6 +223,7 @@ case $ARM in P5top10|P5rand10m) export OPD_VARIANT=P6 OPD_VARIANT_OVERRIDE=$ARM 
 [ $POLISH = 1 ] && NSTEPS=${POLISH_STEPS:-20}   # [v2.5.9u]
 [ $TOOL = 1 ] && NSTEPS=${TOOL_STEPS:-50}   # [v2.5.9b]
 [ $T32 = 1 ] && NSTEPS=${T32_STEPS:-50}   # [v2.5.9z9]
+[ $X5 = 1 ] && NSTEPS=${X5_STEPS:-50}   # [v2.5.9z46]
 [ $SELF = 1 ] && NSTEPS=${P5SELF_STEPS:-50}   # v2.5.7v: the same point as P5 s50   # v2.5.7r: constant lr, so step 50 is the same point as in a 150-step run
 OPD_REF_THINK=0; [[ $ARM =~ ^P5(top10|rand10m)?$ ]] && OPD_REF_THINK=1; [ $STHINK = 1 ] && OPD_REF_THINK=0; [ "$XARM" = X1 ] && OPD_REF_THINK=0; [ "$XARM" = X4 ] && OPD_REF_THINK=0; export OPD_REF_THINK   # [v2.5.8i] X1: the template opens <think>
 if python -c "import flash_attn" 2>/dev/null; then RMPAD=True; ATTN=flash_attention_2; TOK_DEFAULT=16384
@@ -241,6 +254,7 @@ unset OPD_TAILSWAP OPD_TAILSWAP_LOG; [ $TAIL = 1 ] && export OPD_TAILSWAP=1 OPD_
 unset OPD_ROUTE OPD_ROUTE_LABELS OPD_ROUTE_LOG OPD_ROUTE_P; [ -n "$ROUTE" ] && export OPD_ROUTE=$ROUTE OPD_ROUTE_LABELS=${ROUTE_LABELS:-$OPD_ROOT/runs/PROBE-DIFF17/labels_17.jsonl} OPD_ROUTE_LOG=$OUT/route.jsonl   # [v2.5.9x]
 [ -n "$ROUTE_P" ] && export OPD_ROUTE_P=$ROUTE_P   # [v2.5.9z38]
 unset OPD_ROUTE_INVERT; [ -n "$ROUTE_INV" ] && export OPD_ROUTE_INVERT=1   # [v2.5.9z45]
+unset OPD_X5 OPD_X5_EMPTY_THINK OPD_X5_LOG; [ $X5 = 1 ] && export OPD_X5=1 OPD_X5_LOG=$OUT/x5.jsonl; [ $X5E = 1 ] && export OPD_X5_EMPTY_THINK=1   # [v2.5.9z46]
 [ $T32 = 1 ] && [ "${SMOKE:-0}" = 1 ] && export OPD_ROUTE=count OPD_ROUTE_LOG=$OUT/route.jsonl   # [v2.5.9z9] PROBE-T32: the teacher's rows per call
 # [v2.5.9b] the data, prompt length and logged reward: math by default, the tool-call parquet for a tool arm
 TRAIN=$OPD_ROOT/data/dapo_train.parquet; VAL=$OPD_ROOT/data/math500_100.parquet; MAXP=1024; REWARD=$RUNBOOK/code/train/reward_mathverify.py
@@ -250,6 +264,7 @@ if [ $TOOL = 1 ]; then
 fi
 UW=$NSTEPS; [ $TASK = E10c-P5-fix4 ] && UW=100,$NSTEPS; [ -n "$XARM" ] && UW=25,$NSTEPS   # [v2.5.8i] X arms: s25 is read too   # [v2.5.8a] (Q-023): its s100 = the step of the lab's 0.6B P5 reading (+19.2)
 [ $T32 = 1 ] && { UW=25,$NSTEPS; SAVE=${SAVE:-25}; }   # [v2.5.9z9] s25 and s50 saved and uploaded
+[ $X5 = 1 ] && { UW=25,$NSTEPS; SAVE=${SAVE:-25}; }   # [v2.5.9z46] s25 and s50 saved and uploaded
 # [v2.5.9z40] (ops-lead 10-22, PROBE-T32's first run: vLLM found 127.6 of 267.7 GiB free at start-up, below 0.5 x total) the 32B arm and
 # its smoke only: the rollout's GPU memory share 0.4 (T32_VLLM_UTIL), and T32_OPT_OFFLOAD=1 (PROBE-T32's retry after an out of
 # memory) offloads the actor's optimizer (the 32B reference is offloaded already); every other arm keeps VLLM_UTIL (0.5) and no offload
@@ -261,6 +276,7 @@ ROLL_UTIL=${VLLM_UTIL:-0.5}; ACT_OPT_OFF=False
 [ "${DRYRUN:-0}" = 1 ] && [ $POLISH = 1 ] && echo "DRYRUN_POLISH student=$(echo $STUDENT | sed 's|.*/runs/|runs/|') teacher=$TEACHER"   # [v2.5.9u] tests
 [ "${DRYRUN:-0}" = 1 ] && [ -n "$ROUTE" ] && echo "DRYRUN_ROUTE OPD_ROUTE=${OPD_ROUTE:-} labels=$(echo ${OPD_ROUTE_LABELS:-none} | sed 's|.*/runs/|runs/|') log=$(basename ${OPD_ROUTE_LOG:-none})$([ -n "${OPD_ROUTE_P:-}" ] && echo " p=$OPD_ROUTE_P")"   # [v2.5.9x] tests
 [ "${DRYRUN:-0}" = 1 ] && [ -n "$ROUTE_INV" ] && echo "DRYRUN_ROUTE_INV OPD_ROUTE_INVERT=${OPD_ROUTE_INVERT:-}"   # [v2.5.9z45] tests
+[ "${DRYRUN:-0}" = 1 ] && [ $X5 = 1 ] && echo "DRYRUN_X5 student=$(basename $STUDENT) teacher=$(basename $TEACHER) maxresp=$MAXRESP refthink=$OPD_REF_THINK empty=${OPD_X5_EMPTY_THINK:-0} log=$(basename ${OPD_X5_LOG:-none}) save=$SAVE upload=$UW"   # [v2.5.9z46] tests
 [ "${DRYRUN:-0}" = 1 ] && [ $T32 = 1 ] && echo "DRYRUN_T32 teacher=$(echo $TEACHER | sed 's|.*/models/|models/|') offload=$TEACHER_OFFLOAD save=$SAVE upload=$UW route=${OPD_ROUTE:-none} log=$(basename ${OPD_ROUTE_LOG:-none}) util=$ROLL_UTIL optoff=$ACT_OPT_OFF"   # [v2.5.9z9] tests
 [ "${DRYRUN:-0}" = 1 ] && [ $TAIL = 1 ] && echo "DRYRUN_TAILSWAP OPD_TAILSWAP=${OPD_TAILSWAP:-} log=$(basename ${OPD_TAILSWAP_LOG:-none})"   # [v2.5.9n] tests
 [ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $TASK arm=$ARM lr=$LR seed=$SEED student=$STUDENT batch=[$BATCH] kern=[$KERN] gc=$GCK venv=$(basename ${VENV:-$OPD_ROOT/venv}) ngpu=$NG rmpad=$RMPAD tool=$TOOL maxp=$MAXP reward=$(basename $REWARD) lensel=${LENSEL:-none}/${TBS}x${RN}/mb$MBS sthink=$STHINK maxresp=$MAXRESP teacher=$TEACHER offload=${TEACHER_OFFLOAD:-1} variant=$OPD_VARIANT override=$OPD_VARIANT_OVERRIDE refthink=$OPD_REF_THINK steps=$NSTEPS"; exit 0; }   # tests
@@ -293,6 +309,7 @@ gpu: $(nvidia-smi --query-gpu=name --format=csv,noheader -i $GPU | head -1) x$NG
 started: $(date -u +%FT%TZ)
 CFG
 [ -n "$ROUTE_INV" ] && ! grep -q "^route_invert:" $OUT/config.yaml && echo "route_invert: easy (PROBE-DIFF17 r >= 0.5) -> the thinking teacher, hard -> the non-thinking one (OPD_ROUTE_INVERT=1)" >> $OUT/config.yaml   # [v2.5.9z45]
+[ $X5 = 1 ] && ! grep -q "^x5:" $OUT/config.yaml && echo "x5: a student without a thinking mode (4096 positions: responses $MAXRESP), its stop id at the end read as the teacher's EOS 151643, the other special ids out of the loss; teacher prompt $([ $X5E = 1 ] && echo 'with an empty thought' || echo 'ending in one <think>') (opd_x5.py)" >> $OUT/config.yaml   # [v2.5.9z46]
 [ "${SMOKE:-0}" = 1 ] || ckpt_link $OUT   # v2.4: checkpoints on $CKPT_ROOT (the large disk)
 [ "${SMOKE:-0}" = 1 ] || { dr_restore $OUT || echo "DR_RESTORE_FAILED $TASK"; dr_start_sync $OUT; }   # v2.5.7
 [ "${SMOKE:-0}" = 1 ] || pgrep -f "upload_syn[c].sh $OUT\$" >/dev/null || \
@@ -301,6 +318,7 @@ if [ -n "$LENSEL" ]; then python $RUNBOOK/code/patches/lensel_patch.py || { echo
 if [ $SMERGE = 1 ]; then python $RUNBOOK/code/patches/stopmerge_patch.py || { echo "STOPMERGE_PATCH_FAILED $TASK"; exit 1; }; fi   # [v2.5.9l] idempotent
 if [ $TAIL = 1 ]; then python $RUNBOOK/code/patches/tailswap_patch.py || { echo "TAILSWAP_PATCH_FAILED $TASK"; exit 1; }; fi   # [v2.5.9n] idempotent
 if [ -n "$ROUTE" ] || [ "${OPD_ROUTE:-}" = count ]; then python $RUNBOOK/code/patches/route_patch.py || { echo "ROUTE_PATCH_FAILED $TASK"; exit 1; }; fi   # [v2.5.9x] idempotent; [v2.5.9z9] PROBE-T32's count
+if [ $X5 = 1 ]; then python $RUNBOOK/code/patches/x5_patch.py || { echo "X5_PATCH_FAILED $TASK"; exit 1; }; fi   # [v2.5.9z46] idempotent
 cd $OPD_ROOT/G-OPD/verl
 python3 -m verl.trainer.main_ppo \
   algorithm.adv_estimator=grpo \

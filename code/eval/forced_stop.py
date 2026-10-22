@@ -31,6 +31,11 @@ def force_text(preset, mode, prefix_text=""):
     return FORCE_BUDB["no_think"] if mode == "no_think" or "</think>" in prefix_text else FORCE_BUDB["think"]
 
 
+def budgets_upto(budgets, max_tokens):
+    """The budgets a reading of max_tokens can be forced at: those up to it and ([v2.5.9z46] Q-057's 3072 readings) the cap itself."""
+    return [b for b in budgets if b <= max_tokens] + ([max_tokens] if max_tokens not in budgets else [])
+
+
 def plan(records, budget):
     """(kept, forced): kept = [(record, correct)] for samples that terminated within the budget; forced = records cut
     at the budget (their first `budget` tokens are the prefix to continue)."""
@@ -72,7 +77,7 @@ def main():
     budgets = [int(b) for b in a.budgets.split(",")]
     mpath = a.jsonl[:-len(".jsonl")] + ".metrics.json"
     if a.force_preset != "e05" and os.path.isfile(mpath) and json.load(open(mpath)).get("max_tokens"):
-        budgets = [b for b in budgets if b <= int(json.load(open(mpath))["max_tokens"])]
+        budgets = budgets_upto(budgets, int(json.load(open(mpath))["max_tokens"]))
     jobs = []
     for b in budgets:
         _, forced = plan(recs, b)

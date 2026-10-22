@@ -31,3 +31,8 @@ def test_budb_stop_strings():   # v2.5.7h (Q-013); E05 keeps FORCE whatever the 
     assert F.force_text("budB", "no_think") == "\n\n**Final Answer**\n\\boxed{"
     assert F.force_text("budB", "think", "still thinking") == "\n</think>\n\n\\boxed{"
     assert F.force_text("budB", "think", "done</think>answer") == "\n\n**Final Answer**\n\\boxed{"   # think already closed
+
+
+def test_budgets_upto():   # [v2.5.9z46] a 3072 reading is forced at 2048 and at its cap; the usual caps unchanged
+    B = [2048, 4096, 8192, 16384, 32768]
+    assert F.budgets_upto(B, 3072) == [2048, 3072] and F.budgets_upto(B, 16384) == [2048, 4096, 8192, 16384] and F.budgets_upto(B, 32768) == B

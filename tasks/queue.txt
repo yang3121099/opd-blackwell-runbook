@@ -111,6 +111,10 @@ b259z9   open   E10d-P5-t32:PROBE-T32 EVAL-e10d-P5t32:E10d-P5-t32 EVAL-budA-e10d
 # [v2.5.9z45] (Q-063; the reviewer and ops-lead: after mix90 and t32 (A+), before Q-061) the reversed route arm and its gate
 b259z45p open   PROBE-ROUTE-INV:PROBE-ROUTE
 b259z45  open   E10b-P5route-inv:PROBE-ROUTE-INV EVAL-e10b-P5route-inv:E10b-P5route-inv+EVAL-e10b-P5route+EVAL-e10b-P5mix EVAL-budA-P5route-inv:E10b-P5route-inv+EVAL-budA-P5route
+# [v2.5.9z46] (Q-057; the reviewer's ruling A 10:0x UTC) E16-X5, its gate and readings, after Q-063; E16-X5e only if PROBE-X5's
+# x5e holds (think < 0.3 and empty >= 0.5): a queue push then adds its stage (b259z46e: E16-X5e:PROBE-X5 and its readings)
+b259z46p open   PROBE-X5
+b259z46  open   EVAL-x5-base EVAL-x5-start EVAL-x5-teacher E16-X5:PROBE-X5 EVAL-x5:E16-X5+EVAL-x5-start+EVAL-x5-base+EVAL-x5-teacher
 tails43  open   E10b-P5tail-s43:PROBE-TAIL EVAL-tail-s43:E10b-P5tail-s43 EVAL-ext32k-17tail-s43:E10b-P5tail-s43
 # [v2.5.9z41] ops-lead A1: the new readings and the replication after the registered arms (Q-060 b259z38p / b259z38, Q-053 b259z9p / b259z9): b259z41s, b259z41o, diff4b; Q-058 (the progressive-window arms) goes in before diff4b when written
 b259z41s open   E12b-P5-8k-s44:PROBE-E12B-8K EVAL-e12b-P5-8k-s44:E12b-P5-8k-s44 EVAL-budA-e12bP5-8k-s44:E12b-P5-8k-s44 EVAL-ext32k-17p5l8k-s44:E12b-P5-8k-s44 EVAL-ext32k-17p5l8k-s44-s25:E12b-P5-8k-s44+EVAL-ext32k-17p5l8k-s44
@@ -2247,3 +2251,38 @@ b259z24  open   TOKCHECK-X5
 #after EVAL-e10b-P5route-inv rerun PROBE-TERM4
 #split READINGS-EXTRA 17_P5routeinv_s50 EVAL-e10b-P5route-inv/e10b_P5routeinv_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 #after EVAL-e10b-P5route-inv rerun READINGS-EXTRA
+# [v2.5.9z46] (Q-057, the reviewer's pre-registration 10-22 and ruling A 10:0x UTC) E16-X5: a student without a thinking mode,
+# Qwen2.5-Math-1.5B-Instruct, taught by DeepSeek-R1-Distill-Qwen-1.5B on its thinking template, P5's recipe, 50 steps, s25 / s50.
+# The student and its base have 4096 positions (no rope_scaling): the student side is read at max_tokens 3072 (total 4096), each
+# reading with forced answers at 2048 and at its cap (#forced); the teacher's own readings as registered on its thinking template
+# at 16K / 32K, and at 3072 (the same budget as the student's) with forced answers. Pairs: s50 vs the start (H1), the base, the
+# teacher at 3072 and at 32K (H3); s25 vs the start (H5); TERM4 rows for the start and s50 (H4: p_stop_last); fingerprints q057
+# (H2: s50 against the teacher and the start).
+#eval EVAL-x5-base x5_base_math500_T0.6 local:models/Qwen2.5-Math-1.5B math500 4 0.6 3072
+#forced EVAL-x5-base EVAL-x5-base/x5_base_math500_T0.6_math500_no_think_t0.6.jsonl local:models/Qwen2.5-Math-1.5B no_think
+#eval EVAL-x5-start x5_start_math500_T0.6 local:models/Qwen2.5-Math-1.5B-Instruct math500 4 0.6 3072
+#eval EVAL-x5-start x5_start_math500_T1.0 local:models/Qwen2.5-Math-1.5B-Instruct math500 4 1.0 3072
+#forced EVAL-x5-start EVAL-x5-start/x5_start_math500_T0.6_math500_no_think_t0.6.jsonl local:models/Qwen2.5-Math-1.5B-Instruct no_think
+#pair EVAL-x5-start x5_start_math500_T0.6 EVAL-x5-base/x5_base_math500_T0.6_math500_no_think_t0.6.jsonl
+#eval EVAL-x5-teacher x5_teacher_math500_T0.6_16k local:models/DeepSeek-R1-Distill-Qwen-1.5B math500 4 0.6 16384 think
+#eval EVAL-x5-teacher x5_teacher_math500_T0.6_32k local:models/DeepSeek-R1-Distill-Qwen-1.5B math500 4 0.6 32768 think
+#eval EVAL-x5-teacher x5_teacher_math500_T0.6_3k local:models/DeepSeek-R1-Distill-Qwen-1.5B math500 4 0.6 3072 think
+#forced EVAL-x5-teacher EVAL-x5-teacher/x5_teacher_math500_T0.6_3k_math500_think_t0.6.jsonl local:models/DeepSeek-R1-Distill-Qwen-1.5B think
+#eval EVAL-x5 x5_s25_math500_T0.6 result:runs/E16-X5/global_step_25/actor/huggingface math500 4 0.6 3072
+#eval EVAL-x5 x5_s50_math500_T0.6 result:runs/E16-X5/global_step_50/actor/huggingface math500 4 0.6 3072
+#eval EVAL-x5 x5_s50_math500_T1.0 result:runs/E16-X5/global_step_50/actor/huggingface math500 4 1.0 3072
+#forced EVAL-x5 EVAL-x5/x5_s25_math500_T0.6_math500_no_think_t0.6.jsonl result:runs/E16-X5/global_step_25/actor/huggingface no_think
+#forced EVAL-x5 EVAL-x5/x5_s50_math500_T0.6_math500_no_think_t0.6.jsonl result:runs/E16-X5/global_step_50/actor/huggingface no_think
+#pair EVAL-x5 x5_s50_math500_T0.6 EVAL-x5-start/x5_start_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-x5-base/x5_base_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-x5-teacher/x5_teacher_math500_T0.6_3k_math500_think_t0.6.jsonl EVAL-x5-teacher/x5_teacher_math500_T0.6_32k_math500_think_t0.6.jsonl
+#pair EVAL-x5 x5_s25_math500_T0.6 EVAL-x5-start/x5_start_math500_T0.6_math500_no_think_t0.6.jsonl
+#pair EVAL-x5 x5_s50_math500_T1.0 EVAL-x5-start/x5_start_math500_T1.0_math500_no_think_t1.0.jsonl
+#term PROBE-TERM4 15_x5start local:models/Qwen2.5-Math-1.5B-Instruct EVAL-x5-start/x5_start_math500_T0.6_math500_no_think_t0.6.jsonl
+#term PROBE-TERM4 15_x5s50 result:runs/E16-X5/global_step_50/actor/huggingface EVAL-x5/x5_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-x5 rerun PROBE-TERM4
+#fpmodel READINGS-EXTRA q057 x5_start EVAL-x5-start/x5_start_math500_T0.6_math500_no_think_t0.6.jsonl
+#fpmodel READINGS-EXTRA q057 x5_s50 EVAL-x5/x5_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#fpmodel READINGS-EXTRA q057 x5_teacher16k EVAL-x5-teacher/x5_teacher_math500_T0.6_16k_math500_think_t0.6.jsonl
+#fpmodel READINGS-EXTRA q057 x5_teacher3k EVAL-x5-teacher/x5_teacher_math500_T0.6_3k_math500_think_t0.6.jsonl
+#fppair READINGS-EXTRA q057 x5_s50 x5_teacher16k x5_teacher3k x5_start
+#fppair READINGS-EXTRA q057 x5_start x5_teacher16k x5_teacher3k
+#after EVAL-x5 rerun READINGS-EXTRA

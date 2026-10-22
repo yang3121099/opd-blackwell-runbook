@@ -284,6 +284,29 @@ def resume_state(part, meta, args, rows, K):
     return recs, float(m.get("gen_seconds_done", 0.0)) if blocks else 0.0
 
 
+def one_bos(tok, prompt):
+    """[v2.5.9z46] a chat template that writes the BOS itself (DeepSeek-R1-Distill) with a tokenizer that adds one on encoding (vLLM
+    encodes the prompt text): the template's copy goes, so the model sees one. Qwen's templates and tokenizers: unchanged."""
+    b = getattr(tok, "bos_token", None)
+    if b and getattr(tok, "add_bos_token", False) and prompt.startswith(b):
+        return prompt[len(b):]
+    return prompt
+
+
+def model_len(model, max_tokens, pad=2048):
+    """[v2.5.9z46] (Q-057: Qwen2.5-Math-1.5B(-Instruct) have 4096 positions) vLLM's max_model_len: max_tokens + pad, at most the
+    model's own max_position_embeddings (a local config.json without rope_scaling); a hub id or a scaled rope: max_tokens + pad."""
+    want = max_tokens + pad
+    try:
+        cfg = json.load(open(os.path.join(model, "config.json")))
+    except (OSError, ValueError):
+        return want
+    mpe = cfg.get("max_position_embeddings")
+    if cfg.get("rope_scaling") or not isinstance(mpe, int) or mpe <= 0:
+        return want
+    return min(want, mpe)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", required=True)
@@ -320,11 +343,12 @@ def main():
         except TypeError:  # templates without enable_thinking
             prompts.append(tok.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True))
 
+    prompts = [one_bos(tok, p) for p in prompts]   # [v2.5.9z46]
     os.makedirs(args.out, exist_ok=True)
     stem = f"{args.tag or os.path.basename(args.model.rstrip('/'))}_{args.bench}_{args.mode}_t{args.temperature}"
     final = os.path.join(args.out, stem + ".jsonl")
     llm = LLM(model=args.model, tensor_parallel_size=args.tp, gpu_memory_utilization=args.gpu_mem,
-              max_model_len=args.max_tokens + 2048, seed=args.seed, trust_remote_code=True, dtype=args.dtype)
+              max_model_len=model_len(args.model, args.max_tokens), seed=args.seed, trust_remote_code=True, dtype=args.dtype)
     sp = SamplingParams(n=args.n, temperature=args.temperature, top_p=args.top_p,
                         top_k=args.top_k if args.top_k > 0 else -1, max_tokens=args.max_tokens, seed=args.seed)
     if args.chunk <= 0:

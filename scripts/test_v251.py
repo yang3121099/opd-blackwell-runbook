@@ -1267,4 +1267,20 @@ def test_run_and_rerun_accept_v259z45(env):   # [v2.5.9z45] (Q-063) E10b-P5route
     for i, t in enumerate(("E10b-P5route-inv2", "E10b-P5mix-inv", "PROBE-ROUTE-INVX", "E10d-P5route-inv")):
         assert env.c.v_run([t], 120 + i)[0] == "rejected", t
     R.parse({"cmd": "rerun PROBE-ROUTE-INV", "reason": "t"})
-    assert R.RULES_VERSION == "2.5.71"
+    assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 71)
+
+
+def test_run_and_rerun_accept_v259z46(env):   # [v2.5.9z46] (Q-057) E16-X5 / -X5e and their gate PROBE-X5 (rules 2.5.72)
+    for i, t in enumerate(("E16-X5", "E16-X5e", "PROBE-X5")):
+        st, msg, _ = env.c.v_run([t], 130 + i)
+        assert st == "accepted", (t, msg)
+    for i, t in enumerate(("E16-X6", "E16-X5f", "PROBE-X5e", "E16-P5")):
+        assert env.c.v_run([t], 140 + i)[0] == "rejected", t
+    for c in ("rerun PROBE-X5", "rerun E16-X5", "rerun E16-X5e"):
+        R.parse({"cmd": c, "reason": "t"})
+    with pytest.raises(R.Reject):
+        R.parse({"cmd": "rerun E16-X5f", "reason": "t"})
+    R.check_eval_args(["local:models/Qwen2.5-Math-1.5B-Instruct", "math500", "4", "0.6", "3072"])   # the student's 4096 positions
+    with pytest.raises(R.Reject):
+        R.check_eval_args(["local:models/Qwen2.5-Math-1.5B-Instruct", "math500", "4", "0.6", "3000"])
+    assert R.RULES_VERSION == "2.5.72"
