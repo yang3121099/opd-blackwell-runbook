@@ -478,3 +478,4 @@ commands:
   - {"seq": 476, "cmd": "rerun READINGS-EXTRA", "reason": "v2.5.9z35: 16 more #split rows (the easy / hard table for every headline checkpoint)", "utc": "2026-10-22T07:27:06Z"}
   - {"seq": 477, "cmd": "rerun EVAL-e15-base2", "reason": "v2.5.9z39 (ops-lead A1): mathvision / mathverse now in control_rules.BENCHES (the rows were refused)", "utc": "2026-10-22T07:40:36Z"}
   - {"seq": 478, "cmd": "rerun EVAL-e15-vlm", "reason": "v2.5.9z39: skipped behind EVAL-e15-base2's refusal; back to the queue", "utc": "2026-10-22T07:40:42Z"}
+  - {"seq": 479, "cmd": "kill-pgid 2367471", "reason": "ops-lead A1 07:5x UTC: VENV-VL-NVRTC attempt 2 (old code) stuck in wheel_fetch's one-connection download since 07:06, holding the CPU lane; nothing installed; attempt 3 uses 9z34 (16 connections)", "utc": "2026-10-22T07:50:58Z"}
