@@ -2302,7 +2302,7 @@ b259z24  open   TOKCHECK-X5
 #budget EVAL-budA-P5mix60 budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5mix60_s50_math500_T0.6_32k
 #budget EVAL-budA-P5mix60 budget_curve_vsP5s150 EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5mix60_s50_math500_T0.6_32k
 #budget EVAL-budA-P5mix60 budget_curve_vsP2s150 EVAL-budA17b/budA_E10bP2_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5mix60_s50_math500_T0.6_32k
-# [held 10-22 14:3xZ, ops-lead: the arm has no s50 yet; restore before its EVAL ends] term PROBE-TERM4 17_P5mix60 result:runs/E10b-P5mix60/global_step_50/actor/huggingface EVAL-e10b-P5mix60/e10b_P5mix60_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#term PROBE-TERM4 17_P5mix60 result:runs/E10b-P5mix60/global_step_50/actor/huggingface EVAL-e10b-P5mix60/e10b_P5mix60_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 #after EVAL-e10b-P5mix60 rerun PROBE-TERM4
 #split READINGS-EXTRA 17_P5mix60_s50 EVAL-e10b-P5mix60/e10b_P5mix60_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 #after EVAL-e10b-P5mix60 rerun READINGS-EXTRA
