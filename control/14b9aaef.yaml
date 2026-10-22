@@ -497,3 +497,4 @@ commands:
   - {"seq": 495, "cmd": "setenv PULSE_PUBLIC_MIRROR=1", "reason": "ops-lead 10-23: the public link is back; the 30-min public pulse mirror on (PUBLIC_UPLOADS stays private-first)", "utc": "2026-10-22T16:04:43Z"}
   - {"seq": 496, "cmd": "setenv WEIGHTS_REPLAY=0", "reason": "the replay's 2000 s weight uploads fail and starve the result uploads (EVAL-ext32k-17p5l16kkl attempt 1 lost 20:27 UTC); ops-lead's own rule for z62: the status and the results go first", "utc": "2026-10-22T20:45:00Z"}
   - {"seq": 497, "cmd": "rerun PROBE-VLM", "reason": "z63: the smoke loads images in the main process (its 8 DataLoader workers died on a full /dev/shm, 16:44 UTC); Fable A1 for ops-lead", "utc": "2026-10-22T20:46:38Z"}
+  - {"seq": 498, "cmd": "setenv STATUS_PUT_S=120", "reason": "ops-lead 21:42 UTC (Fable agreed): the private status every 120 s (was 300); HF clean for 2 h (hf_backoff 0, no 429)", "utc": "2026-10-22T21:47:05Z"}
