@@ -470,3 +470,4 @@ commands:
   - {"seq": 468, "cmd": "snapshot logs/fetch_DeepSeek-R1-Distill-Qwen-1.5B.log", "reason": "executor: X5 pull progress after 55 min (ops-lead wants the rates)", "utc": "2026-10-22T05:04:24Z"}
   - {"seq": 469, "cmd": "setenv PREFETCH_PAR=1", "reason": "ops-lead A1 05:1x UTC: one pull at a time (3 x 64 = 192 connections stalled the proxy); temporary until a node-wide connection budget", "utc": "2026-10-22T05:07:38Z"}
   - {"seq": 470, "cmd": "kill-pgid 1619030", "reason": "ops-lead A1 05:1x UTC: stop the X5 Instruct wrapper (bash + fetch_model.py parent) pull (192 connections stalled the proxy); DeepSeek keeps 64; resumes one at a time (PREFETCH_PAR=1)", "utc": "2026-10-22T05:08:41Z"}
+  - {"seq": 471, "cmd": "kill-pgid 1619049", "reason": "ops-lead A1 05:1x UTC: stop the X5 base wrapper (bash + fetch_model.py parent) pull (192 connections stalled the proxy); DeepSeek keeps 64; resumes one at a time (PREFETCH_PAR=1)", "utc": "2026-10-22T05:10:43Z"}
