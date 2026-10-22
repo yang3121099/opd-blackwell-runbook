@@ -118,12 +118,13 @@ b259z47  open   E10b-P5mix60:PROBE-MIXP+PROBE-ROUTE EVAL-e10b-P5mix60:E10b-P5mix
 b259z46p open   PROBE-X5
 b259z46  open   EVAL-x5-base EVAL-x5-start EVAL-x5-teacher E16-X5:PROBE-X5 EVAL-x5:E16-X5+EVAL-x5-start+EVAL-x5-base+EVAL-x5-teacher
 tails43  open   E10b-P5tail-s43:PROBE-TAIL EVAL-tail-s43:E10b-P5tail-s43 EVAL-ext32k-17tail-s43:E10b-P5tail-s43
+# [10-23 22:0x UTC, the scheduler's v79 proposal] Q-066 (b259z60) ahead of the 8k-s44 readings (b259z41s) and Q-058's readings
+b259z60  open   E12d-P5-8k:PROBE-E12B-8K EVAL-e12d-P5-8k:E12d-P5-8k EVAL-budA-e12dP5-8k:E12d-P5-8k EVAL-ext32k-4Bp5l8k:E12d-P5-8k
 # [v2.5.9z41] ops-lead A1: the new readings and the replication after the registered arms (Q-060 b259z38p / b259z38, Q-053 b259z9p / b259z9): b259z41s, b259z41o, diff4b; Q-058 (the progressive-window arms) goes in before diff4b when written
 b259z41s open   E12b-P5-8k-s44:PROBE-E12B-8K EVAL-e12b-P5-8k-s44:E12b-P5-8k-s44 EVAL-budA-e12bP5-8k-s44:E12b-P5-8k-s44 EVAL-ext32k-17p5l8k-s44:E12b-P5-8k-s44 EVAL-ext32k-17p5l8k-s44-s25:E12b-P5-8k-s44+EVAL-ext32k-17p5l8k-s44
 # [10-23 ops-lead, the scheduler's 17:2x proposal] Q-058 / Q-066 ahead of the 32K OOD readings (b259z41o)
 b259z43p open   PROBE-PROG
 b259z43  open   E12b-P5-prog:PROBE-PROG E12b-P5-prog-up:PROBE-PROG+PROBE-E12B-8K EVAL-budA-p5s44rl-s25:PROBE-PROG EVAL-e12b-P5-prog:E12b-P5-prog EVAL-e12b-P5-prog-up:E12b-P5-prog-up EVAL-budA-e12bP5-prog:E12b-P5-prog EVAL-budA-e12bP5-prog-up:E12b-P5-prog-up+EVAL-budA-p5s44rl-s25 EVAL-ext32k-17prog:E12b-P5-prog+EVAL-ext32k-17p5l8k-s25 EVAL-ext32k-17prog-up:E12b-P5-prog-up
-b259z60  open   E12d-P5-8k:PROBE-E12B-8K EVAL-e12d-P5-8k:E12d-P5-8k EVAL-budA-e12dP5-8k:E12d-P5-8k EVAL-ext32k-4Bp5l8k:E12d-P5-8k
 b259z41o open   EVAL-ood32k-17base EVAL-ood32k-4Bbase EVAL-ood32k-17p5self:EVAL-ood32k-17base EVAL-ood32k-17p5l8k:EVAL-ood32k-17base EVAL-ood32k-4Bp5:EVAL-ood32k-4Bbase EVAL-ood32k-4Bp5self:EVAL-ood32k-4Bbase EVAL-ood32k-4Bx4:EVAL-ood32k-4Bbase
 diff4b   open   PROBE-DIFF17-4B:PROBE-DIFF17
 b259q028 open   EVAL-ext32k-17p5l8k-s25

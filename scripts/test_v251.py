@@ -1255,7 +1255,8 @@ def test_queue_prog_stage_before_diff4b_v259z43():   # [v2.5.9z43] ops-lead: Q-0
     q = open(os.path.join(HERE, "..", "tasks", "queue.txt")).read().splitlines()
     names = [x.split()[0] for x in q if x and not x.startswith("#") and len(x.split()) > 2 and x.split()[1] == "open"]
     # [10-23 ops-lead: the scheduler's reorder, a09e09e] Q-058 and Q-066 ahead of the 32K OOD readings, diff4b still after them
-    assert names.index("b259z43p") < names.index("b259z43") < names.index("b259z60") < names.index("b259z41o") < names.index("diff4b")
+    # [10-23 22:0x UTC, the scheduler's v79] Q-066 ahead of the 8k-s44 readings and Q-058's readings (its arms already run)
+    assert names.index("b259z60") < names.index("b259z41s") < names.index("b259z43p") < names.index("b259z43") < names.index("b259z41o") < names.index("diff4b")
     stage = next(x for x in q if x.startswith("b259z43 ")).split()[2:]
     evals = {x.split()[1] for x in q if x.startswith("#eval ")}
     for t in (s.split(":")[0] for s in stage):
