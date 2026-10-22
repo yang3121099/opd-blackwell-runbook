@@ -394,12 +394,29 @@ def queue_put(src, dst):
     return remote_put(src, dst)
 
 
+CONTROL_PREFIXES = ("status/", "pulse/")
+
+
+def _ship_order(d):
+    """[v2.5.9z51] (10-22: the status, the pulse and the receipts stopped from 11:17 UTC while events still went up) the order of
+    a pass: the control plane's items (status/: the status, receipts, events, procs, replies; pulse/) before everything else,
+    each group in time order. The coalescing re-enqueue moves the status and the pulse to the end every minute, so with a slow
+    or failing backlog ahead of them (each item up to REMOTE_PUT_TIMEOUT, a pass at most OUTBOX_PASS_S) they never shipped."""
+    names = sorted(n for n in os.listdir(d) if n.endswith(".json") and not n.startswith("."))
+    def prio(n):
+        try:
+            return 0 if str(json.load(open(os.path.join(d, n))).get("dst", "")).lstrip("/").startswith(CONTROL_PREFIXES) else 1
+        except (OSError, ValueError):
+            return 1
+    return sorted(names, key=lambda n: (prio(n), n))
+
+
 def ship_outbox(budget_s=None):
     """One pass of uploader.sh: (shipped, dropped, failed). A missing src is dropped; the pass ends at the first failure
     or after OUTBOX_PASS_S (420 s); control/loop_uploader is refreshed after every item."""
     budget_s = budget_s or int(os.environ.get("OUTBOX_PASS_S", "420"))
     d = _outbox(); os.makedirs(d, exist_ok=True); t0 = time.time(); shipped = dropped = failed = 0
-    for name in sorted(n for n in os.listdir(d) if n.endswith(".json") and not n.startswith(".")):
+    for name in _ship_order(d):   # [v2.5.9z51] the control plane's items first
         if time.time() - t0 > budget_s:
             break
         p = os.path.join(d, name)

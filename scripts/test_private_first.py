@@ -122,3 +122,15 @@ def test_weights_deferred_while_paused(root):   # [ops-lead's A1 condition] no p
     open(os.path.join(root, "control.env"), "w").write("export PUBLIC_UPLOADS=1\n")
     assert run(w, "runs/E1/global_step_50/actor/huggingface").returncode == 1                # not paused: uploaded as before
     assert len(open(os.path.join(root, "control", "weights_pending.txt")).read().splitlines()) == 2
+
+
+def test_outbox_ships_the_control_plane_first(root, monkeypatch):   # [v2.5.9z51] status / pulse / receipts before a backlog
+    monkeypatch.setattr(C, "ROOT", root); monkeypatch.setattr(C, "CDIR", os.path.join(root, "control"))
+    os.makedirs(os.path.join(root, "control"), exist_ok=True)
+    order = ["runs/E1/a.csv", "runs/E2/b.csv", "status/n/events/e.json", "runs/E3/c.csv", "pulse/n.json", "status/n.json", "status/n/replies/482"]
+    for dst in order:
+        p = os.path.join(root, dst.replace("/", "_")); open(p, "w").write("{}"); C.enqueue(p, dst)
+    sent = []
+    monkeypatch.setattr(C, "remote_put", lambda src, dst: (sent.append(dst), True)[1])
+    C.ship_outbox(budget_s=60)
+    assert sent == ["status/n/events/e.json", "pulse/n.json", "status/n.json", "status/n/replies/482", "runs/E1/a.csv", "runs/E2/b.csv", "runs/E3/c.csv"]
