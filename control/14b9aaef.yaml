@@ -461,3 +461,4 @@ commands:
   - {"seq": 459, "cmd": "setenv GPUS_HOLD_MIN=", "reason": "E12b-P5-16k-kl started: hold settings back to default", "utc": "2026-10-22T01:13:41Z"}
   - {"seq": 460, "cmd": "snapshot logs/fetch_Idavidrein__gpqa.log", "reason": "ops-lead: the exact GPQA fetch error (gated?)", "utc": "2026-10-22T03:02:29Z"}
   - {"seq": 461, "cmd": "snapshot runs/EVAL-smerge/e10b_P5smerge_s50_math500_T0.6_math500_no_think_t0.6.metrics.json", "reason": "sched-preempt: EVAL-smerge slow; its 16K T0.6 truncation", "utc": "2026-10-22T03:14:52Z"}
+  - {"seq": 462, "cmd": "rerun PROBE-VLLM-VL", "reason": "v2.5.9z20 (ops-lead A1): the vLLM check runs from a file under __main__", "utc": "2026-10-22T03:16:31Z"}
