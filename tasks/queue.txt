@@ -2279,7 +2279,7 @@ b259z24  open   TOKCHECK-X5
 #pair EVAL-x5 x5_s25_math500_T0.6 EVAL-x5-start/x5_start_math500_T0.6_math500_no_think_t0.6.jsonl
 #pair EVAL-x5 x5_s50_math500_T1.0 EVAL-x5-start/x5_start_math500_T1.0_math500_no_think_t1.0.jsonl
 #term PROBE-TERM4 15_x5start local:models/Qwen2.5-Math-1.5B-Instruct EVAL-x5-start/x5_start_math500_T0.6_math500_no_think_t0.6.jsonl
-#term PROBE-TERM4 15_x5s50 result:runs/E16-X5/global_step_50/actor/huggingface EVAL-x5/x5_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+# [held 10-22 14:3xZ, ops-lead: the arm has no s50 yet; restore before its EVAL ends] term PROBE-TERM4 15_x5s50 result:runs/E16-X5/global_step_50/actor/huggingface EVAL-x5/x5_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 #after EVAL-x5 rerun PROBE-TERM4
 #fpmodel READINGS-EXTRA q057 x5_start EVAL-x5-start/x5_start_math500_T0.6_math500_no_think_t0.6.jsonl
 #fpmodel READINGS-EXTRA q057 x5_s50 EVAL-x5/x5_s50_math500_T0.6_math500_no_think_t0.6.jsonl
@@ -2301,7 +2301,7 @@ b259z24  open   TOKCHECK-X5
 #budget EVAL-budA-P5mix60 budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5mix60_s50_math500_T0.6_32k
 #budget EVAL-budA-P5mix60 budget_curve_vsP5s150 EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5mix60_s50_math500_T0.6_32k
 #budget EVAL-budA-P5mix60 budget_curve_vsP2s150 EVAL-budA17b/budA_E10bP2_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5mix60_s50_math500_T0.6_32k
-#term PROBE-TERM4 17_P5mix60 result:runs/E10b-P5mix60/global_step_50/actor/huggingface EVAL-e10b-P5mix60/e10b_P5mix60_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+# [held 10-22 14:3xZ, ops-lead: the arm has no s50 yet; restore before its EVAL ends] term PROBE-TERM4 17_P5mix60 result:runs/E10b-P5mix60/global_step_50/actor/huggingface EVAL-e10b-P5mix60/e10b_P5mix60_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 #after EVAL-e10b-P5mix60 rerun PROBE-TERM4
 #split READINGS-EXTRA 17_P5mix60_s50 EVAL-e10b-P5mix60/e10b_P5mix60_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 #after EVAL-e10b-P5mix60 rerun READINGS-EXTRA
