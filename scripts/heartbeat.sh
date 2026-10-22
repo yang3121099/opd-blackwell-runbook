@@ -36,7 +36,13 @@ our_du_due() { [ -z "$(find $OPD_ROOT/control/our_du.json -mmin -${OUR_DU_MIN:-3
 while true; do
   our_du_due && setsid nohup bash $RUNBOOK/scripts/our_du.sh >> $OPD_ROOT/logs/our_du.log 2>&1 < /dev/null &
   hb_alive
-  python - "$F" <<'PY'
+  # [v2.5.9z55] (10-22: the private status stayed at 11:17:14 UTC for hours while the loop went round: a builder that fails left
+  # the previous, still valid status_<host>.json in place, and its identical upload made no commit) the builder writes $F.tmp,
+  # which replaces $F only when it is valid JSON; otherwise $F goes, the minimal status below names the failure, and the
+  # builder's stderr is kept in logs/status_builder.err (diag tails, the GitHub heartbeat)
+  # [z55 builder begin]
+  rm -f $F.tmp; BERR=""
+  python - "$F.tmp" 2> $OPD_ROOT/logs/status_builder.err.new <<'PY'
 import glob, json, os, re, subprocess, sys, time
 root = os.environ["OPD_ROOT"]; runbook = os.environ["RUNBOOK"]
 sys.path.insert(0, os.path.join(runbook, "scripts"))
@@ -205,13 +211,21 @@ json.dump({"host": os.uname().nodename, "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ
            "transfers": [json.loads(l) for l in open(os.path.join(root, "control", "transfers.jsonl")).read().splitlines()[-200:] if l.strip()]
                         if os.path.exists(os.path.join(root, "control", "transfers.jsonl")) else []}, open(sys.argv[1], "w"), indent=1)
 PY
+  brc=$?
+  if [ $brc = 0 ] && python -c "import json, sys; json.load(open(sys.argv[1]))" $F.tmp 2> /dev/null; then
+    mv -f $F.tmp $F
+  else
+    { date -u +%FT%TZ; echo "rc=$brc"; tail -c 4000 $OPD_ROOT/logs/status_builder.err.new; } > $OPD_ROOT/logs/status_builder.err 2> /dev/null
+    rm -f $F $F.tmp; BERR="status builder failed rc=$brc"
+  fi
+  # [z55 builder end]
   # v2.5: never upload an empty or broken status file (B300 node, 2026-10-17 07:53: the disk was full and a 0-byte JSON
   # went up); a minimal status written to memory (/dev/shm) goes instead, with both disks' free space
   UP=$F
   if ! python -c "import json, sys; json.load(open(sys.argv[1]))" $F 2> /dev/null; then
     UP=/dev/shm/status_$H.json; [ -d /dev/shm ] || UP=/tmp/status_$H.json
-    printf '{"host": "%s", "utc": "%s", "error": "status JSON not written (disk full?)", "disk_free_gb": %s, "ckpt_disk_free_gb": %s, "runbook_version": "v2.5.9"}\n' \
-      "$H" "$(date -u +%FT%TZ)" "$(df -Pk $OPD_ROOT | awk 'NR==2{printf "%.1f", $4/1e6}')" "$(df -Pk ${CKPT_ROOT:-$OPD_ROOT} | awk 'NR==2{printf "%.1f", $4/1e6}')" > $UP
+    printf '{"host": "%s", "utc": "%s", "error": "%s", "disk_free_gb": %s, "ckpt_disk_free_gb": %s, "runbook_version": "v2.5.9"}\n' \
+      "$H" "$(date -u +%FT%TZ)" "${BERR:-status JSON not written (disk full?)}" "$(df -Pk $OPD_ROOT | awk 'NR==2{printf "%.1f", $4/1e6}')" "$(df -Pk ${CKPT_ROOT:-$OPD_ROOT} | awk 'NR==2{printf "%.1f", $4/1e6}')" > $UP
   fi
   N=$(python $RUNBOOK/scripts/control.py node)
   # [v2.5.8] every upload below goes through the outbox (control.py put_q; procs / pulse / alerts / events inside

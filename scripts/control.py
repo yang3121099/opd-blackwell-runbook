@@ -549,7 +549,8 @@ def diag_tails(force=False):
         return None
     open(_p("diag_tails.t"), "w").write(str(int(time.time())))
     out = _p("diag"); shutil.rmtree(out, ignore_errors=True); os.makedirs(out)
-    for f in ("heartbeat.err", "heartbeat.log", "uploader.log", "uploader.err", "control.log", "control_timeouts.log", "run_tasks.log", "watchdog.log", "gh_heartbeat.log", "gh_heartbeat.err"):
+    for f in ("heartbeat.err", "heartbeat.log", "uploader.log", "uploader.err", "control.log", "control_timeouts.log", "run_tasks.log", "watchdog.log",
+              "gh_heartbeat.log", "gh_heartbeat.err", "status_builder.err"):   # [v2.5.9z55] the status builder's last failure
         p = os.path.join(ROOT, "logs", f)
         if os.path.exists(p):
             open(os.path.join(out, f + ".tail"), "w").write(redact(_tail_lines(p, 200)))

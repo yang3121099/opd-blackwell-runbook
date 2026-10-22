@@ -523,7 +523,7 @@ rm -rf $T
 T=$(mktemp -d); mkdir -p $T/root/runs/{E12d-P0,EVAL-gone,EVAL-paused,adhoc_eval_7,EVAL-old-done} $T/root/logs $T/root/control $T/rb/tasks $T/bin
 touch $T/root/runs/EVAL-old-done/.done $T/root/runs/EVAL-paused/.paused; printf 'version: 9\ne12 open E12d-P0 EVAL-paused\n' > $T/rb/tasks/queue.txt
 printf '#!/usr/bin/env bash\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi; cp -r $SRC/scripts $T/rb/
-sed -n "/^  python - \"\$F\" <<'PY'$/,/^PY$/p" $SRC/scripts/heartbeat.sh | sed '1d;$d' > $T/hb.py
+sed -n "/^  python - \"\$F[.a-z]*\".*<<'PY'$/,/^PY$/p" $SRC/scripts/heartbeat.sh | sed '1d;$d' > $T/hb.py
 ( cd $T && PATH=$T/bin:$PATH OPD_ROOT=$T/root RUNBOOK=$T/rb python3 hb.py $T/out.json > /dev/null 2>&1 )
 got=$(python3 -c "import json; d = json.load(open('$T/out.json')); print(' '.join(sorted(d['tasks'])), '|', ' '.join(d['stale_task_dirs']), '|', d['tasks']['EVAL-paused']['state'])" 2>&1)
 ok "[v2.5.8] heartbeat: paused state, stale directories counted not listed" '[ "$got" = "E12d-P0 EVAL-old-done EVAL-paused adhoc_eval_7 | EVAL-gone | paused" ]'
@@ -533,7 +533,7 @@ T=$(mktemp -d); mkdir -p $T/root/runs/{E10b-P5x,PROBE-VLX,EVAL-q} $T/root/logs $
 printf 'blocked_by: PROBE-GX\nreason: PROBE-GX FAIL\n' > $T/root/runs/E10b-P5x/.blocked; printf 'WAIT_INPUTS PROBE-VLX: x not in\n' > $T/root/runs/PROBE-VLX/.waiting
 printf 'version: 9\ns open E10b-P5x PROBE-VLX EVAL-q\n' > $T/rb/tasks/queue.txt
 printf '#!/usr/bin/env bash\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi; cp -r $SRC/scripts $T/rb/
-sed -n "/^  python - \"\$F\" <<'PY'$/,/^PY$/p" $SRC/scripts/heartbeat.sh | sed '1d;$d' > $T/hb.py
+sed -n "/^  python - \"\$F[.a-z]*\".*<<'PY'$/,/^PY$/p" $SRC/scripts/heartbeat.sh | sed '1d;$d' > $T/hb.py
 ( cd $T && PATH=$T/bin:$PATH OPD_ROOT=$T/root RUNBOOK=$T/rb python3 hb.py $T/out.json > /dev/null 2>&1 )
 got=$(python3 -c "import json; t = json.load(open('$T/out.json'))['tasks']; print(t['E10b-P5x']['state'], t['E10b-P5x'].get('blocked_by'), t['PROBE-VLX']['state'], t['EVAL-q']['state'])" 2>&1)
 ok "[v2.5.9z3] heartbeat: blocked (blocked_by PROBE-GX), waiting, queued (got: $got)" '[ "$got" = "blocked PROBE-GX waiting queued" ] && grep -q "tasks\[name\]\[\"blocked_by\"\] = v\[\"blocked_by\"\]" $SRC/scripts/control.py'
@@ -551,7 +551,7 @@ T=$(mktemp -d); mkdir -p $T/root/runs/{E12d-P0,EVAL-pad1,EVAL-wait,EVAL-formal,E
 printf 'version: 9\ne12 open E12d-P0 E10b-old\nfill open EVAL-pad1 EVAL-wait:E12d-P0\nlate open EVAL-formal\n#pad fill\n# EVAL-cmt was removed (only this comment names it)\n' > $T/rb/tasks/queue.txt
 echo '(TaskRunner pid=1) step:0 - starting' > $T/root/runs/E10b-old/train.log   # [v2.5.9o] a killed run's log, no process
 printf '#!/usr/bin/env bash\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi; cp -r $SRC/scripts $T/rb/
-sed -n "/^  python - \"\$F\" <<'PY'$/,/^PY$/p" $SRC/scripts/heartbeat.sh | sed '1d;$d' > $T/hb.py
+sed -n "/^  python - \"\$F[.a-z]*\".*<<'PY'$/,/^PY$/p" $SRC/scripts/heartbeat.sh | sed '1d;$d' > $T/hb.py
 ( cd $T && PATH=$T/bin:$PATH OPD_ROOT=$T/root RUNBOOK=$T/rb python3 hb.py $T/out.json > /dev/null 2>&1 )
 got=$(python3 -c "import json; d = json.load(open('$T/out.json')); t = d['tasks']; print(' '.join(sorted(t)), '|', ' '.join(sorted(n for n in t if t[n].get('pad'))), '|', ' '.join(d['stale_task_dirs']), '|', t['E10b-old']['state'])" 2>&1)
 ok "[v2.5.9m/9o] heartbeat: pad true on #pad stages; name:dep listed; a name only in a comment is stale; a train.log without a process is queued (got=$got)" '[ "$got" = "E10b-old E12d-P0 EVAL-formal EVAL-pad1 EVAL-wait | EVAL-pad1 EVAL-wait | EVAL-cmt | queued" ]'
