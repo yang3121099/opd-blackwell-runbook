@@ -100,7 +100,7 @@ b259y1   open   BUILD-VENV-VL PROBE-VLLM-VL:BUILD-VENV-VL
 b259xp   open   PROBE-DIFF17 PROBE-ROUTE:PROBE-DIFF17
 b259x    open   E10b-P5route:PROBE-ROUTE E10b-P5mix:PROBE-ROUTE EVAL-e10b-P5route:E10b-P5route EVAL-e10b-P5mix:E10b-P5mix+EVAL-e10b-P5route EVAL-budA-P5route:E10b-P5route EVAL-budA-P5mix:E10b-P5mix
 b259zp   open   PROBE-VLM:PROBE-VLLM-VL EVAL-e15-base:BUILD-VENV-VL EVAL-e15-base2:BUILD-VENV-VL
-b259z    open   E15-VLM-P5:PROBE-VLM EVAL-e15-vlm:E15-VLM-P5+EVAL-e15-base+EVAL-e15-base2
+b259z    open   E15-VLM-P5:PROBE-VLM EVAL-e15-vlm-s25:E15-VLM-P5+EVAL-e15-base+EVAL-e15-base2 EVAL-e15-vlm-s50:E15-VLM-P5+EVAL-e15-base+EVAL-e15-base2
 b259z31  open   VENV-VL-NVRTC
 b259z38p open   PROBE-MIXP
 b259z38  open   E10b-P5mix75:PROBE-MIXP+PROBE-ROUTE E10b-P5mix90:PROBE-MIXP+PROBE-ROUTE EVAL-e10b-P5mix75:E10b-P5mix75+EVAL-e10b-P5mix EVAL-e10b-P5mix90:E10b-P5mix90+EVAL-e10b-P5mix EVAL-budA-P5mix75:E10b-P5mix75 EVAL-budA-P5mix90:E10b-P5mix90
@@ -1907,14 +1907,14 @@ b259z24  open   TOKCHECK-X5
 #after VENV-VL-NVRTC rerun PROBE-VLM
 #eval EVAL-e15-base e15_base2B_geo3k_T0.6 local:models/Qwen3-VL-2B-Instruct geo3k 4 0.6
 #eval EVAL-e15-base e15_base2B_mathvista_T0.6 local:models/Qwen3-VL-2B-Instruct mathvista 4 0.6
-#eval EVAL-e15-vlm e15_P5_s25_geo3k_T0.6 result:runs/E15-VLM-P5/global_step_25/actor/huggingface geo3k 4 0.6
-#eval EVAL-e15-vlm e15_P5_s25_mathvista_T0.6 result:runs/E15-VLM-P5/global_step_25/actor/huggingface mathvista 4 0.6
-#eval EVAL-e15-vlm e15_P5_s50_geo3k_T0.6 result:runs/E15-VLM-P5/global_step_50/actor/huggingface geo3k 4 0.6
-#eval EVAL-e15-vlm e15_P5_s50_mathvista_T0.6 result:runs/E15-VLM-P5/global_step_50/actor/huggingface mathvista 4 0.6
-#pair EVAL-e15-vlm e15_P5_s50_geo3k_T0.6 EVAL-e15-base/e15_base2B_geo3k_T0.6_geo3k_no_think_t0.6.jsonl
-#pair EVAL-e15-vlm e15_P5_s25_geo3k_T0.6 EVAL-e15-base/e15_base2B_geo3k_T0.6_geo3k_no_think_t0.6.jsonl
-#pair EVAL-e15-vlm e15_P5_s50_mathvista_T0.6 EVAL-e15-base/e15_base2B_mathvista_T0.6_mathvista_no_think_t0.6.jsonl
-#pair EVAL-e15-vlm e15_P5_s25_mathvista_T0.6 EVAL-e15-base/e15_base2B_mathvista_T0.6_mathvista_no_think_t0.6.jsonl
+#eval EVAL-e15-vlm-s25 e15_P5_s25_geo3k_T0.6 result:runs/E15-VLM-P5/global_step_25/actor/huggingface geo3k 4 0.6
+#eval EVAL-e15-vlm-s25 e15_P5_s25_mathvista_T0.6 result:runs/E15-VLM-P5/global_step_25/actor/huggingface mathvista 4 0.6
+#eval EVAL-e15-vlm-s50 e15_P5_s50_geo3k_T0.6 result:runs/E15-VLM-P5/global_step_50/actor/huggingface geo3k 4 0.6
+#eval EVAL-e15-vlm-s50 e15_P5_s50_mathvista_T0.6 result:runs/E15-VLM-P5/global_step_50/actor/huggingface mathvista 4 0.6
+#pair EVAL-e15-vlm-s50 e15_P5_s50_geo3k_T0.6 EVAL-e15-base/e15_base2B_geo3k_T0.6_geo3k_no_think_t0.6.jsonl
+#pair EVAL-e15-vlm-s25 e15_P5_s25_geo3k_T0.6 EVAL-e15-base/e15_base2B_geo3k_T0.6_geo3k_no_think_t0.6.jsonl
+#pair EVAL-e15-vlm-s50 e15_P5_s50_mathvista_T0.6 EVAL-e15-base/e15_base2B_mathvista_T0.6_mathvista_no_think_t0.6.jsonl
+#pair EVAL-e15-vlm-s25 e15_P5_s25_mathvista_T0.6 EVAL-e15-base/e15_base2B_mathvista_T0.6_mathvista_no_think_t0.6.jsonl
 # [v2.5.9z33] (the reviewer's Q-051 revision 10-22 06:5x / 07:1x UTC; Runming: the mainstream setting) E15 trains on MMK12
 # (prep_mmk12.py; a smoke stays on Geometry3K). Readings: MathVista testmini (avg@4 T0.6 16K, unchanged), MathVision test
 # (3,040) and MathVerse testmini (all five versions, 3,940), greedy avg@1 16K, rule-graded (protocol field, unparsed_rate,
@@ -1922,14 +1922,14 @@ b259z24  open   TOKCHECK-X5
 # in EVAL-e15-base2 (EVAL-e15-base has run); s25 / s50 paired with the base.
 #eval EVAL-e15-base2 e15_base2B_mathvision_T0 local:models/Qwen3-VL-2B-Instruct mathvision 1 0 16384
 #eval EVAL-e15-base2 e15_base2B_mathverse_T0 local:models/Qwen3-VL-2B-Instruct mathverse 1 0 16384
-#eval EVAL-e15-vlm e15_P5_s25_mathvision_T0 result:runs/E15-VLM-P5/global_step_25/actor/huggingface mathvision 1 0 16384
-#eval EVAL-e15-vlm e15_P5_s25_mathverse_T0 result:runs/E15-VLM-P5/global_step_25/actor/huggingface mathverse 1 0 16384
-#eval EVAL-e15-vlm e15_P5_s50_mathvision_T0 result:runs/E15-VLM-P5/global_step_50/actor/huggingface mathvision 1 0 16384
-#eval EVAL-e15-vlm e15_P5_s50_mathverse_T0 result:runs/E15-VLM-P5/global_step_50/actor/huggingface mathverse 1 0 16384
-#pair EVAL-e15-vlm e15_P5_s50_mathvision_T0 EVAL-e15-base2/e15_base2B_mathvision_T0_mathvision_no_think_t0.0.jsonl
-#pair EVAL-e15-vlm e15_P5_s50_mathverse_T0 EVAL-e15-base2/e15_base2B_mathverse_T0_mathverse_no_think_t0.0.jsonl
-#pair EVAL-e15-vlm e15_P5_s25_mathvision_T0 EVAL-e15-base2/e15_base2B_mathvision_T0_mathvision_no_think_t0.0.jsonl
-#pair EVAL-e15-vlm e15_P5_s25_mathverse_T0 EVAL-e15-base2/e15_base2B_mathverse_T0_mathverse_no_think_t0.0.jsonl
+#eval EVAL-e15-vlm-s25 e15_P5_s25_mathvision_T0 result:runs/E15-VLM-P5/global_step_25/actor/huggingface mathvision 1 0 16384
+#eval EVAL-e15-vlm-s25 e15_P5_s25_mathverse_T0 result:runs/E15-VLM-P5/global_step_25/actor/huggingface mathverse 1 0 16384
+#eval EVAL-e15-vlm-s50 e15_P5_s50_mathvision_T0 result:runs/E15-VLM-P5/global_step_50/actor/huggingface mathvision 1 0 16384
+#eval EVAL-e15-vlm-s50 e15_P5_s50_mathverse_T0 result:runs/E15-VLM-P5/global_step_50/actor/huggingface mathverse 1 0 16384
+#pair EVAL-e15-vlm-s50 e15_P5_s50_mathvision_T0 EVAL-e15-base2/e15_base2B_mathvision_T0_mathvision_no_think_t0.0.jsonl
+#pair EVAL-e15-vlm-s50 e15_P5_s50_mathverse_T0 EVAL-e15-base2/e15_base2B_mathverse_T0_mathverse_no_think_t0.0.jsonl
+#pair EVAL-e15-vlm-s25 e15_P5_s25_mathvision_T0 EVAL-e15-base2/e15_base2B_mathvision_T0_mathvision_no_think_t0.0.jsonl
+#pair EVAL-e15-vlm-s25 e15_P5_s25_mathverse_T0 EVAL-e15-base2/e15_base2B_mathverse_T0_mathverse_no_think_t0.0.jsonl
 # (the reviewer 10-22, with the frontier fill) the 8K-limit RL arm's s50 paired against the KL arm's s100, and pure GRPO s50 (s44 chain)
 # against the 8K arm's s50 (equal steps; EVAL-e12b-P5s44-s50 now waits for EVAL-e12b-P5-8k)
 #pair EVAL-e12b-P5-8k e12b_P5-8k_s50_math500_T0.6 EVAL-e12b-P5kl/e12b_P5kl_s100_math500_T0.6_math500_no_think_t0.6.jsonl
