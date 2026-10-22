@@ -500,3 +500,4 @@ commands:
   - {"seq": 498, "cmd": "setenv STATUS_PUT_S=120", "reason": "ops-lead 21:42 UTC (Fable agreed): the private status every 120 s (was 300); HF clean for 2 h (hf_backoff 0, no 429)", "utc": "2026-10-22T21:47:05Z"}
   - {"seq": 499, "cmd": "setenv PULSE_PUT_S=120", "reason": "ops-lead 21:42 UTC (Fable agreed): the private pulse every 120 s (was 300); HF clean for 2 h", "utc": "2026-10-22T21:47:13Z"}
   - {"seq": 500, "cmd": "setenv GH_HB=0", "reason": "Runming via Fable 21:5x: the GitHub fallback heartbeat shelved until he is back (stops the 15-min failed (auth) events; code and credential file kept)", "utc": "2026-10-22T21:51:38Z"}
+  - {"seq": 501, "cmd": "logs gh_heartbeat 40", "reason": "ops-lead 21:5x: one read of the GitHub fallback heartbeat's log for Runming (GH_HB=0 since seq 500; redacted before it is filed)", "utc": "2026-10-22T21:59:01Z"}
