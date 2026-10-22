@@ -4,7 +4,8 @@
 # threshold coin in opd_route.coin); what is new is checked here, without a GPU:
 #  1. the unit tests of code/patches/test_opd_route.py with the python the arms train in (torch: the sampler-order test runs), as
 #     PROBE-ROUTE runs them; any failure, or no torch, is a FAIL (nothing counts as skipped)
-#  2. PROBE-DIFF17's labels_17.jsonl, 6400 training prompts; for each p in MIXP_PS (0.75 0.9) the coin's thinking share over them
+#  2. PROBE-DIFF17's labels_17.jsonl, 6400 training prompts; for each p in MIXP_PS (0.6 0.75 0.9; [v2.5.9z47] 0.6 for E10b-P5mix60,
+#     the reviewer 10-22 18:5x Beijing via ops-lead) the coin's thinking share over them
 #     in [p - 0.05, p + 0.05], and the prompts thinking at the smaller p a subset of those at the larger one
 # report.json: the unit-test line, per p the share; to logs/<node>/probe_mixp/ (private), an event, .done. Usage: bash probe_mixp.sh
 set -uo pipefail
@@ -61,7 +62,7 @@ step "unit tests: $(tail -1 $D/unit_tests.txt)"
 [ $rc = 0 ] || finish FAIL "unit tests: $(tail -1 $D/unit_tests.txt)"
 # 2. the coin at each p over the 6400 training labels
 [ -f "$LAB" ] || finish FAIL "no PROBE-DIFF17 labels ($(basename $LAB))"
-python3 - "$LAB" "$D/mix_check.json" "${OPD_SEED:-1234}" "$RUNBOOK/code/patches" ${MIXP_PS:-0.75 0.9} <<'PY'
+python3 - "$LAB" "$D/mix_check.json" "${OPD_SEED:-1234}" "$RUNBOOK/code/patches" ${MIXP_PS:-0.6 0.75 0.9} <<'PY'
 import json, sys
 sys.path.insert(0, sys.argv[4]); import opd_route as R
 lab = R.load_labels(sys.argv[1]); seed = int(sys.argv[3]); ps = sorted(float(x) for x in sys.argv[5:])

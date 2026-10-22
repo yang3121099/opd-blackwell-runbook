@@ -99,6 +99,9 @@ ROUTE=""; ROUTE_P=""; case $TASK in E10b-P5route) ROUTE=route; BASE=E10b-P5;; E1
 # [v2.5.9z45] (Q-063, the reviewer's pre-registration 10-22) E10b-P5route-inv = E10b-P5route with the rule reversed (OPD_ROUTE_INVERT=1):
 # r >= 0.5 (easy) -> the thinking template, otherwise (hard) -> the non-thinking one; gated by PROBE-ROUTE-INV (probe_route.sh reused)
 ROUTE_INV=""; [ $TASK = E10b-P5route-inv ] && { ROUTE=route; ROUTE_INV=1; BASE=E10b-P5; }
+# [v2.5.9z47] (the reviewer 10-22 18:5x Beijing via ops-lead) E10b-P5mix60 = mix75 / mix90's recipe with the coin at p = 0.6; it starts only
+# after PROBE-MIXP checked 0.6 (the share and the nesting under 0.75 / 0.9), besides PROBE-ROUTE
+[ $TASK = E10b-P5mix60 ] && { ROUTE=mix; ROUTE_P=0.6; BASE=E10b-P5; }
 # [v2.5.9z46] (Q-057, the reviewer's design 10-22 14:4x Beijing, ruling A 10:0x UTC) E16-X5 / E16-X5e = P5's recipe for a student
 # without a thinking mode: Qwen2.5-Math-1.5B-Instruct taught by DeepSeek-R1-Distill-Qwen-1.5B on its thinking template, 50 steps,
 # s25 / s50. The student has 4096 positions (no rope_scaling): prompts 1024 + responses 3072 (the ruled deviation from 4K). Its
@@ -159,6 +162,7 @@ if [ -n "$ROUTE" ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
   [ -z "$ROUTE_P" ] || grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-MIXP/report.json 2> /dev/null || { echo "PROBE-MIXP has not passed: $TASK not started"; exit 3; }   # [v2.5.9z38]
 fi
 [ -n "$ROUTE_INV" ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ] && { grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-ROUTE-INV/report.json 2> /dev/null || { echo "PROBE-ROUTE-INV has not passed: $TASK not started"; exit 3; }; }   # [v2.5.9z45]
+[ "$ROUTE_P" = 0.6 ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ] && { python3 -c "import json, sys; r = json.load(open(sys.argv[1])); sys.exit(0 if r.get('result') == 'PASS' and '0.6' in r.get('mix_check', {}).get('share', {}) else 1)" $OPD_ROOT/runs/PROBE-MIXP/report.json 2> /dev/null || { echo "PROBE-MIXP has not checked p = 0.6: $TASK not started"; exit 3; }; }   # [v2.5.9z47]
 # [v2.5.9n] the tail-swap arm starts only after PROBE-TAIL passed (the unit tests on the node + a 3-step smoke)
 if [ $TAIL = 1 ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
   grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-TAIL/report.json 2> /dev/null || { echo "PROBE-TAIL has not passed: $TASK not started"; exit 3; }

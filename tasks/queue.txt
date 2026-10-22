@@ -111,6 +111,8 @@ b259z9   open   E10d-P5-t32:PROBE-T32 EVAL-e10d-P5t32:E10d-P5-t32 EVAL-budA-e10d
 # [v2.5.9z45] (Q-063; the reviewer and ops-lead: after mix90 and t32 (A+), before Q-061) the reversed route arm and its gate
 b259z45p open   PROBE-ROUTE-INV:PROBE-ROUTE
 b259z45  open   E10b-P5route-inv:PROBE-ROUTE-INV EVAL-e10b-P5route-inv:E10b-P5route-inv+EVAL-e10b-P5route+EVAL-e10b-P5mix EVAL-budA-P5route-inv:E10b-P5route-inv+EVAL-budA-P5route
+# [v2.5.9z47] (the reviewer 10-22 18:5x Beijing via ops-lead, after Q-063) the mixing dose at p = 0.6
+b259z47  open   E10b-P5mix60:PROBE-MIXP+PROBE-ROUTE EVAL-e10b-P5mix60:E10b-P5mix60+EVAL-e10b-P5mix EVAL-budA-P5mix60:E10b-P5mix60
 # [v2.5.9z46] (Q-057; the reviewer's ruling A 10:0x UTC) E16-X5, its gate and readings, after Q-063; E16-X5e only if PROBE-X5's
 # x5e holds (think < 0.3 and empty >= 0.5): a queue push then adds its stage (b259z46e: E16-X5e:PROBE-X5 and its readings)
 b259z46p open   PROBE-X5
@@ -2286,3 +2288,20 @@ b259z24  open   TOKCHECK-X5
 #fppair READINGS-EXTRA q057 x5_s50 x5_teacher16k x5_teacher3k x5_start
 #fppair READINGS-EXTRA q057 x5_start x5_teacher16k x5_teacher3k
 #after EVAL-x5 rerun READINGS-EXTRA
+# [v2.5.9z47] (the reviewer 10-22 18:5x Beijing via ops-lead) E10b-P5mix60: mix75 / mix90's recipe (1.7B from the base, 50 steps, s50,
+# the threshold coin, OPD_ROUTE_P) at p = 0.6; gated by PROBE-ROUTE and PROBE-MIXP with 0.6 checked (its share over the 6400 labels and
+# the nesting under 0.75 / 0.9). The reviewer's prediction: a wall crossing, if any, at s25-s45; none means p* >= 0.6 (the 4K-wall
+# step from len_by_step.csv / wall.json, the event wall_cross). Readings as mix75 / mix90's, the 16K pairs also against mix75 and mix90.
+#eval EVAL-e10b-P5mix60 e10b_P5mix60_s50_math500_T0.6 result:runs/E10b-P5mix60/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-e10b-P5mix60 e10b_P5mix60_s50_math500_T1.0 result:runs/E10b-P5mix60/global_step_50/actor/huggingface math500 4 1.0
+#twr EVAL-e10b-P5mix60 e10b_P5mix60_s50_math500_T0.6
+#pair EVAL-e10b-P5mix60 e10b_P5mix60_s50_math500_T0.6 archive:runs/e10/e10_P5_1.7B_s50_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P2/e11b_P2_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e10b-P5self/e10b_P5self_s50_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e10b-P5route/e10b_P5route_s50_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e10b-P5mix/e10b_P5mix_s50_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e10b-P5mix75/e10b_P5mix75_s50_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e10b-P5mix90/e10b_P5mix90_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#pair EVAL-e10b-P5mix60 e10b_P5mix60_s50_math500_T1.0 E11b-P2/e11b_P2_math500_T1.0_math500_no_think_t1.0.jsonl E11b-P5/e11b_P5_math500_T1.0_math500_no_think_t1.0.jsonl
+#eval EVAL-budA-P5mix60 budAP5mix60_s50_math500_T0.6_32k result:runs/E10b-P5mix60/global_step_50/actor/huggingface math500 4 0.6 32768
+#budget EVAL-budA-P5mix60 budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5mix60_s50_math500_T0.6_32k
+#budget EVAL-budA-P5mix60 budget_curve_vsP5s150 EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5mix60_s50_math500_T0.6_32k
+#budget EVAL-budA-P5mix60 budget_curve_vsP2s150 EVAL-budA17b/budA_E10bP2_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5mix60_s50_math500_T0.6_32k
+#term PROBE-TERM4 17_P5mix60 result:runs/E10b-P5mix60/global_step_50/actor/huggingface EVAL-e10b-P5mix60/e10b_P5mix60_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-e10b-P5mix60 rerun PROBE-TERM4
+#split READINGS-EXTRA 17_P5mix60_s50 EVAL-e10b-P5mix60/e10b_P5mix60_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-e10b-P5mix60 rerun READINGS-EXTRA

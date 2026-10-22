@@ -31,7 +31,7 @@ res() { python3 -c "import json, sys; print(json.load(open(sys.argv[1])).get(sys
 mixok() { python3 - $T/root/runs/PROBE-MIXP/report.json <<'PY'
 import json, sys
 m = json.load(open(sys.argv[1]))['mix_check']
-sys.exit(0 if m['train_labels'] == 6400 and m['nested'] and abs(m['share']['0.75'] - 0.75) <= 0.05 and abs(m['share']['0.9'] - 0.9) <= 0.05 else 1)
+sys.exit(0 if m['train_labels'] == 6400 and m['nested'] and all(abs(m['share'][p] - float(p)) <= 0.05 for p in ('0.6', '0.75', '0.9')) else 1)   # [v2.5.9z47] 0.6 too
 PY
 }
 setup; bash $T/rb/scripts/probe_mixp.sh > /dev/null 2>&1

@@ -1283,4 +1283,13 @@ def test_run_and_rerun_accept_v259z46(env):   # [v2.5.9z46] (Q-057) E16-X5 / -X5
     R.check_eval_args(["local:models/Qwen2.5-Math-1.5B-Instruct", "math500", "4", "0.6", "3072"])   # the student's 4096 positions
     with pytest.raises(R.Reject):
         R.check_eval_args(["local:models/Qwen2.5-Math-1.5B-Instruct", "math500", "4", "0.6", "3000"])
-    assert R.RULES_VERSION == "2.5.72"
+    assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 72)
+
+
+def test_run_and_rerun_accept_v259z47(env):   # [v2.5.9z47] E10b-P5mix60 (rules 2.5.73)
+    st, msg, _ = env.c.v_run(["E10b-P5mix60"], 150)
+    assert st == "accepted", msg
+    for i, t in enumerate(("E10b-P5mix65", "E10b-P5mix60-s43", "E10b-P5mix6")):
+        assert env.c.v_run([t], 160 + i)[0] == "rejected", t
+    R.parse({"cmd": "rerun E10b-P5mix60", "reason": "t"})
+    assert R.RULES_VERSION == "2.5.73"
