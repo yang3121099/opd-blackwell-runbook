@@ -47,6 +47,11 @@ import glob, json, os, re, subprocess, sys, time
 root = os.environ["OPD_ROOT"]; runbook = os.environ["RUNBOOK"]
 sys.path.insert(0, os.path.join(runbook, "scripts"))
 from control import redact, status as control_status, roots_report, dr_report
+def jload(p, d=None):   # [v2.5.9z58] a torn or missing JSON input skips that field, never the whole status
+    try:
+        return json.load(open(p))
+    except (OSError, ValueError):
+        return d
 def total_steps(d, text):
     cfg = open(os.path.join(d, "config.yaml"), errors="ignore").read() if os.path.exists(os.path.join(d, "config.yaml")) else ""
     m = re.search(r"^steps:\s*(\d+)", cfg, re.M) or re.search(r"total_training_steps[=:]\s*(\d+)", text)
@@ -186,7 +191,7 @@ for _n in pad_tasks & set(tasks):   # [v2.5.9m] tasks[].pad: a padding reading (
 stages = {m.group(1): m.group(2) for m in re.finditer(r"^(\S+)\s+(open|auto|locked)\s", queue, re.M)}   # v2.3: stage -> status
 json.dump({"host": os.uname().nodename, "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
            "queue_version": ver.group(1) if ver else None, "stages": stages,
-           "stack": json.load(open(os.path.join(root, "logs", "stack.json"))) if os.path.exists(os.path.join(root, "logs", "stack.json")) else {},
+           "stack": jload(os.path.join(root, "logs", "stack.json"), {}),
            "tasks": tasks, "stale_task_dirs": stale, "gpus": gpu, "disk_free_gb": round(st.f_bavail * st.f_frsize / 1e9, 1),
            # v2.4: alert below DISK_ALERT_GB (30): one 1.7B save needs ~11 GB for a moment (fp32 HF + bf16 copy), a SPOT
            # resume save ~28 GB
@@ -200,8 +205,8 @@ json.dump({"host": os.uname().nodename, "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ
            # checkpoint disk's size, and our own usage from our_du.sh (du, every 30 min)
            "disk_total_gb": round(st.f_blocks * st.f_frsize / 1e9, 1), "disk_free_bytes": st.f_bavail * st.f_frsize,
            "ckpt_disk_total_gb": (lambda c: round(c.f_blocks * c.f_frsize / 1e9, 1))(os.statvfs(os.environ["CKPT_ROOT"])) if os.path.isdir(os.environ.get("CKPT_ROOT", "")) else None,
-           "our_du": json.load(open(os.path.join(root, "control", "our_du.json"))) if os.path.exists(os.path.join(root, "control", "our_du.json")) else None,
-           "held": json.load(open(os.path.join(root, "control", "held.json"))) if os.path.exists(os.path.join(root, "control", "held.json")) else None,   # [v2.5.9c] GPUs held for a #gpus task
+           "our_du": jload(os.path.join(root, "control", "our_du.json")),
+           "held": jload(os.path.join(root, "control", "held.json")),   # [v2.5.9c] GPUs held for a #gpus task
            "runbook_head": git("rev-parse", "--short", "HEAD"), "runbook_version": "v2.5.9",
            "run_tasks_sha": open(os.path.join(root, "control", "run_tasks.sha")).read().strip() if os.path.exists(os.path.join(root, "control", "run_tasks.sha")) else None,
            "ckpt_roots": roots_report(),   # v2.5: every candidate root: mount, free GB, writable, alert, task dirs and sizes

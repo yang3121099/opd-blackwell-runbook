@@ -63,7 +63,7 @@ pull_and_control() {   # git pull, record it, apply new control commands, restar
   local after=$(git -C "$RUNBOOK" rev-parse --short HEAD 2>/dev/null)   # v2.5: changed control rules need a sign-off line
   [ -n "$before" ] && [ "$before" != "$after" ] && { python $RUNBOOK/scripts/control.py check_pull $before $after >> $OPD_ROOT/logs/control.log 2>&1 || ok=false; }
   printf '{"utc": "%s", "ok": %s, "head_before": "%s", "head": "%s"}\n' "$(date -u +%FT%TZ)" $ok "$before" \
-    "$(git -C "$RUNBOOK" rev-parse --short HEAD 2>/dev/null)" > $CDIR/last_pull.json
+    "$(git -C "$RUNBOOK" rev-parse --short HEAD 2>/dev/null)" > $CDIR/last_pull.json.tmp && mv -f $CDIR/last_pull.json.tmp $CDIR/last_pull.json   # [v2.5.9z58] atomic
   bounded ${APPLY_TIMEOUT:-300} python $RUNBOOK/scripts/control.py apply >> $OPD_ROOT/logs/control.log 2>&1   # v2.5.7zb
   local now=$(cat "$RUNBOOK/scripts/run_tasks.sh" "$RUNBOOK/scripts/env.sh" | sha1sum | cut -c1-12)
   if [ "$now" != "$SELF_SHA" ]; then
@@ -146,7 +146,7 @@ take_gpus() {
     w=$OPD_ROOT/runs/$1/.gpus_wait; mkdir -p $OPD_ROOT/runs/$1
     if [ ! -f $w ]; then date +%s > $w; echo "HOLD $(date -u +%T) gpu=$(IFS=,; echo "${FREE[*]}") for $1 (needs $n)"; fi
     if [ $(( ($(date +%s) - $(cat $w)) / ($(cenv GPUS_HOLD_MIN ${GPUS_HOLD_MIN:-30}) * 60 + 1) % 2 )) = 0 ] && soon_free; then
-      printf '{"task": "%s", "gpus": [%s], "since_utc": "%s"}\n' $1 "$(IFS=,; echo "${FREE[*]}")" "$(date -u -d @$(cat $w) +%FT%TZ 2> /dev/null || date -u +%FT%TZ)" > $OPD_ROOT/control/held.json
+      printf '{"task": "%s", "gpus": [%s], "since_utc": "%s"}\n' $1 "$(IFS=,; echo "${FREE[*]}")" "$(date -u -d @$(cat $w) +%FT%TZ 2> /dev/null || date -u +%FT%TZ)" > $OPD_ROOT/control/held.json.tmp && mv -f $OPD_ROOT/control/held.json.tmp $OPD_ROOT/control/held.json   # [v2.5.9z58] atomic
       FREE=()
     fi
   fi

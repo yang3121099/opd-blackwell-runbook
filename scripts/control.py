@@ -287,8 +287,8 @@ def v_setenv(a, seq):
     tmp = _env_file() + ".tmp"
     open(tmp, "w").write("# written by control.py (ops-1); sourced last by env.sh\n" + "".join(f"export {x}={y}\n" for x, y in sorted(env.items())))
     os.replace(tmp, _env_file())
-    times = json.loads(_read(_p("setenv_times.json"), "{}") or "{}"); times[k] = time.time()
-    json.dump(times, open(_p("setenv_times.json"), "w"))
+    times = _jread("setenv_times.json", {}); times[k] = time.time()
+    _jwrite("setenv_times.json", times)
     return "ok", f"{k} {'removed' if v == '' else 'set'}; applies to tasks started from now on", {}
 
 
@@ -411,7 +411,7 @@ def _direct_put(src, dst):
     finally:
         os.environ.pop("REMOTE_PUT_TIMEOUT") if old is None else os.environ.__setitem__("REMOTE_PUT_TIMEOUT", old)
     cls = "receipts" if "/replies/" in dst else dst.split("/")[0] + ("" if dst.startswith("pulse/") else "_json")
-    st = json.loads(_read(_p("direct_fail.json"), "{}") or "{}"); n = int(st.get(cls) or 0)
+    st = _jread("direct_fail.json", {}); n = int(st.get(cls) or 0)
     if ok and n:
         st[cls] = 0; event("node", "control_direct_recovered", f"{cls} after {n} failed puts")
     elif not ok:
@@ -483,7 +483,7 @@ def _throttle(it):
 
 def _stamps():
     try:
-        s = json.loads(_read(_p("put_stamps.json"), "{}") or "{}")
+        s = _jread("put_stamps.json", {})
         return s if isinstance(s, dict) else {}
     except ValueError:
         return {}
@@ -567,13 +567,14 @@ def diag_tails(force=False):
             continue
         head.append({"dst": it.get("dst"), "kind": it.get("kind"), "fails": it.get("fails"), "age_s": int(now - int(n[:20]) / 1e9) if n[:20].isdigit() else None,
                      "src_exists": os.path.exists(it.get("src", "")), "src_bytes": os.path.getsize(it["src"]) if os.path.isfile(it.get("src", "")) else None})
-    st = json.loads(_read(_p("state.json"), "{}") or "{}")
+    st = _state_read()
     json.dump({"utc": utc(), "applied_seq": _read(_p("applied_seq")).strip(), "pending": st.get("pending"), "alerts": st.get("alerts"),
                "outbox_items": len([n for n in os.listdir(d) if n.endswith(".json")]) if os.path.isdir(d) else 0, "outbox_head": head,
-               "put_stamps": _stamps(), "direct_fail": json.loads(_read(_p("direct_fail.json"), "{}") or "{}"), "hf_backoff_s": int(_backoff_left()),
+               "put_stamps": _stamps(), "direct_fail": _jread("direct_fail.json", {}), "hf_backoff_s": int(_backoff_left()),
                "loops_age_s": {k: (lambda t: int(now - int(t)) if t.isdigit() else None)(_read(_p(f"loop_{k}")).strip()) for k in ("run_tasks", "heartbeat", "uploader")},
                "tail_errors": errs},
-              open(os.path.join(out, "control_state.json"), "w"), indent=1)
+              open(os.path.join(out, "control_state.json.tmp"), "w"), indent=1)
+    os.replace(os.path.join(out, "control_state.json.tmp"), os.path.join(out, "control_state.json"))
     return _direct_put(out, f"logs/{node_id()}/diag")
 
 
@@ -793,7 +794,7 @@ def _ancestors():
 
 
 def _published_row(pid):
-    t = json.loads(_read(_p("procs.json"), "{}") or "{}")
+    t = _jread("procs.json", {})
     for r in t.get("rows", []):
         if r.get("pid") == pid:
             return r
@@ -1177,7 +1178,7 @@ def _pulse_assets():
     """(assets, dropped) for the pulse: assets_view() with every entry checked by leak_check on its own (a failing entry is left
     out and counted), or (None, None) when assets_view() raises - the pulse goes on; one event assets_view_failed when it starts
     failing (state.json assets_failed), assets_view_ok when it works again."""
-    failed = bool(json.loads(_read(_p("state.json"), "{}") or "{}").get("assets_failed"))
+    failed = bool(_state_read().get("assets_failed"))
     try:
         a = assets_view()
     except Exception as e:
@@ -1204,7 +1205,7 @@ def assets_view():
     files (the size is their sum); a git copy's holds the commit (its time is the file's, its size the copy's, cached by that mtime in
     assets_cache.json). Pulling = no .fetch_ok, and partial files (.incomplete / .part) in it or a fetch process naming it. Names are
     repo ids with "/" as "__" (the pulse's leak check refuses "/"), never a path."""
-    cache = json.loads(_read(_p("assets_cache.json"), "{}") or "{}"); out = {}
+    cache = _jread("assets_cache.json", {}); out = {}
     try:
         procs = subprocess.run(["pgrep", "-af", "fetch_model[.]py|git_fetch[.]sh"], capture_output=True, text=True, timeout=10).stdout
     except Exception:
@@ -1237,7 +1238,7 @@ def assets_view():
             elif d in procs or any(f.endswith((".incomplete", ".part")) for _, _, fs in os.walk(d) for f in fs):
                 out[n] = {"state": ASSET_PULLING, "at": None}
     try:
-        json.dump(cache, open(_p("assets_cache.json"), "w"))
+        _jwrite("assets_cache.json", cache)
     except OSError:
         pass
     return out
@@ -1291,7 +1292,7 @@ def build_pulse(st, gpu_csv):
     lim = float(os.environ.get("GPU_MEM_ALERT_MIB", 245760))
     evals, orphans = set(), set()   # v2.5.4b: evaluation GPUs are not flagged (their vLLM preallocates ~0.9 of the GPU)
     try:
-        for r in json.loads(_read(_p("procs.json"), "{}") or "{}").get("rows", []):
+        for r in _jread("procs.json", {}).get("rows", []):
             if r.get("gpu") is None:
                 continue
             if re.match(r"(E11b-|EVAL-|adhoc_eval_|FA-PROBE|SPEED-PROBE|PROBE-4B|PROBE-TERM|PROBE-TOP10|FA-SPEED-)", str(r.get("task") or "")):
@@ -2086,7 +2087,7 @@ def alerts(status_path):
         st = json.load(open(status_path))
     except Exception:
         st = {}
-    prev = set(json.loads(_read(_p("state.json"), "{}") or "{}").get("alerts", []))
+    prev = set(_state_read().get("alerts", []))
     now = set()
     for k in ("disk_alert", "ckpt_disk_alert"):
         if st.get(k):
@@ -2329,19 +2330,19 @@ def reserve_note(ready, free, tasks, held, now=None):
     them), the GPUs still free, and the trainings the disk guard held, to reserve.json; low_since = since when ready <
     free + RESERVE_MIN (2) has held without a break (None while it does not)."""
     now = time.time() if now is None else now
-    prev = json.loads(_read(_p("reserve.json"), "{}") or "{}")
+    prev = _jread("reserve.json", {})
     need = free + int(os.environ.get("RESERVE_MIN", "2"))
     low = ready < need
     r = {"utc": utc(), "t": now, "ready": ready, "free_gpus": free, "need": need, "ready_tasks": tasks[:20], "held_by_disk": held[:20],
          "low_since": (prev.get("low_since") or now) if low else None}
-    json.dump(r, open(_p("reserve.json"), "w"))
+    _jwrite("reserve.json", r)
     return r
 
 
 def reserve_low(now=None):
     """The reserve alert: reserve.json fresh (< 15 min) and low for RESERVE_ALERT_MIN (10) minutes or more."""
     now = time.time() if now is None else now
-    r = json.loads(_read(_p("reserve.json"), "{}") or "{}")
+    r = _jread("reserve.json", {})
     if not r or now - (r.get("t") or 0) > 900 or not r.get("low_since"):
         return None
     return r if now - r["low_since"] >= RESERVE_ALERT_MIN * 60 else None
@@ -2498,8 +2499,92 @@ def log(entry):
         f.write(json.dumps(entry) + "\n")
 
 
+def _jwrite(name, obj):
+    """[v2.5.9z58] a control-plane JSON file written atomically: the writer's own tmp file, then os.replace (two writers with
+    open(..., "w") interleaved and left state.json unreadable on 10-22)."""
+    tmp = _p(f"{name}.{os.getpid()}.tmp"); json.dump(obj, open(tmp, "w")); os.replace(tmp, _p(name))
+
+
+def _top_objects(raw):
+    """Every complete top-level JSON object in raw, in order: one starts at the file's start or right after a closing brace
+    (so a nested object inside a torn tail is not taken for a whole one)."""
+    dec, out, i = json.JSONDecoder(), [], 0
+    while True:
+        j = raw.find("{", i)
+        if j < 0:
+            return out
+        before = raw[:j].rstrip()
+        if before and not before.endswith("}"):
+            i = j + 1; continue
+        try:
+            o, end = dec.raw_decode(raw, j)
+        except ValueError:
+            i = j + 1; continue
+        if isinstance(o, dict):
+            out.append(o)
+        i = end
+
+
+def _merge_objects(objs):
+    m = {}
+    for o in objs:
+        m.update(o)
+    return m
+
+
+def _jread(name, default=None, pick=_merge_objects):
+    """[v2.5.9z58] a control-plane JSON file read tolerantly. Unreadable: the complete objects in it are recovered (pick: the
+    file's own rule; by default merged in order), the bad file is copied to <name>.bad.<utc> (at most 5 copies), the file is
+    rewritten clean and one event state_json_repaired names it."""
+    raw = _read(_p(name), "") or ""
+    if not raw.strip():
+        return default
+    try:
+        return json.loads(raw)
+    except ValueError:
+        pass
+    objs = _top_objects(raw)
+    obj = pick(objs) if objs else default
+    try:
+        if len(glob.glob(_p(f"{name}.bad.*"))) < 5:
+            open(_p(f"{name}.bad.{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}"), "w").write(raw)
+        if obj is not None:
+            _jwrite(name, obj)
+    except OSError:
+        pass
+    try:
+        event("node", "state_json_repaired", f"{name}: {len(raw)} bytes unreadable, {len(objs)} complete object(s) recovered")
+    except Exception:
+        pass
+    return obj
+
+
+def _pick_state(objs):
+    """[ops-lead's A1 condition] state.json: never backwards - the object written last by apply (the latest last_apply_utc, then
+    the most keys) is the base; rejected_entries is the union of all, so a refused entry is not refused (and reported) again;
+    an applied_seq in any of them, or in control/applied_seq, gives the largest. (The commands themselves are guarded by
+    control/applied_seq, written atomically by apply and never by state().)"""
+    base = dict(max(objs, key=lambda o: (str(o.get("last_apply_utc") or ""), len(o))))
+    rej = sorted({x for o in objs for x in (o.get("rejected_entries") or [])})
+    if rej:
+        base["rejected_entries"] = rej
+    seqs = [int(o["applied_seq"]) for o in objs if str(o.get("applied_seq", "")).isdigit()]
+    if seqs:
+        f = _read(_p("applied_seq"), "0").strip()
+        base["applied_seq"] = max(seqs + ([int(f)] if f.isdigit() else []))
+    return base
+
+
+def _state_read():
+    """[v2.5.9z58] control/state.json, read tolerantly (10-22 ~11:17 UTC it held one object plus extra data, "Extra data: line 1
+    column 124", and every reader raised: the heartbeat's status builder (no status for 4 h), apply (no command after seq 481 ran,
+    no receipt), diag_tails; state() could never rewrite it since it reads first)."""
+    s = _jread("state.json", {}, pick=_pick_state)
+    return s if isinstance(s, dict) else {}
+
+
 def state(**kw):
-    s = json.loads(_read(_p("state.json"), "{}") or "{}"); s.update(kw); json.dump(s, open(_p("state.json"), "w"))
+    s = _state_read(); s.update(kw); _jwrite("state.json", s)
 
 
 def apply():
@@ -2520,7 +2605,7 @@ def apply():
         state(node_mismatch=str(doc.get("node"))); return
     state(node_mismatch=None, file_error=None)
     applied = int((_read(_p("applied_seq"), "0").strip() or 0)); prev = None
-    seen = set(json.loads(_read(_p("state.json"), "{}") or "{}").get("rejected_entries", []))
+    seen = set(_state_read().get("rejected_entries", []))
     n_cmd = n_sig = n_kpg = 0; cmds = doc.get("commands") or []
     for i, c in enumerate(cmds):
         seq = c.get("seq") if isinstance(c, dict) else None
@@ -2567,7 +2652,7 @@ def apply():
 
 def suspects():
     """setenv followed within 10 minutes by a task failure with a vLLM/Triton init error (report only)."""
-    times = json.loads(_read(_p("setenv_times.json"), "{}") or "{}"); out = []
+    times = _jread("setenv_times.json", {}); out = []
     for d in sorted(os.listdir(os.path.join(ROOT, "runs"))) if os.path.isdir(os.path.join(ROOT, "runs")) else []:
         failed = _read(os.path.join(ROOT, "runs", d, ".failed"))
         m = re.search(r"^last: (\S+)", failed, re.M)
@@ -2631,7 +2716,7 @@ def gh_snapshot(n_replies=15, n_events=20):
     now = time.time()
     age = lambda f: (lambda t: int(now - int(t)) if t.isdigit() else None)(_read(_p(f)).strip())
     ob = [n for n in os.listdir(_outbox()) if n.endswith(".json") and not n.startswith(".")] if os.path.isdir(_outbox()) else []
-    s = json.loads(_read(_p("state.json"), "{}") or "{}")
+    s = _state_read()
     sf = sorted(glob.glob(os.path.join(ROOT, "logs", "status_*.json")), key=os.path.getmtime)[-1:]   # heartbeat.sh's status file
     try:
         sfu = json.loads(_read(sf[0], "{}") or "{}").get("utc") if sf else None
@@ -2645,7 +2730,7 @@ def gh_snapshot(n_replies=15, n_events=20):
             "loops_age_s": {k: age(f"loop_{k}") for k in ("run_tasks", "heartbeat", "uploader", "gh_heartbeat")},
             "outbox": {"items": len(ob), "oldest_age_s": int(now - int(min(ob)[:20]) / 1e9) if ob and min(ob)[:20].isdigit() else None},
             "hf_backoff_s": int(_backoff_left()), "hf_429_last": (_read(_p("hf_429.log")).strip().splitlines() or [None])[-1],
-            "pulse": json.loads(_read(_p("pulse.json"), "{}") or "{}"), "replies": reps, "events": evs}
+            "pulse": _jread("pulse.json", {}), "replies": reps, "events": evs}
 
 
 def _gh_withhold(obj):
@@ -2664,7 +2749,7 @@ def _gh_withhold(obj):
 
 
 def _gh_state(**kw):
-    st = json.loads(_read(_p("gh_hb.json"), "{}") or "{}")
+    st = _jread("gh_hb.json", {})
     if kw:
         st.update(kw); tmp = _p(f"gh_hb.json.{os.getpid()}.tmp"); json.dump(st, open(tmp, "w")); os.replace(tmp, _p("gh_hb.json"))
     return st
@@ -2763,8 +2848,8 @@ def gh_round(now=None):
 
 def status():
     lines = _read(_p("log.jsonl")).splitlines()[-5:]
-    s = json.loads(_read(_p("state.json"), "{}") or "{}")
-    lp = json.loads(_read(_p("last_pull.json"), "null") or "null")
+    s = _state_read()
+    lp = _jread("last_pull.json", None)
     return {"node": node_id(), "control_version": R.RULES_VERSION, "applied_seq": int((_read(_p("applied_seq"), "0").strip() or 0)),
             "pending": s.get("pending"), "last_pull_utc": (lp or {}).get("utc"), "last_apply_utc": s.get("last_apply_utc"),
             "recent": [json.loads(x) for x in lines if x.strip()], "origin_mismatch": s.get("origin_mismatch"),
