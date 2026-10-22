@@ -122,3 +122,15 @@ def test_term4_guard_for_a_sample_without_a_final_box():   # torch-free: the sou
     i = s.index('t4 = term4_positions(pieces, ids) if a.term4 else None')
     assert 'cnt["term4_no_box"] += 1' in s[i:i + 400] and "if t4 is not None:" in s[i:i + 600]
     assert s.index("if t4 is not None:", i) < s.index("t4[\"k_fb\"] + 1", i)
+
+
+def test_diag_tails_utf8_and_a_failure_is_an_event(root, puts, monkeypatch):   # [v2.5.9z56]
+    calls, ev = puts
+    open(os.path.join(root, "logs", "heartbeat.log"), "w", encoding="utf-8").write("100%|██████████| 15.9MB\nok\n")
+    assert C.diag_tails(force=True) is True
+    assert "██████████" in open(os.path.join(C._p("diag"), "heartbeat.log.tail"), encoding="utf-8").read()
+    assert json.load(open(os.path.join(C._p("diag"), "control_state.json")))["tail_errors"] == []
+    monkeypatch.setattr(C, "diag_tails", lambda force=False: (_ for _ in ()).throw(UnicodeEncodeError("ascii", "█", 0, 1, "x")))
+    monkeypatch.setenv("CONTROL_DIRECT", "0")
+    C.ship_outbox(60)
+    assert ev and ev[-1][0] == "diag_tails_failed" and ev[-1][1].startswith("UnicodeEncodeError")

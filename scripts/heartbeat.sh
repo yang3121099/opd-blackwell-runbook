@@ -224,7 +224,17 @@ PY
   UP=$F
   if ! python -c "import json, sys; json.load(open(sys.argv[1]))" $F 2> /dev/null; then
     UP=/dev/shm/status_$H.json; [ -d /dev/shm ] || UP=/tmp/status_$H.json
-    printf '{"host": "%s", "utc": "%s", "error": "%s", "disk_free_gb": %s, "ckpt_disk_free_gb": %s, "runbook_version": "v2.5.9"}\n' \
+    # [v2.5.9z56] the builder's last stderr lines (redacted) in the minimal status itself, so the project sees the failure at once
+    MINPY=0
+    [ -n "$BERR" ] && python - "$UP" "$H" "$BERR" "$(df -Pk $OPD_ROOT | awk 'NR==2{printf "%.1f", $4/1e6}')" "$(df -Pk ${CKPT_ROOT:-$OPD_ROOT} | awk 'NR==2{printf "%.1f", $4/1e6}')" 2> /dev/null <<'PY' && MINPY=1
+import json, os, sys, time
+sys.path.insert(0, os.path.join(os.environ["RUNBOOK"], "scripts"))
+from control import redact
+err = open(os.path.join(os.environ["OPD_ROOT"], "logs", "status_builder.err"), encoding="utf-8", errors="replace").read().strip().splitlines()
+json.dump({"host": sys.argv[2], "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "error": sys.argv[3], "builder_error": [redact(x)[:300] for x in err[-6:]],
+           "disk_free_gb": float(sys.argv[4]), "ckpt_disk_free_gb": float(sys.argv[5]), "runbook_version": "v2.5.9"}, open(sys.argv[1], "w"))
+PY
+    [ $MINPY = 1 ] || printf '{"host": "%s", "utc": "%s", "error": "%s", "disk_free_gb": %s, "ckpt_disk_free_gb": %s, "runbook_version": "v2.5.9"}\n' \
       "$H" "$(date -u +%FT%TZ)" "${BERR:-status JSON not written (disk full?)}" "$(df -Pk $OPD_ROOT | awk 'NR==2{printf "%.1f", $4/1e6}')" "$(df -Pk ${CKPT_ROOT:-$OPD_ROOT} | awk 'NR==2{printf "%.1f", $4/1e6}')" > $UP
   fi
   N=$(python $RUNBOOK/scripts/control.py node)
