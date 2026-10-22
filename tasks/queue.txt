@@ -1959,3 +1959,8 @@ olpd     open   EVAL-ext32k-17olpd
 # and summary to the private repository. A model not on the node is a report row (never downloaded); `rerun PROBE-WDIFF` then.
 # [v2.5.9z20] the 18 gpqa rows of b259z15 are #eval-deferred (not read) until GPQA is on the node: a row whose data is missing makes its
 # task wait and relaunch every 10 min, and each relaunch costs the dispatcher a 90 s pause; the MMLU-Pro rows of the same tasks run.
+# [v2.5.9z21] (the pre-registered TERM4 rows of Q-038 / Q-040 once their 16K readings exist; the reviewer's A1) stop-merged and tail-swap
+# s50: p_stop_last and the tail after the last box, as the other 1.7B rows; PROBE-TERM4 reruns once EVAL-smerge is done (EVAL-tail is)
+#term PROBE-TERM4 17_P5smerge result:runs/E10b-P5stopmerge/global_step_50/actor/huggingface EVAL-smerge/e10b_P5smerge_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#term PROBE-TERM4 17_P5tail result:runs/E10b-P5tail/global_step_50/actor/huggingface EVAL-tail/e10b_P5tail_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-smerge rerun PROBE-TERM4
