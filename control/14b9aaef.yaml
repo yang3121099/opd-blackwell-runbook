@@ -484,3 +484,4 @@ commands:
   - {"seq": 482, "cmd": "logs heartbeat 60", "reason": "pulse / status stale since 11:17 UTC: the heartbeat's log tail (ops-lead URGENT)", "utc": "2026-10-22T11:53:18Z"}
   - {"seq": 483, "cmd": "logs uploader 80", "reason": "pulse / status stale since 11:17 UTC: the uploader's log tail", "utc": "2026-10-22T12:03:36Z"}
   - {"seq": 484, "cmd": "upload logs/heartbeat.err", "reason": "pulse / status stale since 11:17 UTC: heartbeat.err for diagnosis (ops-lead URGENT)", "utc": "2026-10-22T12:07:57Z"}
+  - {"seq": 485, "cmd": "upload logs/uploader.log", "reason": "pulse / status stale since 11:17 UTC: uploader.log for diagnosis (ops-lead URGENT)", "utc": "2026-10-22T12:08:04Z"}
