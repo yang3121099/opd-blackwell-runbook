@@ -129,6 +129,8 @@ b259z41o open   EVAL-ood32k-17base EVAL-ood32k-4Bbase EVAL-ood32k-17p5self:EVAL-
 diff4b   open   PROBE-DIFF17-4B:PROBE-DIFF17
 b259q028 open   EVAL-ext32k-17p5l8k-s25
 b259z15  open   EVAL-gm-17base EVAL-gm-17think EVAL-gm-17P5 EVAL-gm-17P5self EVAL-gm-17P5rl EVAL-gm-17P5kl EVAL-gm-17P5l8k EVAL-gm-4Bbase EVAL-gm-4Bthink EVAL-gm-4BP5 EVAL-gm-4BP5self EVAL-gm-4BP5rl EVAL-gm-4BX4 EVAL-gm-4Bi2507 EVAL-gm-06base EVAL-gm-06think EVAL-gm-06P5 EVAL-gm-06P5rl
+# [10-23 Fable 04:4x UTC] MMLU-Pro-1K at 16K, greedy, for the thinking-template students (their 4K rows clip 28-62%); the thinking modes already run at 16K, the bases and non-thinking references are not rerun
+b259gm16 open   EVAL-gm16-17P5 EVAL-gm16-17P5self EVAL-gm16-17P5kl EVAL-gm16-17P5l8k EVAL-gm16-17P5rl EVAL-gm16-4BP5 EVAL-gm16-4BP5self EVAL-gm16-4BP5rl EVAL-gm16-4BX4
 # [v2.5.9z32] (Runming 10-22 14:3x Beijing via ops-lead: every re-rank is an update; the needed work loses its padding tag and moves up)
 # rx is no padding: READINGS-EXTRA carries registered readings (Q-040 H3 pairs, Q-030 checks, Q-056 fingerprints, the
 # MATH-500 1-100 / 101-500 and easy / hard splits); out of #pad, its stage here in the formal part
@@ -2076,6 +2078,16 @@ b259z24  open   TOKCHECK-X5
 #eval EVAL-gm-06P5 gm_06P5_gpqa_T0.6_16k result:runs/E10c-P5-fix4/global_step_150/actor/huggingface gpqa 4 0.6 16384 no_think
 #eval EVAL-gm-06P5rl gm_06P5rl_mmlupro1k_T0_4k result:runs/E12c-P5/global_step_100/actor/huggingface mmlupro1k 1 0 4096 no_think
 #eval EVAL-gm-06P5rl gm_06P5rl_gpqa_T0.6_16k result:runs/E12c-P5/global_step_100/actor/huggingface gpqa 4 0.6 16384 no_think
+# b259gm16 (Fable 10-23 04:4x UTC): the 4K MMLU-Pro-1K column mostly measures truncation (28-62% for P5-type students); each thinking-template student's 16K greedy row, named _16k, reported next to its 4K row (same checkpoint, same no_think template)
+#eval EVAL-gm16-17P5 gm_17P5_mmlupro1k_T0_16k result:runs/E10b-P5/global_step_150/actor/huggingface mmlupro1k 1 0 16384 no_think
+#eval EVAL-gm16-17P5self gm_17P5self_mmlupro1k_T0_16k result:runs/E10b-P5self/global_step_50/actor/huggingface mmlupro1k 1 0 16384 no_think
+#eval EVAL-gm16-17P5kl gm_17P5kl_mmlupro1k_T0_16k result:runs/E12b-P5-kl/global_step_100/actor/huggingface mmlupro1k 1 0 16384 no_think
+#eval EVAL-gm16-17P5l8k gm_17P5l8k_mmlupro1k_T0_16k result:runs/E12b-P5-8k/global_step_50/actor/huggingface mmlupro1k 1 0 16384 no_think
+#eval EVAL-gm16-17P5rl gm_17P5rl_mmlupro1k_T0_16k result:runs/E12b-P5/global_step_100/actor/huggingface mmlupro1k 1 0 16384 no_think
+#eval EVAL-gm16-4BP5 gm_4BP5_mmlupro1k_T0_16k result:runs/E10d-P5/global_step_150/actor/huggingface mmlupro1k 1 0 16384 no_think
+#eval EVAL-gm16-4BP5self gm_4BP5self_mmlupro1k_T0_16k result:runs/E10d-P5self/global_step_50/actor/huggingface mmlupro1k 1 0 16384 no_think
+#eval EVAL-gm16-4BP5rl gm_4BP5rl_mmlupro1k_T0_16k result:runs/E12d-P5/global_step_100/actor/huggingface mmlupro1k 1 0 16384 no_think
+#eval EVAL-gm16-4BX4 gm_4BX4_mmlupro1k_T0_16k result:runs/E10d-X4/global_step_50/actor/huggingface mmlupro1k 1 0 16384 no_think
 # [v2.5.9z17] (the reviewer's Q-040 H3, via ops-lead 10-22) tail-swap s50 against P5 s150 on MATH-500 32K, problem-level paired bootstrap;
 # READINGS-EXTRA reruns by itself once EVAL-tail and then EVAL-len-cmp are done (#after rows, 9z12)
 #pairq READINGS-EXTRA tail32k_vs_P5s150_32k EVAL-tail/budAtail_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl
