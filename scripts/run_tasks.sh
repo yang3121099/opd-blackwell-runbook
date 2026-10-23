@@ -281,6 +281,7 @@ git_pass() {
 launch() { # gpu task   (v2.5: start / done / killed / failed also go to status/<node>/events/ as receipts; [v2.5.8] gpu cpu: no reap)
   # [v2.5.9z3] logs/<task>.log is written with '>' at each attempt (truncated), so the blocked / waiting checks below read this
   # attempt's output only: a line left by an earlier attempt never turns a real failure into blocked / waiting
+  python $RUNBOOK/scripts/control.py place_run $2 >> $OPD_ROOT/logs/control.log 2>&1 || true   # [v2.5.9z71] runs/<task> on the checkpoint disk
   mkdir -p $OPD_ROOT/runs/$2; rm -f $OPD_ROOT/runs/$2/.gpu_released   # [v2.5.9z65a] each attempt holds its GPU until it releases it
   python $RUNBOOK/scripts/control.py event $2 start "gpu=$1 attempt=$(( $(attempts $2) + 1 ))" > /dev/null 2>&1 &
   setsid nohup bash -c "bash $RUNBOOK/scripts/task.sh $1 $2 > $OPD_ROOT/logs/$2.log 2>&1
@@ -324,6 +325,33 @@ disk_guard() {
 # READINGS_DISK_MIN_GB (1000) free (control.py readings_disk_low); the running ones go on; events readings_guard_on / _off when it
 # switches; control/readings_held.json after each pass (the heartbeat's readings_held). Trainings keep their own line (DISK_ALERT_GB).
 reading_task() { case $1 in EVAL-*) return 0;; esac; return 1; }
+# [v2.5.9z71] (ops-lead 10-23 18:05 UTC) below TASKS_DISK_MIN_GB (300) free on the work disk no new task of any kind starts
+# (trainings, readings, probes, the CPU lane, ad-hoc runs) and no new prefetch / fetch / git pull; the running ones go on and
+# nothing is stopped. Events tasks_guard_on / tasks_guard_critical (below TASKS_DISK_CRIT_GB 100: ops-lead decides about the
+# running tasks' uploads) / tasks_guard_off when it switches; control/tasks_guard holds the state (the pulse's tasks_guard).
+tasks_guard() {
+  ALL_LOW=$(python $RUNBOOK/scripts/control.py tasks_disk_low 2> /dev/null)
+  [ "${DRY:-0}" = 1 ] && { [ -n "$ALL_LOW" ] && echo "TASKS_GUARD $ALL_LOW"; return; }
+  local was; was=$(cat $CDIR/tasks_guard 2> /dev/null)
+  [ "$ALL_LOW" = "$was" ] && return
+  echo "$ALL_LOW" > $CDIR/tasks_guard
+  case "$ALL_LOW" in
+    *critical*) python $RUNBOOK/scripts/control.py event node tasks_guard_critical "work disk below TASKS_DISK_CRIT_GB: no new task; the running ones' uploads are ops-lead's call" > /dev/null 2>&1 &;;
+    work) python $RUNBOOK/scripts/control.py event node tasks_guard_on "work disk below TASKS_DISK_MIN_GB: no new task of any kind, the running ones go on" > /dev/null 2>&1 &;;
+    *) python $RUNBOOK/scripts/control.py event node tasks_guard_off > /dev/null 2>&1 &;;
+  esac
+}
+# [v2.5.9z71] after a switch of control/ and logs/ (control.py disk_fallback, CTRL_ON_CKPT): this loop's own log reopened at
+# the new path (control/ctrl_reopen); the other loops restart on their next ensure (their control/<loop>.sha removed by the
+# switch), the weights replay only between two uploads (control/ctrl_reopen_wr: no weights_replay.py running)
+ctrl_reopen() {
+  [ "${DRY:-0}" = 1 ] && return
+  if [ -f $CDIR/ctrl_reopen ]; then
+    rm -f $CDIR/ctrl_reopen; exec >> $OPD_ROOT/logs/run_tasks.log 2>&1
+    echo "CTRL_REOPEN $(date -u +%T) control -> $(readlink $OPD_ROOT/control || echo the work disk)"
+  fi
+  if [ -f $CDIR/ctrl_reopen_wr ] && ! pgrep -f "scripts/weights_replay[.]py" > /dev/null; then rm -f $CDIR/ctrl_reopen_wr $CDIR/weights_replay.sha; fi
+}
 readings_guard() {
   READ_LOW=$(python $RUNBOOK/scripts/control.py readings_disk_low 2> /dev/null)
   [ "${DRY:-0}" = 1 ] && { [ -n "$READ_LOW" ] && echo "READINGS_GUARD $READ_LOW"; return; }
@@ -336,6 +364,7 @@ readings_guard() {
 deps_of() { local s=$(grep -v '^#' "$Q" | tr ' ' '\n' | grep -E "^$1(:|\$)" | head -1); [ "$s" != "${s#*:}" ] && echo ${s#*:} | tr '+' ' '; }
 while true; do
   date -u +%s > $CDIR/loop_run_tasks   # v2.5.7zb: liveness for the watchdog (local, every round)
+  ctrl_reopen   # [v2.5.9z71]
   ensure_watchdog; ensure_uploader; ensure_loop gh_heartbeat   # [v2.5.9z54] the GitHub fallback heartbeat
   ensure_loop weights_replay   # [v2.5.9z62] the held weights to the public repository, one at a time
   if [ "${PULL:-1}" = 1 ] && [ $(( $(date +%s) - last_pull )) -ge ${PULL_EVERY:-60} ]; then last_pull=$(date +%s); pull_and_control; fi
@@ -377,15 +406,18 @@ while true; do
       python $RUNBOOK/scripts/control.py event $t upload_sync_restarted > /dev/null 2>&1 &
     done
   fi
-  [ "${DRY:-0}" != 1 ] && prefetch_pass
+  tasks_guard   # [v2.5.9z71] below 300 GB: no new task, prefetch, fetch or git pull
+  [ "${DRY:-0}" != 1 ] && [ -z "$ALL_LOW" ] && prefetch_pass
   [ "${DRY:-0}" != 1 ] && net2_unfreeze   # [v2.5.9i]
-  [ "${DRY:-0}" != 1 ] && fetch_pass   # v2.5.7w
-  [ "${DRY:-0}" != 1 ] && git_pass   # [v2.5.9c]
+  [ "${DRY:-0}" != 1 ] && [ -z "$ALL_LOW" ] && fetch_pass   # v2.5.7w
+  [ "${DRY:-0}" != 1 ] && [ -z "$ALL_LOW" ] && git_pass   # [v2.5.9c]
   [ "${DRY:-0}" != 1 ] && python $RUNBOOK/scripts/control.py auto_reruns "$Q"   # [v2.5.9z12] the queue's #at / #after rerun lines
   disk_guard   # [v2.5.9z12]
   readings_guard   # [v2.5.9z69]
-  python $RUNBOOK/scripts/control.py disk_fallback > /dev/null 2>&1 || true   # [v2.5.9z48] the control plane off a full work disk
-  READY=0; RT=""; HELD=""; RHELD=""   # [v2.5.9z12] this pass's ready-but-not-started GPU tasks, and the trainings the disk guard held; [v2.5.9z69] the readings
+  # [v2.5.9z48] the control plane off a full work disk; [v2.5.9z71] the planned switch (CTRL_ON_CKPT): in the background (a first
+  # copy of logs/ can take minutes; this loop's liveness must not wait on it), one at a time (the lock), its line in logs/control.log
+  [ "${DRY:-0}" != 1 ] && (setsid nohup nice -n 10 python $RUNBOOK/scripts/control.py disk_fallback >> $OPD_ROOT/logs/control.log 2>&1 < /dev/null &)
+  READY=0; RT=""; HELD=""; RHELD=""; AHELD=""   # [v2.5.9z12] this pass's ready-but-not-started GPU tasks, and the trainings the disk guard held; [v2.5.9z69] the readings
   FREE=($(free_gpus)); earlier_finished=1; rm -f $CDIR/held.json   # [v2.5.9c] a hold is written again by take_gpus
   verify_busy && FREE=()   # a remote rerun_verify owns the GPUs
   while read -r stage status rest; do
@@ -413,6 +445,7 @@ while true; do
       fi
       unblock $t
       waiting $t && continue   # [v2.5.9z3]
+      if [ -n "$ALL_LOW" ]; then AHELD="$AHELD $t"; continue; fi   # [v2.5.9z71] below 300 GB nothing new starts
       case $t in EVAL-*) inputs_ok $t || result_only $t || no_fetch $t || continue; mc_data_ok $t || continue;; esac   # [v2.5.9z23] mc_data_ok   # v2.5.4e: no GPU while its models are being fetched ([v2.5.8] no_fetch)
       if cpu_task $t; then   # [v2.5.8] the CPU lane: no GPU taken
         cpu_busy && continue
@@ -430,13 +463,13 @@ while true; do
     [ $stage_finished = 1 ] || earlier_finished=0
   done < <(stage_lines "$Q")   # [v2.5.9m] padding stages last
   # [v2.5.9z12] the reserve: ready GPU tasks left waiting against the GPUs still free (control.py: alert reserve_low after 10 min)
-  if [ "${DRY:-0}" = 1 ]; then echo "RESERVE ready=$READY free=${#FREE[@]} tasks=[${RT# }] held=[${HELD# }]"; [ -n "$READ_LOW" ] && echo "READINGS_HELD [${RHELD# }]"
+  if [ "${DRY:-0}" = 1 ]; then echo "RESERVE ready=$READY free=${#FREE[@]} tasks=[${RT# }] held=[${HELD# }]"; [ -n "$READ_LOW" ] && echo "READINGS_HELD [${RHELD# }]"; [ -n "$ALL_LOW" ] && echo "TASKS_HELD [${AHELD# }]"
   else python $RUNBOOK/scripts/control.py reserve_note $READY ${#FREE[@]} "$RT" "$HELD" > /dev/null 2>&1
     python3 -c "import json, os, sys, time; t = sys.argv[3] + '.tmp'; json.dump({'utc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), 'low': sys.argv[1], 'held': sys.argv[2].split()}, open(t, 'w')); os.replace(t, sys.argv[3])" \\
       "${READ_LOW:-}" "${RHELD# }" $CDIR/readings_held.json 2> /dev/null || true   # [v2.5.9z69]
   fi
   # v2.5: ad-hoc `run` / `eval` requests (control.py) take only the GPUs this pass left free: the queue goes first
-  if [ "${DRY:-0}" != 1 ] && ! verify_busy; then
+  if [ "${DRY:-0}" != 1 ] && ! verify_busy && [ -z "$ALL_LOW" ]; then   # [v2.5.9z71] below 300 GB the requests wait
     while [ ${#FREE[@]} -gt 0 ]; do
       r=$(python $RUNBOOK/scripts/control.py next_request 2>/dev/null); [ -n "$r" ] || break
       set -- $r; g=${FREE[0]}; FREE=("${FREE[@]:1}")

@@ -22,6 +22,7 @@ def disks(monkeypatch):
     open(os.path.join(root, "control", "pulse.json"), "w").write("{}")
     open(os.path.join(root, "control", "events", "e1.json"), "w").write("1")
     open(os.path.join(root, "logs", "heartbeat.log"), "w").write("a\n")
+    open(os.path.join(root, "control.env"), "w").write("export CTRL_ON_CKPT=0\n")   # [v2.5.9z71] z48's lines alone (the planned switch off)
     monkeypatch.setattr(C, "ROOT", root)
     ev = []
     monkeypatch.setattr(C, "event", lambda task, kind, detail="": ev.append(kind))
@@ -39,15 +40,15 @@ def test_fallback_on_hold_off_no_flapping(disks):
     assert run(root, ckpt, 150, "T1") == "switched_on" and ev == ["disk_fallback_on"]
     for n in ("control", "logs"):
         p = os.path.join(root, n)
-        assert os.path.islink(p) and os.path.realpath(p) == os.path.realpath(os.path.join(fb, n))
+        assert os.path.islink(p) and os.path.realpath(p) == os.path.realpath(os.path.join(fb, n + ".T1"))   # [v2.5.9z71] a fresh copy per switch
         assert os.path.isdir(p + ".pre_fallback_T1")                       # the old directory kept
     assert open(os.path.join(root, "control", "events", "e1.json")).read() == "1"   # the files came along
     open(os.path.join(root, "control", "pulse.json"), "w").write("new")      # a writer through the old path ...
-    assert open(os.path.join(fb, "control", "pulse.json")).read() == "new"     # ... lands on the checkpoint disk
+    assert open(os.path.join(fb, "control.T1", "pulse.json")).read() == "new"  # ... lands on the checkpoint disk
     assert run(root, ckpt, 300) == "on" and run(root, ckpt, 150) == "on"      # 200-400: no switch either way
     assert run(root, ckpt, 450, "T2") == "switched_off" and ev[-1] == "disk_fallback_off"
     for n in ("control", "logs"):
-        assert not os.path.islink(os.path.join(root, n)) and os.path.isdir(os.path.join(fb, n + ".T2"))   # copy kept
+        assert not os.path.islink(os.path.join(root, n)) and os.path.isdir(os.path.join(fb, n + ".T1"))   # copy kept (z71: in place)
     assert open(os.path.join(root, "control", "pulse.json")).read() == "new"  # written during the fallback, back home
     assert run(root, ckpt, 300) == "off" and len(ev) == 2
 
@@ -63,7 +64,7 @@ def test_disk_write_fail_once_per_episode(disks):
 
 def test_lines_from_control_env(disks):
     root, ckpt, ev = disks
-    open(os.path.join(root, "control.env"), "w").write("export CTRL_FALLBACK_LOW_GB=1000\nexport CTRL_FALLBACK_HIGH_GB=2000\n")
+    open(os.path.join(root, "control.env"), "w").write("export CTRL_ON_CKPT=0\nexport CTRL_FALLBACK_LOW_GB=1000\nexport CTRL_FALLBACK_HIGH_GB=2000\n")
     assert run(root, ckpt, 900) == "switched_on" and run(root, ckpt, 1500) == "on" and run(root, ckpt, 2500) == "switched_off"
 
 

@@ -13,7 +13,7 @@ setup() {   # $1 = the queue's stage line; NGPU=2
   T=$(mktemp -d); mkdir -p $T/rb/scripts $T/rb/tasks $T/root/runs $T/root/logs $T/root/control $T/bin
   cp $SRC/scripts/run_tasks.sh $T/rb/scripts/
   printf 'export OPD_ROOT=%s/root RUNBOOK=%s/rb CDIR=%s/root/control NGPU=2\n' $T $T $T > $T/rb/scripts/env.sh
-  printf 'import sys, os\nopen(os.environ["CALLS"], "a").write("control " + " ".join(sys.argv[1:]) + "\\n")\nif sys.argv[1:2] == ["disk_low"]: print(os.environ.get("FAKE_DISK_LOW", ""))\nif sys.argv[1:2] == ["readings_disk_low"]: print(os.environ.get("FAKE_READ_LOW", ""))\n' > $T/rb/scripts/control.py
+  printf 'import sys, os\nopen(os.environ["CALLS"], "a").write("control " + " ".join(sys.argv[1:]) + "\\n")\nif sys.argv[1:2] == ["disk_low"]: print(os.environ.get("FAKE_DISK_LOW", ""))\nif sys.argv[1:2] == ["readings_disk_low"]: print(os.environ.get("FAKE_READ_LOW", ""))\nif sys.argv[1:2] == ["tasks_disk_low"]: print(os.environ.get("FAKE_ALL_LOW", ""))\n' > $T/rb/scripts/control.py
   printf 'import sys; sys.exit(1)\n' > $T/rb/scripts/remote.py
   printf '#!/usr/bin/env bash\ncase "$*" in *compute-apps*) ;; *query-gpu=index*) printf "0\\n1\\n";; *) echo 0;; esac\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi
   mkdir -p $T/root/venv/bin; : > $T/root/venv/bin/activate
@@ -55,5 +55,12 @@ ok "[v2.5.9z69] readings guard: EVAL-a held (READINGS_HELD [EVAL-a]); E10b-P5 an
 rm -rf $T
 setup "g1       open   EVAL-a"; FAKE_READ_LOW= dry
 ok "[v2.5.9z69] readings guard off: no READINGS_GUARD / READINGS_HELD lines, nothing held by it" '! grep -q "^READINGS_GUARD" $T/dry.out && ! grep -q "^READINGS_HELD" $T/dry.out'
+rm -rf $T
+# [v2.5.9z71] below TASKS_DISK_MIN_GB (300) nothing new starts: trainings, readings and probes all held (TASKS_GUARD, TASKS_HELD)
+setup "g1       open   E10b-P5 EVAL-a PROBE-X"; FAKE_ALL_LOW=work dry
+ok "[v2.5.9z71] tasks guard: E10b-P5, EVAL-a and PROBE-X all held, none would start" 'grep -q "^TASKS_GUARD work$" $T/dry.out && grep -q "^TASKS_HELD \[E10b-P5 EVAL-a PROBE-X\]$" $T/dry.out && ! grep -q "WOULD_START" $T/dry.out'
+rm -rf $T
+setup "g1       open   E10b-P5 EVAL-a"; FAKE_ALL_LOW= dry
+ok "[v2.5.9z71] tasks guard off: no TASKS_GUARD / TASKS_HELD lines, the tasks would start" '! grep -q "^TASKS_GUARD" $T/dry.out && ! grep -q "^TASKS_HELD" $T/dry.out && grep -q "WOULD_START .* EVAL-a " $T/dry.out'
 rm -rf $T
 [ $fails = 0 ] && echo "OPS_GUARD_TEST PASS ($n checks)" || echo "OPS_GUARD_TEST FAIL ($fails of $n)"

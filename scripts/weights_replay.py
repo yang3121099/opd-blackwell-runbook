@@ -316,6 +316,9 @@ def result_stage(hold, dst):
     if os.path.realpath(hold).startswith(runs + os.sep):
         d = os.path.join(os.environ.get("OPD_ROOT", ""), "control", "stage"); os.makedirs(d, exist_ok=True)
         return os.path.join(d, h)
+    live = os.path.realpath(os.path.join(os.environ.get("CKPT_ROOT", "/nonexistent"), "runs_live"))
+    if os.path.realpath(hold).startswith(live + os.sep):   # [v2.5.9z71] a run directory linked to the checkpoint disk: staged
+        return os.path.join(live, ".stage_" + h)             # beside it there (the same disk), never under runs/
     return os.path.join(os.path.dirname(hold.rstrip("/")), ".stage_" + h)
 
 

@@ -1317,6 +1317,8 @@ def build_pulse(st, gpu_csv):
             else (st.get("queue_version") if re.fullmatch(r"[0-9]+", st.get("queue_version")) else None),
             "gpus": gpus, "tasks": tasks, "results_pending": int(rp) if isinstance(rp, int) and rp >= 0 else None,   # [v2.5.9z65]
             "readings_held": int(st["readings_held"]) if isinstance(st.get("readings_held"), int) and st["readings_held"] >= 0 else None,   # [v2.5.9z69]
+            "ctrl_on_ckpt": os.path.islink(os.path.join(ROOT, "control")),   # [v2.5.9z71] control/ and logs/ on the checkpoint disk
+            "tasks_guard": (_read(os.path.join(ROOT, "control", "tasks_guard")).strip() or None),   # [v2.5.9z71] 'work' below 300 GB
             "disks": [{"idx": 0, "free_gb": _num(st.get("disk_free_gb")), "alert": bool(st.get("disk_alert")),   # [v2.5.9c] + total, ours
                        "total_gb": _num(st.get("disk_total_gb")), "free_bytes": _num(st.get("disk_free_bytes")),
                        "our_gb": _num(du.get("work_gb")), "our_gb_utc": t(du.get("utc"))},
@@ -2242,11 +2244,23 @@ def disk_low():
 
 # [v2.5.9z48] (the reviewer 10-22 19:0x Beijing via ops-lead; the 10-19 control-plane hang) the control plane's small writes
 # leave the work disk before it fills: below CTRL_FALLBACK_LOW_GB (200) free, $OPD_ROOT/control (heartbeat, pulse, events,
-# receipts, the upload outbox) and $OPD_ROOT/logs move to $CKPT_ROOT/opd_fallback/<name> and their old paths become symlinks
-# to it, so every writer goes on unchanged; above CTRL_FALLBACK_HIGH_GB (400) they move back (the gap: no flapping). The old
-# directory stays as <name>.pre_fallback_<utc> and the fallback copy as opd_fallback/<name>.<utc>: nothing is removed. Below
-# DISK_FULL_GB (1) one event disk_write_fail per episode: running tasks' writes there may fail, and nothing is stopped.
+# receipts, the upload outbox) and $OPD_ROOT/logs move to the checkpoint disk and their old paths become symlinks to it, so
+# every writer goes on unchanged; above CTRL_FALLBACK_HIGH_GB (400) they move back (the gap: no flapping). Below DISK_FULL_GB
+# (1) one event disk_write_fail per episode: running tasks' writes there may fail, and nothing is stopped.
+# [v2.5.9z71] (ops-lead 10-23 18:05 UTC, Runming's disk policy of 10-24 02:0x Beijing: the shared work disk is ours to arrange)
+# a planned switch: with CTRL_ON_CKPT (1; control.env first, read on every call) control/ and logs/ live on the checkpoint disk
+# whatever the free space; setenv CTRL_ON_CKPT=0 is the rollback (back on the work disk; z48's two lines apply again). z48's
+# swap was two renames with a moment between them where control/ did not exist, and the loops' open log files stayed on the
+# old disk. Now each switch: copies the directory into a fresh $CKPT_ROOT/opd_fallback/<name>.<utc> (twice: the bulk, then
+# what changed meanwhile; each file through a temp file, so a copy cut short never stands as a finished one), swaps the
+# directory and a ready symlink in ONE renameat2(RENAME_EXCHANGE) (control/ exists at every moment), copies once more what
+# was written in between, and turns each file that a live process still holds open in the old directory (a running task's
+# logs/<task>.log) into a symlink to that file, so readers see what the writer writes. The loops' own logs and locks are
+# left to the loops: run_tasks.sh reopens its log and restarts the others (control/ctrl_reopen). Where the work disk has no
+# atomic exchange nothing is switched (event ctrl_switch_refused). The old directory stays as <name>.pre_fallback_<utc>
+# and every copy on the checkpoint disk stays: nothing is removed (the live links point into the old directory).
 FALLBACK_DIRS = ("control", "logs")
+LOOPS = ("run_tasks", "heartbeat", "watchdog", "uploader", "gh_heartbeat", "weights_replay")   # [v2.5.9z71] the resident loops
 
 
 def _free_gb(path):
@@ -2270,10 +2284,176 @@ def _sync_tree(src, dst):
     return n
 
 
-def disk_fallback(root=None, ckpt=None, free_fn=None, emit=True, stamp=None, check_dev=True, blocking=True):
-    """One check (run_tasks.sh every round, the pulse every minute): 'on' / 'off' / 'switched_on' / 'switched_off', or 'n/a'
-    (no checkpoint disk apart from the work disk). [ops-lead's A1 condition] blocking=False (the pulse): 'busy' at once when another
-    check holds the lock (a move of logs/ can take minutes; the pulse must never wait: the 10-19 hang)."""
+def _exchange(a, b):
+    """[v2.5.9z71] swap the two paths in one step: Linux renameat2(RENAME_EXCHANGE) (glibc's, else the raw system call),
+    macOS renamex_np(RENAME_SWAP) (the tests); OSError when the system or the filesystem has none."""
+    import ctypes
+    import errno
+    import platform
+    libc = ctypes.CDLL(None, use_errno=True)
+    fa, fb = os.fsencode(a), os.fsencode(b)
+    if sys.platform.startswith("linux"):
+        try:
+            f = libc.renameat2
+            f.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+            r = f(-100, fa, -100, fb, 2)   # AT_FDCWD, RENAME_EXCHANGE
+        except AttributeError:   # glibc older than 2.28
+            nr = {"x86_64": 316, "aarch64": 276}.get(platform.machine())
+            if nr is None:
+                raise OSError(errno.ENOSYS, f"no renameat2 number for {platform.machine()}")
+            libc.syscall.restype = ctypes.c_long
+            r = libc.syscall(ctypes.c_long(nr), ctypes.c_int(-100), ctypes.c_char_p(fa), ctypes.c_int(-100), ctypes.c_char_p(fb), ctypes.c_uint(2))
+    elif sys.platform == "darwin":
+        f = libc.renamex_np
+        f.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint]
+        r = f(fa, fb, 2)   # RENAME_SWAP
+    else:
+        raise OSError(errno.ENOSYS, f"no atomic exchange on {sys.platform}")
+    if r != 0:
+        e = ctypes.get_errno()
+        raise OSError(e, os.strerror(e), a)
+
+
+def _exchange_selftest(root):
+    """[v2.5.9z71] one exchange of a scratch directory and a scratch symlink in root (the work disk): OSError when it fails."""
+    d, ln = os.path.join(root, f".z71_xtest_d.{os.getpid()}"), os.path.join(root, f".z71_xtest_l.{os.getpid()}")
+    os.makedirs(d, exist_ok=True)
+    if os.path.lexists(ln):
+        os.unlink(ln)
+    os.symlink(d, ln)
+    try:
+        _exchange(ln, d)
+        if not (os.path.islink(d) and os.path.isdir(ln) and not os.path.islink(ln)):
+            raise OSError(5, "the exchange did not swap the two entries")
+    finally:
+        for p in (d, ln):
+            if os.path.islink(p):
+                os.unlink(p)
+            elif os.path.isdir(p):
+                os.rmdir(p)
+
+
+def _copy_tree(src, dst):
+    """[v2.5.9z71] copy what dst lacks or has older (by mtime: a file written at dst after the swap is never overwritten
+    by the older one): each file through dst's own temp file and one rename; symlinks as symlinks; a symlink already at
+    dst (a live link) left alone; nothing removed. The number copied."""
+    n = 0
+    for dirpath, dirs, files in os.walk(src):
+        d = os.path.join(dst, os.path.relpath(dirpath, src))
+        os.makedirs(d, exist_ok=True)
+        for f in files + [x for x in dirs if os.path.islink(os.path.join(dirpath, x))]:
+            s, t = os.path.join(dirpath, f), os.path.join(d, f)
+            if f.endswith(".z71tmp"):
+                continue
+            tmp = f"{t}.z71tmp"
+            try:
+                if os.path.islink(t):
+                    continue
+                if os.path.islink(s):
+                    if not os.path.lexists(t):
+                        os.symlink(os.readlink(s), tmp); os.replace(tmp, t); n += 1
+                    continue
+                if os.path.exists(t) and os.stat(s).st_mtime <= os.stat(t).st_mtime:
+                    continue
+                shutil.copy2(s, tmp); os.replace(tmp, t); n += 1
+            except OSError:
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
+    return n
+
+
+def _open_files(prefix):
+    """[v2.5.9z71] the files under prefix (a real path) that a live process holds open (Linux /proc/<pid>/fd; an empty set
+    elsewhere)."""
+    out, pre = set(), prefix.rstrip("/") + "/"
+    for pid in os.listdir("/proc") if os.path.isdir("/proc/self/fd") else []:
+        if not pid.isdigit() or int(pid) == os.getpid():   # not this check's own log (logs/control.log)
+            continue
+        try:
+            fds = os.listdir(f"/proc/{pid}/fd")
+        except OSError:
+            continue
+        for fd in fds:
+            try:
+                t = os.readlink(f"/proc/{pid}/fd/{fd}")
+            except OSError:
+                continue
+            if t.startswith(pre) and not t.endswith(" (deleted)"):
+                out.add(t)
+    return out
+
+
+SHARED_LOGS = ("control.log", "git_fetch.log")   # [v2.5.9z71] appended by many short commands, each opening the path anew
+
+
+def _loop_file(name):
+    """[v2.5.9z71] a resident loop's own log / error log / lock / sha file (the loop reopens it when it restarts) or a log
+    many short commands append to (the next one opens the new path): never turned into a live link."""
+    return name.endswith(".lock") or name in SHARED_LOGS or any(name.startswith(x + ".") for x in LOOPS)
+
+
+def _link_live(old, new, held):
+    """[v2.5.9z71] each file of old (a real path) in held, the loops' own files aside, becomes at new a symlink to the file
+    in old (one rename over the copy): a running task writes on through its open fd and readers of the new path read it.
+    The number linked."""
+    n = 0
+    for f in sorted(held):
+        rel = os.path.relpath(f, old)
+        if rel.startswith("..") or _loop_file(os.path.basename(f)) or not os.path.isfile(f):
+            continue
+        t = os.path.join(new, rel)
+        if os.path.islink(t):
+            continue
+        os.makedirs(os.path.dirname(t), exist_ok=True)
+        tmp = f"{t}.z71tmp"
+        if os.path.lexists(tmp):
+            os.unlink(tmp)
+        os.symlink(f, tmp); os.replace(tmp, t); n += 1
+    return n
+
+
+def _clear(p, stamp):
+    """[v2.5.9z71] a leftover at a switch's temp name: a symlink is removed, a directory (a switch cut short after its swap)
+    kept as <p>.left_<utc>."""
+    if os.path.islink(p):
+        os.unlink(p)
+    elif os.path.exists(p):
+        os.rename(p, f"{p}.left_{stamp}")
+
+
+def _switch_on(root, fb, n, stamp, held_fn):
+    p, q = os.path.join(root, n), os.path.join(fb, f"{n}.{stamp}")
+    os.makedirs(p, exist_ok=True)
+    _copy_tree(p, q); _copy_tree(p, q)                                  # the bulk, then what changed during it
+    tmp = p + ".z71_link"; _clear(tmp, stamp); os.symlink(q, tmp)
+    try:
+        _exchange(tmp, p)                                                # p: the symlink; tmp: the old directory
+    except OSError:
+        os.unlink(tmp); raise
+    old = f"{p}.pre_fallback_{stamp}"; os.rename(tmp, old)
+    _copy_tree(old, q)                                                   # what was written between the copy and the swap
+    return _link_live(os.path.realpath(old), q, held_fn(os.path.realpath(old)))
+
+
+def _switch_off(root, n, stamp, held_fn):
+    p = os.path.join(root, n); q = os.path.realpath(p)
+    back = p + ".z71_back"; _clear(back, stamp); os.makedirs(back)
+    _copy_tree(q, back); _copy_tree(q, back)
+    try:
+        _exchange(back, p)                                               # p: a directory again; back: the symlink
+    except OSError:
+        os.rename(back, f"{back}.left_{stamp}"); raise
+    os.unlink(back)
+    _copy_tree(q, p)
+    return _link_live(q, p, held_fn(q))                                  # q stays on the checkpoint disk
+
+
+def disk_fallback(root=None, ckpt=None, free_fn=None, emit=True, stamp=None, check_dev=True, blocking=True, held_fn=None):
+    """One check (run_tasks.sh every round, in the background): 'on' / 'off' / 'switched_on' / 'switched_off', 'refused'
+    (no atomic exchange on the work disk), 'busy' (blocking=False and another check holds the lock), or 'n/a' (no
+    checkpoint disk apart from the work disk). [v2.5.9z71] on while CTRL_ON_CKPT (1) is 1, or while z48's lines say so."""
     import fcntl
     root = root or ROOT
     ckpt = ckpt if ckpt is not None else os.environ.get("CKPT_ROOT", "")
@@ -2281,41 +2461,46 @@ def disk_fallback(root=None, ckpt=None, free_fn=None, emit=True, stamp=None, che
         return "n/a"
     free = (free_fn or _free_gb)(root)
     low, high = float(_cfg("CTRL_FALLBACK_LOW_GB", "200")), float(_cfg("CTRL_FALLBACK_HIGH_GB", "400"))
+    planned = _cfg("CTRL_ON_CKPT", "1") == "1"
     fb = os.path.join(ckpt, "opd_fallback"); os.makedirs(fb, exist_ok=True)
     stamp = stamp or time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    held_fn = held_fn or _open_files
+    linked, why, emit_refused = 0, "", False
     with open(os.path.join(fb, ".lock"), "w") as lk:
         try:
             fcntl.flock(lk, fcntl.LOCK_EX if blocking else fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             return "busy"
-        active = os.path.islink(os.path.join(root, "control"))
+        links = {n: os.path.islink(os.path.join(root, n)) for n in FALLBACK_DIRS}
+        active = links["control"]
+        want = planned or free < low or (active and free <= high)
+        todo = [n for n in FALLBACK_DIRS if links[n] != want]   # a switch cut short is finished by the next check
         state = "on" if active else "off"
-        if not active and free < low:
-            for n in FALLBACK_DIRS:
-                p, q = os.path.join(root, n), os.path.join(fb, n)
-                if os.path.islink(p):
-                    continue
-                os.makedirs(p, exist_ok=True); _sync_tree(p, q)
-                tmp = p + ".fb_link"
-                if os.path.lexists(tmp):
-                    os.unlink(tmp)
-                os.symlink(q, tmp)
-                old = f"{p}.pre_fallback_{stamp}"
-                os.rename(p, old); os.rename(tmp, p)
-                _sync_tree(old, q)   # what was written between the first copy and the swap
-            state = "switched_on"
-        elif active and free > high:
-            for n in FALLBACK_DIRS:
-                p, q = os.path.join(root, n), os.path.join(fb, n)
-                if not os.path.islink(p):
-                    continue
-                back, off = p + ".fb_back", p + ".fb_off"
-                os.makedirs(back, exist_ok=True); _sync_tree(q, back)
-                if os.path.lexists(off):
-                    os.unlink(off)
-                os.rename(p, off); os.rename(back, p); _sync_tree(q, p); os.unlink(off)
-                os.rename(q, f"{q}.{stamp}")   # the fallback copy stays on the checkpoint disk
-            state = "switched_off"
+        refused_mark = os.path.join(fb, "ctrl_refused_reported")
+        if todo:
+            try:
+                _exchange_selftest(root)
+                for n in todo:
+                    linked += (_switch_on(root, fb, n, stamp, held_fn) if want else _switch_off(root, n, stamp, held_fn))
+                state = "switched_on" if want else "switched_off"
+                if os.path.exists(refused_mark):
+                    os.unlink(refused_mark)
+            except OSError as e:
+                state, why = "refused", f"{e.strerror or 'no reason given'} ({type(e).__name__} errno {e.errno})"   # never the path
+                if os.path.exists(refused_mark):
+                    emit_refused = False
+                else:
+                    open(refused_mark, "w").write(stamp); emit_refused = True
+            if any(os.path.islink(os.path.join(root, n)) != links[n] for n in FALLBACK_DIRS):
+                cd = os.path.join(root, "control")   # the loops reopen their files at the new paths (run_tasks.sh)
+                open(os.path.join(cd, "ctrl_reopen"), "w").write(stamp + "\n")
+                for x in LOOPS:
+                    if x not in ("run_tasks", "weights_replay"):   # run_tasks reopens its log; the replay restarts between two uploads
+                        try:
+                            os.unlink(os.path.join(cd, x + ".sha"))
+                        except OSError:
+                            pass
+                open(os.path.join(cd, "ctrl_reopen_wr"), "w").write(stamp + "\n")
         mark = os.path.join(fb, "disk_full_reported")
         full = free < float(_cfg("DISK_FULL_GB", "1"))
         if full and not os.path.exists(mark):
@@ -2326,10 +2511,76 @@ def disk_fallback(root=None, ckpt=None, free_fn=None, emit=True, stamp=None, che
         elif not full and free > 10 and os.path.exists(mark):
             os.unlink(mark)
     if emit and state.startswith("switched"):
-        event("node", "disk_fallback_" + ("on" if state == "switched_on" else "off"),
-              f"work disk {free:.1f} GB free (lines {low:.0f} / {high:.0f} GB): control/ and logs/ "
-              + ("on the checkpoint disk" if state == "switched_on" else "back on the work disk"))
+        on = state == "switched_on"
+        kind = "ctrl_switch_on" if on and planned else ("disk_fallback_on" if on else "disk_fallback_off")   # the rollback: _off too
+        event("node", kind, f"work disk {free:.1f} GB free, CTRL_ON_CKPT={int(planned)} (z48 lines {low:.0f} / {high:.0f} GB): "
+              f"control/ and logs/ {'on the checkpoint disk' if on else 'back on the work disk'}; {linked} open files linked")
+    elif emit and state == "refused" and emit_refused:   # once per episode
+        event("node", "ctrl_switch_refused", f"control/ and logs/ stay where they are: {why}")
     return state
+
+
+def tasks_disk_low():
+    """[v2.5.9z71] (ops-lead 10-23 18:05 UTC) 'work' while the work disk has less than TASKS_DISK_MIN_GB (300) free, 'work
+    critical' below TASKS_DISK_CRIT_GB (100), else ''; both lines from control.env first, read on every call. run_tasks.sh
+    then starts no new task of any kind (trainings, readings, probes, the CPU lane, ad-hoc runs) and no new fetch; the
+    running ones go on, nothing is stopped (below 100 GB ops-lead decides about their upload processes)."""
+    free = _free_gb(ROOT)
+    if free < float(_cfg("TASKS_DISK_CRIT_GB", "100")):
+        return "work critical"
+    return "work" if free < float(_cfg("TASKS_DISK_MIN_GB", "300")) else ""
+
+
+def place_run(t, root=None, ckpt=None, check_dev=True, stamp=None, busy=None):
+    """[v2.5.9z71] (ops-lead 10-23 18:05 UTC, item 2) before a task starts (run_tasks.sh launch): its run directory
+    runs/<task> becomes a symlink to a fresh $CKPT_ROOT/runs_live/<task>.<utc>, so what it writes (train.log, rollouts,
+    gen_eval.log, the readings' jsonl, markers) lands on the checkpoint disk; readers, pairing and uploads go through the
+    same path. A runs/<task> that is already a symlink stays; a real one holding only small files (markers of earlier
+    passes: no subdirectory, < RUNS_MOVE_MAX_MB 64) is copied over and swapped in one exchange (kept as
+    $OPD_ROOT/runs_pre_link/<task>.<utc>); a bigger one (an earlier attempt's outputs) stays where it is, as does any run
+    of a task that is running. RUNS_ON_CKPT=0 (control.env) turns it off. Returns what it did."""
+    root = root or ROOT
+    ckpt = ckpt if ckpt is not None else os.environ.get("CKPT_ROOT", "")
+    if _cfg("RUNS_ON_CKPT", "1") != "1":
+        return "off"
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", t) or not ckpt or not os.path.isdir(ckpt) or \
+            (check_dev and os.stat(ckpt).st_dev == os.stat(root).st_dev):
+        return "n/a"
+    p = os.path.join(root, "runs", t)
+    if os.path.islink(p):
+        return "linked"
+    if (busy if busy is not None else bool(running_pids(t))):
+        return "running"
+    stamp = stamp or time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    q = os.path.join(ckpt, "runs_live", f"{t}.{stamp}")
+    tmp = os.path.join(root, "runs", f".{t}.z71_link")
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    if not os.path.lexists(p):
+        os.makedirs(q, exist_ok=True); _clear(tmp, stamp); os.symlink(q, tmp)
+        try:
+            os.rename(tmp, p)
+        except OSError:   # created meanwhile: the next start looks again
+            os.unlink(tmp); return "raced"
+        return "linked_new"
+    if not os.path.isdir(p):
+        return "kept"
+    files, big = [], False
+    for e in os.scandir(p):
+        if e.is_dir(follow_symlinks=False):
+            big = True; break
+        files.append(e)
+    if big or sum(e.stat(follow_symlinks=False).st_size for e in files) > float(_cfg("RUNS_MOVE_MAX_MB", "64")) * 1e6:
+        return "kept"
+    os.makedirs(q, exist_ok=True); _copy_tree(p, q)
+    _clear(tmp, stamp); os.symlink(q, tmp)
+    try:
+        _exchange(tmp, p)
+    except OSError:
+        os.unlink(tmp); return "kept"
+    pre = os.path.join(root, "runs_pre_link"); os.makedirs(pre, exist_ok=True)
+    os.rename(tmp, os.path.join(pre, f"{t}.{stamp}"))
+    _copy_tree(os.path.join(pre, f"{t}.{stamp}"), q)
+    return "linked_moved"
 
 
 RESERVE_ALERT_MIN = int(os.environ.get("RESERVE_ALERT_MIN", "10"))
@@ -2698,6 +2949,7 @@ def suspects():
 # a string that fails it becomes <withheld> (event gh_hb_withheld at most hourly), so even a repository made public by mistake
 # leaks nothing.
 GH_URGENT = {"failed", "gate_failed", "disk_alert", "ckpt_disk_alert", "ckpt_root_alert", "disk_write_fail", "disk_fallback_on",
+             "ctrl_switch_refused", "tasks_guard_critical",   # [v2.5.9z71]
              "reserve_low", "stalled", "upload_sync_missing", "watchdog_gave_up", "watchdog_stuck"}
 GH_URL = "https://github.com/yang3121099/opd-b300-heartbeat.git"   # (Fable 14:4x UTC) HTTPS through the node's proxy, as the runbook's pulls
 GH_CRED = "~/.config/opd/gh_hb_credentials"   # written by Runming (a token for this repository only); git reads it, this code never does
@@ -2909,8 +3161,11 @@ if __name__ == "__main__":
         do_du(int(sys.argv[2]), sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else "")
     elif cmd == "do_rm_ours":
         do_rm_ours(int(sys.argv[2]), sys.argv[3], sys.argv[4])
-    elif cmd == "disk_fallback":   # [v2.5.9z48] run_tasks.sh every round
-        print("DISK_FALLBACK", disk_fallback())
+    elif cmd == "disk_fallback":   # [v2.5.9z48] run_tasks.sh every round; [v2.5.9z71] in the background, never waiting on the lock
+        r = disk_fallback(blocking=False)
+        if r.startswith("switched"):   # [v2.5.9z71] this line to the new logs/control.log, not the old file this process opened
+            sys.stdout = open(os.path.join(ROOT, "logs", "control.log"), "a")
+        print("DISK_FALLBACK", utc(), r)
     elif cmd == "lru_clean":   # [v2.5.8] heartbeat.sh every round; nothing unless LOCAL_LRU_GB is set
         g = lru_clean(); print(f"LRU_FREED {g} GB") if g else None
     elif cmd == "diag_tails":   # [v2.5.9z53] at once (the uploader's pass sends them every DIAG_TAILS_S)
@@ -2947,6 +3202,10 @@ if __name__ == "__main__":
         print(disk_low())
     elif cmd == "readings_disk_low":   # [v2.5.9z69] run_tasks.sh every pass: the disk guard of new readings
         print(readings_disk_low())
+    elif cmd == "tasks_disk_low":   # [v2.5.9z71] run_tasks.sh every pass: no new task of any kind below TASKS_DISK_MIN_GB
+        print(tasks_disk_low())
+    elif cmd == "place_run":   # [v2.5.9z71] run_tasks.sh launch: place_run <task> -> the run directory on the checkpoint disk
+        print("PLACE_RUN", sys.argv[2], place_run(sys.argv[2]))
     elif cmd == "reserve_note":   # [v2.5.9z12] run_tasks.sh after a pass: reserve_note <ready> <free> "<tasks>" "<held>"
         reserve_note(int(sys.argv[2]), int(sys.argv[3]), sys.argv[4].split(), sys.argv[5].split() if len(sys.argv) > 5 else [])
     elif cmd == "rcpt":   # run_tasks / run_adhoc_eval: update a receipt (started, done, failed)
