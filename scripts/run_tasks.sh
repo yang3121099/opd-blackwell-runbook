@@ -320,6 +320,19 @@ disk_guard() {
   else python $RUNBOOK/scripts/control.py event node disk_guard_off > /dev/null 2>&1 &
   fi
 }
+# [v2.5.9z69] (Fable / ops-lead 10-23 15:2x UTC: the shared work disk) a new reading (EVAL-*) starts only while the work disk has
+# READINGS_DISK_MIN_GB (1000) free (control.py readings_disk_low); the running ones go on; events readings_guard_on / _off when it
+# switches; control/readings_held.json after each pass (the heartbeat's readings_held). Trainings keep their own line (DISK_ALERT_GB).
+reading_task() { case $1 in EVAL-*) return 0;; esac; return 1; }
+readings_guard() {
+  READ_LOW=$(python $RUNBOOK/scripts/control.py readings_disk_low 2> /dev/null)
+  [ "${DRY:-0}" = 1 ] && { [ -n "$READ_LOW" ] && echo "READINGS_GUARD $READ_LOW"; return; }
+  [ "$READ_LOW" = "$(cat $CDIR/readings_guard 2> /dev/null)" ] && return
+  echo "$READ_LOW" > $CDIR/readings_guard
+  if [ -n "$READ_LOW" ]; then python $RUNBOOK/scripts/control.py event node readings_guard_on "new readings held: the work disk below READINGS_DISK_MIN_GB" > /dev/null 2>&1 &
+  else python $RUNBOOK/scripts/control.py event node readings_guard_off > /dev/null 2>&1 &
+  fi
+}
 deps_of() { local s=$(grep -v '^#' "$Q" | tr ' ' '\n' | grep -E "^$1(:|\$)" | head -1); [ "$s" != "${s#*:}" ] && echo ${s#*:} | tr '+' ' '; }
 while true; do
   date -u +%s > $CDIR/loop_run_tasks   # v2.5.7zb: liveness for the watchdog (local, every round)
@@ -370,8 +383,9 @@ while true; do
   [ "${DRY:-0}" != 1 ] && git_pass   # [v2.5.9c]
   [ "${DRY:-0}" != 1 ] && python $RUNBOOK/scripts/control.py auto_reruns "$Q"   # [v2.5.9z12] the queue's #at / #after rerun lines
   disk_guard   # [v2.5.9z12]
+  readings_guard   # [v2.5.9z69]
   python $RUNBOOK/scripts/control.py disk_fallback > /dev/null 2>&1 || true   # [v2.5.9z48] the control plane off a full work disk
-  READY=0; RT=""; HELD=""   # [v2.5.9z12] this pass's ready-but-not-started GPU tasks, and the trainings the disk guard held
+  READY=0; RT=""; HELD=""; RHELD=""   # [v2.5.9z12] this pass's ready-but-not-started GPU tasks, and the trainings the disk guard held; [v2.5.9z69] the readings
   FREE=($(free_gpus)); earlier_finished=1; rm -f $CDIR/held.json   # [v2.5.9c] a hold is written again by take_gpus
   verify_busy && FREE=()   # a remote rerun_verify owns the GPUs
   while read -r stage status rest; do
@@ -406,6 +420,7 @@ while true; do
         echo "START $(date -u +%T) gpu=cpu $t (stage $stage, attempt $(( $(attempts $t) + 1 )))"; launch cpu $t; nap 10; continue
       fi
       if [ -n "$DISK_LOW" ] && training_task $t; then HELD="$HELD $t"; continue; fi   # [v2.5.9z12] the disk guard
+      if [ -n "$READ_LOW" ] && reading_task $t; then RHELD="$RHELD $t"; continue; fi   # [v2.5.9z69] the readings' disk guard
       take_gpus $t || { READY=$((READY + 1)); RT="$RT $t"; continue; }; g=$G   # [v2.5.9a] one GPU, or n for a #gpus task; [v2.5.9z12] or ready in reserve
       if [ "${DRY:-0}" = 1 ]; then echo "WOULD_START gpu=$g $t (stage $stage, attempt $(( $(attempts $t) + 1 )))"; continue; fi
       echo "START $(date -u +%T) gpu=$g $t (stage $stage, queue v$(sed -n 's/^version:[[:space:]]*//p' "$Q"), attempt $(( $(attempts $t) + 1 )))"
@@ -415,8 +430,11 @@ while true; do
     [ $stage_finished = 1 ] || earlier_finished=0
   done < <(stage_lines "$Q")   # [v2.5.9m] padding stages last
   # [v2.5.9z12] the reserve: ready GPU tasks left waiting against the GPUs still free (control.py: alert reserve_low after 10 min)
-  if [ "${DRY:-0}" = 1 ]; then echo "RESERVE ready=$READY free=${#FREE[@]} tasks=[${RT# }] held=[${HELD# }]"
-  else python $RUNBOOK/scripts/control.py reserve_note $READY ${#FREE[@]} "$RT" "$HELD" > /dev/null 2>&1; fi
+  if [ "${DRY:-0}" = 1 ]; then echo "RESERVE ready=$READY free=${#FREE[@]} tasks=[${RT# }] held=[${HELD# }]"; [ -n "$READ_LOW" ] && echo "READINGS_HELD [${RHELD# }]"
+  else python $RUNBOOK/scripts/control.py reserve_note $READY ${#FREE[@]} "$RT" "$HELD" > /dev/null 2>&1
+    python3 -c "import json, os, sys, time; t = sys.argv[3] + '.tmp'; json.dump({'utc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), 'low': sys.argv[1], 'held': sys.argv[2].split()}, open(t, 'w')); os.replace(t, sys.argv[3])" \\
+      "${READ_LOW:-}" "${RHELD# }" $CDIR/readings_held.json 2> /dev/null || true   # [v2.5.9z69]
+  fi
   # v2.5: ad-hoc `run` / `eval` requests (control.py) take only the GPUs this pass left free: the queue goes first
   if [ "${DRY:-0}" != 1 ] && ! verify_busy; then
     while [ ${#FREE[@]} -gt 0 ]; do

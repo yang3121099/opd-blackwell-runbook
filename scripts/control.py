@@ -1316,6 +1316,7 @@ def build_pulse(st, gpu_csv):
             "runbook_version": ver, "queue_version": _num(st.get("queue_version")) if not isinstance(st.get("queue_version"), str)
             else (st.get("queue_version") if re.fullmatch(r"[0-9]+", st.get("queue_version")) else None),
             "gpus": gpus, "tasks": tasks, "results_pending": int(rp) if isinstance(rp, int) and rp >= 0 else None,   # [v2.5.9z65]
+            "readings_held": int(st["readings_held"]) if isinstance(st.get("readings_held"), int) and st["readings_held"] >= 0 else None,   # [v2.5.9z69]
             "disks": [{"idx": 0, "free_gb": _num(st.get("disk_free_gb")), "alert": bool(st.get("disk_alert")),   # [v2.5.9c] + total, ours
                        "total_gb": _num(st.get("disk_total_gb")), "free_bytes": _num(st.get("disk_free_bytes")),
                        "our_gb": _num(du.get("work_gb")), "our_gb_utc": t(du.get("utc"))},
@@ -2334,6 +2335,14 @@ def disk_fallback(root=None, ckpt=None, free_fn=None, emit=True, stamp=None, che
 RESERVE_ALERT_MIN = int(os.environ.get("RESERVE_ALERT_MIN", "10"))
 
 
+def readings_disk_low():
+    """[v2.5.9z69] (Fable / ops-lead 10-23: on the shared work disk the readings keep 1 TB, the trainings 300 GB) 'work' while the
+    work disk ($OPD_ROOT) has less than READINGS_DISK_MIN_GB (1000; control.env first, read on every call) free, else ''.
+    run_tasks.sh then starts no new reading (EVAL-*); the running ones go on, nothing is stopped."""
+    s = os.statvfs(ROOT)
+    return "work" if s.f_bavail * s.f_frsize / 1e9 < float(_cfg("READINGS_DISK_MIN_GB", "1000")) else ""
+
+
 def reserve_note(ready, free, tasks, held, now=None):
     """run_tasks.sh after each dispatch pass: the GPU tasks ready but not started (every check passed, no GPU free for
     them), the GPUs still free, and the trainings the disk guard held, to reserve.json; low_since = since when ready <
@@ -2936,6 +2945,8 @@ if __name__ == "__main__":
         auto_reruns(sys.argv[2])
     elif cmd == "disk_low":   # [v2.5.9z12] run_tasks.sh every pass: the disk guard of new trainings
         print(disk_low())
+    elif cmd == "readings_disk_low":   # [v2.5.9z69] run_tasks.sh every pass: the disk guard of new readings
+        print(readings_disk_low())
     elif cmd == "reserve_note":   # [v2.5.9z12] run_tasks.sh after a pass: reserve_note <ready> <free> "<tasks>" "<held>"
         reserve_note(int(sys.argv[2]), int(sys.argv[3]), sys.argv[4].split(), sys.argv[5].split() if len(sys.argv) > 5 else [])
     elif cmd == "rcpt":   # run_tasks / run_adhoc_eval: update a receipt (started, done, failed)

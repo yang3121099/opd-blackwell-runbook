@@ -134,6 +134,14 @@ def results_pending():   # [v2.5.9z65] lines of weights_pending.txt whose destin
                    and l.split("\t")[1].startswith("runs/") and "/actor/huggingface" not in l.split("\t")[1])
     except OSError:
         return 0
+def readings_held():   # [v2.5.9z69] control/readings_held.json from run_tasks.sh's last pass (fresh within 15 min): the held readings' count
+    try:
+        r = json.load(open(os.path.join(root, "control", "readings_held.json")))
+        if not r.get("low") or time.time() - os.path.getmtime(os.path.join(root, "control", "readings_held.json")) > 900:
+            return 0
+        return len(r.get("held") or [])
+    except (OSError, ValueError):
+        return 0
 live = live_tasks()
 tasks = {}; stale = []
 queue = open(os.path.join(runbook, "tasks", "queue.txt")).read() if os.path.exists(os.path.join(runbook, "tasks", "queue.txt")) else ""
@@ -219,6 +227,7 @@ json.dump({"host": os.uname().nodename, "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ
            "ckpt_disk_total_gb": (lambda c: round(c.f_blocks * c.f_frsize / 1e9, 1))(os.statvfs(os.environ["CKPT_ROOT"])) if os.path.isdir(os.environ.get("CKPT_ROOT", "")) else None,
            "our_du": jload(os.path.join(root, "control", "our_du.json")),
            "held": jload(os.path.join(root, "control", "held.json")),   # [v2.5.9c] GPUs held for a #gpus task
+           "readings_held": readings_held(),   # [v2.5.9z69] readings not started for the work disk (READINGS_DISK_MIN_GB), 0 when the disk is fine
            "results_pending": results_pending(),   # [v2.5.9z65] result directories in weights_replay's queue (control/weights_pending.txt)
            "runbook_head": git("rev-parse", "--short", "HEAD"), "runbook_version": "v2.5.9",
            "run_tasks_sha": open(os.path.join(root, "control", "run_tasks.sha")).read().strip() if os.path.exists(os.path.join(root, "control", "run_tasks.sha")) else None,

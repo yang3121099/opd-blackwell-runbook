@@ -13,7 +13,7 @@ setup() {   # $1 = the queue's stage line; NGPU=2
   T=$(mktemp -d); mkdir -p $T/rb/scripts $T/rb/tasks $T/root/runs $T/root/logs $T/root/control $T/bin
   cp $SRC/scripts/run_tasks.sh $T/rb/scripts/
   printf 'export OPD_ROOT=%s/root RUNBOOK=%s/rb CDIR=%s/root/control NGPU=2\n' $T $T $T > $T/rb/scripts/env.sh
-  printf 'import sys, os\nopen(os.environ["CALLS"], "a").write("control " + " ".join(sys.argv[1:]) + "\\n")\nif sys.argv[1:2] == ["disk_low"]: print(os.environ.get("FAKE_DISK_LOW", ""))\n' > $T/rb/scripts/control.py
+  printf 'import sys, os\nopen(os.environ["CALLS"], "a").write("control " + " ".join(sys.argv[1:]) + "\\n")\nif sys.argv[1:2] == ["disk_low"]: print(os.environ.get("FAKE_DISK_LOW", ""))\nif sys.argv[1:2] == ["readings_disk_low"]: print(os.environ.get("FAKE_READ_LOW", ""))\n' > $T/rb/scripts/control.py
   printf 'import sys; sys.exit(1)\n' > $T/rb/scripts/remote.py
   printf '#!/usr/bin/env bash\ncase "$*" in *compute-apps*) ;; *query-gpu=index*) printf "0\\n1\\n";; *) echo 0;; esac\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi
   mkdir -p $T/root/venv/bin; : > $T/root/venv/bin/activate
@@ -48,4 +48,12 @@ ok "[v2.5.9z23] both datasets in: EVAL-g starts" 'grep -q "WOULD_START .* EVAL-g
 rm -rf $T
 # 4. the loop's own calls (outside DRY): auto_reruns before the dispatch, reserve_note after it
 ok "run_tasks.sh calls auto_reruns before the dispatch and reserve_note after it" 'a=$(grep -n "control.py auto_reruns \"\$Q\"" $SRC/scripts/run_tasks.sh | cut -d: -f1); b=$(grep -n "^  FREE=(\$(free_gpus))" $SRC/scripts/run_tasks.sh | cut -d: -f1); c=$(grep -n "control.py reserve_note \$READY" $SRC/scripts/run_tasks.sh | cut -d: -f1); [ -n "$a" ] && [ -n "$b" ] && [ -n "$c" ] && [ $a -lt $b ] && [ $b -lt $c ]'
+# [v2.5.9z69] the readings' disk guard: below READINGS_DISK_MIN_GB no new EVAL starts (READINGS_GUARD, READINGS_HELD); trainings and
+# probes are not held by it; with the disk fine the reading starts
+setup "g1       open   E10b-P5 EVAL-a PROBE-X"; FAKE_READ_LOW=work dry
+ok "[v2.5.9z69] readings guard: EVAL-a held (READINGS_HELD [EVAL-a]); E10b-P5 and PROBE-X not held by it" 'grep -q "^READINGS_GUARD work$" $T/dry.out && grep -q "^READINGS_HELD \[EVAL-a\]$" $T/dry.out && ! grep -q "WOULD_START .* EVAL-a " $T/dry.out && ! grep -q "^DISK_GUARD" $T/dry.out'
+rm -rf $T
+setup "g1       open   EVAL-a"; FAKE_READ_LOW= dry
+ok "[v2.5.9z69] readings guard off: no READINGS_GUARD / READINGS_HELD lines, nothing held by it" '! grep -q "^READINGS_GUARD" $T/dry.out && ! grep -q "^READINGS_HELD" $T/dry.out'
+rm -rf $T
 [ $fails = 0 ] && echo "OPS_GUARD_TEST PASS ($n checks)" || echo "OPS_GUARD_TEST FAIL ($fails of $n)"
