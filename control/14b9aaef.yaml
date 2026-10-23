@@ -510,3 +510,4 @@ commands:
   - {"seq": 508, "cmd": "setenv WEIGHTS_REPLAY=1", "reason": "ops-lead 18:05 UTC (Runming 10-24 02:0x Beijing: back up to the cloud now; Fable lifted the >2 GB hold): the weights replay on, z65's order kept (control plane -> results queue -> weights; result uploads first)", "utc": "2026-10-23T18:06:43Z"}
   - {"seq": 509, "cmd": "setenv GPUS_HOLD_MIN=600", "reason": "ops-lead 19:05 UTC standing A1: strict GPU hold so PROBE-8B (4 GPUs) gathers its GPUs; back to 30 once PROBE-8B starts", "utc": "2026-10-23T19:26:34Z"}
   - {"seq": 510, "cmd": "logs control 400", "reason": "Fable 20:0x UTC pre-push check (1): place_run results (PLACE_RUN lines) and the planned switch's state in logs/control.log; read-only", "utc": "2026-10-23T20:09:36Z"}
+  - {"seq": 511, "cmd": "logs control 300", "reason": "ops-lead 22:52 post-push checks: the switch's lines, CTRL_REOPEN, PLACE_RUN of new tasks; read-only", "utc": "2026-10-23T23:02:20Z"}
