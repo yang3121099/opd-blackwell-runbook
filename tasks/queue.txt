@@ -1726,8 +1726,8 @@ b259z24  open   TOKCHECK-X5
 #eval EVAL-ext32k-06tail ext32k06_P5tail_s20_aime25_T0.6 result:runs/E10c-P5tail/global_step_20/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-06tail ext32k06_P5tail_s20_aime24_T0.6 EVAL-ext32k-06/ext32k06_E10cP5fix4_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-06polish/ext32k06_P5polish_s20_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-06think/ext32k06_P0think_aime24_T0.6_aime24_think_t0.6.jsonl
 #pair EVAL-ext32k-06tail ext32k06_P5tail_s20_aime25_T0.6 EVAL-ext32k-06/ext32k06_E10cP5fix4_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-06polish/ext32k06_P5polish_s20_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-06think/ext32k06_P0think_aime25_T0.6_aime25_think_t0.6.jsonl
-# [held until E10c-P5tail has s20] term PROBE-TERM4-06B 06_P5tail result:runs/E10c-P5tail/global_step_20/actor/huggingface EVAL-e10c-P5tail/e10c_P5tail_s20_math500_T0.6_math500_no_think_t0.6.jsonl
-# [held until E10c-P5tail has s20; restored together with the term row above] after EVAL-e10c-P5tail rerun PROBE-TERM4-06B
+#term PROBE-TERM4-06B 06_P5tail result:runs/E10c-P5tail/global_step_20/actor/huggingface EVAL-e10c-P5tail/e10c_P5tail_s20_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-e10c-P5tail rerun PROBE-TERM4-06B
 
 # b259vp / b259v (runbook v2.5.9v, Q-047, the reviewer's external-review list 10-21; after the length arms, before r3): E10c-P5self =
 # P5self at 0.6B, the 0.6B student taught from its base by the 0.6B base itself on the thinking template, 50 steps, fix4, gated
