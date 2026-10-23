@@ -322,9 +322,10 @@ def test_wiring():
     loop = RT[RT.index("while true; do\n  date -u +%s > $CDIR/loop_run_tasks"):]
     assert loop.index("ctrl_reopen   # [v2.5.9z71]") < loop.index("ensure_watchdog;")           # reopen before the ensures
     assert loop.index("tasks_guard   #") < loop.index("&& prefetch_pass") < loop.index("&& fetch_pass") < loop.index("&& git_pass")
-    for x in ("prefetch_pass", "fetch_pass", "git_pass"):
-        assert f'[ -z "$ALL_LOW" ] && {x}' in loop
-    i = loop.index('if [ -n "$ALL_LOW" ]; then AHELD="$AHELD $t"; continue; fi')
+    for x in ("prefetch_pass", "fetch_pass", "git_pass"):   # [v2.5.9z71c] below either work-disk line
+        assert f'[ -z "$ALL_LOW$READ_LOW" ] && {x}' in loop
+    assert loop.index("readings_guard   #") < loop.index("&& prefetch_pass")
+    i = loop.index('if [ -n "$ALL_LOW" ] && ! runs_on_ckpt $t; then AHELD="$AHELD $t"; continue; fi')   # [v2.5.9z71c]
     assert loop.index("running $t && continue") < i < loop.index("if cpu_task $t; then")          # the CPU lane too
     assert '! verify_busy && [ -z "$ALL_LOW" ]; then' in loop                                    # ad-hoc requests wait
     assert "(setsid nohup nice -n 10 python $RUNBOOK/scripts/control.py disk_fallback >> $OPD_ROOT/logs/control.log" in loop
@@ -410,3 +411,19 @@ def test_place_run_marker_dir_without_exchange(runs, monkeypatch):
     assert place(root, ckpt, "EVAL-m") == "linked_moved"
     assert os.path.islink(p) and open(os.path.join(p, ".prefetch_ok")).read() == "1"
     assert os.path.isdir(os.path.join(root, "runs_pre_link", "EVAL-m.S1"))
+
+
+
+# ---------------- [v2.5.9z71c] (Fable 10-24) which tasks the work disk's lines still hold
+def test_runs_ckpt_and_run_placeable(runs):
+    root, ckpt = runs
+    assert C.runs_ckpt(root=root, ckpt=ckpt, check_dev=False) == "1" and C.runs_ckpt(root=root, ckpt=ckpt) == "0"   # same disk here
+    assert C.runs_ckpt(root=root, ckpt="", check_dev=False) == "0"
+    open(os.path.join(root, "control.env"), "w").write("export RUNS_ON_CKPT=0\n")
+    assert C.runs_ckpt(root=root, ckpt=ckpt, check_dev=False) == "0"
+    os.remove(os.path.join(root, "control.env"))
+    assert C.run_placeable("EVAL-new", root=root)                                       # no directory yet: place_run links it
+    p = os.path.join(root, "runs", "EVAL-m"); os.makedirs(p); open(os.path.join(p, ".prefetch_ok"), "w").write("1")
+    assert C.run_placeable("EVAL-m", root=root)                                         # markers only: moved
+    os.makedirs(os.path.join(p, "up")); assert not C.run_placeable("EVAL-m", root=root)   # an earlier attempt's outputs: kept
+    os.symlink(ckpt, os.path.join(root, "runs", "EVAL-l")); assert C.run_placeable("EVAL-l", root=root)

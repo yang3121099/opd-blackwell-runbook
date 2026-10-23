@@ -42,8 +42,8 @@ def test_running_readings_are_never_stopped():
     rt = open(os.path.join(HERE, "run_tasks.sh")).read()
     blk = rt[rt.index("readings_guard() {"):rt.index("deps_of() {")]
     assert "kill" not in blk and "pkill" not in blk                                        # it only skips starting new readings
-    assert 'if [ -n "$READ_LOW" ] && reading_task $t; then RHELD="$RHELD $t"; continue; fi' in rt
-    assert rt.index("running $t && continue") < rt.index('reading_task $t; then RHELD')       # a running task is passed over before
+    assert 'if [ -n "$READ_LOW" ] && reading_task $t && ! runs_on_ckpt $t; then RHELD="$RHELD $t"; continue; fi' in rt   # [v2.5.9z71c]
+    assert rt.index("running $t && continue") < rt.index('reading_task $t && ! runs_on_ckpt $t; then RHELD')       # a running task is passed over before
 
 
 def test_heartbeat_readings_held(root):

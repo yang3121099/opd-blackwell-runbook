@@ -13,7 +13,7 @@ setup() {   # $1 = the queue's stage line; NGPU=2
   T=$(mktemp -d); mkdir -p $T/rb/scripts $T/rb/tasks $T/root/runs $T/root/logs $T/root/control $T/bin
   cp $SRC/scripts/run_tasks.sh $T/rb/scripts/
   printf 'export OPD_ROOT=%s/root RUNBOOK=%s/rb CDIR=%s/root/control NGPU=2\n' $T $T $T > $T/rb/scripts/env.sh
-  printf 'import sys, os\nopen(os.environ["CALLS"], "a").write("control " + " ".join(sys.argv[1:]) + "\\n")\nif sys.argv[1:2] == ["disk_low"]: print(os.environ.get("FAKE_DISK_LOW", ""))\nif sys.argv[1:2] == ["readings_disk_low"]: print(os.environ.get("FAKE_READ_LOW", ""))\nif sys.argv[1:2] == ["tasks_disk_low"]: print(os.environ.get("FAKE_ALL_LOW", ""))\n' > $T/rb/scripts/control.py
+  printf 'import sys, os\nopen(os.environ["CALLS"], "a").write("control " + " ".join(sys.argv[1:]) + "\\n")\nif sys.argv[1:2] == ["disk_low"]: print(os.environ.get("FAKE_DISK_LOW", ""))\nif sys.argv[1:2] == ["readings_disk_low"]: print(os.environ.get("FAKE_READ_LOW", ""))\nif sys.argv[1:2] == ["tasks_disk_low"]: print(os.environ.get("FAKE_ALL_LOW", ""))\nif sys.argv[1:2] == ["runs_ckpt"]: print(os.environ.get("FAKE_RUNS_CKPT", "0"))\nif sys.argv[1:2] == ["run_placeable"]: sys.exit(1 if sys.argv[2] in os.environ.get("FAKE_KEEP", "").split() else 0)\n' > $T/rb/scripts/control.py
   printf 'import sys; sys.exit(1)\n' > $T/rb/scripts/remote.py
   printf '#!/usr/bin/env bash\ncase "$*" in *compute-apps*) ;; *query-gpu=index*) printf "0\\n1\\n";; *) echo 0;; esac\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi
   mkdir -p $T/root/venv/bin; : > $T/root/venv/bin/activate
@@ -62,5 +62,15 @@ ok "[v2.5.9z71] tasks guard: E10b-P5, EVAL-a and PROBE-X all held, none would st
 rm -rf $T
 setup "g1       open   E10b-P5 EVAL-a"; FAKE_ALL_LOW= dry
 ok "[v2.5.9z71] tasks guard off: no TASKS_GUARD / TASKS_HELD lines, the tasks would start" '! grep -q "^TASKS_GUARD" $T/dry.out && ! grep -q "^TASKS_HELD" $T/dry.out && grep -q "WOULD_START .* EVAL-a " $T/dry.out'
+rm -rf $T
+# [v2.5.9z71c] (Fable 10-24) new run directories on the checkpoint disk: the work disk's lines hold only what stays on it
+setup "g1       open   E10b-P5 EVAL-a PROBE-X"; FAKE_ALL_LOW=work FAKE_READ_LOW=work FAKE_DISK_LOW=work FAKE_RUNS_CKPT=1 dry
+ok "[v2.5.9z71c] all three lines low on the work disk, run directories to the checkpoint disk: nothing held, all would start" '! grep -q "^TASKS_HELD \[[^]]" $T/dry.out && grep -q "WOULD_START .* E10b-P5 " $T/dry.out && grep -q "WOULD_START .* EVAL-a " $T/dry.out'
+rm -rf $T
+setup "g1       open   EVAL-a PROBE-X"; mkdir -p $T/root/runs/EVAL-a/up; FAKE_ALL_LOW=work FAKE_RUNS_CKPT=1 FAKE_KEEP=EVAL-a dry
+ok "[v2.5.9z71c] a run directory that stays on the work disk (an earlier attempt's outputs) is held, the others start" 'grep -q "^TASKS_HELD \[EVAL-a\]$" $T/dry.out && grep -q "WOULD_START .* PROBE-X " $T/dry.out && ! grep -q "WOULD_START .* EVAL-a " $T/dry.out'
+rm -rf $T
+setup "g1       open   E10b-P5"; FAKE_DISK_LOW="work ckpt" FAKE_RUNS_CKPT=1 dry
+ok "[v2.5.9z71c] the checkpoint disk's own line still holds trainings" 'grep -q "^RESERVE .* held=\[E10b-P5\]$" $T/dry.out && ! grep -q "WOULD_START .* E10b-P5 " $T/dry.out'
 rm -rf $T
 [ $fails = 0 ] && echo "OPS_GUARD_TEST PASS ($n checks)" || echo "OPS_GUARD_TEST FAIL ($fails of $n)"

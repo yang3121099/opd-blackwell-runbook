@@ -2584,6 +2584,33 @@ def tasks_disk_low():
     return "work" if free < float(_cfg("TASKS_DISK_MIN_GB", "300")) else ""
 
 
+def _markers_only(p):
+    """[v2.5.9z71c] a run directory place_run may move: no subdirectory, at most RUNS_MOVE_MAX_MB (64) in all."""
+    files = []
+    for e in os.scandir(p):
+        if e.is_dir(follow_symlinks=False):
+            return False
+        files.append(e)
+    return sum(e.stat(follow_symlinks=False).st_size for e in files) <= float(_cfg("RUNS_MOVE_MAX_MB", "64")) * 1e6
+
+
+def runs_ckpt(root=None, ckpt=None, check_dev=True):
+    """[v2.5.9z71c] '1' while place_run puts new run directories on the checkpoint disk (RUNS_ON_CKPT=1 and a checkpoint disk
+    apart from the work disk), else '0'."""
+    root = root or ROOT
+    ckpt = ckpt if ckpt is not None else os.environ.get("CKPT_ROOT", "")
+    if _cfg("RUNS_ON_CKPT", "1") != "1" or not ckpt or not os.path.isdir(ckpt):
+        return "0"
+    return "0" if check_dev and os.stat(ckpt).st_dev == os.stat(root).st_dev else "1"
+
+
+def run_placeable(t, root=None):
+    """[v2.5.9z71c] run_tasks.sh, for a task whose runs/<task> is a real directory: True when place_run will move it to the checkpoint
+    disk (marker files only), False when it stays on the work disk (an earlier attempt's outputs)."""
+    p = os.path.join(root or ROOT, "runs", t)
+    return os.path.islink(p) or not os.path.lexists(p) or (os.path.isdir(p) and _markers_only(p))
+
+
 def place_run(t, root=None, ckpt=None, check_dev=True, stamp=None, busy=None):
     """[v2.5.9z71] (ops-lead 10-23 18:05 UTC, item 2) before a task starts (run_tasks.sh launch): its run directory
     runs/<task> becomes a symlink to a fresh $CKPT_ROOT/runs_live/<task>.<utc>, so what it writes (train.log, rollouts,
@@ -2615,14 +2642,7 @@ def place_run(t, root=None, ckpt=None, check_dev=True, stamp=None, busy=None):
         except OSError:   # created meanwhile: the next start looks again
             os.unlink(tmp); return "raced"
         return "linked_new"
-    if not os.path.isdir(p):
-        return "kept"
-    files, big = [], False
-    for e in os.scandir(p):
-        if e.is_dir(follow_symlinks=False):
-            big = True; break
-        files.append(e)
-    if big or sum(e.stat(follow_symlinks=False).st_size for e in files) > float(_cfg("RUNS_MOVE_MAX_MB", "64")) * 1e6:
+    if not os.path.isdir(p) or not _markers_only(p):
         return "kept"
     os.makedirs(q, exist_ok=True); _copy_tree(p, q)
     _clear(tmp, stamp); os.symlink(q, tmp)
@@ -3263,6 +3283,10 @@ if __name__ == "__main__":
         print(readings_disk_low())
     elif cmd == "tasks_disk_low":   # [v2.5.9z71] run_tasks.sh every pass: no new task of any kind below TASKS_DISK_MIN_GB
         print(tasks_disk_low())
+    elif cmd == "runs_ckpt":   # [v2.5.9z71c] run_tasks.sh every pass: do new run directories go to the checkpoint disk (1 / 0)
+        print(runs_ckpt())
+    elif cmd == "run_placeable":   # [v2.5.9z71c] run_placeable <task>: exit 0 when its run directory will be on the checkpoint disk
+        sys.exit(0 if run_placeable(sys.argv[2]) else 1)
     elif cmd == "place_run":   # [v2.5.9z71] run_tasks.sh launch: place_run <task> -> the run directory on the checkpoint disk
         print("PLACE_RUN", sys.argv[2], place_run(sys.argv[2]))
     elif cmd == "reserve_note":   # [v2.5.9z12] run_tasks.sh after a pass: reserve_note <ready> <free> "<tasks>" "<held>"

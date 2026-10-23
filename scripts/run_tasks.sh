@@ -329,7 +329,20 @@ reading_task() { case $1 in EVAL-*) return 0;; esac; return 1; }
 # (trainings, readings, probes, the CPU lane, ad-hoc runs) and no new prefetch / fetch / git pull; the running ones go on and
 # nothing is stopped. Events tasks_guard_on / tasks_guard_critical (below TASKS_DISK_CRIT_GB 100: ops-lead decides about the
 # running tasks' uploads) / tasks_guard_off when it switches; control/tasks_guard holds the state (the pulse's tasks_guard).
+# [v2.5.9z71c] (Fable 10-24 04:0x Beijing; ops-lead's option of 19:51 UTC) the work disk's lines - TASKS_DISK_MIN_GB (300),
+# READINGS_DISK_MIN_GB (1000) and the trainings' DISK_ALERT_GB work line - hold only what adds writes to the work disk: the fetches,
+# prefetches and git pulls (held below either of the first two), and a task whose run directory stays there (runs/<task> a real
+# directory place_run keeps: an earlier attempt's outputs). A task whose run directory is, or place_run will make, a link to the
+# checkpoint disk (RUNS_CKPT: control.py runs_ckpt, once a pass) starts. The checkpoint disk's own line (CKPT_ALERT_GB) still holds
+# trainings. The ad-hoc requests keep TASKS_DISK_MIN_GB.
+runs_on_ckpt() {
+  [ "${RUNS_CKPT:-0}" = 1 ] || return 1
+  [ -L $OPD_ROOT/runs/$1 ] && return 0
+  [ -e $OPD_ROOT/runs/$1 ] || return 0
+  python $RUNBOOK/scripts/control.py run_placeable $1 > /dev/null 2>&1
+}
 tasks_guard() {
+  RUNS_CKPT=$(python $RUNBOOK/scripts/control.py runs_ckpt 2> /dev/null)   # [v2.5.9z71c]
   ALL_LOW=$(python $RUNBOOK/scripts/control.py tasks_disk_low 2> /dev/null)
   [ "${DRY:-0}" = 1 ] && { [ -n "$ALL_LOW" ] && echo "TASKS_GUARD $ALL_LOW"; return; }
   local was; was=$(cat $CDIR/tasks_guard 2> /dev/null)
@@ -337,7 +350,7 @@ tasks_guard() {
   echo "$ALL_LOW" > $CDIR/tasks_guard
   case "$ALL_LOW" in
     *critical*) python $RUNBOOK/scripts/control.py event node tasks_guard_critical "work disk below TASKS_DISK_CRIT_GB: no new task; the running ones' uploads are ops-lead's call" > /dev/null 2>&1 &;;
-    work) python $RUNBOOK/scripts/control.py event node tasks_guard_on "work disk below TASKS_DISK_MIN_GB: no new task of any kind, the running ones go on" > /dev/null 2>&1 &;;
+    work) python $RUNBOOK/scripts/control.py event node tasks_guard_on "work disk below TASKS_DISK_MIN_GB: no new fetch, prefetch or git pull and no task whose run directory stays on it; new run directories on the checkpoint disk: $RUNS_CKPT" > /dev/null 2>&1 &;;
     *) python $RUNBOOK/scripts/control.py event node tasks_guard_off > /dev/null 2>&1 &;;
   esac
 }
@@ -357,7 +370,7 @@ readings_guard() {
   [ "${DRY:-0}" = 1 ] && { [ -n "$READ_LOW" ] && echo "READINGS_GUARD $READ_LOW"; return; }
   [ "$READ_LOW" = "$(cat $CDIR/readings_guard 2> /dev/null)" ] && return
   echo "$READ_LOW" > $CDIR/readings_guard
-  if [ -n "$READ_LOW" ]; then python $RUNBOOK/scripts/control.py event node readings_guard_on "new readings held: the work disk below READINGS_DISK_MIN_GB" > /dev/null 2>&1 &
+  if [ -n "$READ_LOW" ]; then python $RUNBOOK/scripts/control.py event node readings_guard_on "the work disk below READINGS_DISK_MIN_GB: no new fetch / prefetch, no reading whose run directory stays on it" > /dev/null 2>&1 &
   else python $RUNBOOK/scripts/control.py event node readings_guard_off > /dev/null 2>&1 &
   fi
 }
@@ -407,13 +420,13 @@ while true; do
     done
   fi
   tasks_guard   # [v2.5.9z71] below 300 GB: no new task, prefetch, fetch or git pull
-  [ "${DRY:-0}" != 1 ] && [ -z "$ALL_LOW" ] && prefetch_pass
+  readings_guard   # [v2.5.9z69]; [v2.5.9z71c] before the fetches: they keep the readings' line too
+  [ "${DRY:-0}" != 1 ] && [ -z "$ALL_LOW$READ_LOW" ] && prefetch_pass
   [ "${DRY:-0}" != 1 ] && net2_unfreeze   # [v2.5.9i]
-  [ "${DRY:-0}" != 1 ] && [ -z "$ALL_LOW" ] && fetch_pass   # v2.5.7w
-  [ "${DRY:-0}" != 1 ] && [ -z "$ALL_LOW" ] && git_pass   # [v2.5.9c]
+  [ "${DRY:-0}" != 1 ] && [ -z "$ALL_LOW$READ_LOW" ] && fetch_pass   # v2.5.7w
+  [ "${DRY:-0}" != 1 ] && [ -z "$ALL_LOW$READ_LOW" ] && git_pass   # [v2.5.9c]
   [ "${DRY:-0}" != 1 ] && python $RUNBOOK/scripts/control.py auto_reruns "$Q"   # [v2.5.9z12] the queue's #at / #after rerun lines
   disk_guard   # [v2.5.9z12]
-  readings_guard   # [v2.5.9z69]
   # [v2.5.9z48] the control plane off a full work disk; [v2.5.9z71] the planned switch (CTRL_ON_CKPT): in the background (a first
   # copy of logs/ can take minutes; this loop's liveness must not wait on it), one at a time (the lock), its line in logs/control.log
   [ "${DRY:-0}" != 1 ] && (setsid nohup nice -n 10 python $RUNBOOK/scripts/control.py disk_fallback >> $OPD_ROOT/logs/control.log 2>&1 < /dev/null &)
@@ -445,15 +458,15 @@ while true; do
       fi
       unblock $t
       waiting $t && continue   # [v2.5.9z3]
-      if [ -n "$ALL_LOW" ]; then AHELD="$AHELD $t"; continue; fi   # [v2.5.9z71] below 300 GB nothing new starts
+      if [ -n "$ALL_LOW" ] && ! runs_on_ckpt $t; then AHELD="$AHELD $t"; continue; fi   # [v2.5.9z71] below 300 GB; [v2.5.9z71c] only on the work disk
       case $t in EVAL-*) inputs_ok $t || result_only $t || no_fetch $t || continue; mc_data_ok $t || continue;; esac   # [v2.5.9z23] mc_data_ok   # v2.5.4e: no GPU while its models are being fetched ([v2.5.8] no_fetch)
       if cpu_task $t; then   # [v2.5.8] the CPU lane: no GPU taken
         cpu_busy && continue
         if [ "${DRY:-0}" = 1 ]; then echo "WOULD_START gpu=cpu $t (stage $stage, attempt $(( $(attempts $t) + 1 )))"; continue; fi
         echo "START $(date -u +%T) gpu=cpu $t (stage $stage, attempt $(( $(attempts $t) + 1 )))"; launch cpu $t; nap 10; continue
       fi
-      if [ -n "$DISK_LOW" ] && training_task $t; then HELD="$HELD $t"; continue; fi   # [v2.5.9z12] the disk guard
-      if [ -n "$READ_LOW" ] && reading_task $t; then RHELD="$RHELD $t"; continue; fi   # [v2.5.9z69] the readings' disk guard
+      if [ -n "$DISK_LOW" ] && training_task $t && { [[ "$DISK_LOW" == *ckpt* ]] || ! runs_on_ckpt $t; }; then HELD="$HELD $t"; continue; fi   # [v2.5.9z12] the disk guard; [v2.5.9z71c] its work line only on the work disk
+      if [ -n "$READ_LOW" ] && reading_task $t && ! runs_on_ckpt $t; then RHELD="$RHELD $t"; continue; fi   # [v2.5.9z69] the readings' disk guard; [v2.5.9z71c] only on the work disk
       take_gpus $t || { READY=$((READY + 1)); RT="$RT $t"; continue; }; g=$G   # [v2.5.9a] one GPU, or n for a #gpus task; [v2.5.9z12] or ready in reserve
       if [ "${DRY:-0}" = 1 ]; then echo "WOULD_START gpu=$g $t (stage $stage, attempt $(( $(attempts $t) + 1 )))"; continue; fi
       echo "START $(date -u +%T) gpu=$g $t (stage $stage, queue v$(sed -n 's/^version:[[:space:]]*//p' "$Q"), attempt $(( $(attempts $t) + 1 )))"
