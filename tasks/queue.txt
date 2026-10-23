@@ -2012,6 +2012,17 @@ b259z24  open   TOKCHECK-X5
 #lensel READINGS-EXTRA q030 E10b-P5lenS E10b-P5lenR E10b-P5lenL
 #tails READINGS-EXTRA q030_lenS16k EVAL-len-S/e10b_P5lenS_s50_math500_T0.6_math500_no_think_t0.6.jsonl 20 20261022 500
 #tails READINGS-EXTRA q030_lenR16k EVAL-len-R/e10b_P5lenR_s50_math500_T0.6_math500_no_think_t0.6.jsonl 20 20261022 500
+# [10-24 Fable's check via ops-lead 10-23 15:4x UTC] the VLM base and E15-VLM-P5 s50: loop rate per set (20 tails each); the 0.6B P5's
+# GPQA 16K (86% truncated, 61% unparsed vs the base's 1% / 9%): loops or long reasoning
+#tails READINGS-EXTRA vlm_base_geo3k EVAL-e15-base/e15_base2B_geo3k_T0.6_geo3k_no_think_t0.6.jsonl 20 20261024 500
+#tails READINGS-EXTRA vlm_base_mathvista EVAL-e15-base/e15_base2B_mathvista_T0.6_mathvista_no_think_t0.6.jsonl 20 20261024 500
+#tails READINGS-EXTRA vlm_base_mathvision EVAL-e15-base2/e15_base2B_mathvision_T0_mathvision_no_think_t0.0.jsonl 20 20261024 500
+#tails READINGS-EXTRA vlm_base_mathverse EVAL-e15-base2/e15_base2B_mathverse_T0_mathverse_no_think_t0.0.jsonl 20 20261024 500
+#tails READINGS-EXTRA vlm_s50_geo3k EVAL-e15-vlm-s50/e15_P5_s50_geo3k_T0.6_geo3k_no_think_t0.6.jsonl 20 20261024 500
+#tails READINGS-EXTRA vlm_s50_mathvista EVAL-e15-vlm-s50/e15_P5_s50_mathvista_T0.6_mathvista_no_think_t0.6.jsonl 20 20261024 500
+#tails READINGS-EXTRA vlm_s50_mathvision EVAL-e15-vlm-s50/e15_P5_s50_mathvision_T0_mathvision_no_think_t0.0.jsonl 20 20261024 500
+#tails READINGS-EXTRA vlm_s50_mathverse EVAL-e15-vlm-s50/e15_P5_s50_mathverse_T0_mathverse_no_think_t0.0.jsonl 20 20261024 500
+#tails READINGS-EXTRA gpqa_06P5_16k EVAL-gm-06P5/gm_06P5_gpqa_T0.6_16k_gpqa_no_think_t0.6.jsonl 20 20261024 500
 # [v2.5.9z14] (the reviewer's Q-056, research_program §3c; Runming's question 10-22) behaviour fingerprints: every MATH-500 16K avg@4 T0.6
 # reading on the node (#fpauto, named by its file stem) plus the thinking / 2507 references (#fpmodel; a 32K reading read at the 16K
 # budget: correct only when n_tokens <= 16384); per pair Pearson r of per-problem accuracy and length, phi and agreement of the problems
