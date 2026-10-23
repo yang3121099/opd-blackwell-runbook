@@ -33,6 +33,7 @@ case $T in
   E12b-*)  [[ $T =~ ^E12b-(P0|P1|$ARMS|P5-s4[34]|P2-s43|P5self|P5self-s43|P5-kl|P5-stop|P5-stop2|P5-8k|P5-16k|P5-r3|P5-16k-kl)$ ]] || exit 2; bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # v2.5.6j: P5-s43; v2.5.7n: P5-s44; v2.5.7o: P2-s43; [v2.5.8a] P5self; [v2.5.8b] P5-kl; [v2.5.8c] P5-stop; [v2.5.9f] P5-stop2
   E12c-*)  [[ $T =~ ^E12c-(P0|P5)$ ]] || exit 2; bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.8a] the 0.6B GRPO ladder (Q-023)
   E12d-P5-8k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z60] (Q-066) E12d-P5 (4B, from E10d-P5 s150) at the 8K limit, 50 steps, gated by PROBE-E12B-8K
+  E12d-P5-16k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z67] (Q-069) E12d-P5 (4B, from E10d-P5 s150) at the 16K limit on two GPUs (#gpus 2), 50 steps, gated by PROBE-E12B-16K
   E12d-*)  [[ $T =~ ^E12d-(P0|P5)$ ]] || exit 2; bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # v2.5.7o: the 4B GRPO ladder
   E03-MI-l0.0|E03-MI-l0.3|E03-MI-l0.5|E03-MI-l0.7|E03-MI-l1.0) bash $RUNBOOK/scripts/run_zero.sh $G $T;;
   E02-opsa17-c0.5|E02-opsa17-c1.5|E02-opsa4-c-1|E02-opsa4-c0.5|E02-opsa4-c1.5) bash $RUNBOOK/scripts/run_zero.sh $G $T;;
@@ -68,9 +69,9 @@ case $T in
   PROBE-LENSEL) bash $RUNBOOK/scripts/probe_lensel.sh $G;;   # [v2.5.8m] (Q-030): the gate of E10b-P5lenS / L / R
   PROBE-STOPMERGE) bash $RUNBOOK/scripts/probe_stopmerge.sh $G;;   # [v2.5.9l] (Q-038): the gate of E10b-P5stopmerge
   PROBE-WDIFF) bash $RUNBOOK/scripts/probe_wdiff.sh cpu;;   # [v2.5.9z18] (Q-031): per-layer weight differences of five 4B models vs Qwen3-4B (the CPU lane)
-  PROBE-STOPMERGE-UNIT) PSM_UNIT_ONLY=1 bash $RUNBOOK/scripts/probe_stopmerge.sh cpu;;
+  PROBE-STOPMERGE-UNIT) PSM_UNIT_ONLY=1 bash $RUNBOOK/scripts/probe_stopmerge.sh cpu;;   # [v2.5.9z6] its unit tests + the installed hooks' guards only (the CPU lane)
   PROBE-P5-8K) bash $RUNBOOK/scripts/probe_w8k.sh $G;;   # [v2.5.9z66] (Q-059): the gate of E10b-P5-8k, a 3-step smoke
-  PROBE-SMERGE-8K) PSM_PROBE=PROBE-SMERGE-8K PSM_ARM=E10b-P5smerge-8k PSM_MAXRESP=8192 PSM_PY=$OPD_ROOT/venv-fa/bin/python bash $RUNBOOK/scripts/probe_stopmerge.sh $G;;   # [v2.5.9z66]: the gate of E10b-P5smerge-8k   # [v2.5.9z6] its unit tests + the installed hooks' guards only (the CPU lane)
+  PROBE-SMERGE-8K) PSM_PROBE=PROBE-SMERGE-8K PSM_ARM=E10b-P5smerge-8k PSM_MAXRESP=8192 PSM_PY=$OPD_ROOT/venv-fa/bin/python bash $RUNBOOK/scripts/probe_stopmerge.sh $G;;   # [v2.5.9z66]: the gate of E10b-P5smerge-8k
   TOKCHECK-X5) bash $RUNBOOK/scripts/tok_check.sh;;
   PROBE-MIXP) bash $RUNBOOK/scripts/probe_mixp.sh;;   # [v2.5.9z38] (Q-060): the gate of E10b-P5mix75 / -P5mix90, the coin at p (the CPU lane)
   PROBE-PROG) bash $RUNBOOK/scripts/probe_prog.sh;;   # [v2.5.9z43] (Q-058): the gate of E12b-P5-prog / -prog-up, the continuation file and the starts (the CPU lane)

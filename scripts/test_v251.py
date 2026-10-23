@@ -1309,6 +1309,16 @@ def test_run_and_rerun_accept_v259z66(env):   # [v2.5.9z66] (Q-059) the two 8K c
     assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 81)
 
 
+def test_e12d_p5_16k_run_and_rerun_accepted():   # [v2.5.9z67] (Q-069)
+    import re
+    for c in ("rerun E12d-P5-16k", "run E12d-P5-16k"):
+        R.parse({"cmd": c, "reason": "t"})
+    src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "task.sh")).read()
+    assert src.index("  E12d-P5-16k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;") < src.index("  E12d-*)")
+    q = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tasks", "queue.txt")).read()
+    assert re.search(r"^#gpus E12d-P5-16k 2$", q, re.M)                                     # two GPUs, as the 1.7B 16K arms
+
+
 def test_e12d_p5_8k_run_and_rerun_accepted():   # [v2.5.9z60] (ops-lead's A1 condition: Runming is away 10-23, a night failure must be rerunnable)
     import re
     for c in ("rerun E12d-P5-8k", "run E12d-P5-8k"):
