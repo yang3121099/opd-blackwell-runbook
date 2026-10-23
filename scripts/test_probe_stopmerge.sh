@@ -53,4 +53,12 @@ setup; FAKE_NOHOOK=1 bash $T/rb/scripts/probe_stopmerge.sh 2 > /dev/null 2>&1; c
 setup; FAKE_SCORE=1.4 bash $T/rb/scripts/probe_stopmerge.sh 2 > /dev/null 2>&1; check "a score outside [0, 1] is FAIL" "a score outside [0, 1]"; cd $SRC; rm -rf $T
 setup; FAKE_CFG="" bash $T/rb/scripts/probe_stopmerge.sh 2 > /dev/null 2>&1; check "a config without the merge is FAIL" "does not name the stop merge"; cd $SRC; rm -rf $T
 setup; FAKE_OOM=1 bash $T/rb/scripts/probe_stopmerge.sh 2 > /dev/null 2>&1; check "OOM is FAIL" "smoke exited"; cd $SRC; rm -rf $T
+# [v2.5.9z66] (Q-059) PROBE-SMERGE-8K: the same gate on E10b-P5smerge-8k in its own directory; its smoke's config must name 8192
+r8() { python3 -c "import json, sys; v = json.load(open(sys.argv[1])); print(eval(sys.argv[2]))" $T/root/runs/PROBE-SMERGE-8K/report.json "$1"; }
+setup; PSM_PROBE=PROBE-SMERGE-8K PSM_ARM=E10b-P5smerge-8k PSM_MAXRESP=8192 bash $T/rb/scripts/probe_stopmerge.sh 2 > /dev/null 2>&1
+ok "[v2.5.9z66] PROBE-SMERGE-8K smokes E10b-P5smerge-8k in its own directory; no 8K window in the config is FAIL" '[ "$(r8 "v[\"result\"]")" = FAIL ] && [[ "$(r8 "v[\"reason\"]")" == *"max_response_length 8192"* ]] && grep -q "^run_arm 2 E10b-P5smerge-8k SMOKE=1 STEPS=3 PROBE_TASK=PROBE-SMERGE-8K-smoke$" $CALLS && [ ! -f $T/root/runs/PROBE-STOPMERGE/report.json ]'
+cd $SRC; rm -rf $T
+setup; FAKE_CFG='; stop-merged after the first box (opd_stopmerge.py)\nstudent_template: non-thinking, max_response_length 8192' PSM_PROBE=PROBE-SMERGE-8K PSM_ARM=E10b-P5smerge-8k PSM_MAXRESP=8192 bash $T/rb/scripts/probe_stopmerge.sh 2 > /dev/null 2>&1
+ok "[v2.5.9z66] with the 8K window named: PASS, its report under its own name" '[ "$(r8 "v[\"result\"]")" = PASS ] && [ -f $T/root/runs/PROBE-SMERGE-8K/.done ] && grep -q "^remote put $T/root/runs/PROBE-SMERGE-8K/up logs/abcd1234/probe_stopmerge/PROBE-SMERGE-8K" $CALLS'
+cd $SRC; rm -rf $T
 [ $fails = 0 ] && echo "PROBE_STOPMERGE_TEST PASS ($n checks)" || echo "PROBE_STOPMERGE_TEST FAIL ($fails of $n)"

@@ -1298,6 +1298,17 @@ def test_run_and_rerun_accept_v259z47(env):   # [v2.5.9z47] E10b-P5mix60 (rules 
     assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 73)
 
 
+def test_run_and_rerun_accept_v259z66(env):   # [v2.5.9z66] (Q-059) the two 8K cells and their gates (rules 2.5.81)
+    for i, t in enumerate(("E10b-P5-8k", "E10b-P5smerge-8k", "PROBE-P5-8K", "PROBE-SMERGE-8K")):
+        st, msg, _ = env.c.v_run([t], 170 + i)
+        assert st == "accepted", (t, msg)
+    for i, t in enumerate(("E10b-P5-16k", "E10b-P5smerge-4k", "E10b-P5-8k-s43", "PROBE-P5-16K")):
+        assert env.c.v_run([t], 180 + i)[0] == "rejected", t
+    for t in ("E10b-P5-8k", "E10b-P5smerge-8k", "PROBE-P5-8K", "PROBE-SMERGE-8K"):
+        R.parse({"cmd": f"rerun {t}", "reason": "t"})
+    assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 81)
+
+
 def test_e12d_p5_8k_run_and_rerun_accepted():   # [v2.5.9z60] (ops-lead's A1 condition: Runming is away 10-23, a night failure must be rerunnable)
     import re
     for c in ("rerun E12d-P5-8k", "run E12d-P5-8k"):

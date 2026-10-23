@@ -125,6 +125,9 @@ b259z41s open   E12b-P5-8k-s44:PROBE-E12B-8K EVAL-e12b-P5-8k-s44:E12b-P5-8k-s44 
 # [10-23 ops-lead, the scheduler's 17:2x proposal] Q-058 / Q-066 ahead of the 32K OOD readings (b259z41o)
 b259z43p open   PROBE-PROG
 b259z43  open   E12b-P5-prog:PROBE-PROG E12b-P5-prog-up:PROBE-PROG+PROBE-E12B-8K EVAL-budA-p5s44rl-s25:PROBE-PROG EVAL-e12b-P5-prog:E12b-P5-prog EVAL-e12b-P5-prog-up:E12b-P5-prog-up EVAL-budA-e12bP5-prog:E12b-P5-prog EVAL-budA-e12bP5-prog-up:E12b-P5-prog-up+EVAL-budA-p5s44rl-s25 EVAL-ext32k-17prog:E12b-P5-prog+EVAL-ext32k-17p5l8k-s25 EVAL-ext32k-17prog-up:E12b-P5-prog-up
+# [v2.5.9z66] (Q-059, research_program 3c; Fable 10-23 04:2x UTC) the 2x2 window x stop merge's 8K cells: their 3-step smokes, then the two arms and their readings
+b259z66p open   PROBE-P5-8K PROBE-SMERGE-8K
+b259z66  open   E10b-P5-8k:PROBE-P5-8K E10b-P5smerge-8k:PROBE-SMERGE-8K+PROBE-STOPMERGE EVAL-e10b-P5-8k:E10b-P5-8k EVAL-ext32k-17p5-8k:E10b-P5-8k EVAL-smerge-8k:E10b-P5smerge-8k+EVAL-e10b-P5-8k EVAL-ext32k-17smerge-8k:E10b-P5smerge-8k+EVAL-ext32k-17p5-8k
 b259z41o open   EVAL-ood32k-17base EVAL-ood32k-4Bbase EVAL-ood32k-17p5self:EVAL-ood32k-17base EVAL-ood32k-17p5l8k:EVAL-ood32k-17base EVAL-ood32k-4Bp5:EVAL-ood32k-4Bbase EVAL-ood32k-4Bp5self:EVAL-ood32k-4Bbase EVAL-ood32k-4Bx4:EVAL-ood32k-4Bbase
 diff4b   open   PROBE-DIFF17-4B:PROBE-DIFF17
 b259q028 open   EVAL-ext32k-17p5l8k-s25
@@ -2409,3 +2412,48 @@ b259z24  open   TOKCHECK-X5
 #pair EVAL-ext32k-4Bp5l8k ext32k4B_E12dP5l8k_s50_aime25_T0.6 EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Brl/ext32k4B_E12dP5_s100_aime25_T0.6_aime25_no_think_t0.6.jsonl
 #term PROBE-TERM4-4B 4B_P5l8k result:runs/E12d-P5-8k/global_step_50/actor/huggingface EVAL-e12d-P5-8k/e12d_P5-8k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 #after EVAL-e12d-P5-8k rerun PROBE-TERM4-4B
+
+# b259z66p / b259z66 (runbook v2.5.9z66, Q-059; the reviewer's pre-registration research_program 3c, Fable 10-23 04:2x UTC):
+# E10b-P5-8k = P5's recipe from the base with 8K rollouts (no merge), E10b-P5smerge-8k = the same with the stop-merged teacher;
+# with the 4K E10b-P5 / E10b-P5stopmerge the 2x2 window x stop merge. 50 steps on flash-attn, s25 kept, s50 uploaded. Readings at
+# s50, Q-038's set: MATH-500 16K T0.6 / T1.0 paired with P5 (E11b-P5), lenR s50 and the 4K stopmerge s50 (smerge-8k also with
+# P5-8k: H2), MATH-500 32K with budget curves against the base, P5 s50 and the other cells, STRICT rows, AIME24/25 32K avg@16
+# paired with P5 s150, P5self s50 and the 4K stopmerge; TERM4 rows held until s50; stopmerge.jsonl carries the after-box
+# offset buckets (9z10), which the 4K run predates. H1 (training truncation, late half < 0.5) is read off train.log.
+#eval EVAL-e10b-P5-8k e10b_P5-8k_s50_math500_T0.6 result:runs/E10b-P5-8k/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-e10b-P5-8k e10b_P5-8k_s50_math500_T1.0 result:runs/E10b-P5-8k/global_step_50/actor/huggingface math500 4 1.0
+#eval EVAL-e10b-P5-8k budAe10bP5-8k_s50_math500_T0.6_32k result:runs/E10b-P5-8k/global_step_50/actor/huggingface math500 4 0.6 32768
+#pair EVAL-e10b-P5-8k e10b_P5-8k_s50_math500_T0.6 E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-len-R/e10b_P5lenR_s50_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-smerge/e10b_P5smerge_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#pair EVAL-e10b-P5-8k e10b_P5-8k_s50_math500_T1.0 E11b-P5/e11b_P5_math500_T1.0_math500_no_think_t1.0.jsonl EVAL-smerge/e10b_P5smerge_s50_math500_T1.0_math500_no_think_t1.0.jsonl
+#budget EVAL-e10b-P5-8k budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe10bP5-8k_s50_math500_T0.6_32k
+#budget EVAL-e10b-P5-8k budget_curve_vsP5s50 EVAL-budA-top10c/budAtop10_E10P5_17B_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe10bP5-8k_s50_math500_T0.6_32k
+#budget EVAL-e10b-P5-8k budget_curve_vsSmerge EVAL-smerge/budAsmerge_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe10bP5-8k_s50_math500_T0.6_32k
+#strict STRICT-C1 EVAL-e10b-P5-8k/budAe10bP5-8k_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-top10c/budAtop10_E10P5_17B_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#eval EVAL-ext32k-17p5-8k ext32k17_E10bP5-8k_s50_aime24_T0.6 result:runs/E10b-P5-8k/global_step_50/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-17p5-8k ext32k17_E10bP5-8k_s50_aime25_T0.6 result:runs/E10b-P5-8k/global_step_50/actor/huggingface aime25 16 0.6 32768
+#pair EVAL-ext32k-17p5-8k ext32k17_E10bP5-8k_s50_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17smerge/ext32k17_P5smerge_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#pair EVAL-ext32k-17p5-8k ext32k17_E10bP5-8k_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17smerge/ext32k17_P5smerge_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
+#eval EVAL-smerge-8k e10b_P5smerge-8k_s50_math500_T0.6 result:runs/E10b-P5smerge-8k/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-smerge-8k e10b_P5smerge-8k_s50_math500_T1.0 result:runs/E10b-P5smerge-8k/global_step_50/actor/huggingface math500 4 1.0
+#eval EVAL-smerge-8k budAsmerge-8k_s50_math500_T0.6_32k result:runs/E10b-P5smerge-8k/global_step_50/actor/huggingface math500 4 0.6 32768
+#pair EVAL-smerge-8k e10b_P5smerge-8k_s50_math500_T0.6 EVAL-e10b-P5-8k/e10b_P5-8k_s50_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-smerge/e10b_P5smerge_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#pair EVAL-smerge-8k e10b_P5smerge-8k_s50_math500_T1.0 EVAL-e10b-P5-8k/e10b_P5-8k_s50_math500_T1.0_math500_no_think_t1.0.jsonl E11b-P5/e11b_P5_math500_T1.0_math500_no_think_t1.0.jsonl EVAL-smerge/e10b_P5smerge_s50_math500_T1.0_math500_no_think_t1.0.jsonl
+#budget EVAL-smerge-8k budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAsmerge-8k_s50_math500_T0.6_32k
+#budget EVAL-smerge-8k budget_curve_vsP5s50 EVAL-budA-top10c/budAtop10_E10P5_17B_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAsmerge-8k_s50_math500_T0.6_32k
+#budget EVAL-smerge-8k budget_curve_vsP5w8k EVAL-e10b-P5-8k/budAe10bP5-8k_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAsmerge-8k_s50_math500_T0.6_32k
+#budget EVAL-smerge-8k budget_curve_vsSmerge EVAL-smerge/budAsmerge_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAsmerge-8k_s50_math500_T0.6_32k
+#strict STRICT-C1 EVAL-smerge-8k/budAsmerge-8k_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-e10b-P5-8k/budAe10bP5-8k_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#strict STRICT-C1 EVAL-smerge-8k/budAsmerge-8k_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-smerge/budAsmerge_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#eval EVAL-ext32k-17smerge-8k ext32k17_P5smerge-8k_s50_aime24_T0.6 result:runs/E10b-P5smerge-8k/global_step_50/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-17smerge-8k ext32k17_P5smerge-8k_s50_aime25_T0.6 result:runs/E10b-P5smerge-8k/global_step_50/actor/huggingface aime25 16 0.6 32768
+#pair EVAL-ext32k-17smerge-8k ext32k17_P5smerge-8k_s50_aime24_T0.6 EVAL-ext32k-17p5-8k/ext32k17_E10bP5-8k_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17smerge/ext32k17_P5smerge_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#pair EVAL-ext32k-17smerge-8k ext32k17_P5smerge-8k_s50_aime25_T0.6 EVAL-ext32k-17p5-8k/ext32k17_E10bP5-8k_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17smerge/ext32k17_P5smerge_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
+#split READINGS-EXTRA 17_P5w8k_s50 EVAL-e10b-P5-8k/e10b_P5-8k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#split READINGS-EXTRA 17_P5smerge8k_s50 EVAL-smerge-8k/e10b_P5smerge-8k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-e10b-P5-8k rerun READINGS-EXTRA
+#after EVAL-smerge-8k rerun READINGS-EXTRA
+#after EVAL-e10b-P5-8k rerun STRICT-C1
+#after EVAL-smerge-8k rerun STRICT-C1
+# [held until E10b-P5-8k has s50] term PROBE-TERM4 17_P5w8k result:runs/E10b-P5-8k/global_step_50/actor/huggingface EVAL-e10b-P5-8k/e10b_P5-8k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+# [held until E10b-P5smerge-8k has s50] term PROBE-TERM4 17_P5smerge8k result:runs/E10b-P5smerge-8k/global_step_50/actor/huggingface EVAL-smerge-8k/e10b_P5smerge-8k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+# [held until both have s50; restored together with the two term rows above] after EVAL-smerge-8k rerun PROBE-TERM4

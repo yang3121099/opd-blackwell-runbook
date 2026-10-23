@@ -8,6 +8,7 @@
 #        and the seed replicates E10b-P2-s43/-s44, E10b-P6r-s43/-s44; v2.5.7h: E10b-P5top10 / E10b-P5rand10m (50 steps);
 #        v2.5.7o: E10d-P2-s43 / E10d-P5-s43 (4B, data.seed 43, flash-attn); v2.5.7p: E10b-P2-t14 / E10b-P5-t14 (14B teacher);
 #        v2.5.7r: E10b-P5think (the student in thinking mode too, 8K rollouts); v2.5.7v: E10b-P5self (teacher = the student's base); v2.5.7zg: E10b-P2self
+#        [v2.5.9z66]: E10b-P5-8k / E10b-P5smerge-8k (Q-059: P5 / stop-merged P5 with 8K rollouts)
 set -euo pipefail
 source "$(dirname "$0")/env.sh"; source "$(dirname "$0")/dr.sh"; GPU=$1; TASK=$2
 # task id E10b-<arm>[-s<seed>]: the seed changes only the data order (data.seed); the default seed is 42
@@ -102,6 +103,11 @@ ROUTE_INV=""; [ $TASK = E10b-P5route-inv ] && { ROUTE=route; ROUTE_INV=1; BASE=E
 # [v2.5.9z47] (the reviewer 10-22 18:5x Beijing via ops-lead) E10b-P5mix60 = mix75 / mix90's recipe with the coin at p = 0.6; it starts only
 # after PROBE-MIXP checked 0.6 (the share and the nesting under 0.75 / 0.9), besides PROBE-ROUTE
 [ $TASK = E10b-P5mix60 ] && { ROUTE=mix; ROUTE_P=0.6; BASE=E10b-P5; }
+# [v2.5.9z66] (Q-059, the reviewer's pre-registration research_program 3c; Fable 10-23 04:2x UTC) E10b-P5-8k / E10b-P5smerge-8k = P5's
+# recipe from the base with 8K rollouts (max_response_length 8192, as E10b-P5think), without / with the stop-merged teacher (as
+# E10b-P5stopmerge): with the 4K E10b-P5 / E10b-P5stopmerge the 2x2 window x stop merge. 50 steps on flash-attn (venv-fa), s25 kept
+# on the node, s50 uploaded. Gated by PROBE-P5-8K / PROBE-SMERGE-8K (3-step smokes; the second runs PROBE-STOPMERGE's unit tests too)
+W8K=0; case $TASK in E10b-P5-8k) W8K=1; MAXRESP=8192; BASE=E10b-P5;; E10b-P5smerge-8k) W8K=1; MAXRESP=8192; SMERGE=1; BASE=E10b-P5;; esac
 # [v2.5.9z46] (Q-057, the reviewer's design 10-22 14:4x Beijing, ruling A 10:0x UTC) E16-X5 / E16-X5e = P5's recipe for a student
 # without a thinking mode: Qwen2.5-Math-1.5B-Instruct taught by DeepSeek-R1-Distill-Qwen-1.5B on its thinking template, 50 steps,
 # s25 / s50. The student has 4096 positions (no rope_scaling): prompts 1024 + responses 3072 (the ruled deviation from 4K). Its
@@ -167,6 +173,11 @@ fi
 if [ $TAIL = 1 ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
   grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-TAIL/report.json 2> /dev/null || { echo "PROBE-TAIL has not passed: $TASK not started"; exit 3; }
 fi
+# [v2.5.9z66] (Q-059) an 8K cell starts only after its own 3-step smoke passed (the stop-merged one also needs PROBE-STOPMERGE above)
+if [ $W8K = 1 ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
+  G8=PROBE-P5-8K; [ $SMERGE = 1 ] && G8=PROBE-SMERGE-8K
+  grep -q '"result": "PASS"' $OPD_ROOT/runs/$G8/report.json 2> /dev/null || { echo "$G8 has not passed: $TASK not started"; exit 3; }
+fi
 # [v2.5.9z9] the 32B-teacher arm starts only after PROBE-T32 passed (a 3-step smoke), and waits (no attempt) while the 32B is not in
 if [ $T32 = 1 ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
   grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-T32/report.json 2> /dev/null || { echo "PROBE-T32 has not passed: $TASK not started"; exit 3; }
@@ -201,6 +212,7 @@ if [ "$SIZE" = 4B ]; then
   if [ $SEED != 42 ]; then VENV=fa; elif [ "${E10D_FA:-0}" != 1 ]; then VENV=; fi
 fi
 [ $TASK = E10b-P2self ] && VENV=fa   # v2.5.7zg (reviewer: P2self on FA)
+[ $W8K = 1 ] && VENV=fa   # [v2.5.9z66] (Q-059) 8K rollouts: flash-attn with remove-padding (token budget 16384 >= 1024 + 8192)
 [ -n "$LENSEL" ] && VENV=fa   # [v2.5.8m] 512 rollouts per step: flash-attn with remove-padding
 case ${VENV:-} in fa) VENV=$OPD_ROOT/venv-fa;; esac   # v2.5.3: setenv VENV=fa (after FA-PROBE passed) = venv-fa with flash-attn
 source ${VENV:-$OPD_ROOT/venv}/bin/activate   # FA-PROBE passes its own VENV; default: the venv in use
@@ -222,6 +234,7 @@ case $ARM in P5top10|P5rand10m) export OPD_VARIANT=P6 OPD_VARIANT_OVERRIDE=$ARM 
 [ -n "$XARM" ] && NSTEPS=${X2507_STEPS:-50}   # [v2.5.8i]
 [ -n "$LENSEL" ] && NSTEPS=${LENSEL_STEPS:-50}   # [v2.5.8m]
 [ $SMERGE = 1 ] && NSTEPS=${STOPMERGE_STEPS:-50}   # [v2.5.9l]
+[ $W8K = 1 ] && NSTEPS=${W8K_STEPS:-50}   # [v2.5.9z66]
 [ $TAIL = 1 ] && NSTEPS=${TAIL_STEPS:-50}   # [v2.5.9n]
 [ -n "$ROUTE" ] && NSTEPS=${ROUTE_STEPS:-50}   # [v2.5.9x]
 [ $POLISH = 1 ] && NSTEPS=${POLISH_STEPS:-20}   # [v2.5.9u]
@@ -269,6 +282,7 @@ fi
 UW=$NSTEPS; [ $TASK = E10c-P5-fix4 ] && UW=100,$NSTEPS; [ -n "$XARM" ] && UW=25,$NSTEPS   # [v2.5.8i] X arms: s25 is read too   # [v2.5.8a] (Q-023): its s100 = the step of the lab's 0.6B P5 reading (+19.2)
 [ $T32 = 1 ] && { UW=25,$NSTEPS; SAVE=${SAVE:-25}; }   # [v2.5.9z9] s25 and s50 saved and uploaded
 [ $X5 = 1 ] && { UW=25,$NSTEPS; SAVE=${SAVE:-25}; }   # [v2.5.9z46] s25 and s50 saved and uploaded
+[ $W8K = 1 ] && SAVE=${SAVE:-25}   # [v2.5.9z66] (Q-059) s25 and s50 saved; s50 uploaded (UW), s25 kept on the node
 # [v2.5.9z40] (ops-lead 10-22, PROBE-T32's first run: vLLM found 127.6 of 267.7 GiB free at start-up, below 0.5 x total) the 32B arm and
 # its smoke only: the rollout's GPU memory share 0.4 (T32_VLLM_UTIL), and T32_OPT_OFFLOAD=1 (PROBE-T32's retry after an out of
 # memory) offloads the actor's optimizer (the 32B reference is offloaded already); every other arm keeps VLLM_UTIL (0.5) and no offload
@@ -276,6 +290,7 @@ ROLL_UTIL=${VLLM_UTIL:-0.5}; ACT_OPT_OFF=False
 [ $T32 = 1 ] && { ROLL_UTIL=${T32_VLLM_UTIL:-0.4}; [ "${T32_OPT_OFFLOAD:-0}" = 1 ] && ACT_OPT_OFF=True
   # [ops-lead's A1 condition] the arm runs as its gate passed: PROBE-T32's smoke needed the optimizer offloaded -> so does the arm
   [ "${SMOKE:-0}" != 1 ] && [ -s $OPD_ROOT/runs/PROBE-T32/escalation.txt ] && ACT_OPT_OFF=True; }
+[ "${DRYRUN:-0}" = 1 ] && [ $W8K = 1 ] && echo "DRYRUN_W8K maxresp=$MAXRESP smerge=$SMERGE save=$SAVE upload=$UW venv=$(basename ${VENV:-$OPD_ROOT/venv})"   # [v2.5.9z66] tests
 [ "${DRYRUN:-0}" = 1 ] && [ $SMERGE = 1 ] && echo "DRYRUN_STOPMERGE OPD_STOPMERGE=${OPD_STOPMERGE:-} log=$(basename ${OPD_STOPMERGE_LOG:-none}) kern=[$KERN]"   # [v2.5.9l] tests
 [ "${DRYRUN:-0}" = 1 ] && [ $POLISH = 1 ] && echo "DRYRUN_POLISH student=$(echo $STUDENT | sed 's|.*/runs/|runs/|') teacher=$TEACHER"   # [v2.5.9u] tests
 [ "${DRYRUN:-0}" = 1 ] && [ -n "$ROUTE" ] && echo "DRYRUN_ROUTE OPD_ROUTE=${OPD_ROUTE:-} labels=$(echo ${OPD_ROUTE_LABELS:-none} | sed 's|.*/runs/|runs/|') log=$(basename ${OPD_ROUTE_LOG:-none})$([ -n "${OPD_ROUTE_P:-}" ] && echo " p=$OPD_ROUTE_P")"   # [v2.5.9x] tests

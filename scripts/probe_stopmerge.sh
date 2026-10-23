@@ -14,9 +14,11 @@
 # own report is not touched): the unit-test line "N passed, F failed, S skipped" (a skip fails the gate too) and hooks.txt,
 # the installed files' hook lines with the guard each one runs under (OPD_STOPMERGE=1 or the batch key it sets), and [v2.5.9z8]
 # every line with opd_box_end in the installed verl tree and $RUNBOOK/code (the writes marked).
+# [v2.5.9z66] (Q-059) PSM_PROBE=<task> PSM_ARM=<arm> PSM_MAXRESP=<n>: the same gate for another stop-merged arm (PROBE-SMERGE-8K:
+# E10b-P5smerge-8k, its smoke's config must name max_response_length 8192; PSM_PY = that arm's python, venv-fa)
 # Usage: bash probe_stopmerge.sh <gpu>   |   PSM_UNIT_ONLY=1 bash probe_stopmerge.sh cpu
 set -uo pipefail
-G=$1; T=PROBE-STOPMERGE; [ "${PSM_UNIT_ONLY:-0}" = 1 ] && T=PROBE-STOPMERGE-UNIT; source "$(dirname "$0")/env.sh"
+G=$1; T=PROBE-STOPMERGE; [ "${PSM_UNIT_ONLY:-0}" = 1 ] && T=PROBE-STOPMERGE-UNIT; [ -n "${PSM_PROBE:-}" ] && T=$PSM_PROBE; source "$(dirname "$0")/env.sh"
 D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; mkdir -p $D
 [ -f $D/.done ] && { echo "TASK_ALREADY_DONE $T"; exit 0; }
 rm -f $D/mem.csv   # [v2.5.9z11] this run's memory samples only (a rerun keeps the directory: PROBE-STOPMERGE's 4th peak was the 2nd run's)
@@ -124,7 +126,7 @@ done
 ( while true; do echo "$(date -u +%s),$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $G | tr -d ' ')" >> $D/mem.csv; sleep 5; done ) &
 MP=$!; trap 'kill $MP 2> /dev/null' EXIT
 rm -rf $OPD_ROOT/runs/$T-smoke
-SMOKE=1 SMOKE_STEPS=${PSM_STEPS:-3} PROBE_TASK=$T-smoke bash $RUNBOOK/scripts/run_arm.sh $G E10b-P5stopmerge > $D/smoke.out 2>&1; rc=$?
+SMOKE=1 SMOKE_STEPS=${PSM_STEPS:-3} PROBE_TASK=$T-smoke bash $RUNBOOK/scripts/run_arm.sh $G ${PSM_ARM:-E10b-P5stopmerge} > $D/smoke.out 2>&1; rc=$?
 kill $MP 2> /dev/null
 mkdir -p $D/smoke; cp $OPD_ROOT/runs/$T-smoke/train.log $OPD_ROOT/runs/$T-smoke/config.yaml $OPD_ROOT/runs/$T-smoke/stopmerge.jsonl $D/smoke/ 2> /dev/null
 python3 $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true
@@ -139,6 +141,9 @@ sm = os.path.join(d, "smoke"); why = []
 rd = lambda p: open(p, errors="ignore").read() if os.path.exists(p) else ""
 if "stop-merged after the first box" not in rd(os.path.join(sm, "config.yaml")):
     why.append("the smoke's config does not name the stop merge")
+mr = os.environ.get("PSM_MAXRESP", "")   # [v2.5.9z66] an 8K arm: its window really is 8K
+if mr and f"max_response_length {mr}" not in rd(os.path.join(sm, "config.yaml")):
+    why.append(f"the smoke's config does not name max_response_length {mr}")
 scores = {int(s): float(v) for s, v in re.findall(r"(?:^|[ )\]])step:(\d+) - .*?critic/score/mean:([-0-9.e]+)", rd(os.path.join(sm, "train.log")))}
 if sorted(scores) != list(range(1, nsteps + 1)):
     why.append(f"train.log steps with a score {sorted(scores)}, expected 1..{nsteps}")
