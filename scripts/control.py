@@ -2333,6 +2333,39 @@ def _exchange_selftest(root):
                 os.rmdir(p)
 
 
+# [v2.5.9z71b] (the node 10-23 19:01 UTC: renameat2(RENAME_EXCHANGE) -> EINVAL on the shared work disk, so z71 refused) the errors
+# that mean "this filesystem has no exchange": the swap then falls back to two renames back to back (_put_at)
+NO_EXCHANGE = (22, 38, 95, 45)   # EINVAL, ENOSYS, EOPNOTSUPP / ENOTSUP (Linux 95; macOS 45)
+
+
+def _put_at(new, p, old, stamp, exchange=True):
+    """[v2.5.9z71b] new (a ready symlink or directory) to p, and what was at p to old. With exchange: one renameat2
+    exchange, then old's rename (p never missing). Without (the filesystem has none): rename(p, old) and rename(new, p) back to
+    back: p is missing for the time between the two calls (returned, in ns, for the event); a directory a writer created at p
+    inside that gap (mkdir -p / makedirs) is moved to <p>.gap_<utc> and the second rename tried once more; if it still fails the
+    old directory goes back to p (nothing switched; what the stray directory held is copied into it) and the error is raised.
+    Returns (gap_ns, stray or None)."""
+    if exchange:
+        _exchange(new, p); os.rename(new, old); return 0, None
+    t0 = time.perf_counter_ns()
+    os.rename(p, old)
+    try:
+        os.rename(new, p); return time.perf_counter_ns() - t0, None
+    except OSError:
+        pass
+    stray = None
+    if os.path.isdir(p) and not os.path.islink(p):
+        stray = f"{p}.gap_{stamp}"; os.rename(p, stray)
+    try:
+        os.rename(new, p); return time.perf_counter_ns() - t0, stray
+    except OSError:
+        if not os.path.lexists(p):
+            os.rename(old, p)
+            if stray:
+                _copy_tree(stray, p)
+        raise
+
+
 def _copy_tree(src, dst):
     """[v2.5.9z71] copy what dst lacks or has older (by mtime: a file written at dst after the swap is never overwritten
     by the older one): each file through dst's own temp file and one rename; symlinks as symlinks; a symlink already at
@@ -2423,30 +2456,44 @@ def _clear(p, stamp):
         os.rename(p, f"{p}.left_{stamp}")
 
 
-def _switch_on(root, fb, n, stamp, held_fn):
+def _switch_on(root, fb, n, stamp, held_fn, exchange=True, gaps=None):
     p, q = os.path.join(root, n), os.path.join(fb, f"{n}.{stamp}")
     os.makedirs(p, exist_ok=True)
     _copy_tree(p, q); _copy_tree(p, q)                                  # the bulk, then what changed during it
     tmp = p + ".z71_link"; _clear(tmp, stamp); os.symlink(q, tmp)
+    old = f"{p}.pre_fallback_{stamp}"
     try:
-        _exchange(tmp, p)                                                # p: the symlink; tmp: the old directory
+        gap, stray = _put_at(tmp, p, old, stamp, exchange)               # p: the symlink; old: the old directory
     except OSError:
-        os.unlink(tmp); raise
-    old = f"{p}.pre_fallback_{stamp}"; os.rename(tmp, old)
+        if os.path.islink(tmp):
+            os.unlink(tmp)
+        raise
+    if gaps is not None:
+        gaps.append(gap)
     _copy_tree(old, q)                                                   # what was written between the copy and the swap
+    if stray:
+        _copy_tree(stray, q)                                             # [v2.5.9z71b] and what a writer put into the gap
     return _link_live(os.path.realpath(old), q, held_fn(os.path.realpath(old)))
 
 
-def _switch_off(root, n, stamp, held_fn):
+def _switch_off(root, n, stamp, held_fn, exchange=True, gaps=None):
     p = os.path.join(root, n); q = os.path.realpath(p)
     back = p + ".z71_back"; _clear(back, stamp); os.makedirs(back)
     _copy_tree(q, back); _copy_tree(q, back)
+    off = p + ".z71_off"; _clear(off, stamp)
     try:
-        _exchange(back, p)                                               # p: a directory again; back: the symlink
+        gap, stray = _put_at(back, p, off, stamp, exchange)              # p: a directory again; off: the symlink
     except OSError:
-        os.rename(back, f"{back}.left_{stamp}"); raise
-    os.unlink(back)
+        if os.path.isdir(back) and not os.path.islink(back):
+            os.rename(back, f"{back}.left_{stamp}")
+        raise
+    if gaps is not None:
+        gaps.append(gap)
+    if os.path.islink(off):
+        os.unlink(off)
     _copy_tree(q, p)
+    if stray:
+        _copy_tree(stray, p)
     return _link_live(q, p, held_fn(q))                                  # q stays on the checkpoint disk
 
 
@@ -2465,7 +2512,7 @@ def disk_fallback(root=None, ckpt=None, free_fn=None, emit=True, stamp=None, che
     fb = os.path.join(ckpt, "opd_fallback"); os.makedirs(fb, exist_ok=True)
     stamp = stamp or time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
     held_fn = held_fn or _open_files
-    linked, why, emit_refused = 0, "", False
+    linked, why, emit_refused, gaps, exchange = 0, "", False, [], True
     with open(os.path.join(fb, ".lock"), "w") as lk:
         try:
             fcntl.flock(lk, fcntl.LOCK_EX if blocking else fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -2479,9 +2526,14 @@ def disk_fallback(root=None, ckpt=None, free_fn=None, emit=True, stamp=None, che
         refused_mark = os.path.join(fb, "ctrl_refused_reported")
         if todo:
             try:
-                _exchange_selftest(root)
+                try:
+                    _exchange_selftest(root); exchange = True
+                except OSError as e:   # [v2.5.9z71b] no exchange on this filesystem: two renames back to back
+                    if e.errno not in NO_EXCHANGE:
+                        raise
+                    exchange = False
                 for n in todo:
-                    linked += (_switch_on(root, fb, n, stamp, held_fn) if want else _switch_off(root, n, stamp, held_fn))
+                    linked += (_switch_on(root, fb, n, stamp, held_fn, exchange, gaps) if want else _switch_off(root, n, stamp, held_fn, exchange, gaps))
                 state = "switched_on" if want else "switched_off"
                 if os.path.exists(refused_mark):
                     os.unlink(refused_mark)
@@ -2513,8 +2565,9 @@ def disk_fallback(root=None, ckpt=None, free_fn=None, emit=True, stamp=None, che
     if emit and state.startswith("switched"):
         on = state == "switched_on"
         kind = "ctrl_switch_on" if on and planned else ("disk_fallback_on" if on else "disk_fallback_off")   # the rollback: _off too
+        how = "one exchange each" if exchange else f"two renames each (no exchange on the work disk), gaps {', '.join(f'{g / 1000:.0f}' for g in gaps)} us"
         event("node", kind, f"work disk {free:.1f} GB free, CTRL_ON_CKPT={int(planned)} (z48 lines {low:.0f} / {high:.0f} GB): "
-              f"control/ and logs/ {'on the checkpoint disk' if on else 'back on the work disk'}; {linked} open files linked")
+              f"control/ and logs/ {'on the checkpoint disk' if on else 'back on the work disk'}; {how}; {linked} open files linked")
     elif emit and state == "refused" and emit_refused:   # once per episode
         event("node", "ctrl_switch_refused", f"control/ and logs/ stay where they are: {why}")
     return state
@@ -2573,12 +2626,18 @@ def place_run(t, root=None, ckpt=None, check_dev=True, stamp=None, busy=None):
         return "kept"
     os.makedirs(q, exist_ok=True); _copy_tree(p, q)
     _clear(tmp, stamp); os.symlink(q, tmp)
-    try:
-        _exchange(tmp, p)
-    except OSError:
-        os.unlink(tmp); return "kept"
     pre = os.path.join(root, "runs_pre_link"); os.makedirs(pre, exist_ok=True)
-    os.rename(tmp, os.path.join(pre, f"{t}.{stamp}"))
+    try:
+        try:
+            _put_at(tmp, p, os.path.join(pre, f"{t}.{stamp}"), stamp, exchange=True)
+        except OSError as e:   # [v2.5.9z71b] no exchange: two renames (nothing writes a run directory of a task not started)
+            if e.errno not in NO_EXCHANGE:
+                raise
+            _put_at(tmp, p, os.path.join(pre, f"{t}.{stamp}"), stamp, exchange=False)
+    except OSError:
+        if os.path.islink(tmp):
+            os.unlink(tmp)
+        return "kept"
     _copy_tree(os.path.join(pre, f"{t}.{stamp}"), q)
     return "linked_moved"
 

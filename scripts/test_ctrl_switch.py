@@ -182,12 +182,12 @@ def test_rollback_setenv(disks):   # ③ setenv CTRL_ON_CKPT=0 brings them back,
     assert os.path.realpath(os.path.join(root, "control")) == os.path.realpath(os.path.join(ckpt, "opd_fallback", "control.S3"))
 
 
-def test_refused_exchange_moves_nothing(disks, monkeypatch):
+def test_refused_exchange_moves_nothing(disks, monkeypatch):   # [v2.5.9z71b] an error other than "no exchange here"
     root, ckpt, ev = disks
 
-    def no_exchange(a, b):
-        raise OSError(errno.EINVAL, "Invalid argument")
-    monkeypatch.setattr(C, "_exchange", no_exchange)
+    def bad_exchange(a, b):
+        raise OSError(errno.EPERM, "Operation not permitted")
+    monkeypatch.setattr(C, "_exchange", bad_exchange)
     assert run(root, ckpt) == "refused" and run(root, ckpt) == "refused"
     assert kinds(ev) == ["ctrl_switch_refused"]                                                # once per episode
     for n in ("control", "logs"):
@@ -332,3 +332,81 @@ def test_wiring():
     assert la.index("control.py place_run $2") < la.index("mkdir -p $OPD_ROOT/runs/$2")
     blk = RT[RT.index("tasks_guard() {"):RT.index("deps_of() {")]
     assert "kill" not in blk.replace("killed", "")                                              # nothing running is stopped
+
+
+
+# ---------------- [v2.5.9z71b] no exchange on the work disk (the node 10-23 19:01 UTC: EINVAL): two renames back to back
+def no_exchange(a, b):
+    raise OSError(errno.EINVAL, "Invalid argument")
+
+
+def test_einval_switches_by_two_renames(disks, monkeypatch):
+    root, ckpt, ev = disks
+    monkeypatch.setattr(C, "_exchange", no_exchange)
+    assert run(root, ckpt, held=("E10b-X.log",)) == "switched_on" and kinds(ev) == ["ctrl_switch_on"]
+    assert "two renames each (no exchange on the work disk), gaps " in ev[0][1] and "1 open files linked" in ev[0][1]
+    fb = os.path.join(ckpt, "opd_fallback")
+    for n in ("control", "logs"):
+        p = os.path.join(root, n)
+        assert os.path.islink(p) and os.path.realpath(p) == os.path.realpath(os.path.join(fb, n + ".S1"))
+        assert os.path.isdir(p + ".pre_fallback_S1") and not os.path.lexists(p + ".z71_link")
+    open(os.path.join(root, "control", "pulse.json"), "w").write("new")
+    assert open(os.path.join(fb, "control.S1", "pulse.json")).read() == "new"
+    assert os.path.exists(os.path.join(root, "control", "ctrl_reopen"))
+    assert not [f for f in os.listdir(root) if f.startswith(".z71_xtest")]
+    open(os.path.join(root, "control.env"), "w").write("export CTRL_ON_CKPT=0\n")                 # the rollback the same way
+    assert run(root, ckpt, stamp="S2") == "switched_off" and "two renames each" in ev[-1][1]
+    for n in ("control", "logs"):
+        assert not os.path.islink(os.path.join(root, n)) and not os.path.lexists(os.path.join(root, n + ".z71_off"))
+    assert open(os.path.join(root, "control", "pulse.json")).read() == "new"
+
+
+def test_a_writer_inside_the_gap(disks, monkeypatch):   # a mkdir -p control/ between the two renames: set aside, merged
+    root, ckpt, ev = disks
+    monkeypatch.setattr(C, "_exchange", no_exchange)
+    real, done = os.rename, []
+
+    def rename(a, b):
+        real(a, b)
+        if b.endswith(".pre_fallback_S1") and b.startswith(os.path.join(root, "control")) and not done:
+            os.makedirs(os.path.join(root, "control", "events")); open(os.path.join(root, "control", "events", "gap.json"), "w").write("g")
+            done.append(1)
+    monkeypatch.setattr(C.os, "rename", rename)
+    assert run(root, ckpt) == "switched_on" and done
+    assert os.path.islink(os.path.join(root, "control"))
+    assert open(os.path.join(root, "control", "events", "gap.json")).read() == "g"               # merged into the new one
+    assert open(os.path.join(root, "control", "events", "e1.json")).read() == "1"
+    assert os.path.isdir(os.path.join(root, "control.gap_S1"))                                    # kept, nothing removed
+
+
+def test_second_rename_fails_puts_the_old_back(disks, monkeypatch):
+    root, ckpt, ev = disks
+    monkeypatch.setattr(C, "_exchange", no_exchange)
+    real = os.rename
+
+    def rename(a, b):
+        if a.endswith(".z71_link"):
+            raise OSError(errno.EIO, "I/O error")
+        real(a, b)
+    monkeypatch.setattr(C.os, "rename", rename)
+    assert run(root, ckpt) == "refused" and kinds(ev) == ["ctrl_switch_refused"] and "I/O error" in ev[0][1]
+    for n in ("control", "logs"):
+        assert os.path.isdir(os.path.join(root, n)) and not os.path.islink(os.path.join(root, n))
+        assert not os.path.lexists(os.path.join(root, n + ".z71_link"))
+    assert open(os.path.join(root, "control", "pulse.json")).read() == "{}"
+
+
+def test_other_errors_still_refuse(disks, monkeypatch):
+    root, ckpt, ev = disks
+    monkeypatch.setattr(C, "_exchange", lambda a, b: (_ for _ in ()).throw(OSError(errno.EACCES, "Permission denied")))
+    assert run(root, ckpt) == "refused" and "Permission denied" in ev[0][1]
+    assert not os.path.islink(os.path.join(root, "control"))
+
+
+def test_place_run_marker_dir_without_exchange(runs, monkeypatch):
+    root, ckpt = runs
+    monkeypatch.setattr(C, "_exchange", no_exchange)
+    p = os.path.join(root, "runs", "EVAL-m"); os.makedirs(p); open(os.path.join(p, ".prefetch_ok"), "w").write("1")
+    assert place(root, ckpt, "EVAL-m") == "linked_moved"
+    assert os.path.islink(p) and open(os.path.join(p, ".prefetch_ok")).read() == "1"
+    assert os.path.isdir(os.path.join(root, "runs_pre_link", "EVAL-m.S1"))
