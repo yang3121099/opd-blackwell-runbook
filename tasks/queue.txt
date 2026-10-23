@@ -130,12 +130,12 @@ b259z66p open   PROBE-P5-8K PROBE-SMERGE-8K
 b259z66  open   E10b-P5-8k:PROBE-P5-8K E10b-P5smerge-8k:PROBE-SMERGE-8K+PROBE-STOPMERGE EVAL-e10b-P5-8k:E10b-P5-8k EVAL-ext32k-17p5-8k:E10b-P5-8k EVAL-smerge-8k:E10b-P5smerge-8k+EVAL-e10b-P5-8k EVAL-ext32k-17smerge-8k:E10b-P5smerge-8k+EVAL-ext32k-17p5-8k
 # [v2.5.9z67] (Q-069; Fable 10-23 15:1x UTC) E12d-P5-16k: 4B at the 16K limit on two GPUs, after Q-059
 b259z67  open   E12d-P5-16k:PROBE-E12B-16K EVAL-e12d-P5-16k:E12d-P5-16k EVAL-budA-e12dP5-16k:E12d-P5-16k EVAL-ext32k-4Bp5l16k:E12d-P5-16k+EVAL-ext32k-4Bmid
+# [v2.5.9z70] (Q-055; Fable 10-23 17:2x UTC) the 0.6B tail-swap arm, one GPU, 20 steps (before b259z68r: ops-lead 19:06 UTC, the scheduler's 19:3x order)
+b259z70  open   E10c-P5tail:PROBE-TAIL EVAL-e10c-P5tail:E10c-P5tail EVAL-ext32k-06tail:E10c-P5tail
 # [v2.5.9z68] (Q-068; Fable 10-23 15:1x UTC) the 8B self-distillation after Q-069: its prerequisite readings, its 4-GPU smoke, the arm
 b259z68r open   EVAL-8B-base EVAL-8B-think16k
 b259z68p open   PROBE-8B
 b259z68  open   E10e-P5self:PROBE-8B EVAL-e10e-P5self:E10e-P5self+EVAL-8B-base+EVAL-8B-think16k EVAL-budA-e10eP5self:E10e-P5self+EVAL-8B-base EVAL-ext32k-8Bp5self:E10e-P5self+EVAL-8B-base
-# [v2.5.9z70] (Q-055; Fable 10-23 17:2x UTC) the 0.6B tail-swap arm, one GPU, 20 steps
-b259z70  open   E10c-P5tail:PROBE-TAIL EVAL-e10c-P5tail:E10c-P5tail EVAL-ext32k-06tail:E10c-P5tail
 b259z41o open   EVAL-ood32k-17base EVAL-ood32k-4Bbase EVAL-ood32k-17p5self:EVAL-ood32k-17base EVAL-ood32k-17p5l8k:EVAL-ood32k-17base EVAL-ood32k-4Bp5:EVAL-ood32k-4Bbase EVAL-ood32k-4Bp5self:EVAL-ood32k-4Bbase EVAL-ood32k-4Bx4:EVAL-ood32k-4Bbase
 diff4b   open   PROBE-DIFF17-4B:PROBE-DIFF17
 b259q028 open   EVAL-ext32k-17p5l8k-s25
