@@ -2181,7 +2181,7 @@ b259z24  open   TOKCHECK-X5
 #eval EVAL-ext32k-17tail-s43 ext32k17_P5tail-s43_s50_aime25_T0.6 result:runs/E10b-P5tail-s43/global_step_50/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-17tail-s43 ext32k17_P5tail-s43_s50_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17smerge/ext32k17_P5smerge_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #pair EVAL-ext32k-17tail-s43 ext32k17_P5tail-s43_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17smerge/ext32k17_P5smerge_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
-# [held 10-22 18:2xZ, ops-lead's rule: the arm has no s50 yet; restore when E10b-P5tail-s43 has s50] term PROBE-TERM4 17_P5tail-s43 result:runs/E10b-P5tail-s43/global_step_50/actor/huggingface EVAL-tail-s43/e10b_P5tail-s43_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#term PROBE-TERM4 17_P5tail-s43 result:runs/E10b-P5tail-s43/global_step_50/actor/huggingface EVAL-tail-s43/e10b_P5tail-s43_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 #pair EVAL-tail-s43 e10b_P5tail-s43_s50_math500_T0.6 EVAL-tail/e10b_P5tail_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 #after EVAL-tail-s43 rerun PROBE-TERM4
 # [v2.5.9z22] (the reviewer's Q-056 addition 10-22) the disagreement subset: the problems where the teacher and the student's own thinking
@@ -2395,5 +2395,5 @@ b259z24  open   TOKCHECK-X5
 #pair EVAL-ext32k-4Bp5l8k ext32k4B_E12dP5l8k_s25_aime25_T0.6 EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Brl/ext32k4B_E12dP5_s100_aime25_T0.6_aime25_no_think_t0.6.jsonl
 #pair EVAL-ext32k-4Bp5l8k ext32k4B_E12dP5l8k_s50_aime24_T0.6 EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4Brl/ext32k4B_E12dP5_s100_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #pair EVAL-ext32k-4Bp5l8k ext32k4B_E12dP5l8k_s50_aime25_T0.6 EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Brl/ext32k4B_E12dP5_s100_aime25_T0.6_aime25_no_think_t0.6.jsonl
-# [held until E12d-P5-8k has s50] term PROBE-TERM4-4B 4B_P5l8k result:runs/E12d-P5-8k/global_step_50/actor/huggingface EVAL-e12d-P5-8k/e12d_P5-8k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
-# [held until E12d-P5-8k has s50; restored together with the term row above] after EVAL-e12d-P5-8k rerun PROBE-TERM4-4B
+#term PROBE-TERM4-4B 4B_P5l8k result:runs/E12d-P5-8k/global_step_50/actor/huggingface EVAL-e12d-P5-8k/e12d_P5-8k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-e12d-P5-8k rerun PROBE-TERM4-4B
