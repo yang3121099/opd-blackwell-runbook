@@ -94,6 +94,10 @@ SMERGE=0; [ $TASK = E10b-P5stopmerge ] && { SMERGE=1; BASE=E10b-P5; }
 # reading); after it they come from a second reference pass of the same 8B on the non-thinking template (P2's reading). 50 steps;
 # train.log tail/* and runs/<task>/tailswap.jsonl per step. Gated by PROBE-TAIL.
 TAIL=0; [[ $TASK == E10b-P5tail || $TASK == E10b-P5tail-s43 ]] && { TAIL=1; BASE=E10b-P5; }   # [v2.5.9z41] -s43: data.seed 43 (the seed parse above)
+# [v2.5.9z70] (Q-055, research_program 3c; Fable 10-23 17:2x UTC: its condition met, the 1.7B tail s50 p_stop_last 0.786 and 32K -0.30
+# vs P5 s150) E10c-P5tail = the tail-swapped 8B teacher (its thinking reading up to the first box, the non-thinking one after it, as
+# E10b-P5tail) for the 0.6B P5 student from E10c-P5-fix4 s150 (as E10c-P5-polish), 20 steps, fix4, the venv in use, s20 up; PROBE-TAIL
+TAIL06=0; [ $TASK = E10c-P5tail ] && { TAIL=1; TAIL06=1; BASE=E10b-P5; MODE=fix4; }
 # [v2.5.9x] (Q-041 / Q-042, the reviewer's pre-registration 10-22): E10b-P5route / E10b-P5mix = P5's recipe from the base with the
 # 8B teacher's template chosen per prompt (code/patches/opd_route.py through route_patch.py; one teacher pass per sample): route =
 # PROBE-DIFF17's pass rate r of the 1.7B base (r >= 0.5: the non-thinking template, P2's teacher; else the thinking one, P5's);
@@ -133,7 +137,7 @@ OUT=$OPD_ROOT/runs/$TASK; mkdir -p $OUT
 [ -f $OUT/.done ] && { echo "TASK_ALREADY_DONE $TASK"; exit 0; }
 STUDENT=${STUDENT:-$STUDENT_17B}   # the verification smoke uses $STUDENT_06B
 [ -n "$MODE" ] && STUDENT=$STUDENT_06B
-if [ $POLISH = 1 ]; then   # [v2.5.9u] the start: P5-fix4's s150 on this node (the bf16 copy, else the fp32 HF save)
+if [ $POLISH = 1 ] || [ $TAIL06 = 1 ]; then   # [v2.5.9u] the start: P5-fix4's s150 on this node (the bf16 copy, else the fp32 HF save); [v2.5.9z70] E10c-P5tail too
   STUDENT=$OPD_ROOT/runs/E10c-P5-fix4/ckpt/global_step_150/actor/huggingface_bf16; has_weights $STUDENT || STUDENT=${STUDENT%_bf16}
   [ "${DRYRUN:-0}" = 1 ] || has_weights $STUDENT || { echo "missing start checkpoint $STUDENT"; exit 1; }
 fi
@@ -243,6 +247,7 @@ case $ARM in P5top10|P5rand10m) export OPD_VARIANT=P6 OPD_VARIANT_OVERRIDE=$ARM 
 [ $SMERGE = 1 ] && NSTEPS=${STOPMERGE_STEPS:-50}   # [v2.5.9l]
 [ $W8K = 1 ] && NSTEPS=${W8K_STEPS:-50}   # [v2.5.9z66]
 [ $TAIL = 1 ] && NSTEPS=${TAIL_STEPS:-50}   # [v2.5.9n]
+[ $TAIL06 = 1 ] && NSTEPS=${TAIL06_STEPS:-20}   # [v2.5.9z70] (Q-055) 20 steps, as the polish arm
 [ -n "$ROUTE" ] && NSTEPS=${ROUTE_STEPS:-50}   # [v2.5.9x]
 [ $POLISH = 1 ] && NSTEPS=${POLISH_STEPS:-20}   # [v2.5.9u]
 [ $TOOL = 1 ] && NSTEPS=${TOOL_STEPS:-50}   # [v2.5.9b]

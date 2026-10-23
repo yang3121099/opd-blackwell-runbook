@@ -25,6 +25,7 @@ case $T in
   E10e-P5self) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z68] (Q-068) the 8B student taught by itself, four GPUs (#gpus 4)
   PROBE-8B) bash $RUNBOOK/scripts/probe_8b.sh $G;;   # [v2.5.9z68] (Q-068): the gate of E10e-P5self, a 4-GPU 3-step smoke
   E10b-*)  [[ $T =~ ^E10b-(($ARMS)(-s(43|44))?|(P2|P5)-t14|P5think|P5self|P5self-s43|P2self|P5len[SLR]|P5stopmerge|P5tail|P5route|P5mix|P5mix75|P5mix90)$ ]] || exit 2; bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # v2.5.7p: -t14; v2.5.7r: P5think; v2.5.7v: P5self; [v2.5.8e] P5self-s43
+  E10c-P5tail) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z70] (Q-055) the 0.6B P5 student with the tail-swapped 8B teacher, 20 steps from E10c-P5-fix4 s150
   E10c-*)  [[ $T =~ ^E10c-(($ARMS)-(fix4|dyn16k|dyn6144)(-s43)?|P5-polish|P5self)$ ]] || exit 2; bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # v2.5.6f: 0.6B, V3-c1; v2.5.7g: dyn6144, -s43
   E10d-*)  [[ $T =~ ^E10d-((P2|P5)(-s43)?|P5self|X1|X2|X4|P5-t32)$ ]] || exit 2; bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # v2.5.7b: 4B student, V3-c5; v2.5.7o: -s43
   E11b-*)  [[ $T =~ ^E11b-(P0|($ARMS)(-s(43|44))?|(P2|P5)-t14)$ ]] || exit 2; bash $RUNBOOK/scripts/run_eval.sh $G $T;;   # v2.5.6c: seed arms too

@@ -1327,6 +1327,16 @@ def test_run_and_rerun_accept_v259z68(env):   # [v2.5.9z68] (Q-068) the 8B self-
     assert "\n#gpus E10e-P5self 4\n" in q and "\n#gpus PROBE-8B 4\n" in q
 
 
+def test_run_and_rerun_accept_v259z70(env):   # [v2.5.9z70] (Q-055) the 0.6B tail-swap arm
+    st, msg, _ = env.c.v_run(["E10c-P5tail"], 200)
+    assert st == "accepted", msg
+    for i, t in enumerate(("E10c-P5tail-s43", "E10c-P5tail-fix4", "E10c-P5tails")):
+        assert env.c.v_run([t], 205 + i)[0] == "rejected", t
+    R.parse({"cmd": "rerun E10c-P5tail", "reason": "t"})
+    src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "task.sh")).read()
+    assert src.index("  E10c-P5tail) bash $RUNBOOK/scripts/run_arm.sh $G $T;;") < src.index("  E10c-*)")
+
+
 def test_e12d_p5_16k_run_and_rerun_accepted():   # [v2.5.9z67] (Q-069)
     import re
     for c in ("rerun E12d-P5-16k", "run E12d-P5-16k"):

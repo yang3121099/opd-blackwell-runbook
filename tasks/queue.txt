@@ -134,6 +134,8 @@ b259z67  open   E12d-P5-16k:PROBE-E12B-16K EVAL-e12d-P5-16k:E12d-P5-16k EVAL-bud
 b259z68r open   EVAL-8B-base EVAL-8B-think16k
 b259z68p open   PROBE-8B
 b259z68  open   E10e-P5self:PROBE-8B EVAL-e10e-P5self:E10e-P5self+EVAL-8B-base+EVAL-8B-think16k EVAL-budA-e10eP5self:E10e-P5self+EVAL-8B-base EVAL-ext32k-8Bp5self:E10e-P5self+EVAL-8B-base
+# [v2.5.9z70] (Q-055; Fable 10-23 17:2x UTC) the 0.6B tail-swap arm, one GPU, 20 steps
+b259z70  open   E10c-P5tail:PROBE-TAIL EVAL-e10c-P5tail:E10c-P5tail EVAL-ext32k-06tail:E10c-P5tail
 b259z41o open   EVAL-ood32k-17base EVAL-ood32k-4Bbase EVAL-ood32k-17p5self:EVAL-ood32k-17base EVAL-ood32k-17p5l8k:EVAL-ood32k-17base EVAL-ood32k-4Bp5:EVAL-ood32k-4Bbase EVAL-ood32k-4Bp5self:EVAL-ood32k-4Bbase EVAL-ood32k-4Bx4:EVAL-ood32k-4Bbase
 diff4b   open   PROBE-DIFF17-4B:PROBE-DIFF17
 b259q028 open   EVAL-ext32k-17p5l8k-s25
@@ -1701,6 +1703,32 @@ b259z24  open   TOKCHECK-X5
 #eval EVAL-ext32k-06polish ext32k06_P5polish_s20_aime25_T0.6 result:runs/E10c-P5-polish/global_step_20/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-06polish ext32k06_P5polish_s20_aime24_T0.6 EVAL-ext32k-06/ext32k06_E10cP5fix4_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-06think/ext32k06_P0think_aime24_T0.6_aime24_think_t0.6.jsonl
 #pair EVAL-ext32k-06polish ext32k06_P5polish_s20_aime25_T0.6 EVAL-ext32k-06/ext32k06_E10cP5fix4_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-06think/ext32k06_P0think_aime25_T0.6_aime25_think_t0.6.jsonl
+# [v2.5.9z70] Q-055 (the reviewer's conditional pre-registration research_program 3c, 10-22; unlocked by Fable 10-23 17:2x UTC):
+# E10c-P5tail = the 0.6B P5 student (E10c-P5-fix4 s150, as the polish arm) taught for 20 steps by the tail-swapped 8B teacher (its
+# thinking reading up to the first box, the non-thinking one after it: the teacher's competition advantage kept, the stop fixed after
+# the box), fix4, s20 up; gated by PROBE-TAIL. H1 AIME25 32K vs the start >= -2; H2 TERM4 p_stop_last >= 0.6; H3 MATH-500 32K >= 76.05.
+# Readings at s20: MATH-500 16K T0.6 / T1.0 paired with the start and the polish s20; MATH-500 32K with forced answers and budget
+# curves against the base, the start, the 0.6B thinking mode and the polish; STRICT-C1 against the start; AIME24/25 32K avg@16 paired
+# with the start, the polish and the thinking mode; TERM4-06B held until s20.
+#eval EVAL-e10c-P5tail e10c_P5tail_s20_math500_T0.6 result:runs/E10c-P5tail/global_step_20/actor/huggingface math500 4 0.6
+#eval EVAL-e10c-P5tail e10c_P5tail_s20_math500_T1.0 result:runs/E10c-P5tail/global_step_20/actor/huggingface math500 4 1.0
+#eval EVAL-e10c-P5tail budA06tail_s20_math500_T0.6_32k result:runs/E10c-P5tail/global_step_20/actor/huggingface math500 4 0.6 32768
+#pair EVAL-e10c-P5tail e10c_P5tail_s20_math500_T0.6 EVAL-e10c-P5-fix4/e10c_P5-fix4_s150_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-polish/e10c_P5polish_s20_math500_T0.6_math500_no_think_t0.6.jsonl
+#pair EVAL-e10c-P5tail e10c_P5tail_s20_math500_T1.0 EVAL-e10c-P5-fix4/e10c_P5-fix4_s150_math500_T1.0_math500_no_think_t1.0.jsonl EVAL-polish/e10c_P5polish_s20_math500_T1.0_math500_no_think_t1.0.jsonl
+#forced EVAL-e10c-P5tail EVAL-e10c-P5tail/budA06tail_s20_math500_T0.6_32k_math500_no_think_t0.6.jsonl result:runs/E10c-P5tail/global_step_20/actor/huggingface no_think
+#budget EVAL-e10c-P5tail budget_curve EVAL-budA06/budA_base06_math500_T0.6_32k_math500_no_think_t0.6.jsonl budA06tail_s20_math500_T0.6_32k
+#budget EVAL-e10c-P5tail budget_curve_vsStart EVAL-budA06p5/budA06_E10cP5fix4_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budA06tail_s20_math500_T0.6_32k
+#budget EVAL-e10c-P5tail budget_curve_vsThink EVAL-budA06think/budA06_P0think_math500_T0.6_32k_math500_think_t0.6.jsonl budA06tail_s20_math500_T0.6_32k
+#budget EVAL-e10c-P5tail budget_curve_vsPolish EVAL-polish/budA06polish_s20_math500_T0.6_32k_math500_no_think_t0.6.jsonl budA06tail_s20_math500_T0.6_32k
+#strict STRICT-C1 EVAL-e10c-P5tail/budA06tail_s20_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA06p5/budA06_E10cP5fix4_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#after EVAL-e10c-P5tail rerun STRICT-C1
+#eval EVAL-ext32k-06tail ext32k06_P5tail_s20_aime24_T0.6 result:runs/E10c-P5tail/global_step_20/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-06tail ext32k06_P5tail_s20_aime25_T0.6 result:runs/E10c-P5tail/global_step_20/actor/huggingface aime25 16 0.6 32768
+#pair EVAL-ext32k-06tail ext32k06_P5tail_s20_aime24_T0.6 EVAL-ext32k-06/ext32k06_E10cP5fix4_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-06polish/ext32k06_P5polish_s20_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-06think/ext32k06_P0think_aime24_T0.6_aime24_think_t0.6.jsonl
+#pair EVAL-ext32k-06tail ext32k06_P5tail_s20_aime25_T0.6 EVAL-ext32k-06/ext32k06_E10cP5fix4_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-06polish/ext32k06_P5polish_s20_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-06think/ext32k06_P0think_aime25_T0.6_aime25_think_t0.6.jsonl
+# [held until E10c-P5tail has s20] term PROBE-TERM4-06B 06_P5tail result:runs/E10c-P5tail/global_step_20/actor/huggingface EVAL-e10c-P5tail/e10c_P5tail_s20_math500_T0.6_math500_no_think_t0.6.jsonl
+# [held until E10c-P5tail has s20; restored together with the term row above] after EVAL-e10c-P5tail rerun PROBE-TERM4-06B
+
 # b259vp / b259v (runbook v2.5.9v, Q-047, the reviewer's external-review list 10-21; after the length arms, before r3): E10c-P5self =
 # P5self at 0.6B, the 0.6B student taught from its base by the 0.6B base itself on the thinking template, 50 steps, fix4, gated
 # by PROBE-P5SELF-06B. Readings at s50: MATH500 16K T0.6 / T1.0 paired against the base and P5-fix4 (s100, the nearest saved
