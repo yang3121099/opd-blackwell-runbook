@@ -89,7 +89,9 @@ python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true
 echo "$G $(date -u +%FT%TZ)" > $D/.gpu_released; step "GPU_RELEASED gpu=$G"   # [v2.5.9z65a] the uploads below without the GPU
 export CUDA_VISIBLE_DEVICES=   # [ops-lead's A1 condition] no GPU after the release
 cp $D/report.json $D/samples.jsonl $D/up/ 2> /dev/null
-python $RUNBOOK/scripts/remote.py put $D/up runs/$T >> $LOG 2>&1 || { step "report upload failed (kept in $D)"; rc=1; }
+if python $RUNBOOK/scripts/remote.py put $D/up runs/$T >> $LOG 2>&1; then rm -f $D/.upload_pending
+elif [ $rc = 0 ] && python $RUNBOOK/scripts/remote.py pend $D/up runs/$T >> $LOG 2>&1; then step "report upload pending: the results queue sends it"   # [v2.5.9z65]
+else step "report upload failed (kept in $D)"; rc=1; fi
 mkdir -p $D/logs; cp $LOG $D/inputs.tsv $D/logs/ 2> /dev/null; tail -c 200000 $D/gen_eval.log > $D/logs/gen_eval.log 2> /dev/null
 python $RUNBOOK/scripts/remote.py put $D/logs logs/$(python $RUNBOOK/scripts/control.py node)/term_probe/$T >> $LOG 2>&1 || true
 S=$(python -c "import json, sys; r = json.load(open(sys.argv[1]))['models']

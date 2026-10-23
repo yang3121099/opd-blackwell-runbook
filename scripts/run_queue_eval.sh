@@ -176,6 +176,11 @@ while read -r BOUT BREFS; do
   python $RUNBOOK/code/analysis/budget_curve.py --out $OUT/$BOUT.json --tokenizer $STUDENT_17B --forced_dir $OUT "${BP[@]}" > $OUT/$BOUT.txt 2>> $OUT/budget.log \
     && echo "BUDGET_DONE $BOUT (${#BP[@]} readings)" || echo "BUDGET_FAIL $BOUT (see budget.log)"
 done <<< "$(awk -v t="$T" '$1 == "#budget" && $2 == t {$1 = ""; $2 = ""; sub(/^  /, ""); print}' "$Q")"
-python $RUNBOOK/scripts/remote.py put $OUT runs/$T || { echo "upload failed (results kept in $OUT)"; ok=0; }
+if python $RUNBOOK/scripts/remote.py put $OUT runs/$T; then rm -f $OUT/.upload_pending
+# [v2.5.9z65] (Fable / ops-lead 10-23) the readings are complete: a failed upload goes into weights_replay's results queue (the private
+# repository, file by file, retried with cooldowns, verified; runs/<task>/.upload_pending until then) and the task is done; it
+# fails as before only when the queue refuses it or a reading is missing
+elif [ $ok = 1 ] && python $RUNBOOK/scripts/remote.py pend $OUT runs/$T; then echo "UPLOAD_PENDING $T: the results queue sends it (weights_replay.sh)"
+else echo "upload failed (results kept in $OUT)"; ok=0; fi
 [ $ok = 1 ] && touch $OUT/.done
 echo "TASK_FINISHED $T ok=$ok"

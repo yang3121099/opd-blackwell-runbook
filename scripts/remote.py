@@ -556,9 +556,37 @@ def done(task):
     sys.exit(1)
 
 
+def pend_result(src, dst):
+    """[v2.5.9z65] (Fable / ops-lead 10-23, Runming 12:2x Beijing: a failed result upload must not fail a finished reading) a task's
+    result directory whose own upload failed goes into weights_replay.py's results queue: one line in control/weights_pending.txt
+    (utc, runs/<task>, the directory itself, bytes; a line for the same destination is replaced) and runs/<task>/.upload_pending.
+    Nothing is copied or moved: results_once stages hard links, uploads to the private repository file by file, verifies each file
+    and only then strikes the line and removes the marker. src must be runs/<task> or a directory under it."""
+    import fcntl
+    dst = rename(dst).lstrip("/")
+    root = os.environ.get("OPD_ROOT", "")
+    if not re.fullmatch(r"runs/[A-Za-z0-9._-]+", dst) or not os.path.isdir(src) or not root:
+        raise ValueError("pend <runs/<task> or a directory under it> runs/<task>")
+    task_dir = os.path.realpath(os.path.join(root, "runs", dst.split("/")[1])); real = os.path.realpath(src)
+    if not (real == task_dir or real.startswith(task_dir + os.sep)):
+        raise ValueError("the source is not under its task's directory")
+    size = sum(os.path.getsize(os.path.join(r, f)) for r, _, fs in os.walk(real) for f in fs if os.path.isfile(os.path.join(r, f)))
+    d = os.path.join(root, "control"); os.makedirs(d, exist_ok=True)
+    now = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+    with open(os.path.join(d, "weights_pending.lock"), "w") as lk:
+        fcntl.flock(lk, fcntl.LOCK_EX)
+        p = os.path.join(d, "weights_pending.txt")
+        lines = [l for l in (open(p).read().splitlines(True) if os.path.exists(p) else []) if l.split("\t")[1:2] != [dst]]
+        lines.append(f"{now}\t{dst}\t{real}\t{size}\n")
+        tmp = f"{p}.{os.getpid()}.tmp"; open(tmp, "w").writelines(lines); os.replace(tmp, p)
+    open(os.path.join(task_dir, ".upload_pending"), "w").write(f"{now} {dst} {size}\n")
+    return size
+
+
 if __name__ == "__main__":
     try:
         {"check": lambda: check(), "done": lambda: done(sys.argv[2]),
+         "pend": lambda: pend_result(sys.argv[2], sys.argv[3]),   # [v2.5.9z65]
          "repo": lambda: print(fetch_repos() if sys.argv[2] == "public" else repos()[1]), "putmany": lambda: put_many(sys.argv[2]),
          "backoff": lambda: print(int(backoff_left()))}.get(sys.argv[1], lambda: put(sys.argv[2], sys.argv[3], (sys.argv[4:] or [None])[0]))()   # [v2.5.9z50] repo public: the fetch order
     except Exception as e:   # never echo the exception text verbatim: it can contain request headers

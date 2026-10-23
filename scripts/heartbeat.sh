@@ -128,6 +128,12 @@ def live_tasks():
 def kind(name):
     return ("train" if re.match(r"E1(0[bcd]|2[bcd]|6)-", name) else "sft" if name.startswith("SFT-") else
             "eval" if re.match(r"E11b-|EVAL-|adhoc_eval_|E0[1-5]-", name) else "probe" if name in ("FA-PROBE", "SPEED-PROBE", "PROBE-4B", "PROBE-TERM", "PROBE-TERM2", "PROBE-TERM3", "PROBE-TERM4", "PROBE-TERM4-4B", "PROBE-TERM4-06B", "PROBE-TOP10", "STRICT-C1", "PROBE-T14", "PROBE-P5THINK", "PROBE-P5SELF", "PROBE-P5SELF-4B", "PROBE-P5SELF-06B", "PROBE-P2SELF", "PROBE-E12C", "PROBE-E12B-KL", "PROBE-E12B-STOP", "PROBE-E12B-STOP2", "PROBE-E12B-8K", "PROBE-E12B-16K", "PROBE-E12B-R3", "PROBE-X2507-X1", "PROBE-X2507-X2", "PROBE-X2507-X4", "PROBE-LENSEL", "PROBE-2GPU", "PROBE-TOOL", "PROBE-NET", "PROBE-NET2", "BUILD-VENV-VL", "PROBE-VLLM-VL", "READINGS-EXTRA", "PROBE-VLM", "PROBE-ROLLOUT-U60", "PROBE-ROLLOUT-U75", "PROBE-ROLLOUT-U85", "PROBE-STOPMERGE", "PROBE-WDIFF", "PROBE-TAIL", "PROBE-DIFF17", "PROBE-DIFF17-4B", "PROBE-ROUTE", "PROBE-POLISH") or name.startswith("FA-SPEED-") else "other")
+def results_pending():   # [v2.5.9z65] lines of weights_pending.txt whose destination is a result (runs/<task>[/...], not a weight)
+    try:
+        return sum(1 for l in open(os.path.join(root, "control", "weights_pending.txt")) if len(l.split("\t")) == 4
+                   and l.split("\t")[1].startswith("runs/") and "/actor/huggingface" not in l.split("\t")[1])
+    except OSError:
+        return 0
 live = live_tasks()
 tasks = {}; stale = []
 queue = open(os.path.join(runbook, "tasks", "queue.txt")).read() if os.path.exists(os.path.join(runbook, "tasks", "queue.txt")) else ""
@@ -171,6 +177,8 @@ for d in sorted(x for x in glob.glob(os.path.join(root, "runs", "*")) if os.path
     t["gpu"] = lv[0] if lv else None; t["kind"] = kind(os.path.basename(d))
     t["gpus"] = lv[2] if lv else []   # [v2.5.9a] every GPU of the task (two for a #gpus 2 task); "gpu" stays the first
     t["started_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(lv[1])) if lv else None
+    if t["state"] == "done" and os.path.exists(os.path.join(d, ".upload_pending")):   # [v2.5.9z65] done, its results still in the queue
+        t["phase"] = "upload_pending"
     if lv and gpu_release_on and os.path.exists(os.path.join(d, ".gpu_released")):   # [v2.5.9z65a] its GPU work over, its results going up
         t["phase"] = "uploading"; t["released_gpu"] = t["gpu"]; t["gpu"] = None; t["gpus"] = []
     if t["state"] == "running" and t["kind"] in ("eval", "probe"):   # [v2.5.9s] never fails the heartbeat
@@ -211,6 +219,7 @@ json.dump({"host": os.uname().nodename, "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ
            "ckpt_disk_total_gb": (lambda c: round(c.f_blocks * c.f_frsize / 1e9, 1))(os.statvfs(os.environ["CKPT_ROOT"])) if os.path.isdir(os.environ.get("CKPT_ROOT", "")) else None,
            "our_du": jload(os.path.join(root, "control", "our_du.json")),
            "held": jload(os.path.join(root, "control", "held.json")),   # [v2.5.9c] GPUs held for a #gpus task
+           "results_pending": results_pending(),   # [v2.5.9z65] result directories in weights_replay's queue (control/weights_pending.txt)
            "runbook_head": git("rev-parse", "--short", "HEAD"), "runbook_version": "v2.5.9",
            "run_tasks_sha": open(os.path.join(root, "control", "run_tasks.sha")).read().strip() if os.path.exists(os.path.join(root, "control", "run_tasks.sha")) else None,
            "ckpt_roots": roots_report(),   # v2.5: every candidate root: mount, free GB, writable, alert, task dirs and sizes

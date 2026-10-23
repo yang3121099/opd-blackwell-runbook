@@ -625,7 +625,7 @@ got=$( eval "$(sed -n '/^running() {/p;/^cpu_task() {/p;/^cpu_busy() {/p' $SRC/s
   running STRICT-C1 && printf "running "; cpu_busy && printf "busy "; kill $P 2> /dev/null; wait $P 2> /dev/null )
 ok "[v2.5.8] CPU lane: STRICT-C1 cpu task, running + busy while its task.sh cpu runs" '[ "$got" = "c1 notcpu free running busy " ]'
 ok "[v2.5.9y1] BUILD-VENV-VL in the CPU lane, PROBE-VLLM-VL on a GPU; task.sh runs both scripts" '( eval "$(sed -n "/^cpu_task() {/p" $SRC/scripts/run_tasks.sh)"; cpu_task BUILD-VENV-VL && ! cpu_task PROBE-VLLM-VL ) && grep -q "  BUILD-VENV-VL) bash \$RUNBOOK/scripts/build_venv_vl.sh;;" $SRC/scripts/task.sh && grep -q "  PROBE-VLLM-VL) bash \$RUNBOOK/scripts/probe_vllm_vl.sh \$G;;" $SRC/scripts/task.sh'
-ok "[v2.5.8] dispatch: cpu tasks launch with gpu cpu before the GPU check; launch skips the reap for cpu" 'grep -q "launch cpu \$t" $SRC/scripts/run_tasks.sh && grep -q "\[ \$1 = cpu \] || for _g in .*control.py reap" $SRC/scripts/run_tasks.sh && [ $(grep -n "launch cpu \$t" $SRC/scripts/run_tasks.sh | cut -d: -f1) -lt $(grep -n "take_gpus \$t || { READY=\$((READY + 1)); RT=\"\$RT \$t\"; continue; }; g=\$G" $SRC/scripts/run_tasks.sh | head -1 | cut -d: -f1) ]'
+ok "[v2.5.8] dispatch: cpu tasks launch with gpu cpu before the GPU check; launch skips the reap for cpu" 'grep -q "launch cpu \$t" $SRC/scripts/run_tasks.sh && grep -q "\[ \$1 = cpu \] || .*for _g in .*control.py reap" $SRC/scripts/run_tasks.sh && [ $(grep -n "launch cpu \$t" $SRC/scripts/run_tasks.sh | cut -d: -f1) -lt $(grep -n "take_gpus \$t || { READY=\$((READY + 1)); RT=\"\$RT \$t\"; continue; }; g=\$G" $SRC/scripts/run_tasks.sh | head -1 | cut -d: -f1) ]'
 rm -rf $T
 # 3k. [v2.5.8] gpu_wait_free: returns once the GPU's memory falls to <= 2048 MiB; times out (1, GPU_NOT_FREE) if it stays
 #     up; the eval scripts call it before every engine
@@ -653,7 +653,7 @@ T=$(mktemp -d); mkdir -p $T/bin $T/x/scripts
 printf '#!/usr/bin/env bash\ncase "$*" in *compute-apps*) ;; *) echo 0;; esac\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi
 printf 'sleep 30\n' > $T/x/scripts/task.sh; printf 'sleep 30\n' > $T/x/scripts/run_adhoc_eval.sh
 bash $T/x/scripts/task.sh 5 FA-PROBE & P1=$!; bash $T/x/scripts/run_adhoc_eval.sh 13 41 & P2=$!; sleep 0.5
-got=$( PATH=$T/bin:$PATH NGPU=14; eval "$(sed -n '/^free_gpus() {/,/; }$/p' $SRC/scripts/run_tasks.sh)"; free_gpus | tr '\n' ' ' )
+got=$( PATH=$T/bin:$PATH NGPU=14; eval "$(sed -n '/^cenv() {/p;/^gpu_held() {/,/^}$/p;/^free_gpus() {/,/; }$/p' $SRC/scripts/run_tasks.sh)"; free_gpus | tr '\n' ' ' )
 kill $P1 $P2 2> /dev/null
 ok "running tasks keep their GPUs" '[[ " $got" == *" 1 "* && " $got" == *" 6 "* && " $got" != *" 5 "* && " $got" != *" 13 "* ]]'   # 13 must not hide 1
 rm -rf $T
@@ -663,7 +663,7 @@ T=$(mktemp -d); mkdir -p $T/bin $T/x/scripts $T/root/runs
 printf '#!/usr/bin/env bash\ncase "$*" in *compute-apps*) ;; *) echo 0;; esac\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi
 printf 'sleep 30\n' > $T/x/scripts/task.sh
 bash $T/x/scripts/task.sh 1,2 E12b-P5-16k & P1=$!; sleep 0.5
-got=$( PATH=$T/bin:$PATH NGPU=4; eval "$(sed -n '/^free_gpus() {/,/; }$/p' $SRC/scripts/run_tasks.sh)"; free_gpus | tr '\n' ' ' )
+got=$( PATH=$T/bin:$PATH NGPU=4; eval "$(sed -n '/^cenv() {/p;/^gpu_held() {/,/^}$/p;/^free_gpus() {/,/; }$/p' $SRC/scripts/run_tasks.sh)"; free_gpus | tr '\n' ' ' )
 kill $P1 2> /dev/null
 ok "[v2.5.9a] a task on gpus 1,2 keeps both" '[ "$got" = "0 3 " ]'
 printf '#gpus A 2\n#gpus B 3\n#gpus C 9\n' > $T/q; mkdir -p $T/root/logs $T/root/control

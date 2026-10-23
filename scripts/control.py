@@ -1276,14 +1276,15 @@ def build_pulse(st, gpu_csv):
                        and re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", v.get("started_utc")) else None}
         if isinstance(v.get("blocked_by"), str) and R.TASK_RE.match(v["blocked_by"]):   # [v2.5.9z3] the gate holding a blocked task
             tasks[name]["blocked_by"] = v["blocked_by"]
-        if v.get("phase") == "uploading":   # [v2.5.9z65a] its GPU released, its results still going up (no GPU listed)
-            tasks[name]["phase"] = "uploading"
+        if v.get("phase") in ("uploading", "upload_pending"):   # [v2.5.9z65a] GPU released, uploading; [v2.5.9z65] done, results queued
+            tasks[name]["phase"] = v["phase"]
         if v.get("pad") is True:   # [v2.5.9q] a padding reading (#pad stages, v2.5.9m): only when true, like the monitor page reads it
             tasks[name]["pad"] = True
         pr = _progress(v.get("progress"))   # [v2.5.9s] a running evaluation's progress for the monitor page
         if pr:
             tasks[name]["progress"] = pr
     ctl = st.get("control") if isinstance(st.get("control"), dict) else {}
+    rp = st.get("results_pending")   # [v2.5.9z65] result directories still in the results queue
     alerts = []
     for a in ctl.get("alerts") or []:
         if isinstance(a, str):
@@ -1314,7 +1315,7 @@ def build_pulse(st, gpu_csv):
     return {"schema": 1, "utc": utc(), "node_id": node_id(), "status_utc": t(st.get("utc")), "runbook_head": head,
             "runbook_version": ver, "queue_version": _num(st.get("queue_version")) if not isinstance(st.get("queue_version"), str)
             else (st.get("queue_version") if re.fullmatch(r"[0-9]+", st.get("queue_version")) else None),
-            "gpus": gpus, "tasks": tasks,
+            "gpus": gpus, "tasks": tasks, "results_pending": int(rp) if isinstance(rp, int) and rp >= 0 else None,   # [v2.5.9z65]
             "disks": [{"idx": 0, "free_gb": _num(st.get("disk_free_gb")), "alert": bool(st.get("disk_alert")),   # [v2.5.9c] + total, ours
                        "total_gb": _num(st.get("disk_total_gb")), "free_bytes": _num(st.get("disk_free_bytes")),
                        "our_gb": _num(du.get("work_gb")), "our_gb_utc": t(du.get("utc"))},

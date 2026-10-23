@@ -33,8 +33,14 @@ def node(monkeypatch):
     def run(cmd, **k):
         if cmd[1].endswith("control.py"):
             events.append(cmd[-1]); return types.SimpleNamespace(returncode=0, stdout="", stderr="")
-        stage = cmd[3]; calls.append({"cmd": cmd[2:], "files": sorted(os.listdir(stage)), "timeout": k.get("timeout"),
-                                      "ino": {f: os.stat(os.path.join(stage, f)).st_ino for f in os.listdir(stage)}})
+        stage = cmd[3]
+        if os.path.isfile(stage):   # [v2.5.9z65] one file of a result sent on its own
+            calls.append({"cmd": cmd[2:], "files": [os.path.basename(stage)], "timeout": k.get("timeout"), "ino": {}})
+            if node.mode in ("timeout", "fail") or os.path.basename(stage) in node.failing:
+                return types.SimpleNamespace(returncode=1, stdout="", stderr="hf put failed: ConnectionError")
+            remote[cmd[4]] = os.path.getsize(stage); return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+        calls.append({"cmd": cmd[2:], "files": sorted(os.listdir(stage)), "timeout": k.get("timeout"),
+                      "ino": {f: os.stat(os.path.join(stage, f)).st_ino for f in os.listdir(stage)}})
         if node.mode == "timeout":
             raise subprocess.TimeoutExpired(cmd, k.get("timeout"))
         if node.mode == "fail":
@@ -44,11 +50,12 @@ def node(monkeypatch):
                 rel = os.path.relpath(os.path.join(r, f), stage).replace(os.sep, "/")
                 remote[f"{cmd[4]}/{rel}"] = os.path.getsize(os.path.join(r, f)) + (1 if node.mode == "short" and f.endswith(".safetensors") else 0)
         return types.SimpleNamespace(returncode=0, stdout="", stderr="")
-    node.mode = "ok"
+    node.mode = "ok"; node.failing = set()
     monkeypatch.setattr(W.subprocess, "run", run)
     api = types.SimpleNamespace(get_paths_info=lambda repo, paths: [types.SimpleNamespace(path=p, size=remote[p]) for p in paths if p in remote])
     monkeypatch.setattr(RM, "hf", lambda kind="public": (api, "me/pub" if kind == "public" else "me/priv"))
-    return types.SimpleNamespace(root=d, ck=ck, calls=calls, events=events, remote=remote, set=lambda m: setattr(node, "mode", m))
+    return types.SimpleNamespace(root=d, ck=ck, calls=calls, events=events, remote=remote, set=lambda m: setattr(node, "mode", m),
+                                 failing=node.failing)
 
 
 def hold(n, dst, mb=3, extra=True, utc="2026-10-22T12:00:00Z"):
@@ -245,6 +252,94 @@ def test_result_timeout_at_a_single_connection_rate(priv):   # [v2.5.9z64a] 268 
     with open(os.path.join(h, "x_math500_no_think_t0.6.jsonl"), "r+b") as f:
         f.truncate(268 * 10 ** 6)
     W.once()
-    total = sum(v for k, v in n.remote.items() if k.startswith("runs/EVAL-z/"))
-    assert n.calls[0]["timeout"] == int(min(21600, total / 1e6 / 0.08 * 1.5 + 600))
+    assert n.calls[0]["files"] == ["x_math500_no_think_t0.6.jsonl"]                        # [v2.5.9z65] over 100 MB: the big file alone
+    assert n.calls[0]["timeout"] == int(min(21600, 268e6 / 1e6 / 0.08 * 1.5 + 600))
     assert n.calls[0]["timeout"] > 268 / 0.13 * 1.2                                        # the observed 0.09-0.13 MB/s fits
+
+
+# ---- [v2.5.9z65] the results queue: a task's own directory, file by file, the marker, the 2 h event ----------------------------
+def task_dir(n, task, big=(150, 60), small=True):
+    d = os.path.join(n.root, "runs", task); os.makedirs(d, exist_ok=True)
+    for i, mb in enumerate(big):
+        with open(os.path.join(d, f"r{i}_math500_no_think_t0.6.jsonl"), "wb") as f:
+            f.truncate(mb * 10 ** 6)
+    if small:
+        open(os.path.join(d, f"r0.metrics.json"), "w").write("{}"); open(os.path.join(d, "gen_eval.log"), "w").write("ok\n")
+    return d
+
+
+def test_pend_lists_the_task_dir_and_marks_it(priv):
+    n = priv; d = task_dir(n, "EVAL-q", big=(1,))
+    size = RM.pend_result(d, "runs/EVAL-q")
+    assert [l.split("\t")[1:] for l in lines(n)] == [["runs/EVAL-q", os.path.realpath(d), str(size)]]
+    assert open(os.path.join(d, ".upload_pending")).read().split()[1] == "runs/EVAL-q"
+    RM.pend_result(d, "runs/EVAL-q")
+    assert len(lines(n)) == 1                                                             # the same destination: replaced
+    other = task_dir(n, "EVAL-r", big=(1,))
+    for src, dst in ((other, "runs/EVAL-q"), (d, "runs/EVAL-q/sub"), (d, "ckpts/x"), ("/tmp", "runs/EVAL-q")):
+        with pytest.raises(ValueError):
+            RM.pend_result(src, dst)                                                      # only runs/<task> from its own directory
+
+
+def test_split_file_by_file_largest_first_skipping_present(priv):
+    n = priv; d = task_dir(n, "EVAL-s"); RM.pend_result(d, "runs/EVAL-s")
+    n.remote["runs/EVAL-s/r1_math500_no_think_t0.6.jsonl"] = 60 * 10 ** 6                # already up from an earlier try
+    r = W.once()
+    assert r.startswith("REPLAY_OK runs/EVAL-s (result)"), r
+    assert [c["files"] for c in n.calls] == [["r0_math500_no_think_t0.6.jsonl"], ["gen_eval.log", "r0.metrics.json"]]
+    assert n.calls[0]["cmd"][2] == "runs/EVAL-s/r0_math500_no_think_t0.6.jsonl"          # its own commit at its path
+    assert n.calls[0]["timeout"] == int(150 / 0.08 * 1.5 + 600)
+    assert lines(n) == [] and not os.path.exists(os.path.join(d, ".upload_pending"))      # struck, the marker gone
+    assert os.path.getsize(os.path.join(d, "r0_math500_no_think_t0.6.jsonl")) == 150 * 10 ** 6   # the local files untouched
+    assert not any(k.endswith(".upload_pending") for k in n.remote)                       # the marker never goes up
+    assert not [x for x in os.listdir(os.path.dirname(d)) if x.startswith(".stage_")]                  # [A1 condition] nothing new under runs/
+    assert os.listdir(os.path.join(n.root, "control", "stage")) == []                                # staged in control/stage, then removed
+
+
+def test_a_failed_part_keeps_the_parts_before_it(priv, monkeypatch):
+    monkeypatch.setenv("WEIGHTS_REPLAY_COOL_S", "0")
+    n = priv; d = task_dir(n, "EVAL-t"); RM.pend_result(d, "runs/EVAL-t")
+    n.failing.add("r1_math500_no_think_t0.6.jsonl")
+    r = W.once()
+    assert r.startswith("REPLAY_FAIL result:runs/EVAL-t r1_math500_no_think_t0.6.jsonl:"), r
+    assert "runs/EVAL-t/r0_math500_no_think_t0.6.jsonl" in n.remote and len(lines(n)) == 1   # the 150 MB part stays up
+    assert os.path.exists(os.path.join(d, ".upload_pending"))
+    n.failing.clear(); n.calls.clear()
+    assert W.once().startswith("REPLAY_OK runs/EVAL-t")
+    assert [c["files"] for c in n.calls][0] == ["r1_math500_no_think_t0.6.jsonl"]          # the next try sends only what is missing
+
+
+def test_a_small_result_goes_in_one_commit_and_a_subdir_hold_is_accepted(priv):
+    n = priv; d = task_dir(n, "PROBE-TERMX", big=(), small=True); up = os.path.join(d, "up"); os.makedirs(up)
+    open(os.path.join(up, "report.json"), "w").write("{}")
+    RM.pend_result(up, "runs/PROBE-TERMX")
+    assert W.once().startswith("REPLAY_OK runs/PROBE-TERMX") and [c["files"] for c in n.calls] == [["report.json"]]
+    assert not os.path.exists(os.path.join(d, ".upload_pending"))
+
+
+def test_a_hold_outside_the_task_dir_is_refused(priv, monkeypatch):
+    n = priv; elsewhere = tempfile.mkdtemp(); open(os.path.join(elsewhere, "a.json"), "w").write("{}")
+    with open(os.path.join(n.root, "control", "weights_pending.txt"), "a") as f:
+        f.write(f"2026-10-23T01:00:00Z\truns/EVAL-u\t{elsewhere}\t2\n")
+    r = W.once()
+    assert "neither under $CKPT_ROOT/weights_pending nor the task's own directory" in r and not n.calls
+
+
+def test_one_waiting_event_after_two_hours(priv):
+    n = priv; d = task_dir(n, "EVAL-w", big=(1,)); RM.pend_result(d, "runs/EVAL-w")
+    items = W.pending(); t = __import__("calendar").timegm(time.strptime(items[0][0], "%Y-%m-%dT%H:%M:%SZ"))
+    W.waiting_events(items, now=t + 3600)
+    assert not any("result_upload_waiting" in e for e in n.events)
+    W.waiting_events(items, now=t + 7300); W.waiting_events(items, now=t + 9000)
+    assert sum("result_upload_waiting" in e or "runs/EVAL-w" in e for e in n.events) == 1
+
+
+def test_a_task_dir_result_is_staged_under_control_not_runs(priv, monkeypatch):   # [v2.5.9z65, ops-lead's A1 condition]
+    n = priv; d = task_dir(n, "EVAL-v", big=(1,)); RM.pend_result(d, "runs/EVAL-v")
+    seen = []
+    real = W.stage_result
+    monkeypatch.setattr(W, "stage_result", lambda hold, stage: (seen.append(stage), real(hold, stage))[1])
+    assert W.once().startswith("REPLAY_OK runs/EVAL-v")
+    assert seen and seen[0].startswith(os.path.join(n.root, "control", "stage") + os.sep)
+    assert not [x for x in os.listdir(os.path.join(n.root, "runs")) if x.startswith(".")]
+    assert W.result_stage(os.path.join(n.ck, "weights_pending", "runs", "EVAL-x"), "runs/EVAL-x").startswith(os.path.join(n.ck, "weights_pending", "runs"))   # z64's holds as before

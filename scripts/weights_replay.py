@@ -18,7 +18,14 @@ heartbeat, not the control plane's outbox).
   100 MB: six readings) goes first and is never paused: to the PRIVATE repository as an ordinary result (remote.py put, no public),
   a log over 5 MB as its last 5 MB gzipped (<name>.tail.gz), timeout from its size at RESULT_MBPS; struck once get_paths_info on the
   private repository shows every staged file at its size; one results_replayed event each.
+- [v2.5.9z65] (Fable / ops-lead 10-23) a task's own result directory (runs/<task> or a directory under it, listed by remote.py pend
+  after its upload failed) goes the same way; a directory over RESULT_SPLIT_MB (100) is sent file by file: each file of at least
+  RESULT_PART_MB (20) in its own commit, largest first, skipping those the private repository already has at that size (progress
+  survives a dropped connection: one connection drops after 30-63 min, a 323 MB commit needs 41-62 min), then the rest (metrics,
+  pairs, the log tails) in one last commit; each part's timeout from its size. Struck when every file is verified, then
+  runs/<task>/.upload_pending is removed; one result_upload_waiting event when an item has waited RESULT_WAIT_EVENT_S (2 h).
 Usage: python weights_replay.py once -> REPLAY_IDLE | REPLAY_OFF | REPLAY_WAIT <why> | REPLAY_OK <dst> | REPLAY_FAIL <dst> <why>"""
+import calendar
 import fcntl
 import hashlib
 import json
@@ -185,6 +192,8 @@ def batch_event(done_now, left, dst=None):
 WEIGHT_DST = re.compile(r"runs/[A-Za-z0-9._-]+/global_step_\d+/actor/huggingface")
 RESULT_DST = re.compile(r"runs/[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*")
 LOG_TAIL = 5 * 10 ** 6
+RESULT_SPLIT = 100 * 10 ** 6   # [v2.5.9z65] a staged result over this goes file by file
+RESULT_PART = 20 * 10 ** 6     # files of at least this size get a commit of their own
 RESULT_MBPS = 0.08   # [v2.5.9z64a] was 0.4: one connection gets 0.09-0.13 MB/s through the proxy (10-22: 268 MB at 129 kB/s)
 
 
@@ -194,7 +203,11 @@ def stage_result(hold, stage):
     import gzip
     out = []
     for r, _, fs in os.walk(hold):
+        if os.path.basename(r).startswith(".stage_"):
+            continue
         for f in fs:
+            if f == ".upload_pending":   # [v2.5.9z65] the marker stays local
+                continue
             src = os.path.join(r, f); rel = os.path.relpath(src, hold); t = os.path.join(stage, rel)
             os.makedirs(os.path.dirname(t), exist_ok=True)
             if f.endswith(".log") and os.path.getsize(src) > LOG_TAIL:
@@ -224,6 +237,88 @@ def verify_private(dst, staged):
     return True, ""
 
 
+def _put(src, dst, nbytes):
+    """remote.py put src dst (the private repository) with a timeout from nbytes at RESULT_MBPS: (rc, why)."""
+    to = int(min(float(cfg("WEIGHTS_REPLAY_MAX_S", "21600")), nbytes / 1e6 / RESULT_MBPS * 1.5 + 600))
+    try:
+        r = subprocess.run([sys.executable, os.path.join(HERE, "remote.py"), "put", src, dst], capture_output=True, text=True,
+                           timeout=to, env=dict(os.environ, HF_HUB_ENABLE_HF_TRANSFER="0"))
+        return r.returncode, (r.stderr.strip().splitlines() or [""])[-1][:160]
+    except subprocess.TimeoutExpired:
+        return 1, f"timed out after {to} s"
+
+
+def private_sizes(dst, rels):
+    api, repo = RM.hf("private")
+    info = {}
+    for i in range(0, len(rels), 50):
+        for x in api.get_paths_info(repo, [f"{dst}/{rel}" for rel in rels[i:i + 50]]):
+            info[x.path[len(dst) + 1:]] = getattr(x, "size", None)
+    return info
+
+
+def put_result(stage, dst, staged):
+    """[v2.5.9z65] the staged directory to the private repository: in one commit, or over RESULT_SPLIT file by file (see the
+    docstring). (rc, why); a part that failed leaves the parts before it in the repository."""
+    nbytes = sum(b for _, b in staged)
+    if nbytes <= float(cfg("RESULT_SPLIT_MB", "100")) * 1e6:
+        return _put(stage, dst, nbytes)
+    big = sorted(((rel, b) for rel, b in staged if b >= float(cfg("RESULT_PART_MB", "20")) * 1e6), key=lambda x: -x[1])
+    try:
+        have = private_sizes(dst, [rel for rel, _ in big]) if big else {}
+    except Exception:
+        have = {}
+    for rel, b in big:
+        if have.get(rel) != b:
+            rc, why = _put(os.path.join(stage, rel), f"{dst}/{rel}", b)
+            if rc:
+                return rc, f"{rel}: {why}"
+        os.unlink(os.path.join(stage, rel))   # the stage's hard link only: the last commit carries the small files
+    rest = sum(b for _, b in staged) - sum(b for _, b in big)
+    if any(fs for _, _, fs in os.walk(stage)):
+        return _put(stage, dst, rest)
+    return 0, ""
+
+
+def waiting_events(items, now=None):
+    """[v2.5.9z65] one result_upload_waiting event per result item that has waited RESULT_WAIT_EVENT_S (7200 s)."""
+    now = now or time.time(); st = state(); seen = st.setdefault("waited", []); lim = float(cfg("RESULT_WAIT_EVENT_S", "7200"))
+    for utc, dst, _, size in items:
+        dst = dst.lstrip("/")
+        if WEIGHT_DST.fullmatch(dst) or not RESULT_DST.fullmatch(dst) or dst in seen:
+            continue
+        try:
+            t = calendar.timegm(time.strptime(utc, "%Y-%m-%dT%H:%M:%SZ"))
+        except ValueError:
+            continue
+        if now - t >= lim:
+            seen.append(dst); event("result_upload_waiting", f"{dst}: {size / 1e6:.0f} MB waiting since {utc}")
+    st["waited"] = [d for d in seen if any(it[1].lstrip("/") == d for it in items)]; save(st)
+
+
+def hold_ok(hold, dst):
+    """z64: under $CKPT_ROOT/weights_pending; [v2.5.9z65]: or the task's own directory runs/<task> (or one under it) for runs/<task>."""
+    real = os.path.realpath(hold)
+    base = os.path.realpath(os.path.join(os.environ.get("CKPT_ROOT", "/nonexistent"), "weights_pending"))
+    if real.startswith(base + os.sep):
+        return True
+    m = re.fullmatch(r"runs/([A-Za-z0-9._-]+)", dst)
+    task_dir = os.path.realpath(os.path.join(os.environ.get("OPD_ROOT", "/nonexistent"), "runs", m.group(1))) if m else None
+    return bool(task_dir) and (real == task_dir or real.startswith(task_dir + os.sep))
+
+
+def result_stage(hold, dst):
+    """[v2.5.9z65, ops-lead's A1 condition] where a result is staged: for a task's own directory under $OPD_ROOT/runs,
+    $OPD_ROOT/control/stage/<hash> (the same disk, so the hard links hold, and nothing new appears under runs/ for the
+    heartbeat's stale list, du or the scheduler); for a hold under $CKPT_ROOT/weights_pending, next to it as before (z64)."""
+    h = hashlib.sha256(dst.encode()).hexdigest()[:12]
+    runs = os.path.realpath(os.path.join(os.environ.get("OPD_ROOT", "/nonexistent"), "runs"))
+    if os.path.realpath(hold).startswith(runs + os.sep):
+        d = os.path.join(os.environ.get("OPD_ROOT", ""), "control", "stage"); os.makedirs(d, exist_ok=True)
+        return os.path.join(d, h)
+    return os.path.join(os.path.dirname(hold.rstrip("/")), ".stage_" + h)
+
+
 def results_once(items):
     """[v2.5.9z64] the oldest held result directory to the private repository (see the docstring); None if none is due."""
     st, now = state(), time.time()
@@ -233,22 +328,15 @@ def results_once(items):
         return None
     utc, dst, hold, size = todo[0]
     dst = dst.lstrip("/")
-    base = os.path.realpath(os.path.join(os.environ.get("CKPT_ROOT", "/nonexistent"), "weights_pending"))
-    if not os.path.realpath(hold).startswith(base + os.sep) or not os.path.isdir(hold):
-        return failed("result:" + dst, "the hold path is not a directory under $CKPT_ROOT/weights_pending")
-    stage = os.path.join(os.path.dirname(hold.rstrip("/")), ".stage_" + hashlib.sha256(dst.encode()).hexdigest()[:12])
+    if not hold_ok(hold, dst) or not os.path.isdir(hold):
+        return failed("result:" + dst, "the hold path is neither under $CKPT_ROOT/weights_pending nor the task's own directory")
+    stage = result_stage(hold, dst)
     shutil.rmtree(stage, ignore_errors=True); os.makedirs(stage)
     try:
         staged = stage_result(hold, stage)
         nbytes = sum(b for _, b in staged)
-        to = int(min(float(cfg("WEIGHTS_REPLAY_MAX_S", "21600")), nbytes / 1e6 / RESULT_MBPS * 1.5 + 600))
         t0 = time.time()
-        try:
-            r = subprocess.run([sys.executable, os.path.join(HERE, "remote.py"), "put", stage, dst], capture_output=True, text=True,
-                               timeout=to, env=dict(os.environ, HF_HUB_ENABLE_HF_TRANSFER="0"))
-            rc, why = r.returncode, (r.stderr.strip().splitlines() or [""])[-1][:160]
-        except subprocess.TimeoutExpired:
-            rc, why = 1, f"timed out after {to} s"
+        rc, why = put_result(stage, dst, staged)   # [v2.5.9z65] file by file over RESULT_SPLIT
         secs = round(time.time() - t0, 1)
         if rc:
             return failed("result:" + dst, why)
@@ -261,6 +349,12 @@ def results_once(items):
     finally:
         shutil.rmtree(stage, ignore_errors=True)
     strike(dst, nbytes, secs)
+    m = re.fullmatch(r"runs/([A-Za-z0-9._-]+)", dst)   # [v2.5.9z65] the task's marker, now that every file is verified
+    if m:
+        try:
+            os.remove(os.path.join(os.environ.get("OPD_ROOT", ""), "runs", m.group(1), ".upload_pending"))
+        except OSError:
+            pass
     st = state(); st["fails"].pop("result:" + dst, None); st["fails"].pop(dst, None); save(st)
     event("results_replayed", f"{dst}: {len(staged)} file(s), {nbytes / 1e6:.0f} MB to the private repository in {secs} s")
     return f"REPLAY_OK {dst} (result) {nbytes / 1e6:.0f} MB in {secs} s"
@@ -275,6 +369,10 @@ def once():
     age = control_backlog()
     if age > float(cfg("REPLAY_OUTBOX_MAX_AGE", "600")):
         return f"REPLAY_WAIT a control-plane item waits {int(age)} s in the outbox"
+    try:
+        waiting_events(items)   # [v2.5.9z65]
+    except Exception:
+        pass
     r = results_once(items)   # [v2.5.9z64] held results first, whatever WEIGHTS_REPLAY says
     if r:
         return r
