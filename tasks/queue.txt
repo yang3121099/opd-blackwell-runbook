@@ -144,12 +144,14 @@ b259ip   open   PROBE-ROLLOUT-U60 PROBE-ROLLOUT-U85 PROBE-ROLLOUT-U75
 night2   open   EVAL-ext-17s44mid EVAL-ext-4Bmid EVAL-budA-17p2seeds
 fill14   open   EVAL-ext-4Bmid25 EVAL-ext-4Bmid75 EVAL-ext-17s44mid75 EVAL-budA-e12bP13 EVAL-ext-17p5l8k:E12b-P5-8k EVAL-ext-17stop2:E12b-P5-stop2 EVAL-ext-17p5l16k:E12b-P5-16k
 fill15   open   EVAL-ext32k-17route EVAL-ext32k-17mix EVAL-ext32k-17mix75 EVAL-ext32k-17mix90 EVAL-ext32k-17mix60:E10b-P5mix60 EVAL-ext32k-17routeinv:E10b-P5route-inv EVAL-ext-17route EVAL-ext-17mix EVAL-ext-17mix75 EVAL-ext-17mix90
+# fill16 (the scheduler 10-23 15:1x UTC, ops-lead A1 15:4x): pad readings for the queue that ran dry at 14:53 UTC
+fill16   open   EVAL-ext-17prog EVAL-ext-17progup EVAL-ext-17p5l8ks44 EVAL-ext-17p5l16kkl EVAL-ext-17mix60 EVAL-ext-17routeinv EVAL-ext-4Bp5l8k EVAL-gm-17P5l16kkl EVAL-gm-17P5l8ks44 EVAL-gm-4BP5l8k EVAL-gm-17prog EVAL-gm-17progup
 olpd     open   EVAL-ext32k-17olpd
 b259z24  open   TOKCHECK-X5
 # [v2.5.9m] padding stages (ops-lead, Runming 10-21 21:2x Beijing): dispatched after every other stage, each group in file order;
 # every later fill list gets a #pad line too (a #pad line holds stage names only)
 # [v2.5.9z41] diff4b out of #pad (formal: after Q-058, before Q-059; its stage line now after b259z41s); tails43 in (until TERM4 H2)
-#pad night1 night2 fill14 olpd tails43 fill15
+#pad night1 night2 fill14 olpd tails43 fill15 fill16
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T0.6 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T1.0 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 1.0
 #eval EVAL-e10c-fix4-s43 e10c_P4lowlr-fix4-s43_s150_math500_T0.6 result:runs/E10c-P4lowlr-fix4-s43/global_step_150/actor/huggingface math500 4 0.6
@@ -2457,3 +2459,61 @@ b259z24  open   TOKCHECK-X5
 # [held until E10b-P5-8k has s50] term PROBE-TERM4 17_P5w8k result:runs/E10b-P5-8k/global_step_50/actor/huggingface EVAL-e10b-P5-8k/e10b_P5-8k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 # [held until E10b-P5smerge-8k has s50] term PROBE-TERM4 17_P5smerge8k result:runs/E10b-P5smerge-8k/global_step_50/actor/huggingface EVAL-smerge-8k/e10b_P5smerge-8k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 # [held until both have s50; restored together with the two term rows above] after EVAL-smerge-8k rerun PROBE-TERM4
+# fill16 rows (the scheduler 10-23 15:1x UTC; ops-lead's A1 condition: MMLU-Pro 16K for the five gm tasks too)
+#eval EVAL-ext-17prog ext_P5prog_s25_amc23_T0.6 result:runs/E12b-P5-prog/global_step_25/actor/huggingface amc23 8 0.6
+#pair EVAL-ext-17prog ext_P5prog_s25_amc23_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_amc23_T0.6_amc23_no_think_t0.6.jsonl
+#eval EVAL-ext-17prog ext_P5prog_s25_minervamath_T0.6 result:runs/E12b-P5-prog/global_step_25/actor/huggingface minervamath 4 0.6
+#pair EVAL-ext-17prog ext_P5prog_s25_minervamath_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
+#eval EVAL-ext-17prog ext_P5prog_s25_olympiadbench_T0.6 result:runs/E12b-P5-prog/global_step_25/actor/huggingface olympiadbench 4 0.6
+#pair EVAL-ext-17prog ext_P5prog_s25_olympiadbench_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
+#eval EVAL-ext-17progup ext_P5progup_s25_amc23_T0.6 result:runs/E12b-P5-prog-up/global_step_25/actor/huggingface amc23 8 0.6
+#pair EVAL-ext-17progup ext_P5progup_s25_amc23_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_amc23_T0.6_amc23_no_think_t0.6.jsonl
+#eval EVAL-ext-17progup ext_P5progup_s25_minervamath_T0.6 result:runs/E12b-P5-prog-up/global_step_25/actor/huggingface minervamath 4 0.6
+#pair EVAL-ext-17progup ext_P5progup_s25_minervamath_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
+#eval EVAL-ext-17progup ext_P5progup_s25_olympiadbench_T0.6 result:runs/E12b-P5-prog-up/global_step_25/actor/huggingface olympiadbench 4 0.6
+#pair EVAL-ext-17progup ext_P5progup_s25_olympiadbench_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
+#eval EVAL-ext-17p5l8ks44 ext_P5l8ks44_s50_amc23_T0.6 result:runs/E12b-P5-8k-s44/global_step_50/actor/huggingface amc23 8 0.6
+#pair EVAL-ext-17p5l8ks44 ext_P5l8ks44_s50_amc23_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_amc23_T0.6_amc23_no_think_t0.6.jsonl
+#eval EVAL-ext-17p5l8ks44 ext_P5l8ks44_s50_minervamath_T0.6 result:runs/E12b-P5-8k-s44/global_step_50/actor/huggingface minervamath 4 0.6
+#pair EVAL-ext-17p5l8ks44 ext_P5l8ks44_s50_minervamath_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
+#eval EVAL-ext-17p5l8ks44 ext_P5l8ks44_s50_olympiadbench_T0.6 result:runs/E12b-P5-8k-s44/global_step_50/actor/huggingface olympiadbench 4 0.6
+#pair EVAL-ext-17p5l8ks44 ext_P5l8ks44_s50_olympiadbench_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
+#eval EVAL-ext-17p5l16kkl ext_P5l16kkl_s50_amc23_T0.6 result:runs/E12b-P5-16k-kl/global_step_50/actor/huggingface amc23 8 0.6
+#pair EVAL-ext-17p5l16kkl ext_P5l16kkl_s50_amc23_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_amc23_T0.6_amc23_no_think_t0.6.jsonl
+#eval EVAL-ext-17p5l16kkl ext_P5l16kkl_s50_minervamath_T0.6 result:runs/E12b-P5-16k-kl/global_step_50/actor/huggingface minervamath 4 0.6
+#pair EVAL-ext-17p5l16kkl ext_P5l16kkl_s50_minervamath_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
+#eval EVAL-ext-17p5l16kkl ext_P5l16kkl_s50_olympiadbench_T0.6 result:runs/E12b-P5-16k-kl/global_step_50/actor/huggingface olympiadbench 4 0.6
+#pair EVAL-ext-17p5l16kkl ext_P5l16kkl_s50_olympiadbench_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
+#eval EVAL-ext-17mix60 ext_P5mix60_s50_amc23_T0.6 result:runs/E10b-P5mix60/global_step_50/actor/huggingface amc23 8 0.6
+#pair EVAL-ext-17mix60 ext_P5mix60_s50_amc23_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_amc23_T0.6_amc23_no_think_t0.6.jsonl
+#eval EVAL-ext-17mix60 ext_P5mix60_s50_minervamath_T0.6 result:runs/E10b-P5mix60/global_step_50/actor/huggingface minervamath 4 0.6
+#pair EVAL-ext-17mix60 ext_P5mix60_s50_minervamath_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
+#eval EVAL-ext-17mix60 ext_P5mix60_s50_olympiadbench_T0.6 result:runs/E10b-P5mix60/global_step_50/actor/huggingface olympiadbench 4 0.6
+#pair EVAL-ext-17mix60 ext_P5mix60_s50_olympiadbench_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
+#eval EVAL-ext-17routeinv ext_P5routeinv_s50_amc23_T0.6 result:runs/E10b-P5route-inv/global_step_50/actor/huggingface amc23 8 0.6
+#pair EVAL-ext-17routeinv ext_P5routeinv_s50_amc23_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_amc23_T0.6_amc23_no_think_t0.6.jsonl
+#eval EVAL-ext-17routeinv ext_P5routeinv_s50_minervamath_T0.6 result:runs/E10b-P5route-inv/global_step_50/actor/huggingface minervamath 4 0.6
+#pair EVAL-ext-17routeinv ext_P5routeinv_s50_minervamath_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
+#eval EVAL-ext-17routeinv ext_P5routeinv_s50_olympiadbench_T0.6 result:runs/E10b-P5route-inv/global_step_50/actor/huggingface olympiadbench 4 0.6
+#pair EVAL-ext-17routeinv ext_P5routeinv_s50_olympiadbench_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
+#eval EVAL-ext-4Bp5l8k ext_E12dP5l8k_s50_amc23_T0.6 result:runs/E12d-P5-8k/global_step_50/actor/huggingface amc23 8 0.6
+#pair EVAL-ext-4Bp5l8k ext_E12dP5l8k_s50_amc23_T0.6 EVAL-ext-E10d-P5/ext_E10dP5_amc23_T0.6_amc23_no_think_t0.6.jsonl
+#eval EVAL-ext-4Bp5l8k ext_E12dP5l8k_s50_minervamath_T0.6 result:runs/E12d-P5-8k/global_step_50/actor/huggingface minervamath 4 0.6
+#pair EVAL-ext-4Bp5l8k ext_E12dP5l8k_s50_minervamath_T0.6 EVAL-ext-E10d-P5/ext_E10dP5_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
+#eval EVAL-ext-4Bp5l8k ext_E12dP5l8k_s50_olympiadbench_T0.6 result:runs/E12d-P5-8k/global_step_50/actor/huggingface olympiadbench 4 0.6
+#pair EVAL-ext-4Bp5l8k ext_E12dP5l8k_s50_olympiadbench_T0.6 EVAL-ext-E10d-P5/ext_E10dP5_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
+#eval EVAL-gm-17P5l16kkl gm_17P5l16kkl_mmlupro1k_T0_4k result:runs/E12b-P5-16k-kl/global_step_50/actor/huggingface mmlupro1k 1 0 4096 no_think
+#eval EVAL-gm-17P5l16kkl gm_17P5l16kkl_gpqa_T0.6_16k result:runs/E12b-P5-16k-kl/global_step_50/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-17P5l8ks44 gm_17P5l8ks44_mmlupro1k_T0_4k result:runs/E12b-P5-8k-s44/global_step_50/actor/huggingface mmlupro1k 1 0 4096 no_think
+#eval EVAL-gm-17P5l8ks44 gm_17P5l8ks44_gpqa_T0.6_16k result:runs/E12b-P5-8k-s44/global_step_50/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-4BP5l8k gm_4BP5l8k_mmlupro1k_T0_4k result:runs/E12d-P5-8k/global_step_50/actor/huggingface mmlupro1k 1 0 4096 no_think
+#eval EVAL-gm-4BP5l8k gm_4BP5l8k_gpqa_T0.6_16k result:runs/E12d-P5-8k/global_step_50/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-17prog gm_17prog_mmlupro1k_T0_4k result:runs/E12b-P5-prog/global_step_25/actor/huggingface mmlupro1k 1 0 4096 no_think
+#eval EVAL-gm-17prog gm_17prog_gpqa_T0.6_16k result:runs/E12b-P5-prog/global_step_25/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-17progup gm_17progup_mmlupro1k_T0_4k result:runs/E12b-P5-prog-up/global_step_25/actor/huggingface mmlupro1k 1 0 4096 no_think
+#eval EVAL-gm-17progup gm_17progup_gpqa_T0.6_16k result:runs/E12b-P5-prog-up/global_step_25/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-17P5l16kkl gm_17P5l16kkl_mmlupro1k_T0_16k result:runs/E12b-P5-16k-kl/global_step_50/actor/huggingface mmlupro1k 1 0 16384 no_think
+#eval EVAL-gm-17P5l8ks44 gm_17P5l8ks44_mmlupro1k_T0_16k result:runs/E12b-P5-8k-s44/global_step_50/actor/huggingface mmlupro1k 1 0 16384 no_think
+#eval EVAL-gm-4BP5l8k gm_4BP5l8k_mmlupro1k_T0_16k result:runs/E12d-P5-8k/global_step_50/actor/huggingface mmlupro1k 1 0 16384 no_think
+#eval EVAL-gm-17prog gm_17prog_mmlupro1k_T0_16k result:runs/E12b-P5-prog/global_step_25/actor/huggingface mmlupro1k 1 0 16384 no_think
+#eval EVAL-gm-17progup gm_17progup_mmlupro1k_T0_16k result:runs/E12b-P5-prog-up/global_step_25/actor/huggingface mmlupro1k 1 0 16384 no_think
