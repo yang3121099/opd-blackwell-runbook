@@ -106,7 +106,7 @@ read -r TWR_TAG TWR_JUDGE TWR_REF <<< "$(awk -v t="$T" '$1 == "#twr" && $2 == t 
 if [ -n "$TWR_TAG" ] && [ ! -f $OUT/twr.json ]; then
   REF=$(ls $OPD_ROOT/runs/E11b-P0/e11b_P0_math500_T0.6_*.jsonl 2>/dev/null | head -1); SC=$(ls $OUT/${TWR_TAG}_*.jsonl 2>/dev/null | grep -v '\.forced\.jsonl$' | head -1)
   JUDGE=$STUDENT_17B
-  case ${TWR_JUDGE:-} in ''|Qwen/Qwen3-1.7B) ;; Qwen/Qwen3-4B) JUDGE=$STUDENT_4B;; Qwen/Qwen3-0.6B) JUDGE=$STUDENT_06B;; *) echo "TWR_REFUSED judge $TWR_JUDGE"; JUDGE="";; esac
+  case ${TWR_JUDGE:-} in ''|Qwen/Qwen3-1.7B) ;; Qwen/Qwen3-4B) JUDGE=$STUDENT_4B;; Qwen/Qwen3-0.6B) JUDGE=$STUDENT_06B;; Qwen/Qwen3-8B) JUDGE=$TEACHER;; *) echo "TWR_REFUSED judge $TWR_JUDGE"; JUDGE="";; esac   # [v2.5.9z68] the 8B base judges the 8B student (Q-068)
   if [ -n "${TWR_REF:-}" ]; then
     if run_rel "$TWR_REF" && [ -f $OPD_ROOT/runs/$TWR_REF ]; then REF=$OPD_ROOT/runs/$TWR_REF; else echo "TWR_REFUSED reference $TWR_REF"; REF=""; fi
   elif [ -n "${TWR_JUDGE:-}" ]; then   # [v2.5.8] (reviewer 19:3x UTC) a judge without its reference would score against E11b-P0's 1.7B

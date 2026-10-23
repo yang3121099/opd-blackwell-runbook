@@ -126,7 +126,7 @@ def live_tasks():
                     g0, gl = gpu_arg(a[i + 1]); out[name] = (g0, start, gl)   # [v2.5.8] the CPU lane; [v2.5.9a] all its GPUs
     return out
 def kind(name):
-    return ("train" if re.match(r"E1(0[bcd]|2[bcd]|6)-", name) else "sft" if name.startswith("SFT-") else
+    return ("train" if re.match(r"E1(0[bcde]|2[bcd]|6)-", name) else "sft" if name.startswith("SFT-") else
             "eval" if re.match(r"E11b-|EVAL-|adhoc_eval_|E0[1-5]-", name) else "probe" if name in ("FA-PROBE", "SPEED-PROBE", "PROBE-4B", "PROBE-TERM", "PROBE-TERM2", "PROBE-TERM3", "PROBE-TERM4", "PROBE-TERM4-4B", "PROBE-TERM4-06B", "PROBE-TOP10", "STRICT-C1", "PROBE-T14", "PROBE-P5THINK", "PROBE-P5SELF", "PROBE-P5SELF-4B", "PROBE-P5SELF-06B", "PROBE-P2SELF", "PROBE-E12C", "PROBE-E12B-KL", "PROBE-E12B-STOP", "PROBE-E12B-STOP2", "PROBE-E12B-8K", "PROBE-E12B-16K", "PROBE-E12B-R3", "PROBE-X2507-X1", "PROBE-X2507-X2", "PROBE-X2507-X4", "PROBE-LENSEL", "PROBE-2GPU", "PROBE-TOOL", "PROBE-NET", "PROBE-NET2", "BUILD-VENV-VL", "PROBE-VLLM-VL", "READINGS-EXTRA", "PROBE-VLM", "PROBE-ROLLOUT-U60", "PROBE-ROLLOUT-U75", "PROBE-ROLLOUT-U85", "PROBE-STOPMERGE", "PROBE-WDIFF", "PROBE-TAIL", "PROBE-DIFF17", "PROBE-DIFF17-4B", "PROBE-ROUTE", "PROBE-POLISH") or name.startswith("FA-SPEED-") else "other")
 def results_pending():   # [v2.5.9z65] lines of weights_pending.txt whose destination is a result (runs/<task>[/...], not a weight)
     try:

@@ -1309,6 +1309,24 @@ def test_run_and_rerun_accept_v259z66(env):   # [v2.5.9z66] (Q-059) the two 8K c
     assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 81)
 
 
+def test_run_and_rerun_accept_v259z68(env):   # [v2.5.9z68] (Q-068) the 8B self-distillation and its gate (rules 2.5.82)
+    for i, t in enumerate(("E10e-P5self", "PROBE-8B")):
+        st, msg, _ = env.c.v_run([t], 190 + i)
+        assert st == "accepted", (t, msg)
+    for i, t in enumerate(("E10e-P5", "E10e-P5self-s43", "PROBE-8B-2")):
+        assert env.c.v_run([t], 195 + i)[0] == "rejected", t
+    for t in ("E10e-P5self", "PROBE-8B"):
+        R.parse({"cmd": f"rerun {t}", "reason": "t"})
+    assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 82)
+    here = os.path.dirname(os.path.abspath(__file__))
+    assert "Qwen/Qwen3-8B) JUDGE=$TEACHER;;" in open(os.path.join(here, "run_queue_eval.sh")).read()     # the 8B base judges TWR
+    rt = open(os.path.join(here, "run_tasks.sh")).read()
+    assert "training_task() { case $1 in E10[bcde]-*|" in rt and rt.count("E1(0[bcde]|2[bcd]|6)-") == 2   # trained alike: disk guard, restart
+    assert 'r"E1(0[bcde]|2[bcd]|6)-"' in open(os.path.join(here, "heartbeat.sh")).read()               # kind train
+    q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
+    assert "\n#gpus E10e-P5self 4\n" in q and "\n#gpus PROBE-8B 4\n" in q
+
+
 def test_e12d_p5_16k_run_and_rerun_accepted():   # [v2.5.9z67] (Q-069)
     import re
     for c in ("rerun E12d-P5-16k", "run E12d-P5-16k"):

@@ -8,7 +8,7 @@
 #        and the seed replicates E10b-P2-s43/-s44, E10b-P6r-s43/-s44; v2.5.7h: E10b-P5top10 / E10b-P5rand10m (50 steps);
 #        v2.5.7o: E10d-P2-s43 / E10d-P5-s43 (4B, data.seed 43, flash-attn); v2.5.7p: E10b-P2-t14 / E10b-P5-t14 (14B teacher);
 #        v2.5.7r: E10b-P5think (the student in thinking mode too, 8K rollouts); v2.5.7v: E10b-P5self (teacher = the student's base); v2.5.7zg: E10b-P2self
-#        [v2.5.9z66]: E10b-P5-8k / E10b-P5smerge-8k (Q-059: P5 / stop-merged P5 with 8K rollouts)
+#        [v2.5.9z66]: E10b-P5-8k / E10b-P5smerge-8k (Q-059: P5 / stop-merged P5 with 8K rollouts); [v2.5.9z68]: E10e-P5self (Q-068: 8B, 4 GPUs)
 set -euo pipefail
 source "$(dirname "$0")/env.sh"; source "$(dirname "$0")/dr.sh"; GPU=$1; TASK=$2
 # task id E10b-<arm>[-s<seed>]: the seed changes only the data order (data.seed); the default seed is 42
@@ -52,6 +52,11 @@ POLISH=0; [ $TASK = E10c-P5-polish ] && { POLISH=1; BASE=E10b-P5; MODE=fix4; }
 # checkpointing stays on for it (GC=0 was measured on 1.7B only), the batching is the node's (FIXED_MICRO_BSZ)
 SIZE=""; [[ $TASK =~ ^E10d-(P2|P5)(-s43)?$ ]] && { BASE=E10b-${BASH_REMATCH[1]}; SIZE=4B; }   # v2.5.7o: -s43 = data.seed 43
 [ $TASK = E10d-P5self ] && { BASE=E10b-P5; SIZE=4B; SELF=1; }   # [v2.5.8e]
+# [v2.5.9z68] (Q-068, research_program 3c; Fable 10-23 15:1x UTC, Runming 23:0x Beijing: multi-GPU work for the main line) E10e-P5self =
+# P5self with the 8B student: Qwen3-8B on the non-thinking template taught by its own weights on the thinking template (P5's teacher
+# prompt); E10d's batching and lr, 50 steps, four GPUs (#gpus 4: FSDP over four ranks, one vLLM engine each, the teacher offloaded),
+# flash-attn, s25 / s50 up; gated by PROBE-8B (a 4-GPU 3-step smoke; the teacher's rows per call counted)
+[ $TASK = E10e-P5self ] && { BASE=E10b-P5; SIZE=8B; SELF=1; }
 # [v2.5.8i] (reviewer 17:4x UTC, Q-029; Runming: explore Qwen3's separate Instruct / Thinking weights): E10d-X1 = P5's recipe
 # with the student Qwen3-4B-Instruct-2507 and the teacher Qwen3-4B-Thinking-2507, whose own template already opens <think>
 # (so OPD_REF_THINK=0); E10d-X2 = the same student taught by the hybrid Qwen3-4B on the thinking template (as P5). 50 steps;
@@ -133,9 +138,10 @@ if [ $POLISH = 1 ]; then   # [v2.5.9u] the start: P5-fix4's s150 on this node (t
   [ "${DRYRUN:-0}" = 1 ] || has_weights $STUDENT || { echo "missing start checkpoint $STUDENT"; exit 1; }
 fi
 [ "$SIZE" = 4B ] && { STUDENT=$STUDENT_4B; GC=1; }
+[ "$SIZE" = 8B ] && { STUDENT=${STUDENT_8B:-$TEACHER}; GC=1; }   # [v2.5.9z68] the 8B weights the node holds as the teacher
 [ $T14 = 1 ] && { TEACHER=$TEACHER_14B; TEACHER_OFFLOAD=0; }   # v2.5.7p: a node-wide TEACHER_OFFLOAD does not reach it
 [ $T32 = 1 ] && { TEACHER=${TEACHER_32B:-$OPD_ROOT/models/Qwen3-32B}; TEACHER_OFFLOAD=1; }   # [v2.5.9z9] offloaded whatever the node's setting
-[ $SELF = 1 ] && { TEACHER=$STUDENT_17B; [ "$SIZE" = 4B ] && TEACHER=$STUDENT_4B; [ -n "$MODE" ] && TEACHER=$STUDENT_06B; }   # v2.5.7v; [v2.5.8e] the 4B student's own base; [v2.5.9v] the 0.6B one's
+[ $SELF = 1 ] && { TEACHER=$STUDENT_17B; [ "$SIZE" = 4B ] && TEACHER=$STUDENT_4B; [ -n "$MODE" ] && TEACHER=$STUDENT_06B; [ "$SIZE" = 8B ] && TEACHER=$STUDENT; }   # v2.5.7v; [v2.5.8e] the 4B student's own base; [v2.5.9v] the 0.6B one's
 [ $POLISH = 1 ] && TEACHER=$STUDENT_06B   # [v2.5.9u] the 0.6B base on its thinking template
 if [ -n "$XARM" ]; then   # [v2.5.8i] hub ids, resolved to the local HF cache after the venv is active
   STUDENT=${STUDENT_I2507:-Qwen/Qwen3-4B-Instruct-2507}; TEACHER=${TEACHER_T2507:-Qwen/Qwen3-4B-Thinking-2507}; [ $XARM = X2 ] && TEACHER=$STUDENT_4B
@@ -185,7 +191,7 @@ fi
 if [ $T32 = 1 ] && [ "${DRYRUN:-0}" != 1 ] && [ ! -f $TEACHER/.fetch_ok ]; then echo "WAIT_INPUTS $TASK: Qwen3-32B not in (no .fetch_ok)"; exit 1; fi
 # v2.5.7v: E10b-P5self starts only after PROBE-P5SELF passed (a 3-step smoke); v2.5.7zg: E10b-P2self after PROBE-P2SELF
 if [ $SELF = 1 ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
-  SA=${TASK#E10[bcd]-}; PG=PROBE-$(echo ${SA%-s4[34]} | tr a-z A-Z); [ "$SIZE" = 4B ] && PG=$PG-4B; [ -n "$MODE" ] && PG=$PG-06B   # [v2.5.8e] -s43 shares its arm's gate; 4B: PROBE-P5SELF-4B; [v2.5.9v] 0.6B: PROBE-P5SELF-06B
+  SA=${TASK#E10[bcd]-}; PG=PROBE-$(echo ${SA%-s4[34]} | tr a-z A-Z); [ "$SIZE" = 4B ] && PG=$PG-4B; [ -n "$MODE" ] && PG=$PG-06B; [ "$SIZE" = 8B ] && PG=PROBE-8B   # [v2.5.8e] -s43 shares its arm's gate; 4B: PROBE-P5SELF-4B; [v2.5.9v] 0.6B: PROBE-P5SELF-06B
   grep -q '"result": "PASS"' $OPD_ROOT/runs/$PG/report.json 2> /dev/null || { echo "$PG has not passed: $TASK not started"; exit 3; }
 fi
 # v2.5.7r: E10b-P5think starts only after PROBE-P5THINK passed (templates + a 3-step smoke whose rollouts open with <think>)
@@ -212,6 +218,7 @@ if [ "$SIZE" = 4B ]; then
   if [ $SEED != 42 ]; then VENV=fa; elif [ "${E10D_FA:-0}" != 1 ]; then VENV=; fi
 fi
 [ $TASK = E10b-P2self ] && VENV=fa   # v2.5.7zg (reviewer: P2self on FA)
+[ "$SIZE" = 8B ] && VENV=fa   # [v2.5.9z68] new arms default to flash-attn
 [ $W8K = 1 ] && VENV=fa   # [v2.5.9z66] (Q-059) 8K rollouts: flash-attn with remove-padding (token budget 16384 >= 1024 + 8192)
 [ -n "$LENSEL" ] && VENV=fa   # [v2.5.8m] 512 rollouts per step: flash-attn with remove-padding
 case ${VENV:-} in fa) VENV=$OPD_ROOT/venv-fa;; esac   # v2.5.3: setenv VENV=fa (after FA-PROBE passed) = venv-fa with flash-attn
@@ -272,6 +279,7 @@ unset OPD_ROUTE OPD_ROUTE_LABELS OPD_ROUTE_LOG OPD_ROUTE_P; [ -n "$ROUTE" ] && e
 [ -n "$ROUTE_P" ] && export OPD_ROUTE_P=$ROUTE_P   # [v2.5.9z38]
 unset OPD_ROUTE_INVERT; [ -n "$ROUTE_INV" ] && export OPD_ROUTE_INVERT=1   # [v2.5.9z45]
 unset OPD_X5 OPD_X5_EMPTY_THINK OPD_X5_LOG; [ $X5 = 1 ] && export OPD_X5=1 OPD_X5_LOG=$OUT/x5.jsonl; [ $X5E = 1 ] && export OPD_X5_EMPTY_THINK=1   # [v2.5.9z46]
+[ "$SIZE" = 8B ] && [ "${SMOKE:-0}" = 1 ] && export OPD_ROUTE=count OPD_ROUTE_LOG=$OUT/route.jsonl   # [v2.5.9z68] PROBE-8B: the teacher's rows per call
 [ $T32 = 1 ] && [ "${SMOKE:-0}" = 1 ] && export OPD_ROUTE=count OPD_ROUTE_LOG=$OUT/route.jsonl   # [v2.5.9z9] PROBE-T32: the teacher's rows per call
 # [v2.5.9b] the data, prompt length and logged reward: math by default, the tool-call parquet for a tool arm
 TRAIN=$OPD_ROOT/data/dapo_train.parquet; VAL=$OPD_ROOT/data/math500_100.parquet; MAXP=1024; REWARD=$RUNBOOK/code/train/reward_mathverify.py
@@ -282,6 +290,7 @@ fi
 UW=$NSTEPS; [ $TASK = E10c-P5-fix4 ] && UW=100,$NSTEPS; [ -n "$XARM" ] && UW=25,$NSTEPS   # [v2.5.8i] X arms: s25 is read too   # [v2.5.8a] (Q-023): its s100 = the step of the lab's 0.6B P5 reading (+19.2)
 [ $T32 = 1 ] && { UW=25,$NSTEPS; SAVE=${SAVE:-25}; }   # [v2.5.9z9] s25 and s50 saved and uploaded
 [ $X5 = 1 ] && { UW=25,$NSTEPS; SAVE=${SAVE:-25}; }   # [v2.5.9z46] s25 and s50 saved and uploaded
+[ "$SIZE" = 8B ] && { UW=25,$NSTEPS; SAVE=${SAVE:-25}; }   # [v2.5.9z68] (Q-068) s25 and s50 saved and uploaded
 [ $W8K = 1 ] && SAVE=${SAVE:-25}   # [v2.5.9z66] (Q-059) s25 and s50 saved; s50 uploaded (UW), s25 kept on the node
 # [v2.5.9z40] (ops-lead 10-22, PROBE-T32's first run: vLLM found 127.6 of 267.7 GiB free at start-up, below 0.5 x total) the 32B arm and
 # its smoke only: the rollout's GPU memory share 0.4 (T32_VLLM_UTIL), and T32_OPT_OFFLOAD=1 (PROBE-T32's retry after an out of
@@ -290,6 +299,7 @@ ROLL_UTIL=${VLLM_UTIL:-0.5}; ACT_OPT_OFF=False
 [ $T32 = 1 ] && { ROLL_UTIL=${T32_VLLM_UTIL:-0.4}; [ "${T32_OPT_OFFLOAD:-0}" = 1 ] && ACT_OPT_OFF=True
   # [ops-lead's A1 condition] the arm runs as its gate passed: PROBE-T32's smoke needed the optimizer offloaded -> so does the arm
   [ "${SMOKE:-0}" != 1 ] && [ -s $OPD_ROOT/runs/PROBE-T32/escalation.txt ] && ACT_OPT_OFF=True; }
+[ "${DRYRUN:-0}" = 1 ] && [ "$SIZE" = 8B ] && echo "DRYRUN_8B student=$STUDENT teacher=$TEACHER save=$SAVE upload=$UW gpus=$NG route=${OPD_ROUTE:-none}"   # [v2.5.9z68] tests
 [ "${DRYRUN:-0}" = 1 ] && [ $W8K = 1 ] && echo "DRYRUN_W8K maxresp=$MAXRESP smerge=$SMERGE save=$SAVE upload=$UW venv=$(basename ${VENV:-$OPD_ROOT/venv})"   # [v2.5.9z66] tests
 [ "${DRYRUN:-0}" = 1 ] && [ $SMERGE = 1 ] && echo "DRYRUN_STOPMERGE OPD_STOPMERGE=${OPD_STOPMERGE:-} log=$(basename ${OPD_STOPMERGE_LOG:-none}) kern=[$KERN]"   # [v2.5.9l] tests
 [ "${DRYRUN:-0}" = 1 ] && [ $POLISH = 1 ] && echo "DRYRUN_POLISH student=$(echo $STUDENT | sed 's|.*/runs/|runs/|') teacher=$TEACHER"   # [v2.5.9u] tests

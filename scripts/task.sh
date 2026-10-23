@@ -7,7 +7,7 @@ set -uo pipefail
 source "$(dirname "$0")/env.sh"; G=$1; T=$2
 # [v2.5.9a] G = one GPU, cpu, or a list a,b (a #gpus task, run_tasks.sh): a list only for the trainings and PROBE-2GPU
 [[ $G =~ ^([0-9]+(,[0-9]+){0,3}|cpu)$ ]] || { echo "bad gpu $G"; exit 2; }
-case $G in *,*) [[ $T =~ ^(E10[bcd]-|E12[bcd]-|PROBE-2GPU$) ]] || { echo "$T takes one GPU (got $G)"; exit 2; };; esac
+case $G in *,*) [[ $T =~ ^(E10[bcde]-|E12[bcd]-|PROBE-2GPU$|PROBE-8B$) ]] || { echo "$T takes one GPU (got $G)"; exit 2; };; esac
 # v2.5.4a: a task whose previous attempt ran out of GPU memory (run_tasks.sh writes runs/<task>/.oom) gets FIXED_MICRO_BSZ=4
 # for its own retries, unless the key is set already; nothing else changes
 [ -f $OPD_ROOT/runs/$T/.oom ] && [ -z "${FIXED_MICRO_BSZ:-}" ] && { export FIXED_MICRO_BSZ=4; echo "OOM_RETRY $T with FIXED_MICRO_BSZ=4"; }
@@ -22,6 +22,8 @@ case $T in
   E10b-P5mix60) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z47] mix with the thinking teacher on p = 0.6 of the prompts
   E16-X5|E16-X5e) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z46] (Q-057) a student without a thinking mode (Qwen2.5-Math-1.5B-Instruct <- R1-Distill-1.5B)
   E10b-P5-8k|E10b-P5smerge-8k) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z66] (Q-059) P5 / stop-merged P5 with 8K rollouts
+  E10e-P5self) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z68] (Q-068) the 8B student taught by itself, four GPUs (#gpus 4)
+  PROBE-8B) bash $RUNBOOK/scripts/probe_8b.sh $G;;   # [v2.5.9z68] (Q-068): the gate of E10e-P5self, a 4-GPU 3-step smoke
   E10b-*)  [[ $T =~ ^E10b-(($ARMS)(-s(43|44))?|(P2|P5)-t14|P5think|P5self|P5self-s43|P2self|P5len[SLR]|P5stopmerge|P5tail|P5route|P5mix|P5mix75|P5mix90)$ ]] || exit 2; bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # v2.5.7p: -t14; v2.5.7r: P5think; v2.5.7v: P5self; [v2.5.8e] P5self-s43
   E10c-*)  [[ $T =~ ^E10c-(($ARMS)-(fix4|dyn16k|dyn6144)(-s43)?|P5-polish|P5self)$ ]] || exit 2; bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # v2.5.6f: 0.6B, V3-c1; v2.5.7g: dyn6144, -s43
   E10d-*)  [[ $T =~ ^E10d-((P2|P5)(-s43)?|P5self|X1|X2|X4|P5-t32)$ ]] || exit 2; bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # v2.5.7b: 4B student, V3-c5; v2.5.7o: -s43
