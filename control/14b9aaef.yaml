@@ -530,3 +530,4 @@ commands:
   - {"seq": 528, "cmd": "setenv GPUS_SOON_MIN=1440", "reason": "collect 4 GPUs for E10e-P5self's rerun (ops-lead A1 05:33 UTC)", "utc": "2026-10-24T05:50:25Z"}
   - {"seq": 529, "cmd": "setenv GPUS_HOLD_MIN=600", "reason": "collect 4 GPUs for E10e-P5self's rerun (ops-lead A1 05:33 UTC)", "utc": "2026-10-24T05:50:31Z"}
   - {"seq": 530, "cmd": "rerun E10e-P5self", "reason": "z81 fixes the rank-metric-key assert; resumes from s25 (ops-lead A1 05:33 UTC)", "utc": "2026-10-24T05:50:36Z"}
+  - {"seq": 531, "cmd": "logs E10e-P5self 2000", "reason": "check METRICS_CONCAT_HOOK line of E10e-P5self's relaunch (ops-lead condition 05:33 UTC)", "utc": "2026-10-24T07:18:08Z"}
