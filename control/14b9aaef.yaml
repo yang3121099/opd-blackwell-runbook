@@ -523,3 +523,4 @@ commands:
   - {"seq": 521, "cmd": "update", "reason": "pull runbook a7e350c (z80: PROBE-TAIL-BUD's two node-only test faults fixed)", "utc": "2026-10-24T03:29:32Z"}
   - {"seq": 522, "cmd": "rerun PROBE-TAIL-BUD", "reason": "z80 fixed its 2 node-only unit tests (float32 exact compare; already-patched trainer); gates E10b-P5bud2k / bud3k (ops-lead 03:14 UTC)", "utc": "2026-10-24T03:30:25Z"}
   - {"seq": 523, "cmd": "setenv GPUS_HOLD_MIN=30", "reason": "E10e-P5self started 04:28:12Z: hold back to 30 (scheduler v103; seq 517 set 600)", "utc": "2026-10-24T04:45:12Z"}
+  - {"seq": 524, "cmd": "setenv GPUS_SOON_MIN=30", "reason": "E10e-P5self started 04:28:12Z: soon back to 30 (scheduler v103; seq 516 set 1440)", "utc": "2026-10-24T04:46:55Z"}
