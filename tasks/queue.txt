@@ -169,10 +169,11 @@ fill15   open   EVAL-ext32k-17route EVAL-ext32k-17mix EVAL-ext32k-17mix75 EVAL-e
 fill16   open   EVAL-ext-17prog EVAL-ext-17progup EVAL-ext-17p5l8ks44 EVAL-ext-17p5l16kkl EVAL-ext-17mix60 EVAL-ext-17routeinv EVAL-ext-4Bp5l8k EVAL-gm-17P5l16kkl EVAL-gm-17P5l8ks44 EVAL-gm-4BP5l8k EVAL-gm-17prog EVAL-gm-17progup
 olpd     open   EVAL-ext32k-17olpd
 b259z24  open   TOKCHECK-X5
+fill17   open   EVAL-ext-17bud2k:E10b-P5bud2k EVAL-gm-17bud2k:E10b-P5bud2k EVAL-ext-17bud3k:E10b-P5bud3k EVAL-gm-17bud3k:E10b-P5bud3k EVAL-ext-17dense:E10b-P5-dense EVAL-gm-17dense:E10b-P5-dense EVAL-ext-4Bp5selfs43:E10d-P5self-s43 EVAL-gm-4Bp5selfs43:E10d-P5self-s43
 # [v2.5.9m] padding stages (ops-lead, Runming 10-21 21:2x Beijing): dispatched after every other stage, each group in file order;
 # every later fill list gets a #pad line too (a #pad line holds stage names only)
 # [v2.5.9z41] diff4b out of #pad (formal: after Q-058, before Q-059; its stage line now after b259z41s); tails43 in (until TERM4 H2)
-#pad night1 night2 fill14 olpd tails43 fill15 fill16
+#pad night1 night2 fill14 olpd tails43 fill15 fill16 fill17
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T0.6 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T1.0 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 1.0
 #eval EVAL-e10c-fix4-s43 e10c_P4lowlr-fix4-s43_s150_math500_T0.6 result:runs/E10c-P4lowlr-fix4-s43/global_step_150/actor/huggingface math500 4 0.6
@@ -2785,3 +2786,42 @@ b259z24  open   TOKCHECK-X5
 #after EVAL-vlm32-s50-mathvista rerun READINGS-EXTRA
 #after EVAL-vlm32-s50-mathvision rerun READINGS-EXTRA
 #after EVAL-vlm32-s50-mathverse rerun READINGS-EXTRA
+
+# [fill17] (sched-preempt 10-24 06:1x UTC, ops-lead A1 10-24 10:5x UTC; pad) tonight's gap: the transfer row (AMC23 avg@8, Minerva /
+# OlympiadBench avg@4, 16K) and the general-ability triple (MMLU-Pro 1K 4K / 16K greedy, GPQA avg@4 16K) of bud2k / bud3k / dense / Q-070 s50
+#eval EVAL-ext-17bud2k ext_P5bud2k_s50_amc23_T0.6 result:runs/E10b-P5bud2k/global_step_50/actor/huggingface amc23 8 0.6
+#pair EVAL-ext-17bud2k ext_P5bud2k_s50_amc23_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_amc23_T0.6_amc23_no_think_t0.6.jsonl
+#eval EVAL-ext-17bud2k ext_P5bud2k_s50_minervamath_T0.6 result:runs/E10b-P5bud2k/global_step_50/actor/huggingface minervamath 4 0.6
+#pair EVAL-ext-17bud2k ext_P5bud2k_s50_minervamath_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
+#eval EVAL-ext-17bud2k ext_P5bud2k_s50_olympiadbench_T0.6 result:runs/E10b-P5bud2k/global_step_50/actor/huggingface olympiadbench 4 0.6
+#pair EVAL-ext-17bud2k ext_P5bud2k_s50_olympiadbench_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
+#eval EVAL-ext-17bud3k ext_P5bud3k_s50_amc23_T0.6 result:runs/E10b-P5bud3k/global_step_50/actor/huggingface amc23 8 0.6
+#pair EVAL-ext-17bud3k ext_P5bud3k_s50_amc23_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_amc23_T0.6_amc23_no_think_t0.6.jsonl
+#eval EVAL-ext-17bud3k ext_P5bud3k_s50_minervamath_T0.6 result:runs/E10b-P5bud3k/global_step_50/actor/huggingface minervamath 4 0.6
+#pair EVAL-ext-17bud3k ext_P5bud3k_s50_minervamath_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
+#eval EVAL-ext-17bud3k ext_P5bud3k_s50_olympiadbench_T0.6 result:runs/E10b-P5bud3k/global_step_50/actor/huggingface olympiadbench 4 0.6
+#pair EVAL-ext-17bud3k ext_P5bud3k_s50_olympiadbench_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
+#eval EVAL-ext-17dense ext_P5dense_s50_amc23_T0.6 result:runs/E10b-P5-dense/global_step_50/actor/huggingface amc23 8 0.6
+#pair EVAL-ext-17dense ext_P5dense_s50_amc23_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_amc23_T0.6_amc23_no_think_t0.6.jsonl
+#eval EVAL-ext-17dense ext_P5dense_s50_minervamath_T0.6 result:runs/E10b-P5-dense/global_step_50/actor/huggingface minervamath 4 0.6
+#pair EVAL-ext-17dense ext_P5dense_s50_minervamath_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
+#eval EVAL-ext-17dense ext_P5dense_s50_olympiadbench_T0.6 result:runs/E10b-P5-dense/global_step_50/actor/huggingface olympiadbench 4 0.6
+#pair EVAL-ext-17dense ext_P5dense_s50_olympiadbench_T0.6 EVAL-ext-E10b-P5/ext_E10bP5_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
+#eval EVAL-ext-4Bp5selfs43 ext_E10dP5selfs43_s50_amc23_T0.6 result:runs/E10d-P5self-s43/global_step_50/actor/huggingface amc23 8 0.6
+#pair EVAL-ext-4Bp5selfs43 ext_E10dP5selfs43_s50_amc23_T0.6 EVAL-ext-E10d-P5/ext_E10dP5_amc23_T0.6_amc23_no_think_t0.6.jsonl
+#eval EVAL-ext-4Bp5selfs43 ext_E10dP5selfs43_s50_minervamath_T0.6 result:runs/E10d-P5self-s43/global_step_50/actor/huggingface minervamath 4 0.6
+#pair EVAL-ext-4Bp5selfs43 ext_E10dP5selfs43_s50_minervamath_T0.6 EVAL-ext-E10d-P5/ext_E10dP5_minervamath_T0.6_minervamath_no_think_t0.6.jsonl
+#eval EVAL-ext-4Bp5selfs43 ext_E10dP5selfs43_s50_olympiadbench_T0.6 result:runs/E10d-P5self-s43/global_step_50/actor/huggingface olympiadbench 4 0.6
+#pair EVAL-ext-4Bp5selfs43 ext_E10dP5selfs43_s50_olympiadbench_T0.6 EVAL-ext-E10d-P5/ext_E10dP5_olympiadbench_T0.6_olympiadbench_no_think_t0.6.jsonl
+#eval EVAL-gm-17bud2k gm_17bud2k_mmlupro1k_T0_4k result:runs/E10b-P5bud2k/global_step_50/actor/huggingface mmlupro1k 1 0 4096 no_think
+#eval EVAL-gm-17bud2k gm_17bud2k_gpqa_T0.6_16k result:runs/E10b-P5bud2k/global_step_50/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-17bud2k gm_17bud2k_mmlupro1k_T0_16k result:runs/E10b-P5bud2k/global_step_50/actor/huggingface mmlupro1k 1 0 16384 no_think
+#eval EVAL-gm-17bud3k gm_17bud3k_mmlupro1k_T0_4k result:runs/E10b-P5bud3k/global_step_50/actor/huggingface mmlupro1k 1 0 4096 no_think
+#eval EVAL-gm-17bud3k gm_17bud3k_gpqa_T0.6_16k result:runs/E10b-P5bud3k/global_step_50/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-17bud3k gm_17bud3k_mmlupro1k_T0_16k result:runs/E10b-P5bud3k/global_step_50/actor/huggingface mmlupro1k 1 0 16384 no_think
+#eval EVAL-gm-17dense gm_17dense_mmlupro1k_T0_4k result:runs/E10b-P5-dense/global_step_50/actor/huggingface mmlupro1k 1 0 4096 no_think
+#eval EVAL-gm-17dense gm_17dense_gpqa_T0.6_16k result:runs/E10b-P5-dense/global_step_50/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-17dense gm_17dense_mmlupro1k_T0_16k result:runs/E10b-P5-dense/global_step_50/actor/huggingface mmlupro1k 1 0 16384 no_think
+#eval EVAL-gm-4Bp5selfs43 gm_4Bp5selfs43_mmlupro1k_T0_4k result:runs/E10d-P5self-s43/global_step_50/actor/huggingface mmlupro1k 1 0 4096 no_think
+#eval EVAL-gm-4Bp5selfs43 gm_4Bp5selfs43_gpqa_T0.6_16k result:runs/E10d-P5self-s43/global_step_50/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-4Bp5selfs43 gm_4Bp5selfs43_mmlupro1k_T0_16k result:runs/E10d-P5self-s43/global_step_50/actor/huggingface mmlupro1k 1 0 16384 no_think
