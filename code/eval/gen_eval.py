@@ -82,6 +82,26 @@ def load_mc(name, limit=None):
     return rows[:limit] if limit else rows
 
 
+# [v2.5.9z16] (the reviewer's general-ability checks) IFEval: google/IFEval's 541 prompts, read from the node's #fetch copy (no
+# network). The prompt is used as it is (no suffix, no \boxed). Google's instruction checker grades it after generation, in venv-ifeval
+# (ifeval_grade.py, run by run_queue_eval.sh), so its records keep correct = None and its metrics avg_acc = None until then.
+IFEVAL_SOURCE = ("google__IFEval", "ifeval_input_data.jsonl", "google/IFEval")
+LATER = {"ifeval"}   # benches graded after generation
+
+
+def load_ifeval(limit=None):
+    d, f, src = IFEVAL_SOURCE
+    p = os.path.join(os.environ.get("OPD_ROOT", ""), "data", "hf", d, f)
+    if not os.path.exists(p):
+        raise SystemExit(f"WAIT_INPUTS ifeval: {d}/{f} is not on the node (its #fetch line)")
+    rows = []
+    for line in open(p, encoding="utf-8"):
+        if line.strip():
+            ex = json.loads(line)
+            rows.append({"pid": f"ifeval-{ex['key']}", "problem": ex["prompt"], "answer": None, "level": None, "source": src, "later": "ifeval"})
+    return rows[:limit] if limit else rows
+
+
 def boxed_content(text):
     """The content of the last \\boxed{...} (braces balanced), else None."""
     i = text.rfind("\\boxed{")
@@ -125,6 +145,8 @@ def olympiad_answer(raw):
 def load_bench(name, limit=None):
     if name in MC_SOURCES:   # [v2.5.9z15]
         return load_mc(name, limit)
+    if name == "ifeval":   # [v2.5.9z16]
+        return load_ifeval(limit)
     from datasets import load_dataset
     errors = []
     for src in BENCH_SOURCES[name]:
@@ -207,14 +229,15 @@ def pass_at_k(n, c, k):
 def make_record(r, si, c, mode):
     text = c.text
     mc = "letters" in r   # [v2.5.9z15] a multiple-choice question: the letter, no maths grading
-    ok, pred = grade_letter(text, r["answer"], r["letters"]) if mc else grade(text, r["answer"])
+    later = "later" in r   # [v2.5.9z16] graded after generation (ifeval): correct = None here
+    ok, pred = (None, None) if later else grade_letter(text, r["answer"], r["letters"]) if mc else grade(text, r["answer"])
     trunc = c.finish_reason == "length"
     return {"pid": r["pid"], "sample": si, "level": r["level"], "gold": r["answer"],
             "pred": pred, "correct": ok, "n_tokens": len(c.token_ids),
             "finish_reason": c.finish_reason, "terminated": not trunc,
             "think_closed": ("</think>" in text) if mode == "think" else None,
-            "first_correct_pos": None if mc else first_correct_pos(text, r["answer"]),
-            "first_value_pos_loose": None if mc else first_correct_pos(text, r["answer"], loose=True),
+            "first_correct_pos": None if mc or later else first_correct_pos(text, r["answer"]),
+            "first_value_pos_loose": None if mc or later else first_correct_pos(text, r["answer"], loose=True),
             "grader_version": GRADER_VERSION, "token_ids": list(c.token_ids), "text": text}
 
 
@@ -222,25 +245,28 @@ def compute_metrics(args, rows, recs, gen_s):
     per_prob = defaultdict(list)
     by_level = defaultdict(list)
     n_tok, n_trunc = [], 0
+    later = args.bench in LATER   # [v2.5.9z16] no accuracy until ifeval_grade.py folds it in (avg_acc None, pass_at_k {}, ifeval None)
     for rec in recs:
         per_prob[rec["pid"]].append(rec["correct"])
         if rec["level"] is not None:
             by_level[rec["level"]].append((rec["correct"], rec["n_tokens"]))
         n_tok.append(rec["n_tokens"])
         n_trunc += rec["finish_reason"] == "length"
-    acc = sum(sum(v) for v in per_prob.values()) / sum(len(v) for v in per_prob.values())
+    acc = None if later else sum(sum(v) for v in per_prob.values()) / sum(len(v) for v in per_prob.values())
     return {
         "model": args.model, "bench": args.bench, "mode": args.mode, "n": args.n,
         "temperature": args.temperature, "top_p": args.top_p, "top_k": args.top_k,
-        "max_tokens": args.max_tokens, "dtype": getattr(args, "dtype", "auto"), "num_problems": len(rows), "avg_acc": round(100 * acc, 2),
-        "pass_at_k": {k: round(100 * sum(pass_at_k(len(v), sum(v), k) for v in per_prob.values()) / len(per_prob), 2)
-                      for k in [1, 2, 4, 8, 16, 32, 64] if k <= args.n},
+        "max_tokens": args.max_tokens, "dtype": getattr(args, "dtype", "auto"), "num_problems": len(rows),
+        "avg_acc": None if later else round(100 * acc, 2),
+        "pass_at_k": {} if later else {k: round(100 * sum(pass_at_k(len(v), sum(v), k) for v in per_prob.values()) / len(per_prob), 2)
+                                       for k in [1, 2, 4, 8, 16, 32, 64] if k <= args.n},
         "mean_tokens": round(sum(n_tok) / len(n_tok), 1), "trunc_rate": round(n_trunc / len(n_tok), 4),
         "by_level": {str(l): {"acc": round(100 * sum(x for x, _ in v) / len(v), 2),
                               "mean_tokens": round(sum(t for _, t in v) / len(v), 1)}
                      for l, v in sorted(by_level.items())},
         "gen_seconds": round(gen_s, 1), "source": rows[0]["source"],
         **({"unparsed_rate": round(sum(1 for r in recs if r["pred"] is None) / len(recs), 4)} if args.bench in MC_SOURCES else {}),   # [v2.5.9z15]
+        **({"ifeval": None} if later else {}),   # [v2.5.9z16]
     }
 
 
@@ -310,7 +336,7 @@ def model_len(model, max_tokens, pad=2048):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", required=True)
-    ap.add_argument("--bench", required=True, choices=list(BENCH_SOURCES) + list(MC_SOURCES))
+    ap.add_argument("--bench", required=True, choices=list(BENCH_SOURCES) + list(MC_SOURCES) + ["ifeval"])
     ap.add_argument("--mode", required=True, choices=["think", "no_think"])
     ap.add_argument("--n", type=int, default=4)
     ap.add_argument("--temperature", type=float, default=0.6)
@@ -336,7 +362,8 @@ def main():
     tok = AutoTokenizer.from_pretrained(args.model)
     prompts = []
     for r in rows:
-        msgs = [{"role": "user", "content": r["problem"] + (MC_SUFFIX if args.bench in MC_SOURCES else PROMPT_SUFFIX)}]
+        suffix = MC_SUFFIX if args.bench in MC_SOURCES else "" if args.bench == "ifeval" else PROMPT_SUFFIX   # [v2.5.9z16] ifeval: as it is
+        msgs = [{"role": "user", "content": r["problem"] + suffix}]
         kw = {"enable_thinking": args.mode == "think"}
         try:
             prompts.append(tok.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True, **kw))

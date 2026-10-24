@@ -110,3 +110,27 @@ def test_wheel_par_first_keeps_a_small_first_wheel_single(tmp_path, monkeypatch)
     monkeypatch.setenv("WHEEL_PAR_FIRST", "1")
     r = W.fetch_all(str(tmp_path), ["mathruler==0.1.0"], single, par, meta, lambda: 16, clock)
     assert r["ok"] and [c[0] for c in calls] == ["single"]
+
+
+def test_wheel_sdist_only_for_listed_names_v259z16(monkeypatch):   # [v2.5.9z16] langdetect 1.0.9 publishes only an sdist
+    import io
+    doc = {"urls": [{"packagetype": "sdist", "filename": "langdetect-1.0.9.tar.gz", "size": 981474, "digests": {"sha256": "cb" * 32},
+                     "url": "https://files.pythonhosted.org/packages/l/langdetect-1.0.9.tar.gz"}]}
+    opener = lambda url, timeout: io.StringIO(json.dumps(doc))
+    monkeypatch.delenv("WHEEL_SDIST", raising=False)
+    try:
+        W.meta("langdetect", "1.0.9", opener=opener); raise AssertionError("an sdist taken without WHEEL_SDIST")
+    except ValueError as e:
+        assert "no Linux x86_64 / py3 wheel for langdetect==1.0.9" in str(e)
+    monkeypatch.setenv("WHEEL_SDIST", "six,langdetect")
+    m = W.meta("langdetect", "1.0.9", opener=opener)
+    assert m["file"] == "langdetect-1.0.9.tar.gz" and m["sha256"] == "cb" * 32 and m["size"] == 981474
+    doc["urls"].append({"packagetype": "bdist_wheel", "filename": "langdetect-1.0.9-py3-none-any.whl", "size": 5, "digests": {"sha256": "ab" * 32}, "url": "u"})
+    assert W.meta("langdetect", "1.0.9", opener=opener)["file"].endswith(".whl")   # a wheel, when there is one, wins
+    monkeypatch.setenv("WHEEL_SDIST", "langdetec")
+    doc["urls"].pop()
+    try:
+        W.meta("langdetect", "1.0.9", opener=opener); raise AssertionError("a name not listed exactly took its sdist")
+    except ValueError:
+        pass
+    assert W.pick_sdist([{"packagetype": "sdist", "filename": "x-1.zip"}]) is None

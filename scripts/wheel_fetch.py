@@ -11,7 +11,8 @@ too. Every file is checked against PyPI's sha256 (a mismatch removes nothing but
 there with the right sha256 is kept. <out dir>/manifest.json: per wheel name, version, file, size, sha256, url host, seconds, MB/s,
 connections; and the probe. [v2.5.9z34] WHEEL_PAR_FIRST=1: the first wheel, when larger than PAR_MIN_MB, goes straight through
 par_fetch (no probe): a lone large pin was its own one-connection probe (VENV-VL-NVRTC 10-22: 89.6 MB at 0.069 MB/s, a read timeout). Exit 0 when every pin is in, 1 otherwise. No tunnel, no proxy change: urllib with the environment's
-proxy settings, as fetch_model.py.
+proxy settings, as fetch_model.py. [v2.5.9z16] WHEEL_SDIST=<name>[,<name>]: those pins, when PyPI has no such wheel for them, are
+fetched as their .tar.gz sdist (BUILD-VENV-IFEVAL: langdetect 1.0.9 publishes only an sdist).
 """
 import hashlib
 import json
@@ -36,9 +37,18 @@ def pick(urls):
     return whs[0] if whs else None
 
 
+def pick_sdist(urls):
+    """[v2.5.9z16] the .tar.gz sdist from PyPI's 'urls' list, or None."""
+    return next((u for u in urls if u.get("packagetype") == "sdist" and u["filename"].endswith(".tar.gz")), None)
+
+
 def meta(name, version, opener=urllib.request.urlopen):
     d = json.load(opener(f"https://pypi.org/pypi/{name}/{version}/json", timeout=60))
     w = pick(d.get("urls", []))
+    # [v2.5.9z16] a pin named in WHEEL_SDIST (comma-separated: pure-Python packages that publish no wheel, langdetect) may be its
+    # sdist, sha256-checked as a wheel is; the caller builds it offline (--no-build-isolation)
+    if not w and name in os.environ.get("WHEEL_SDIST", "").split(","):
+        w = pick_sdist(d.get("urls", []))
     if not w:
         raise ValueError(f"no Linux x86_64 / py3 wheel for {name}=={version}")
     return {"name": name, "version": version, "file": w["filename"], "size": int(w["size"]), "sha256": w["digests"]["sha256"],

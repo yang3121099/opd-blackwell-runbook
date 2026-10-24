@@ -173,11 +173,12 @@ b259z24  open   TOKCHECK-X5
 b259z82  open   PROBE-SELFROUTE:PROBE-DIFFPROBE E10b-P5selfroute:PROBE-SELFROUTE+PROBE-ROUTE EVAL-e10b-P5selfroute:E10b-P5selfroute+EVAL-e10b-P5route EVAL-budA-P5selfroute:E10b-P5selfroute+EVAL-budA-P5route EVAL-ext32k-17selfroute:E10b-P5selfroute+EVAL-ext32k-17route E10c-P5tail-c50:E10c-P5tail+PROBE-TAIL EVAL-e10c-P5tail-c50:E10c-P5tail-c50+EVAL-e10c-P5tail EVAL-ext32k-06tail-c50:E10c-P5tail-c50+EVAL-ext32k-06tail
 # [v2.5.9z83] (Fable 10-24 19:51 Beijing) Q-073 the soft mix and its gate, a formal arm ahead of the fill17 pad
 b259z83  open   PROBE-SOFTMIX:PROBE-TAIL E10b-P5softmix50:PROBE-SOFTMIX+PROBE-TAIL EVAL-e10b-P5softmix50:E10b-P5softmix50+EVAL-e10b-P5mix EVAL-budA-P5softmix50:E10b-P5softmix50+EVAL-budA-P5mix EVAL-ext32k-17softmix50:E10b-P5softmix50+EVAL-ext32k-17mix
+b259z16  open   BUILD-VENV-IFEVAL
 fill17   open   EVAL-ext-17bud2k:E10b-P5bud2k EVAL-gm-17bud2k:E10b-P5bud2k EVAL-ext-17bud3k:E10b-P5bud3k EVAL-gm-17bud3k:E10b-P5bud3k EVAL-ext-17dense:E10b-P5-dense EVAL-gm-17dense:E10b-P5-dense EVAL-ext-4Bp5selfs43:E10d-P5self-s43 EVAL-gm-4Bp5selfs43:E10d-P5self-s43
 # [v2.5.9m] padding stages (ops-lead, Runming 10-21 21:2x Beijing): dispatched after every other stage, each group in file order;
 # every later fill list gets a #pad line too (a #pad line holds stage names only)
 # [v2.5.9z41] diff4b out of #pad (formal: after Q-058, before Q-059; its stage line now after b259z41s); tails43 in (until TERM4 H2)
-#pad night1 night2 fill14 olpd tails43 fill15 fill16 fill17
+#pad night1 night2 fill14 olpd tails43 fill15 fill16 fill17 b259z16 b259z15
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T0.6 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T1.0 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 1.0
 #eval EVAL-e10c-fix4-s43 e10c_P4lowlr-fix4-s43_s150_math500_T0.6 result:runs/E10c-P4lowlr-fix4-s43/global_step_150/actor/huggingface math500 4 0.6
@@ -2113,42 +2114,97 @@ fill17   open   EVAL-ext-17bud2k:E10b-P5bud2k EVAL-gm-17bud2k:E10b-P5bud2k EVAL-
 # would cut their thinking), then GPQA-Diamond avg@4 T0.6 16K (by_level = physics / chemistry / biology); the letter from the last \boxed{},
 # else "answer is (X)", else unparsed (metrics unparsed_rate); mean length and truncation as always. A bench whose #fetch copy is not in
 # yet makes its task wait (WAIT_INPUTS; GPQA is gated). IFEval comes in the next version (a grading-only venv).
+# [v2.5.9z16] IFEval (google/IFEval, 541 prompts, each prompt as it is): avg@1 greedy at 4K (the thinking-mode references at 16K,
+# tag _16k), after each task's gpqa row. Google's instruction checker grades it after generation, in venv-ifeval (BUILD-VENV-IFEVAL,
+# the CPU lane, stage b259z16): <stem>.ifeval.json, prompt- / instruction-level accuracy, strict and loose; avg_acc = prompt-level
+# strict. The 18 tasks had finished: each reruns once venv-ifeval is built (the #after lines below its rows); their MMLU-Pro / GPQA
+# readings are kept (DONE_ALREADY), so only the new rows run. [Fable's A1 10-24 ~20:0x Beijing] each of the 11 student checkpoints also
+# at 16K (ifeval 1 0 16384 no_think, tag _ifeval_T0_16k; gm16's lesson: 4K clips P5-type students), the base rows 4K only; padding.
 #eval EVAL-gm-17base gm_17base_mmlupro1k_T0_4k Qwen/Qwen3-1.7B mmlupro1k 1 0 4096 no_think
 #eval EVAL-gm-17base gm_17base_gpqa_T0.6_16k Qwen/Qwen3-1.7B gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-17base gm_17base_ifeval_T0_4k Qwen/Qwen3-1.7B ifeval 1 0 4096 no_think
 #eval EVAL-gm-17think gm_17think_mmlupro1k_T0_16k Qwen/Qwen3-1.7B mmlupro1k 1 0 16384 think
 #eval EVAL-gm-17think gm_17think_gpqa_T0.6_16k Qwen/Qwen3-1.7B gpqa 4 0.6 16384 think
+#eval EVAL-gm-17think gm_17think_ifeval_T0_16k Qwen/Qwen3-1.7B ifeval 1 0 16384 think
 #eval EVAL-gm-17P5 gm_17P5_mmlupro1k_T0_4k result:runs/E10b-P5/global_step_150/actor/huggingface mmlupro1k 1 0 4096 no_think
 #eval EVAL-gm-17P5 gm_17P5_gpqa_T0.6_16k result:runs/E10b-P5/global_step_150/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-17P5 gm_17P5_ifeval_T0_4k result:runs/E10b-P5/global_step_150/actor/huggingface ifeval 1 0 4096 no_think
+#eval EVAL-gm-17P5 gm_17P5_ifeval_T0_16k result:runs/E10b-P5/global_step_150/actor/huggingface ifeval 1 0 16384 no_think
 #eval EVAL-gm-17P5self gm_17P5self_mmlupro1k_T0_4k result:runs/E10b-P5self/global_step_50/actor/huggingface mmlupro1k 1 0 4096 no_think
 #eval EVAL-gm-17P5self gm_17P5self_gpqa_T0.6_16k result:runs/E10b-P5self/global_step_50/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-17P5self gm_17P5self_ifeval_T0_4k result:runs/E10b-P5self/global_step_50/actor/huggingface ifeval 1 0 4096 no_think
+#eval EVAL-gm-17P5self gm_17P5self_ifeval_T0_16k result:runs/E10b-P5self/global_step_50/actor/huggingface ifeval 1 0 16384 no_think
 #eval EVAL-gm-17P5rl gm_17P5rl_mmlupro1k_T0_4k result:runs/E12b-P5/global_step_100/actor/huggingface mmlupro1k 1 0 4096 no_think
 #eval EVAL-gm-17P5rl gm_17P5rl_gpqa_T0.6_16k result:runs/E12b-P5/global_step_100/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-17P5rl gm_17P5rl_ifeval_T0_4k result:runs/E12b-P5/global_step_100/actor/huggingface ifeval 1 0 4096 no_think
+#eval EVAL-gm-17P5rl gm_17P5rl_ifeval_T0_16k result:runs/E12b-P5/global_step_100/actor/huggingface ifeval 1 0 16384 no_think
 #eval EVAL-gm-17P5kl gm_17P5kl_mmlupro1k_T0_4k result:runs/E12b-P5-kl/global_step_100/actor/huggingface mmlupro1k 1 0 4096 no_think
 #eval EVAL-gm-17P5kl gm_17P5kl_gpqa_T0.6_16k result:runs/E12b-P5-kl/global_step_100/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-17P5kl gm_17P5kl_ifeval_T0_4k result:runs/E12b-P5-kl/global_step_100/actor/huggingface ifeval 1 0 4096 no_think
+#eval EVAL-gm-17P5kl gm_17P5kl_ifeval_T0_16k result:runs/E12b-P5-kl/global_step_100/actor/huggingface ifeval 1 0 16384 no_think
 #eval EVAL-gm-17P5l8k gm_17P5l8k_mmlupro1k_T0_4k result:runs/E12b-P5-8k/global_step_50/actor/huggingface mmlupro1k 1 0 4096 no_think
 #eval EVAL-gm-17P5l8k gm_17P5l8k_gpqa_T0.6_16k result:runs/E12b-P5-8k/global_step_50/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-17P5l8k gm_17P5l8k_ifeval_T0_4k result:runs/E12b-P5-8k/global_step_50/actor/huggingface ifeval 1 0 4096 no_think
+#eval EVAL-gm-17P5l8k gm_17P5l8k_ifeval_T0_16k result:runs/E12b-P5-8k/global_step_50/actor/huggingface ifeval 1 0 16384 no_think
 #eval EVAL-gm-4Bbase gm_4Bbase_mmlupro1k_T0_4k Qwen/Qwen3-4B mmlupro1k 1 0 4096 no_think
 #eval EVAL-gm-4Bbase gm_4Bbase_gpqa_T0.6_16k Qwen/Qwen3-4B gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-4Bbase gm_4Bbase_ifeval_T0_4k Qwen/Qwen3-4B ifeval 1 0 4096 no_think
 #eval EVAL-gm-4Bthink gm_4Bthink_mmlupro1k_T0_16k Qwen/Qwen3-4B mmlupro1k 1 0 16384 think
 #eval EVAL-gm-4Bthink gm_4Bthink_gpqa_T0.6_16k Qwen/Qwen3-4B gpqa 4 0.6 16384 think
+#eval EVAL-gm-4Bthink gm_4Bthink_ifeval_T0_16k Qwen/Qwen3-4B ifeval 1 0 16384 think
 #eval EVAL-gm-4BP5 gm_4BP5_mmlupro1k_T0_4k result:runs/E10d-P5/global_step_150/actor/huggingface mmlupro1k 1 0 4096 no_think
 #eval EVAL-gm-4BP5 gm_4BP5_gpqa_T0.6_16k result:runs/E10d-P5/global_step_150/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-4BP5 gm_4BP5_ifeval_T0_4k result:runs/E10d-P5/global_step_150/actor/huggingface ifeval 1 0 4096 no_think
+#eval EVAL-gm-4BP5 gm_4BP5_ifeval_T0_16k result:runs/E10d-P5/global_step_150/actor/huggingface ifeval 1 0 16384 no_think
 #eval EVAL-gm-4BP5self gm_4BP5self_mmlupro1k_T0_4k result:runs/E10d-P5self/global_step_50/actor/huggingface mmlupro1k 1 0 4096 no_think
 #eval EVAL-gm-4BP5self gm_4BP5self_gpqa_T0.6_16k result:runs/E10d-P5self/global_step_50/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-4BP5self gm_4BP5self_ifeval_T0_4k result:runs/E10d-P5self/global_step_50/actor/huggingface ifeval 1 0 4096 no_think
+#eval EVAL-gm-4BP5self gm_4BP5self_ifeval_T0_16k result:runs/E10d-P5self/global_step_50/actor/huggingface ifeval 1 0 16384 no_think
 #eval EVAL-gm-4BP5rl gm_4BP5rl_mmlupro1k_T0_4k result:runs/E12d-P5/global_step_100/actor/huggingface mmlupro1k 1 0 4096 no_think
 #eval EVAL-gm-4BP5rl gm_4BP5rl_gpqa_T0.6_16k result:runs/E12d-P5/global_step_100/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-4BP5rl gm_4BP5rl_ifeval_T0_4k result:runs/E12d-P5/global_step_100/actor/huggingface ifeval 1 0 4096 no_think
+#eval EVAL-gm-4BP5rl gm_4BP5rl_ifeval_T0_16k result:runs/E12d-P5/global_step_100/actor/huggingface ifeval 1 0 16384 no_think
 #eval EVAL-gm-4BX4 gm_4BX4_mmlupro1k_T0_4k result:runs/E10d-X4/global_step_50/actor/huggingface mmlupro1k 1 0 4096 no_think
 #eval EVAL-gm-4BX4 gm_4BX4_gpqa_T0.6_16k result:runs/E10d-X4/global_step_50/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-4BX4 gm_4BX4_ifeval_T0_4k result:runs/E10d-X4/global_step_50/actor/huggingface ifeval 1 0 4096 no_think
+#eval EVAL-gm-4BX4 gm_4BX4_ifeval_T0_16k result:runs/E10d-X4/global_step_50/actor/huggingface ifeval 1 0 16384 no_think
 #eval EVAL-gm-4Bi2507 gm_4Bi2507_mmlupro1k_T0_4k Qwen/Qwen3-4B-Instruct-2507 mmlupro1k 1 0 4096 no_think
 #eval EVAL-gm-4Bi2507 gm_4Bi2507_gpqa_T0.6_16k Qwen/Qwen3-4B-Instruct-2507 gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-4Bi2507 gm_4Bi2507_ifeval_T0_4k Qwen/Qwen3-4B-Instruct-2507 ifeval 1 0 4096 no_think
 #eval EVAL-gm-06base gm_06base_mmlupro1k_T0_4k Qwen/Qwen3-0.6B mmlupro1k 1 0 4096 no_think
 #eval EVAL-gm-06base gm_06base_gpqa_T0.6_16k Qwen/Qwen3-0.6B gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-06base gm_06base_ifeval_T0_4k Qwen/Qwen3-0.6B ifeval 1 0 4096 no_think
 #eval EVAL-gm-06think gm_06think_mmlupro1k_T0_16k Qwen/Qwen3-0.6B mmlupro1k 1 0 16384 think
 #eval EVAL-gm-06think gm_06think_gpqa_T0.6_16k Qwen/Qwen3-0.6B gpqa 4 0.6 16384 think
+#eval EVAL-gm-06think gm_06think_ifeval_T0_16k Qwen/Qwen3-0.6B ifeval 1 0 16384 think
 #eval EVAL-gm-06P5 gm_06P5_mmlupro1k_T0_4k result:runs/E10c-P5-fix4/global_step_150/actor/huggingface mmlupro1k 1 0 4096 no_think
 #eval EVAL-gm-06P5 gm_06P5_gpqa_T0.6_16k result:runs/E10c-P5-fix4/global_step_150/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-06P5 gm_06P5_ifeval_T0_4k result:runs/E10c-P5-fix4/global_step_150/actor/huggingface ifeval 1 0 4096 no_think
+#eval EVAL-gm-06P5 gm_06P5_ifeval_T0_16k result:runs/E10c-P5-fix4/global_step_150/actor/huggingface ifeval 1 0 16384 no_think
 #eval EVAL-gm-06P5rl gm_06P5rl_mmlupro1k_T0_4k result:runs/E12c-P5/global_step_100/actor/huggingface mmlupro1k 1 0 4096 no_think
 #eval EVAL-gm-06P5rl gm_06P5rl_gpqa_T0.6_16k result:runs/E12c-P5/global_step_100/actor/huggingface gpqa 4 0.6 16384 no_think
+#eval EVAL-gm-06P5rl gm_06P5rl_ifeval_T0_4k result:runs/E12c-P5/global_step_100/actor/huggingface ifeval 1 0 4096 no_think
+#eval EVAL-gm-06P5rl gm_06P5rl_ifeval_T0_16k result:runs/E12c-P5/global_step_100/actor/huggingface ifeval 1 0 16384 no_think
+# [v2.5.9z16] the 18 finished tasks above run once more when venv-ifeval is in (only their ifeval rows are new; a rebuild
+# of venv-ifeval reruns them again, each then a no-op: every row DONE_ALREADY)
+#after BUILD-VENV-IFEVAL rerun EVAL-gm-17base
+#after BUILD-VENV-IFEVAL rerun EVAL-gm-17think
+#after BUILD-VENV-IFEVAL rerun EVAL-gm-17P5
+#after BUILD-VENV-IFEVAL rerun EVAL-gm-17P5self
+#after BUILD-VENV-IFEVAL rerun EVAL-gm-17P5rl
+#after BUILD-VENV-IFEVAL rerun EVAL-gm-17P5kl
+#after BUILD-VENV-IFEVAL rerun EVAL-gm-17P5l8k
+#after BUILD-VENV-IFEVAL rerun EVAL-gm-4Bbase
+#after BUILD-VENV-IFEVAL rerun EVAL-gm-4Bthink
+#after BUILD-VENV-IFEVAL rerun EVAL-gm-4BP5
+#after BUILD-VENV-IFEVAL rerun EVAL-gm-4BP5self
+#after BUILD-VENV-IFEVAL rerun EVAL-gm-4BP5rl
+#after BUILD-VENV-IFEVAL rerun EVAL-gm-4BX4
+#after BUILD-VENV-IFEVAL rerun EVAL-gm-4Bi2507
+#after BUILD-VENV-IFEVAL rerun EVAL-gm-06base
+#after BUILD-VENV-IFEVAL rerun EVAL-gm-06think
+#after BUILD-VENV-IFEVAL rerun EVAL-gm-06P5
+#after BUILD-VENV-IFEVAL rerun EVAL-gm-06P5rl
 # b259gm16 (Fable 10-23 04:4x UTC): the 4K MMLU-Pro-1K column mostly measures truncation (28-62% for P5-type students); each thinking-template student's 16K greedy row, named _16k, reported next to its 4K row (same checkpoint, same no_think template)
 #eval EVAL-gm16-17P5 gm_17P5_mmlupro1k_T0_16k result:runs/E10b-P5/global_step_150/actor/huggingface mmlupro1k 1 0 16384 no_think
 #eval EVAL-gm16-17P5self gm_17P5self_mmlupro1k_T0_16k result:runs/E10b-P5self/global_step_50/actor/huggingface mmlupro1k 1 0 16384 no_think

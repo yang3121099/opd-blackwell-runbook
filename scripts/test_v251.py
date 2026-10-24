@@ -421,7 +421,7 @@ def test_eval_verb_unchanged(cmd, ok):   # the eval verb keeps 2-4 arguments (no
         R.parse({"cmd": cmd + " 32768", "reason": "t"})
 
 
-@pytest.mark.parametrize("cmd,ok", [("rerun FA-PROBE", True), ("rerun EVAL-bridge", True), ("rerun E10b-P2", True), ("rerun SFT-P1", True), ("rerun E10c-P4lowlr-fix4", True), ("rerun PROBE-TERM", True), ("rerun E10c-P4lowlr-dyn6144", True), ("rerun E12c-P0", True), ("rerun PROBE-E12C", True), ("rerun E12b-P5self", True), ("rerun PROBE-E12B-KL", True), ("rerun E12b-P5-kl", True), ("rerun PROBE-E12B-STOP", True), ("rerun PROBE-P5SELF-4B", True), ("rerun PROBE-X2507-X1", True), ("rerun PROBE-X2507-X4", True), ("rerun PROBE-LENSEL", True), ("rerun PROBE-2GPU", True), ("rerun PROBE-TOOL", True), ("rerun PROBE-NET", True), ("rerun PROBE-NET2", True), ("rerun PROBE-ROLLOUT-U75", True), ("rerun PROBE-STOPMERGE", True), ("rerun PROBE-STOPMERGE-UNIT", True), ("rerun PROBE-WDIFF", True), ("rerun PROBE-WDIFFX", False), ("rerun PROBE-T32", True), ("rerun PROBE-T33", False), ("rerun E10d-P5-t32", True), ("rerun PROBE-STOPMERGE-UNITX", False), ("rerun PROBE-TAIL", True), ("rerun PROBE-POLISH", True), ("rerun PROBE-ROLLOUT-U95", False), ("rerun PROBE-E12B-STOP2", True), ("rerun PROBE-X2507-X3", False), ("rerun PROBE-P5SELF-06B", True), ("rerun PROBE-E12B-R3", True), ("rerun PROBE-E12B-R4", False), ("rerun E12b-P5-r3", True), ("rerun E12b-P5-16k-kl", True), ("rerun BUILD-VENV-VL", True), ("rerun PROBE-DIFF17", True), ("rerun READINGS-EXTRA", True), ("rerun PROBE-VLM", True), ("rerun E15-VLM-P5", True), ("rerun E15-VLM-P6", False), ("rerun PROBE-DIFF17-4B", True), ("rerun PROBE-ROUTE", True), ("rerun PROBE-ROUTE-4B", False), ("rerun E10b-P5route", True), ("rerun PROBE-VLLM-VL", True), ("rerun PROBE-VLLM", False), ("rerun PROBE-E12B-16K-KL", False), ("rerun PROBE-TERM4-06B", True), ("rerun PROBE-TERM4-06", False), ("rerun PROBE-P5SELF-06", False), ("rerun E10c-P5self", True), ("rerun E10d-P5self", True), ("rerun E12b-P5-stop", True), ("rerun /etc", False),
+@pytest.mark.parametrize("cmd,ok", [("rerun FA-PROBE", True), ("rerun EVAL-bridge", True), ("rerun E10b-P2", True), ("rerun SFT-P1", True), ("rerun E10c-P4lowlr-fix4", True), ("rerun PROBE-TERM", True), ("rerun E10c-P4lowlr-dyn6144", True), ("rerun E12c-P0", True), ("rerun PROBE-E12C", True), ("rerun E12b-P5self", True), ("rerun PROBE-E12B-KL", True), ("rerun E12b-P5-kl", True), ("rerun PROBE-E12B-STOP", True), ("rerun PROBE-P5SELF-4B", True), ("rerun PROBE-X2507-X1", True), ("rerun PROBE-X2507-X4", True), ("rerun PROBE-LENSEL", True), ("rerun PROBE-2GPU", True), ("rerun PROBE-TOOL", True), ("rerun PROBE-NET", True), ("rerun PROBE-NET2", True), ("rerun PROBE-ROLLOUT-U75", True), ("rerun PROBE-STOPMERGE", True), ("rerun PROBE-STOPMERGE-UNIT", True), ("rerun PROBE-WDIFF", True), ("rerun PROBE-WDIFFX", False), ("rerun PROBE-T32", True), ("rerun PROBE-T33", False), ("rerun E10d-P5-t32", True), ("rerun PROBE-STOPMERGE-UNITX", False), ("rerun PROBE-TAIL", True), ("rerun PROBE-POLISH", True), ("rerun PROBE-ROLLOUT-U95", False), ("rerun PROBE-E12B-STOP2", True), ("rerun PROBE-X2507-X3", False), ("rerun PROBE-P5SELF-06B", True), ("rerun PROBE-E12B-R3", True), ("rerun PROBE-E12B-R4", False), ("rerun E12b-P5-r3", True), ("rerun E12b-P5-16k-kl", True), ("rerun BUILD-VENV-VL", True), ("rerun BUILD-VENV-IFEVAL", True), ("rerun PROBE-DIFF17", True), ("rerun READINGS-EXTRA", True), ("rerun PROBE-VLM", True), ("rerun E15-VLM-P5", True), ("rerun E15-VLM-P6", False), ("rerun PROBE-DIFF17-4B", True), ("rerun PROBE-ROUTE", True), ("rerun PROBE-ROUTE-4B", False), ("rerun E10b-P5route", True), ("rerun PROBE-VLLM-VL", True), ("rerun PROBE-VLLM", False), ("rerun PROBE-E12B-16K-KL", False), ("rerun PROBE-TERM4-06B", True), ("rerun PROBE-TERM4-06", False), ("rerun PROBE-P5SELF-06", False), ("rerun E10c-P5self", True), ("rerun E10d-P5self", True), ("rerun E12b-P5-stop", True), ("rerun /etc", False),
                                     ("rerun EVAL-a;b", False), ("rerun", False), ("rerun FA-PROBE x", False)])
 def test_rules_rerun(cmd, ok):
     if ok:
@@ -1227,7 +1227,7 @@ def test_pulse_drops_a_leaking_asset_entry(env, monkeypatch):   # [v2.5.9z13] (o
 
 
 @pytest.mark.parametrize("args,ok", [(["Qwen/Qwen3-4B", "mmlupro1k", "1", "0", "4096", "no_think"], True), (["Qwen/Qwen3-4B", "gpqa", "4", "0.6", "16384", "think"], True),
-                                     (["Qwen/Qwen3-4B", "gpqa", "4", "0.5", "16384", "think"], False), (["Qwen/Qwen3-4B", "ifeval", "1", "0", "4096", "no_think"], False)])
+                                     (["Qwen/Qwen3-4B", "gpqa", "4", "0.5", "16384", "think"], False), (["Qwen/Qwen3-4B", "ifeval", "1", "0", "4096", "no_think"], True)])   # [2.5.92] ifeval
 def test_eval_args_mc_benches_and_greedy_v259z15(args, ok):   # [2.5.62]
     if ok:
         R.check_eval_args(args)
@@ -1239,7 +1239,7 @@ def test_eval_args_mc_benches_and_greedy_v259z15(args, ok):   # [2.5.62]
 def test_run_queue_eval_greedy_and_mc_wait_v259z15():
     src = open(os.path.join(HERE, "run_queue_eval.sh")).read()
     assert '0) SAMP="--temperature 0 --top_p 1.0 --top_k 0";;' in src
-    assert 'case $BENCH in gpqa) DS=Idavidrein__gpqa;; mmlupro1k) DS=TIGER-Lab__MMLU-Pro;; *) DS="";; esac' in src
+    assert 'case $BENCH in gpqa) DS=Idavidrein__gpqa;; mmlupro1k) DS=TIGER-Lab__MMLU-Pro;; ifeval) DS=google__IFEval;; *) DS="";; esac' in src   # [v2.5.9z16]
     assert 'echo "WAIT_INPUTS $T: $DS not in (no .fetch_ok)"; exit 1' in src
 
 
@@ -1414,3 +1414,50 @@ def test_e12d_p5_8k_run_and_rerun_accepted():   # [v2.5.9z60] (ops-lead's A1 con
     src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "task.sh")).read()
     assert src.index("  E12d-P5-8k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;") < src.index("  E12d-*)")
 
+
+STUDENTS16 = {f"EVAL-gm-{x}" for x in ("17P5", "17P5self", "17P5rl", "17P5kl", "17P5l8k", "4BP5", "4BP5self", "4BP5rl", "4BX4", "06P5", "06P5rl")}
+
+
+def test_ifeval_rules_and_rows_v259z16(env):   # [v2.5.9z16] (rules 2.5.92) bench ifeval, BUILD-VENV-IFEVAL, the 18 b259z15 rows
+    st, msg, _ = env.c.v_run(["BUILD-VENV-IFEVAL"], 200)
+    assert st == "accepted", msg
+    assert env.c.v_run(["BUILD-VENV-IFEVAL2"], 201)[0] == "rejected"
+    R.parse({"cmd": "rerun BUILD-VENV-IFEVAL", "reason": "t"})
+    for v in ("1", "0", ""):
+        R.parse({"cmd": f"setenv VENV_IFEVAL_REBUILD={v}", "reason": "t"})
+    with pytest.raises(R.Reject):
+        R.parse({"cmd": "setenv VENV_IFEVAL_REBUILD=2", "reason": "t"})
+    for args in (["result:runs/E10b-P5/global_step_150/actor/huggingface", "ifeval", "1", "0", "4096", "no_think"], ["Qwen/Qwen3-4B", "ifeval", "1", "0", "16384", "think"]):
+        R.check_eval_args(args)
+    assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 92)
+    assert re.search(r"^\S+ rules 2\.5\.92 \(bench ifeval", open(os.path.join(HERE, "..", "control", "CHANGES.md")).read(), re.M)   # [10-25] renumbered
+    L = open(os.path.join(HERE, "..", "tasks", "queue.txt")).read().splitlines()
+    i = next(k for k, l in enumerate(L) if l.startswith("b259z15  open "))
+    tasks = L[i].split()[2:]
+    j = next(k for k, l in enumerate(L) if l.startswith("b259z16  open "))   # [10-25] ops-lead's condition 2: after b259z83, before fill17
+    assert len(tasks) == 18 and L[j] == "b259z16  open   BUILD-VENV-IFEVAL" and L[j - 1].startswith("b259z83 ") and L[j + 1].startswith("fill17 ")
+    assert " b259z16 b259z15" in next(l for l in L if l.startswith("#pad "))   # [10-25] Fable's A1: padding
+    rows = [(k, l.split()) for k, l in enumerate(L) if l.startswith("#eval EVAL-gm-")]
+    for t in tasks:
+        mine = [(k, f) for k, f in rows if f[1] == t]
+        ife = [(k, f) for k, f in mine if f[4] == "ifeval"]
+        gp = [k for k, f in mine if f[4] == "gpqa"]
+        mm = [f for k, f in mine if f[4] == "mmlupro1k"][0]
+        think = mm[8] == "think"
+        student = t in STUDENTS16   # [10-25] Fable's A1: the 11 student checkpoints also at 16K, right after their 4K row
+        assert len(ife) == (2 if student else 1) and len(gp) == 1 and ife[0][0] == gp[0] + 1, t           # the ifeval row(s), right after the gpqa row
+        if student:
+            g = ife[1][1]
+            assert ife[1][0] == ife[0][0] + 1 and g[2] == ife[0][1][2].replace("_4k", "_16k") and g[3] == ife[0][1][3], g   # the same checkpoint
+            assert g[4:9] == ["ifeval", "1", "0", "16384", "no_think"], g
+            R.check_eval_args(g[3:9])
+        f = ife[0][1]
+        R.check_eval_args(f[3:9])
+        assert f[3] == mm[3] and f[5:8] == ["1", "0", "16384" if think else "4096"] and f[8] == mm[8], f
+        assert f[2] == mm[2].replace("_mmlupro1k_T0_", "_ifeval_T0_") and f[2].endswith("_16k" if think else "_4k"), f
+    assert sum(1 for t in tasks if [f for k, f in rows if f[1] == t and f[4] == "mmlupro1k"][0][8] == "think") == 3
+    after = [l.split() for l in L if l.startswith("#after BUILD-VENV-IFEVAL rerun ")]
+    assert [a[3] for a in after] == tasks and not [l for l in L if l.startswith("#eval EVAL-gm16-") and " ifeval " in l]
+    rt, ts = open(os.path.join(HERE, "run_tasks.sh")).read(), open(os.path.join(HERE, "task.sh")).read()
+    assert "|BUILD-VENV-IFEVAL) return 0;;" in rt and "  BUILD-VENV-IFEVAL) bash $RUNBOOK/scripts/build_venv_ifeval.sh;;" in ts
+    assert '"BUILD-VENV-IFEVAL"' in open(os.path.join(HERE, "heartbeat.sh")).read()

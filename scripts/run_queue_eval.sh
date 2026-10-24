@@ -16,6 +16,7 @@
 set -uo pipefail
 source "$(dirname "$0")/env.sh"; source ${VENV_EVAL:-$OPD_ROOT/venv}/bin/activate
 G=$1; T=$2; OUT=$OPD_ROOT/runs/$T; Q=${QUEUE_FILE:-$RUNBOOK/tasks/queue.txt}; mkdir -p $OUT
+VIF=${VENV_IFEVAL:-$OPD_ROOT/venv-ifeval}   # [v2.5.9z16] the grading-only venv of the ifeval rows (BUILD-VENV-IFEVAL)
 [ -f $OUT/.done ] && { echo "TASK_ALREADY_DONE $T"; exit 0; }
 SPECS=$(awk -v t="$T" '$1 == "#eval" && $2 == t {print $3, $4, $5, $6, $7, $8, $9}' "$Q")
 [ -n "$SPECS" ] || { echo "no #eval lines for $T in the queue"; exit 1; }
@@ -81,8 +82,10 @@ while read -r TAG MODEL BENCH N TEMP MAXT MODE; do
   [ $rc = 2 ] && { echo "MODEL_MISSING $TAG: $MODEL"; ok=0; continue; }
   case $TEMP in 1.0) SAMP="--temperature 1.0 --top_p 1.0 --top_k 0";; 0) SAMP="--temperature 0 --top_p 1.0 --top_k 0";; *) SAMP="--temperature 0.6 --top_p 0.95 --top_k 0";; esac   # [v2.5.9z15] 0: greedy
   # [v2.5.9z15] a multiple-choice bench reads the node's #fetch copy: while it is not in, the task waits (no attempt; 9z3)
-  case $BENCH in gpqa) DS=Idavidrein__gpqa;; mmlupro1k) DS=TIGER-Lab__MMLU-Pro;; *) DS="";; esac
+  case $BENCH in gpqa) DS=Idavidrein__gpqa;; mmlupro1k) DS=TIGER-Lab__MMLU-Pro;; ifeval) DS=google__IFEval;; *) DS="";; esac   # [v2.5.9z16] ifeval
   if [ -n "$DS" ] && [ ! -f $OPD_ROOT/data/hf/$DS/.fetch_ok ]; then echo "WAIT_INPUTS $T: $DS not in (no .fetch_ok)"; exit 1; fi
+  # [v2.5.9z16] an ifeval reading is graded in venv-ifeval: until BUILD-VENV-IFEVAL has built it, the task waits (nothing generated)
+  if [ $BENCH = ifeval ] && [ ! -x $VIF/bin/python ]; then echo "WAIT_INPUTS $T: venv-ifeval not built (BUILD-VENV-IFEVAL)"; exit 1; fi
   case $BENCH in aime24|aime25|amc23) K=10;; *) K=50;; esac
   gpu_wait_free $G || { python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1; gpu_wait_free $G 120; }   # [v2.5.8] the previous engine gone first
   echo "EVAL_START $(date -u +%T) $TAG"
@@ -145,6 +148,20 @@ done <<< "$(awk -v t="$T" '$1 == "#forced" && $2 == t {print $3, $4, $5}' "$Q")"
 python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true
 echo "$G $(date -u +%FT%TZ)" > $OUT/.gpu_released; echo "GPU_RELEASED $(date -u +%T) gpu=$G"
 export CUDA_VISIBLE_DEVICES=   # [ops-lead's A1 condition] a later step that touched the GPU fails here instead of sharing the next task's
+# [v2.5.9z16] (the reviewer's general-ability checks) an ifeval reading is graded here, CPU only: Google's instruction checker in
+# venv-ifeval (code/eval/ifeval_grade.py) writes <stem>.ifeval.json (prompt- / instruction-level accuracy, strict and loose), and its
+# metrics get avg_acc = prompt-level strict and the block ifeval. A graded reading (its .ifeval.json) is left alone. Without venv-ifeval
+# or the data the task waits (no attempt); a failed grading fails the task, and its reading is kept, so the next attempt only grades.
+while read -r TAG MODEL BENCH N TEMP MAXT MODE; do
+  [ "$BENCH" = ifeval ] || continue
+  MJ=$(ls $OUT/${TAG}_ifeval_*.metrics.json 2> /dev/null | head -1); [ -n "$MJ" ] || continue   # no reading: counted above
+  S=${MJ%.metrics.json}; [ -f $S.ifeval.json ] && { echo "IFEVAL_DONE_ALREADY $TAG"; continue; }
+  [ -x $VIF/bin/python ] || { echo "WAIT_INPUTS $T: venv-ifeval not built (BUILD-VENV-IFEVAL)"; exit 1; }
+  [ -f $OPD_ROOT/data/hf/google__IFEval/.fetch_ok ] || { echo "WAIT_INPUTS $T: google__IFEval not in (no .fetch_ok)"; exit 1; }
+  $VIF/bin/python -I $RUNBOOK/code/eval/ifeval_grade.py --data $OPD_ROOT/data/hf/google__IFEval/ifeval_input_data.jsonl --jsonl $S.jsonl \
+    --metrics $MJ --out $S.ifeval.json >> $OUT/ifeval.log 2>&1 && echo "IFEVAL_DONE $TAG: $(grep '^IFEVAL ' $OUT/ifeval.log | tail -1 | cut -d' ' -f3-)" \
+    || { echo "IFEVAL_FAIL $TAG (see ifeval.log)"; ok=0; }
+done <<< "$SPECS"
 # v2.5.6r (reviewer A1 06:3x UTC): "#pair EVAL-<name> <tag> <ref> [<ref> ...]" = problem-level paired bootstrap of that
 # reading against each reference (code/analysis/paired_bootstrap.py, the lab's method: per-problem accuracy, 10000
 # resamples, seed 0, 95% percentile CI, wins / losses); a ref is <task dir>/<file>.jsonl under $OPD_ROOT/runs; the result
