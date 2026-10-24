@@ -10,6 +10,7 @@
 #        v2.5.7r: E10b-P5think (the student in thinking mode too, 8K rollouts); v2.5.7v: E10b-P5self (teacher = the student's base); v2.5.7zg: E10b-P2self
 #        [v2.5.9z66]: E10b-P5-8k / E10b-P5smerge-8k (Q-059: P5 / stop-merged P5 with 8K rollouts); [v2.5.9z68]: E10e-P5self (Q-068: 8B, 4 GPUs)
 #        [v2.5.9z73]: E10b-P5bud2k / E10b-P5bud3k (Q-061: the tail swap at min(the first box, 2048 / 3072 tokens))
+#        [v2.5.9z76]: E10b-P5-dense / E10b-P5-akl (Q-065: the per-token KL over the vocabulary, reverse / AKL)
 set -euo pipefail
 source "$(dirname "$0")/env.sh"; source "$(dirname "$0")/dr.sh"; GPU=$1; TASK=$2
 # task id E10b-<arm>[-s<seed>]: the seed changes only the data order (data.seed); the default seed is 42
@@ -104,6 +105,11 @@ TAIL06=0; [ $TASK = E10c-P5tail ] && { TAIL=1; TAIL06=1; BASE=E10b-P5; MODE=fix4
 # thinking reading up to the switch, its non-thinking one after it. P5's recipe, 4K, 50 steps, s25 kept on the node, s50 uploaded.
 # Gated by PROBE-TAIL (the swap) and PROBE-TAIL-BUD (the budget: the unit tests and a 3-step smoke of bud2k with the switch positions)
 BUD=0; case $TASK in E10b-P5bud2k) TAIL=1; BUD=2048; BASE=E10b-P5;; E10b-P5bud3k) TAIL=1; BUD=3072; BASE=E10b-P5;; esac
+# [v2.5.9z76] (Q-065, pre-registered 10-22; Fable 10-24 02:0x Beijing) dense OPD: E10b-P5-dense = P5's recipe with the per-token reverse
+# KL taken over the vocabulary (the teacher's top-K from the reference pass and an even remainder; code/patches/opd_dense.py,
+# OPD_DENSE=rkl) instead of its sampled estimate; E10b-P5-akl = the same with AKL (Wu et al. 2024; OPD_DENSE=akl, head mass
+# OPD_DENSE_MU 0.5). 50 steps, no fused kernels (the loss needs the logits), s25 kept on the node, s50 uploaded. Gated by PROBE-DENSE
+DENSE=""; case $TASK in E10b-P5-dense) DENSE=rkl; BASE=E10b-P5;; E10b-P5-akl) DENSE=akl; BASE=E10b-P5;; esac
 # [v2.5.9x] (Q-041 / Q-042, the reviewer's pre-registration 10-22): E10b-P5route / E10b-P5mix = P5's recipe from the base with the
 # 8B teacher's template chosen per prompt (code/patches/opd_route.py through route_patch.py; one teacher pass per sample): route =
 # PROBE-DIFF17's pass rate r of the 1.7B base (r >= 0.5: the non-thinking template, P2's teacher; else the thinking one, P5's);
@@ -192,6 +198,9 @@ fi
 if [ $BUD -gt 0 ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then   # [v2.5.9z73] (Q-061) and the budget's own gate
   grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-TAIL-BUD/report.json 2> /dev/null || { echo "PROBE-TAIL-BUD has not passed: $TASK not started"; exit 3; }
 fi
+if [ -n "$DENSE" ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then   # [v2.5.9z76] (Q-065)
+  grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-DENSE/report.json 2> /dev/null || { echo "PROBE-DENSE has not passed: $TASK not started"; exit 3; }
+fi
 # [v2.5.9z66] (Q-059) an 8K cell starts only after its own 3-step smoke passed (the stop-merged one also needs PROBE-STOPMERGE above)
 if [ $W8K = 1 ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
   G8=PROBE-P5-8K; [ $SMERGE = 1 ] && G8=PROBE-SMERGE-8K
@@ -256,6 +265,7 @@ case $ARM in P5top10|P5rand10m) export OPD_VARIANT=P6 OPD_VARIANT_OVERRIDE=$ARM 
 [ $SMERGE = 1 ] && NSTEPS=${STOPMERGE_STEPS:-50}   # [v2.5.9l]
 [ $W8K = 1 ] && NSTEPS=${W8K_STEPS:-50}   # [v2.5.9z66]
 [ $TAIL = 1 ] && NSTEPS=${TAIL_STEPS:-50}   # [v2.5.9n]
+[ -n "$DENSE" ] && NSTEPS=${DENSE_STEPS:-50}   # [v2.5.9z76]
 [ $TAIL06 = 1 ] && NSTEPS=${TAIL06_STEPS:-20}   # [v2.5.9z70] (Q-055) 20 steps, as the polish arm
 [ -n "$ROUTE" ] && NSTEPS=${ROUTE_STEPS:-50}   # [v2.5.9x]
 [ $POLISH = 1 ] && NSTEPS=${POLISH_STEPS:-20}   # [v2.5.9u]
@@ -282,6 +292,7 @@ ENT=""; [ "$RMPAD" = False ] && ENT="actor_rollout_ref.actor.entropy_from_logits
 KERN=""; [ "${FUSED:-0}" = 1 ] && KERN="actor_rollout_ref.model.use_fused_kernels=True actor_rollout_ref.model.fused_kernel_options.impl_backend=torch"
 GCK=True; [ "${GC:-1}" = 0 ] && GCK=False
 [ $SMERGE = 1 ] && KERN=""   # [v2.5.9l] the merge needs the logits: no fused kernels
+[ -n "$DENSE" ] && KERN=""   # [v2.5.9z76] the dense loss needs the logits: no fused kernels
 # [v2.5.8m] prompts per step, rollouts per prompt and the mini-batch in prompts (verl multiplies it by n): P5 128 x 1 in one
 # mini-batch; a length-selected arm 32 x 16 with k = 4 kept, so 32 x 4 / 16 = 8 prompts' worth = the 128 kept sequences
 TBS=128; RN=1; MBS=128; unset OPD_LENSEL OPD_LENSEL_K OPD_LENSEL_LOG
@@ -290,6 +301,7 @@ if [ -n "$LENSEL" ]; then TBS=${LENSEL_PROMPTS:-32}; RN=${LENSEL_N:-16}; LK=${LE
 unset OPD_STOPMERGE OPD_STOPMERGE_LOG; [ $SMERGE = 1 ] && export OPD_STOPMERGE=1 OPD_STOPMERGE_LOG=$OUT/stopmerge.jsonl   # [v2.5.9l]
 unset OPD_TAILSWAP OPD_TAILSWAP_LOG OPD_TAILSWAP_BUDGET; [ $TAIL = 1 ] && export OPD_TAILSWAP=1 OPD_TAILSWAP_LOG=$OUT/tailswap.jsonl   # [v2.5.9n]
 [ $BUD -gt 0 ] && export OPD_TAILSWAP_BUDGET=$BUD   # [v2.5.9z73] (Q-061)
+unset OPD_DENSE; [ -n "$DENSE" ] && export OPD_DENSE=$DENSE   # [v2.5.9z76] (Q-065) OPD_DENSE_K / OPD_DENSE_MU / OPD_DENSE_CHUNK pass through
 unset OPD_ROUTE OPD_ROUTE_LABELS OPD_ROUTE_LOG OPD_ROUTE_P; [ -n "$ROUTE" ] && export OPD_ROUTE=$ROUTE OPD_ROUTE_LABELS=${ROUTE_LABELS:-$OPD_ROOT/runs/PROBE-DIFF17/labels_17.jsonl} OPD_ROUTE_LOG=$OUT/route.jsonl   # [v2.5.9x]
 [ -n "$ROUTE_P" ] && export OPD_ROUTE_P=$ROUTE_P   # [v2.5.9z38]
 unset OPD_ROUTE_INVERT; [ -n "$ROUTE_INV" ] && export OPD_ROUTE_INVERT=1   # [v2.5.9z45]
@@ -308,6 +320,7 @@ UW=$NSTEPS; [ $TASK = E10c-P5-fix4 ] && UW=100,$NSTEPS; [ -n "$XARM" ] && UW=25,
 [ "$SIZE" = 8B ] && { UW=25,$NSTEPS; SAVE=${SAVE:-25}; }   # [v2.5.9z68] (Q-068) s25 and s50 saved and uploaded
 [ $W8K = 1 ] && SAVE=${SAVE:-25}   # [v2.5.9z66] (Q-059) s25 and s50 saved; s50 uploaded (UW), s25 kept on the node
 [ $BUD -gt 0 ] && SAVE=${SAVE:-25}   # [v2.5.9z73] (Q-061) s25 and s50 saved; s50 uploaded (UW), s25 kept on the node
+[ -n "$DENSE" ] && SAVE=${SAVE:-25}   # [v2.5.9z76] (Q-065) s25 and s50 saved; s50 uploaded (UW), s25 kept on the node
 # [v2.5.9z40] (ops-lead 10-22, PROBE-T32's first run: vLLM found 127.6 of 267.7 GiB free at start-up, below 0.5 x total) the 32B arm and
 # its smoke only: the rollout's GPU memory share 0.4 (T32_VLLM_UTIL), and T32_OPT_OFFLOAD=1 (PROBE-T32's retry after an out of
 # memory) offloads the actor's optimizer (the 32B reference is offloaded already); every other arm keeps VLLM_UTIL (0.5) and no offload
@@ -323,6 +336,7 @@ ROLL_UTIL=${VLLM_UTIL:-0.5}; ACT_OPT_OFF=False
 [ "${DRYRUN:-0}" = 1 ] && [ -n "$ROUTE_INV" ] && echo "DRYRUN_ROUTE_INV OPD_ROUTE_INVERT=${OPD_ROUTE_INVERT:-}"   # [v2.5.9z45] tests
 [ "${DRYRUN:-0}" = 1 ] && [ $X5 = 1 ] && echo "DRYRUN_X5 student=$(basename $STUDENT) teacher=$(basename $TEACHER) maxresp=$MAXRESP refthink=$OPD_REF_THINK empty=${OPD_X5_EMPTY_THINK:-0} log=$(basename ${OPD_X5_LOG:-none}) save=$SAVE upload=$UW"   # [v2.5.9z46] tests
 [ "${DRYRUN:-0}" = 1 ] && [ $T32 = 1 ] && echo "DRYRUN_T32 teacher=$(echo $TEACHER | sed 's|.*/models/|models/|') offload=$TEACHER_OFFLOAD save=$SAVE upload=$UW route=${OPD_ROUTE:-none} log=$(basename ${OPD_ROUTE_LOG:-none}) util=$ROLL_UTIL optoff=$ACT_OPT_OFF"   # [v2.5.9z9] tests
+[ "${DRYRUN:-0}" = 1 ] && [ -n "$DENSE" ] && echo "DRYRUN_DENSE mode=${OPD_DENSE:-} k=${OPD_DENSE_K:-64} mu=${OPD_DENSE_MU:-0.5} kern=[$KERN] save=$SAVE upload=$UW"   # [v2.5.9z76] tests
 [ "${DRYRUN:-0}" = 1 ] && [ $BUD -gt 0 ] && echo "DRYRUN_TAILBUD budget=${OPD_TAILSWAP_BUDGET:-} save=$SAVE upload=$UW maxresp=$MAXRESP"   # [v2.5.9z73] tests
 [ "${DRYRUN:-0}" = 1 ] && [ $TAIL = 1 ] && echo "DRYRUN_TAILSWAP OPD_TAILSWAP=${OPD_TAILSWAP:-} log=$(basename ${OPD_TAILSWAP_LOG:-none})"   # [v2.5.9n] tests
 [ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $TASK arm=$ARM lr=$LR seed=$SEED student=$STUDENT batch=[$BATCH] kern=[$KERN] gc=$GCK venv=$(basename ${VENV:-$OPD_ROOT/venv}) ngpu=$NG rmpad=$RMPAD tool=$TOOL maxp=$MAXP reward=$(basename $REWARD) lensel=${LENSEL:-none}/${TBS}x${RN}/mb$MBS sthink=$STHINK maxresp=$MAXRESP teacher=$TEACHER offload=${TEACHER_OFFLOAD:-1} variant=$OPD_VARIANT override=$OPD_VARIANT_OVERRIDE refthink=$OPD_REF_THINK steps=$NSTEPS"; exit 0; }   # tests
@@ -342,7 +356,7 @@ lr: $LR
 data_seed: $SEED
 steps: $STEPS
 student: $STUDENT (no_think)
-teacher: $TEACHER (ref; think-template=$OPD_REF_THINK; param_offload=${TEACHER_OFFLOAD:-1})$([ $SMERGE = 1 ] && echo '; stop-merged after the first box (opd_stopmerge.py)')$([ $TAIL = 1 ] && echo '; tail-swapped: the non-thinking reading after the first box (opd_tailswap.py)')$([ $BUD -gt 0 ] && echo "; budget: the switch at min(the first box, $BUD tokens)")$([ $POLISH = 1 ] && echo '; polish: the 0.6B base on its thinking template, from E10c-P5-fix4 s150')$([ $T32 = 1 ] && echo '; the 32B teacher (Qwen3-32B) on its thinking template, offloaded')$([ -n "$ROUTE" ] && echo "; template per prompt: $ROUTE (opd_route.py; route: PROBE-DIFF17 r >= 0.5 -> non-thinking, else thinking; mix: a fixed p = 0.5 coin)")
+teacher: $TEACHER (ref; think-template=$OPD_REF_THINK; param_offload=${TEACHER_OFFLOAD:-1})$([ $SMERGE = 1 ] && echo '; stop-merged after the first box (opd_stopmerge.py)')$([ $TAIL = 1 ] && echo '; tail-swapped: the non-thinking reading after the first box (opd_tailswap.py)')$([ $BUD -gt 0 ] && echo "; budget: the switch at min(the first box, $BUD tokens)")$([ -n "$DENSE" ] && echo "; dense $DENSE over the teacher's top-${OPD_DENSE_K:-64} (opd_dense.py)")$([ $POLISH = 1 ] && echo '; polish: the 0.6B base on its thinking template, from E10c-P5-fix4 s150')$([ $T32 = 1 ] && echo '; the 32B teacher (Qwen3-32B) on its thinking template, offloaded')$([ -n "$ROUTE" ] && echo "; template per prompt: $ROUTE (opd_route.py; route: PROBE-DIFF17 r >= 0.5 -> non-thinking, else thinking; mix: a fixed p = 0.5 coin)")
 student_template: $([ $STHINK = 1 ] && echo "thinking (the teacher prompt uses the same template)" || echo non-thinking), max_response_length $MAXRESP
 attention: $ATTN (use_remove_padding=$RMPAD)
 batching: ${MODE:-default} [$BATCH]
@@ -362,6 +376,7 @@ CFG
   UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-$UW} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OUT > $OUT/upload.log 2>&1 < /dev/null &
 python $RUNBOOK/code/patches/metrics_patch.py || { echo "METRICS_PATCH_FAILED $TASK"; exit 1; }   # [v2.5.9z78] ragged per-rank metric lists (multi-GPU arms); idempotent, every arm
 if [ -n "$LENSEL" ]; then python $RUNBOOK/code/patches/lensel_patch.py || { echo "LENSEL_PATCH_FAILED $TASK"; exit 1; }; fi   # [v2.5.8m] idempotent
+if [ -n "$DENSE" ]; then python $RUNBOOK/code/patches/dense_patch.py || { echo "DENSE_PATCH_FAILED $TASK"; exit 1; }; fi   # [v2.5.9z76] idempotent
 if [ $SMERGE = 1 ]; then python $RUNBOOK/code/patches/stopmerge_patch.py || { echo "STOPMERGE_PATCH_FAILED $TASK"; exit 1; }; fi   # [v2.5.9l] idempotent
 if [ $TAIL = 1 ]; then python $RUNBOOK/code/patches/tailswap_patch.py || { echo "TAILSWAP_PATCH_FAILED $TASK"; exit 1; }; fi   # [v2.5.9n] idempotent
 if [ -n "$ROUTE" ] || [ "${OPD_ROUTE:-}" = count ]; then python $RUNBOOK/code/patches/route_patch.py || { echo "ROUTE_PATCH_FAILED $TASK"; exit 1; }; fi   # [v2.5.9x] idempotent; [v2.5.9z9] PROBE-T32's count

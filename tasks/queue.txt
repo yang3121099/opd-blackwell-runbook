@@ -143,6 +143,10 @@ b259z68  open   E10e-P5self:PROBE-8B EVAL-e10e-P5self:E10e-P5self+EVAL-8B-base+E
 # [v2.5.9z73] (Q-061; Fable 10-24 02:0x Beijing) budget-position routing: the gate (the unit tests and bud2k's 3-step smoke), then the two arms, their readings
 b259z73p open   PROBE-TAIL-BUD
 b259z73  open   E10b-P5bud2k:PROBE-TAIL-BUD+PROBE-TAIL E10b-P5bud3k:PROBE-TAIL-BUD+PROBE-TAIL EVAL-bud2k:E10b-P5bud2k EVAL-ext32k-17bud2k:E10b-P5bud2k EVAL-bud3k:E10b-P5bud3k+EVAL-bud2k EVAL-ext32k-17bud3k:E10b-P5bud3k+EVAL-ext32k-17bud2k
+# [v2.5.9z76] (Q-065; Fable 10-24 02:0x Beijing) dense OPD: the gate (unit tests, the patch, P5 / dense 3-step smokes), then the two arms, their readings
+b259z76p open   PROBE-DENSE
+b259z76  open   E10b-P5-dense:PROBE-DENSE EVAL-dense:E10b-P5-dense EVAL-ext32k-17dense:E10b-P5-dense
+# [held until the literature reader confirms AKL's head definition in the inbox (Fable's A1 10-24 08:2x Beijing; the dense arm does not wait); restored by a queue push] b259z76a open   E10b-P5-akl:PROBE-DENSE EVAL-akl:E10b-P5-akl+EVAL-dense EVAL-ext32k-17akl:E10b-P5-akl+EVAL-ext32k-17dense
 b259z41o open   EVAL-ood32k-17base EVAL-ood32k-4Bbase EVAL-ood32k-17p5self:EVAL-ood32k-17base EVAL-ood32k-17p5l8k:EVAL-ood32k-17base EVAL-ood32k-4Bp5:EVAL-ood32k-4Bbase EVAL-ood32k-4Bp5self:EVAL-ood32k-4Bbase EVAL-ood32k-4Bx4:EVAL-ood32k-4Bbase
 diff4b   open   PROBE-DIFF17-4B:PROBE-DIFF17
 b259q028 open   EVAL-ext32k-17p5l8k-s25
@@ -2683,3 +2687,44 @@ b259z24  open   TOKCHECK-X5
 #pair EVAL-ext32k-17bud3k ext32k17_P5bud3k_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17tail/ext32k17_P5tail_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17bud2k/ext32k17_P5bud2k_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
 # [held until E10b-P5bud3k has s50] term PROBE-TERM4 17_P5bud3k result:runs/E10b-P5bud3k/global_step_50/actor/huggingface EVAL-bud3k/e10b_P5bud3k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 # [held until E10b-P5bud3k has s50; restored together with the term row above] after EVAL-bud3k rerun PROBE-TERM4
+
+# [v2.5.9z76] (Q-065; pre-registered 10-22, Fable 10-24 02:0x Beijing) E10b-P5-dense (the per-token reverse KL over the vocabulary) and
+# E10b-P5-akl (AKL), P5's recipe, 50 steps, gated by PROBE-DENSE. Readings at s50: MATH500 16K T0.6 / T1.0 paired against P5 s150 (akl
+# against dense too); MATH500 32K with the budget curves against the base and P5 s50; STRICT-C1 against P5 s50; AIME24/25 avg@16 32K
+# paired against P5 s150 (akl against dense too); TERM4 rows 17_P5dense / 17_P5akl held until s50 (H2: akl's p_stop_last > 0.30).
+# [Fable's A1 10-24 08:2x Beijing] H1's "ceiling = P5" is judged against P5 s150's 32K (EVAL-budA17b): a #pair and a budget curve against it for each arm; E10b-P5-akl waits (stage b259z76a, held) for the literature reader's check of AKL's head definition.
+#eval EVAL-dense e10b_P5dense_s50_math500_T0.6 result:runs/E10b-P5-dense/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-dense e10b_P5dense_s50_math500_T1.0 result:runs/E10b-P5-dense/global_step_50/actor/huggingface math500 4 1.0
+#eval EVAL-dense budAP5dense_s50_math500_T0.6_32k result:runs/E10b-P5-dense/global_step_50/actor/huggingface math500 4 0.6 32768
+#pair EVAL-dense e10b_P5dense_s50_math500_T0.6 E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl
+#pair EVAL-dense e10b_P5dense_s50_math500_T1.0 E11b-P5/e11b_P5_math500_T1.0_math500_no_think_t1.0.jsonl
+#budget EVAL-dense budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5dense_s50_math500_T0.6_32k
+#budget EVAL-dense budget_curve_vsP5s50 EVAL-budA-top10c/budAtop10_E10P5_17B_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5dense_s50_math500_T0.6_32k
+#pair EVAL-dense budAP5dense_s50_math500_T0.6_32k EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#budget EVAL-dense budget_curve_vsP5s150 EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5dense_s50_math500_T0.6_32k
+#strict STRICT-C1 EVAL-dense/budAP5dense_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-top10c/budAtop10_E10P5_17B_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#after EVAL-dense rerun STRICT-C1
+#eval EVAL-ext32k-17dense ext32k17_P5dense_s50_aime24_T0.6 result:runs/E10b-P5-dense/global_step_50/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-17dense ext32k17_P5dense_s50_aime25_T0.6 result:runs/E10b-P5-dense/global_step_50/actor/huggingface aime25 16 0.6 32768
+#pair EVAL-ext32k-17dense ext32k17_P5dense_s50_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#pair EVAL-ext32k-17dense ext32k17_P5dense_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl
+# [held until E10b-P5-dense has s50] term PROBE-TERM4 17_P5dense result:runs/E10b-P5-dense/global_step_50/actor/huggingface EVAL-dense/e10b_P5dense_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+# [held until E10b-P5-dense has s50; restored together with the term row above] after EVAL-dense rerun PROBE-TERM4
+#eval EVAL-akl e10b_P5akl_s50_math500_T0.6 result:runs/E10b-P5-akl/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-akl e10b_P5akl_s50_math500_T1.0 result:runs/E10b-P5-akl/global_step_50/actor/huggingface math500 4 1.0
+#eval EVAL-akl budAP5akl_s50_math500_T0.6_32k result:runs/E10b-P5-akl/global_step_50/actor/huggingface math500 4 0.6 32768
+#pair EVAL-akl e10b_P5akl_s50_math500_T0.6 E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-dense/e10b_P5dense_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#pair EVAL-akl e10b_P5akl_s50_math500_T1.0 E11b-P5/e11b_P5_math500_T1.0_math500_no_think_t1.0.jsonl EVAL-dense/e10b_P5dense_s50_math500_T1.0_math500_no_think_t1.0.jsonl
+#budget EVAL-akl budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5akl_s50_math500_T0.6_32k
+#budget EVAL-akl budget_curve_vsP5s50 EVAL-budA-top10c/budAtop10_E10P5_17B_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5akl_s50_math500_T0.6_32k
+#pair EVAL-akl budAP5akl_s50_math500_T0.6_32k EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#budget EVAL-akl budget_curve_vsP5s150 EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5akl_s50_math500_T0.6_32k
+#budget EVAL-akl budget_curve_vsDense EVAL-dense/budAP5dense_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5akl_s50_math500_T0.6_32k
+#strict STRICT-C1 EVAL-akl/budAP5akl_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-top10c/budAtop10_E10P5_17B_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#after EVAL-akl rerun STRICT-C1
+#eval EVAL-ext32k-17akl ext32k17_P5akl_s50_aime24_T0.6 result:runs/E10b-P5-akl/global_step_50/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-17akl ext32k17_P5akl_s50_aime25_T0.6 result:runs/E10b-P5-akl/global_step_50/actor/huggingface aime25 16 0.6 32768
+#pair EVAL-ext32k-17akl ext32k17_P5akl_s50_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17dense/ext32k17_P5dense_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#pair EVAL-ext32k-17akl ext32k17_P5akl_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17dense/ext32k17_P5dense_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
+# [held until E10b-P5-akl has s50] term PROBE-TERM4 17_P5akl result:runs/E10b-P5-akl/global_step_50/actor/huggingface EVAL-akl/e10b_P5akl_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+# [held until E10b-P5-akl has s50; restored together with the term row above] after EVAL-akl rerun PROBE-TERM4

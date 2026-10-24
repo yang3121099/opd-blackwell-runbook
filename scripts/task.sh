@@ -23,6 +23,7 @@ case $T in
   E16-X5|E16-X5e) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z46] (Q-057) a student without a thinking mode (Qwen2.5-Math-1.5B-Instruct <- R1-Distill-1.5B)
   E10b-P5-8k|E10b-P5smerge-8k) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z66] (Q-059) P5 / stop-merged P5 with 8K rollouts
   E10b-P5bud2k|E10b-P5bud3k) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z73] (Q-061) the tail swap at min(the first box, N)
+  E10b-P5-dense|E10b-P5-akl) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z76] (Q-065) the per-token KL over the vocabulary
   E10e-P5self) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z68] (Q-068) the 8B student taught by itself, four GPUs (#gpus 4)
   PROBE-8B) bash $RUNBOOK/scripts/probe_8b.sh $G;;   # [v2.5.9z68] (Q-068): the gate of E10e-P5self, a 4-GPU 3-step smoke
   E10b-*)  [[ $T =~ ^E10b-(($ARMS)(-s(43|44))?|(P2|P5)-t14|P5think|P5self|P5self-s43|P2self|P5len[SLR]|P5stopmerge|P5tail|P5route|P5mix|P5mix75|P5mix90)$ ]] || exit 2; bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # v2.5.7p: -t14; v2.5.7r: P5think; v2.5.7v: P5self; [v2.5.8e] P5self-s43
@@ -87,6 +88,7 @@ case $T in
   PROBE-DIFF17-4B) bash $RUNBOOK/scripts/probe_diff17.sh $G 4b;;   # [v2.5.9x] the k_4b column (Q-050), a pad
   PROBE-DIFFPROBE) bash $RUNBOOK/scripts/probe_diffprobe.sh $G;;   # [v2.5.9z74] (Q-062) the difficulty probe on the 1.7B base's hidden states
   PROBE-PSTAR) bash $RUNBOOK/scripts/probe_pstar.sh $G;;   # [v2.5.9z75] (Q-064) p* from the 8B teacher's sequence log-probs
+  PROBE-DENSE) bash $RUNBOOK/scripts/probe_dense.sh $G;;   # [v2.5.9z76] (Q-065) the dense arms' gate
   PROBE-ROUTE) bash $RUNBOOK/scripts/probe_route.sh $G;;   # [v2.5.9x] the gate of E10b-P5route / -P5mix
   PROBE-ROUTE-INV) PRT_TASK=PROBE-ROUTE-INV PRT_ARM=E10b-P5route-inv PRT_INVERT=1 bash $RUNBOOK/scripts/probe_route.sh $G;;   # [v2.5.9z45] (Q-063) the gate of E10b-P5route-inv: PROBE-ROUTE's checks, the rule reversed
   PROBE-X5) bash $RUNBOOK/scripts/probe_x5.sh $G;;   # [v2.5.9z46] (Q-057) the gate of E16-X5: unit tests, the teacher's completions, its stop probability under two prefixes, a 3-step smoke

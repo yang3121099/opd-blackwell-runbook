@@ -267,6 +267,9 @@ def test_run_accepts_v259z73(env):   # [v2.5.9z73] (Q-061) the budget arms and t
     assert st == "accepted", msg
     st, msg, _ = env.c.v_run(["PROBE-PSTAR"], 86)   # [v2.5.9z75] (Q-064)
     assert st == "accepted", msg
+    for i, t in enumerate(("E10b-P5-dense", "E10b-P5-akl", "PROBE-DENSE")):   # [v2.5.9z76] (Q-065)
+        st, msg, _ = env.c.v_run([t], 87 + i)
+        assert st == "accepted", (t, msg)
     for i, t in enumerate(("E10b-P5bud4k", "PROBE-TAIL-BUD2", "PROBE-DIFFPROBE2")):
         assert env.c.v_run([t], 90 + i)[0] == "rejected", t
 
