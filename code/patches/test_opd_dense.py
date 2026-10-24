@@ -27,7 +27,7 @@ def brute(z, q, mu_):
     out = []
     for i in range(len(q)):
         order = np.argsort(-q[i], kind="stable"); cum = np.cumsum(q[i][order])
-        head = order[: int(np.searchsorted(cum, mu_) + 1)]
+        head = order[: max(1, int(np.searchsorted(cum, mu_, side="right")))]   # [v2.5.9z76b] the official code: cum <= mu, and the first
         m = np.zeros(len(q[i]), bool); m[head] = True
         gh, gt = np.abs(q[i] - p[i])[m].sum(), np.abs(q[i] - p[i])[~m].sum()
         out.append(gh / (gh + gt))
@@ -89,3 +89,30 @@ def test_torch_matches_numpy_and_grad():
     assert torch.allclose(l.exp().sum(-1), torch.softmax(torch.tensor(z), -1).topk(6).values.sum(-1).float(), atol=1e-6)
     loss, st = D.dense_loss_rows(torch.tensor(z, dtype=torch.float32, requires_grad=True), torch.tensor(ids), torch.tensor(tlp, dtype=torch.float32), "akl", chunk=2, mu_=0.5)
     assert loss.shape == (5,) and np.allclose(loss.detach().numpy(), dn["akl"], atol=1e-4) and set(st) == {"rkl", "fkl", "w_head", "mass_topk"}
+
+
+def test_akl_head_official_boundary():   # [v2.5.9z76b] (the literature reader's example) [0.3, 0.3, 0.2, 0.2]: official {1}, paper {1, 2}
+    B = D.backend(np.zeros(1))
+    h = D.akl_head(np.cumsum(np.array([[0.3, 0.3, 0.2, 0.2]]), -1), 0.5, B)
+    assert h.tolist() == [[True, False, False, False]]
+    assert D.akl_head(np.cumsum(np.array([[0.7, 0.2, 0.1]]), -1), 0.5, B).tolist() == [[True, False, False]]       # top-1 > mu: the same in both
+    assert D.akl_head(np.cumsum(np.array([[0.2, 0.2, 0.1, 0.5]]), -1), 0.5, B).tolist() == [[True, True, True, False]]  # exactly mu stays in the head
+    try:
+        import torch
+    except ImportError:   # the Mac has no torch; PROBE-DENSE runs this on the node
+        return
+    t = D.akl_head(torch.cumsum(torch.tensor([[0.3, 0.3, 0.2, 0.2]], dtype=torch.float64), -1), 0.5, D.backend(torch.zeros(1)))
+    assert t.tolist() == [[True, False, False, False]]
+
+
+def test_dense_terms_boundary_case():   # [v2.5.9z76b] top-1 < mu: the weight follows the official head ({1}), not the paper's ({1, 2})
+    V, K = 10, 4
+    z = np.random.RandomState(7).randn(1, V)
+    top = np.array([[0.3, 0.3, 0.2, 0.15]]); ids = np.array([[0, 1, 2, 3]])
+    q = np.full((1, V), (1 - top.sum()) / (V - K)); q[0, :K] = top[0]
+    d = D.dense_terms(z, ids, np.log(top), 0.5)
+    rkl, fkl, w, akl = brute(z, q, 0.5)
+    assert np.allclose(d["w_head"], w, atol=1e-9) and np.allclose(d["akl"], akl, atol=1e-9)
+    lp = z - np.log(np.exp(z).sum(-1, keepdims=True)); p = np.exp(lp)
+    gap = np.abs(q - p)[0]; paper = gap[:2].sum() / gap.sum()
+    assert abs(float(d["w_head"][0]) - paper) > 1e-3                              # the paper's head would weigh differently

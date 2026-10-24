@@ -113,6 +113,14 @@ def backend(x):
     return _NP() if type(x).__module__.startswith("numpy") else _TORCH()
 
 
+def akl_head(cum, mu_, B):
+    """[v2.5.9z76b] (Fable 10-24 19:5x Beijing: comparable with Wu et al.'s own numbers) AKL's head as the official AKL.py
+    (`mask = cum_sum > mu; mask[..., 0] = False` is the tail): the tokens of the descending top-K whose cumulative teacher mass is
+    <= mu, and always the first one. The token crossing mu is in the tail (the paper's text puts it in the head)."""
+    first = B.cumsum(cum * 0 + 1) == 1
+    return (cum <= mu_) | first
+
+
 def dense_terms(z, t_ids, t_lp, mu_=DEFAULT_MU, eps=1e-8):
     """z (N, V) student logits (already / temperature, float32), t_ids (N, K) the teacher's top-K ids (descending), t_lp (N, K)
     their log-probs. -> dict of (N,) tensors: rkl, fkl, akl, w_head (AKL's FKL weight), mass_topk."""
@@ -130,9 +138,9 @@ def dense_terms(z, t_ids, t_lp, mu_=DEFAULT_MU, eps=1e-8):
     negent = (p * lp).sum(-1)
     rkl = negent - (pI * t_lp).sum(-1) - (1.0 - PI) * lq_rest
     fkl = (qI * (t_lp - lpI)).sum(-1) + r * lq_rest - (r / max(V - K, 1)) * (lp.sum(-1) - lpI.sum(-1))
-    # AKL: the head = the shortest prefix of the (descending) top-K with cumulative mass >= mu (always at least one token)
+    # AKL: the head as the official code ([v2.5.9z76b]; was the paper's text: the shortest prefix with cumulative mass >= mu)
     cum = B.cumsum(qI)
-    head = (cum - qI) < mu_                                        # a token is in the head when the mass before it is < mu
+    head = akl_head(cum, mu_, B)
     gapI = B.abs(qI - pI)
     g_head = (gapI * head).sum(-1)
     q_rest = B.exp(lq_rest)
