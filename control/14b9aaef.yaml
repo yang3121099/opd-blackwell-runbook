@@ -529,3 +529,4 @@ commands:
   - {"seq": 527, "cmd": "update", "reason": "pull z81 6356581 + queue cc47545 (ops-lead A1 05:33 UTC)", "utc": "2026-10-24T05:50:01Z"}
   - {"seq": 528, "cmd": "setenv GPUS_SOON_MIN=1440", "reason": "collect 4 GPUs for E10e-P5self's rerun (ops-lead A1 05:33 UTC)", "utc": "2026-10-24T05:50:25Z"}
   - {"seq": 529, "cmd": "setenv GPUS_HOLD_MIN=600", "reason": "collect 4 GPUs for E10e-P5self's rerun (ops-lead A1 05:33 UTC)", "utc": "2026-10-24T05:50:31Z"}
+  - {"seq": 530, "cmd": "rerun E10e-P5self", "reason": "z81 fixes the rank-metric-key assert; resumes from s25 (ops-lead A1 05:33 UTC)", "utc": "2026-10-24T05:50:36Z"}
