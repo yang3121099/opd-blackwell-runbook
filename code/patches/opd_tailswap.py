@@ -6,6 +6,10 @@ not with the answer's own end), so the student learns to keep writing after the 
 first box the teacher's log-probs are P5's (thinking reading); after it they come from a second reference pass of the same
 8B on the non-thinking template (the student's own template: P2's reading), which ends an answer the way an answer ends.
 Rows without a complete box keep P5's reading everywhere.
+[v2.5.9z73] (Q-061, budget-position routing) OPD_TAILSWAP_BUDGET=N: the switch at min(the first box, N): the first N response
+tokens keep P5's reading unless a box closes earlier, so a row without a box (or with a late one) longer than N is read
+non-thinking from token N on. Logged too: the rows switched by a box / by the budget, the switch positions (p10 / p50 / p90 /
+max of each switched row's first swapped index) and the rows whose first swap lies beyond N (budget_late, 0 by construction).
 
 Hooked into verl's RayPPOTrainer.fit right after the reference log-probs of the re-tokenized teacher prompt
 (tailswap_patch.py); a no-op unless OPD_TAILSWAP=1. The second pass re-uses prepare_ref_model_inputs with OPD_REF_THINK=0
@@ -22,13 +26,33 @@ def active():
     return os.environ.get("OPD_TAILSWAP") == "1"
 
 
-def swap(lp_think, lp_plain, box_end, valid, xp):
+def budget():
+    """[v2.5.9z73] OPD_TAILSWAP_BUDGET (tokens; 0 or unset: the switch at the box only)."""
+    try:
+        return max(0, int(os.environ.get("OPD_TAILSWAP_BUDGET", "0") or 0))
+    except ValueError:
+        return 0
+
+
+def _q(xs, q):
+    xs = sorted(xs)
+    return xs[min(len(xs) - 1, int(q * (len(xs) - 1) + 0.5))] if xs else -1
+
+
+def swap(lp_think, lp_plain, box_end, valid, xp, budget=0):
     """(merged, stats). (B, L) log-probs of the two readings, box_end (B,) (-1: no box), valid (B, L) the response mask;
-    xp = numpy or torch. Positions after the box (index > box_end >= 0) and valid take the non-thinking reading."""
+    xp = numpy or torch. Positions after the box (index > box_end >= 0) and valid take the non-thinking reading; [v2.5.9z73]
+    with budget N > 0 after min(box_end, N - 1) (index N - 1 is the last one read thinking)."""
     B, L = lp_think.shape
     pos = xp.arange(L).reshape(1, L)
     be = box_end.reshape(B, 1)
-    m = (pos > be) & (be >= 0) & (valid > 0)
+    if budget > 0:   # [v2.5.9z73] the switch point: the box when it closes before the budget, else the budget
+        cap = be * 0 + (budget - 1)
+        by_box = (be >= 0) & (be < budget - 1)
+        sw = xp.where(by_box, be, cap)
+    else:
+        by_box, sw = be >= 0, be
+    m = (pos > sw) & (sw >= 0) & (valid > 0)
     out = xp.where(m, lp_plain, lp_think)
     v = valid > 0
     n = int(m.sum())
@@ -37,7 +61,18 @@ def swap(lp_think, lp_plain, box_end, valid, xp):
              "swapped_frac": round(n / max(int(v.sum()), 1), 6),
              "delta_mean": float((lp_plain - lp_think)[m].mean()) if n else 0.0,
              "lp_think_finite": int(fin(lp_think)), "lp_plain_finite": int(fin(lp_plain)),
-             "violations": int((m & ~((pos > be) & (be >= 0))).sum())}
+             "violations": int((m & ~((pos > sw) & (sw >= 0))).sum())}
+    if budget > 0:   # [v2.5.9z73] who switched where
+        rows_sw = m.sum(1) > 0
+        far = (m * (L - pos)).max(1)
+        first = [L - int(x) for x in (far if xp.__name__ == "numpy" else far.values).tolist()]
+        hit = [f for f, r in zip(first, rows_sw.reshape(B).tolist()) if r]
+        bb = by_box.reshape(B).tolist()
+        stats.update({"budget": int(budget), "rows_switched": len(hit),
+                      "rows_by_box": sum(1 for r, b in zip(rows_sw.reshape(B).tolist(), bb) if r and b),
+                      "rows_by_budget": sum(1 for r, b in zip(rows_sw.reshape(B).tolist(), bb) if r and not b),
+                      "switch_p10": _q(hit, 0.1), "switch_p50": _q(hit, 0.5), "switch_p90": _q(hit, 0.9), "switch_max": max(hit) if hit else -1,
+                      "budget_late": sum(1 for f in hit if f > budget)})
     return out, stats
 
 
@@ -59,7 +94,7 @@ def second_pass(trainer, batch, apply_chat_template_kwargs):
     lp_plain = wg.compute_ref_log_prob(batch).batch["ref_log_prob"].to(lp_think.device, lp_think.dtype)
     for k, t in keep.items():   # P5's reference inputs back (nothing later reads them, but the batch stays as P5 leaves it)
         batch.batch[k] = t
-    merged, stats = swap(lp_think, lp_plain, box, valid, torch)
+    merged, stats = swap(lp_think, lp_plain, box, valid, torch, budget=budget())   # [v2.5.9z73] 0 unless OPD_TAILSWAP_BUDGET
     batch.batch["ref_log_prob"] = merged   # assigned, not union-ed (union asserts equal values on a shared key)
     p = os.environ.get("OPD_TAILSWAP_LOG")
     if p:

@@ -259,6 +259,14 @@ def test_run_accepts_v258a(env):   # [v2.5.8a] E12b-P5self, the 0.6B ladder E12c
         assert env.c.v_run([t], 40 + i)[0] == "rejected", t
 
 
+def test_run_accepts_v259z73(env):   # [v2.5.9z73] (Q-061) the budget arms and their gate
+    for i, t in enumerate(("E10b-P5bud2k", "E10b-P5bud3k", "PROBE-TAIL-BUD")):
+        st, msg, _ = env.c.v_run([t], 80 + i)
+        assert st == "accepted", (t, msg)
+    for i, t in enumerate(("E10b-P5bud4k", "PROBE-TAIL-BUD2")):
+        assert env.c.v_run([t], 90 + i)[0] == "rejected", t
+
+
 def test_run_e12_fixed_micro_branch():
     """v2.5.4a: run_e12.sh's batching lines read the same FIXED_MICRO_BSZ as run_arm.sh."""
     src = open(os.path.join(HERE, "run_e12.sh")).read()

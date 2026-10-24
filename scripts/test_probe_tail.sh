@@ -15,9 +15,9 @@ setup() {
   cat > $T/rb/scripts/run_arm.sh <<'S2'
 echo "run_arm $* SMOKE=$SMOKE STEPS=$SMOKE_STEPS PROBE_TASK=$PROBE_TASK" >> $CALLS
 d=$OPD_ROOT/runs/$PROBE_TASK; mkdir -p $d
-printf "task: $2\nteacher: Qwen/Qwen3-8B (ref; think-template=1; param_offload=1)${FAKE_CFG-; tail-swapped: the non-thinking reading after the first box (opd_tailswap.py)}\n" > $d/config.yaml
+printf "task: $2\nteacher: Qwen/Qwen3-8B (ref; think-template=1; param_offload=1)${FAKE_CFG-; tail-swapped: the non-thinking reading after the first box (opd_tailswap.py)}${FAKE_CFG2:-}\n" > $d/config.yaml
 for i in $(seq ${FAKE_LOGSTEPS:-$SMOKE_STEPS}); do
-  echo "(TaskRunner pid=1) step:$i - critic/score/mean:${FAKE_SCORE:-0.55} - tail/rows:128.0 - tail/rows_box:${FAKE_BOX:-80.0} - tail/swapped:${FAKE_SW:-9000.0} - tail/swapped_frac:0.02 - tail/delta_mean:1.5 - tail/lp_think_finite:1.0 - tail/lp_plain_finite:${FAKE_FIN:-1.0} - tail/violations:${FAKE_VIOL:-0.0} - timing_s/step:400" >> $d/train.log
+  echo "(TaskRunner pid=1) step:$i - critic/score/mean:${FAKE_SCORE:-0.55} - tail/rows:128.0 - tail/rows_box:${FAKE_BOX:-80.0} - tail/swapped:${FAKE_SW:-9000.0} - tail/swapped_frac:0.02 - tail/delta_mean:1.5 - tail/lp_think_finite:1.0 - tail/lp_plain_finite:${FAKE_FIN:-1.0} - tail/violations:${FAKE_VIOL:-0.0}${FAKE_BUDM:+ - $FAKE_BUDM} - timing_s/step:400" >> $d/train.log
   echo '{"rows": 128, "swapped": 9000}' >> $d/tailswap.jsonl
 done
 [ "${FAKE_NOHOOK:-0}" = 1 ] || echo "$HOOKMARK" >> $FAKE_RT
@@ -46,4 +46,19 @@ setup; FAKE_NOHOOK=1 bash $T/rb/scripts/probe_tail.sh 3 > /dev/null 2>&1; check 
 setup; FAKE_LOGSTEPS=2 bash $T/rb/scripts/probe_tail.sh 3 > /dev/null 2>&1; check "a missing step is FAIL" "expected 1..3"; cd $SRC; rm -rf $T
 setup; FAKE_CFG="" bash $T/rb/scripts/probe_tail.sh 3 > /dev/null 2>&1; check "a config without the swap is FAIL" "does not name the tail swap"; cd $SRC; rm -rf $T
 setup; FAKE_OOM=1 bash $T/rb/scripts/probe_tail.sh 3 > /dev/null 2>&1; check "OOM is FAIL" "smoke exited"; cd $SRC; rm -rf $T
+# [v2.5.9z73] (Q-061) PROBE-TAIL-BUD: the same probe on E10b-P5bud2k with the budget's checks
+BCFG="; budget: the switch at min(the first box, 2048 tokens)"
+BM="tail/budget:2048.0 - tail/rows_switched:90.0 - tail/rows_by_box:70.0 - tail/rows_by_budget:20.0 - tail/switch_p10:300.0 - tail/switch_p50:1200.0 - tail/switch_p90:2048.0 - tail/switch_max:2048.0 - tail/budget_late:0.0"
+resb() { python3 -c "import json, sys; v = json.load(open(sys.argv[1])); print(eval(sys.argv[2]))" $T/root/runs/PROBE-TAIL-BUD/report.json "$1"; }
+bud() { PTL_PROBE=PROBE-TAIL-BUD PTL_ARM=E10b-P5bud2k PTL_BUD=2048 FAKE_CFG2="$BCFG" bash $T/rb/scripts/probe_tail.sh 3 > /dev/null 2>&1; }
+checkb() { ok "$1" '[ "$(resb "v[\"result\"]")" = FAIL ] && [[ "$(resb "v[\"reason\"]")" == *"'"$2"'"* ]]'; }
+setup; FAKE_BUDM="$BM" bud
+ok "[z73] PROBE-TAIL-BUD PASS: the smoke of E10b-P5bud2k, its own report and event; the switch summary" '[ "$(resb "v[\"result\"]")" = PASS ] && [ -f $T/root/runs/PROBE-TAIL-BUD/.done ] && [ ! -f $T/root/runs/PROBE-TAIL/.done ] && grep -q "^run_arm 3 E10b-P5bud2k SMOKE=1 STEPS=3 PROBE_TASK=PROBE-TAIL-BUD-smoke$" $CALLS && grep -q "^control event PROBE-TAIL-BUD probe_tail_pass" $CALLS && [ "$(resb "(v[\"checks\"][\"budget\"][\"rows_by_box\"], v[\"checks\"][\"budget\"][\"rows_by_budget\"])")" = "(210.0, 60.0)" ]'
+cd $SRC; rm -rf $T
+setup; FAKE_BUDM="${BM/rows_by_budget:20.0/rows_by_budget:0.0}" bud; checkb "[z73] the budget never binding is FAIL" "budget never bound"; cd $SRC; rm -rf $T
+setup; FAKE_BUDM="${BM/budget_late:0.0/budget_late:3.0}" bud; checkb "[z73] a first swap beyond the budget is FAIL" "first swapped beyond the budget"; cd $SRC; rm -rf $T
+setup; FAKE_BUDM="${BM/switch_max:2048.0/switch_max:2050.0}" bud; checkb "[z73] a switch position beyond the budget is FAIL" "a switch position beyond 2048"; cd $SRC; rm -rf $T
+setup; FAKE_BUDM="${BM/rows_switched:90.0/rows_switched:91.0}" bud; checkb "[z73] switched rows not by box + by budget is FAIL" "switched rows 91.0"; cd $SRC; rm -rf $T
+setup; FAKE_BUDM="${BM/budget:2048.0/budget:3072.0}" bud; checkb "[z73] the wrong budget is FAIL" "expected 2048"; cd $SRC; rm -rf $T
+setup; FAKE_BUDM="$BM"; PTL_PROBE=PROBE-TAIL-BUD PTL_ARM=E10b-P5bud2k PTL_BUD=2048 bash $T/rb/scripts/probe_tail.sh 3 > /dev/null 2>&1; checkb "[z73] a config without the budget is FAIL" "does not name the budget 2048"; cd $SRC; rm -rf $T
 [ $fails = 0 ] && echo "PROBE_TAIL_TEST PASS ($n checks)" || echo "PROBE_TAIL_TEST FAIL ($fails of $n)"

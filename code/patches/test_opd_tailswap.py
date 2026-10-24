@@ -105,3 +105,53 @@ def test_second_pass_with_stand_ins():
     assert b.batch["ref_log_prob"][0].tolist() == [-2.0, -2.0, -2.0, -2.0, -0.25]   # the box closes at token 3
     assert b.batch["ref_log_prob"][1].tolist() == [-2.0] * 5 and b.batch["ref_input_ids"].eq(3).all()   # P5's inputs back
     assert m["tail/rows_box"] == 1.0 and m["tail/swapped"] == 1.0 and m["tail/violations"] == 0.0
+
+
+def _bud_case(xp):   # [v2.5.9z73] (Q-061) six positions; rows: box at 1, no box, box at 4 (after the budget), padding
+    th = xp.asarray([[-1.0] * 6, [-2.0] * 6, [-3.0] * 6, [-4.0] * 6])
+    pl = xp.asarray([[-0.5] * 6, [-0.7] * 6, [-0.9] * 6, [-0.1] * 6])
+    box = xp.asarray([1, -1, 4, -1])
+    valid = xp.asarray([[1] * 6, [1] * 6, [1] * 6, [1, 1, 1, 0, 0, 0]])
+    return th, pl, box, valid
+
+
+def test_budget_switch_numpy():   # budget 3: tokens 0..2 thinking unless the box closes earlier
+    th, pl, box, valid = _bud_case(np)
+    out, st = S.swap(th, pl, box, valid, np, budget=3)
+    assert out[0].tolist() == [-1.0, -1.0, -0.5, -0.5, -0.5, -0.5]     # the box (1) before the budget: as the tail swap
+    assert out[1].tolist() == [-2.0, -2.0, -2.0, -0.7, -0.7, -0.7]     # no box: from the budget on
+    assert out[2].tolist() == [-3.0, -3.0, -3.0, -0.9, -0.9, -0.9]     # a box after the budget: the budget wins
+    assert out[3].tolist() == [-4.0] * 6                                 # three valid tokens, no box: nothing to switch
+    assert (st["budget"], st["rows_switched"], st["rows_by_box"], st["rows_by_budget"], st["budget_late"], st["violations"]) == (3, 3, 1, 2, 0, 0)
+    assert (st["switch_p10"], st["switch_p50"], st["switch_p90"], st["switch_max"]) == (2, 3, 3, 3)
+    assert st["swapped"] == 4 + 3 + 3
+
+
+def test_budget_zero_is_the_tail_swap():
+    th, pl, box, valid = _bud_case(np)
+    a, sa = S.swap(th, pl, box, valid, np)
+    b, sb = S.swap(th, pl, box, valid, np, budget=0)
+    assert a.tolist() == b.tolist() and sa == sb and "budget" not in sa
+    assert a[1].tolist() == [-2.0] * 6 and a[2].tolist() == [-3.0] * 5 + [-0.9]
+
+
+def test_budget_from_the_environment():
+    old = os.environ.get("OPD_TAILSWAP_BUDGET")
+    try:
+        os.environ["OPD_TAILSWAP_BUDGET"] = "2048"; assert S.budget() == 2048
+        os.environ["OPD_TAILSWAP_BUDGET"] = "x"; assert S.budget() == 0
+        os.environ.pop("OPD_TAILSWAP_BUDGET"); assert S.budget() == 0
+    finally:
+        os.environ.pop("OPD_TAILSWAP_BUDGET", None) if old is None else os.environ.__setitem__("OPD_TAILSWAP_BUDGET", old)
+
+
+def test_budget_switch_torch():
+    try:
+        import torch
+    except ImportError:   # the Mac has no torch; PROBE-TAIL-BUD runs this on the node
+        return
+    th, pl, box, valid = _bud_case(torch)
+    out, st = S.swap(th, pl, box, valid, torch, budget=3)
+    ref, sref = S.swap(*_bud_case(np), np, budget=3)
+    assert out.tolist() == ref.tolist() and abs(st["delta_mean"] - sref["delta_mean"]) < 1e-5   # float32 against float64
+    assert {k: v for k, v in st.items() if k != "delta_mean"} == {k: v for k, v in sref.items() if k != "delta_mean"}
