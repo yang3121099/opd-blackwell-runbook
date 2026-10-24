@@ -533,3 +533,4 @@ commands:
   - {"seq": 531, "cmd": "logs E10e-P5self 2000", "reason": "check METRICS_CONCAT_HOOK line of E10e-P5self's relaunch (ops-lead condition 05:33 UTC)", "utc": "2026-10-24T07:18:08Z"}
   - {"seq": 532, "cmd": "setenv GPUS_HOLD_MIN=30", "reason": "E10e-P5self started 07:15:11Z: hold back to 30 (ops-lead 05:33 UTC)", "utc": "2026-10-24T07:19:38Z"}
   - {"seq": 533, "cmd": "setenv GPUS_SOON_MIN=30", "reason": "E10e-P5self started 07:15:11Z: soon back to 30 (ops-lead 05:33 UTC)", "utc": "2026-10-24T07:19:52Z"}
+  - {"seq": 534, "cmd": "rerun EVAL-e10e-P5self", "reason": "skipped 05:22Z when E10e-P5self failed; E10e done 07:53Z (ops-lead A1 05:33 UTC)", "utc": "2026-10-24T08:14:35Z"}
