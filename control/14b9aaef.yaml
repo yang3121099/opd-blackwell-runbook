@@ -542,3 +542,4 @@ commands:
   - {"seq": 540, "cmd": "du dr", "reason": "Q-055b: where DR keeps resume states (read-only)", "utc": "2026-10-24T11:08:30Z"}
   - {"seq": 541, "cmd": "du dr dr", "reason": "Q-055b: DR resume states (read-only)", "utc": "2026-10-24T11:10:02Z"}
   - {"seq": 542, "cmd": "update", "reason": "pull z82 eeafad4 (Q-072 selfroute + PROBE-SELFROUTE, Q-055b tail-c50; rules 2.5.90; Fable + ops-lead A1)", "utc": "2026-10-24T11:54:07Z"}
+  - {"seq": 543, "cmd": "update", "reason": "pull z82a 0402200 (Q-072 gate released share-matched; Fable A1)", "utc": "2026-10-24T15:14:10Z"}
