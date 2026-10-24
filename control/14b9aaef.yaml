@@ -514,3 +514,4 @@ commands:
   - {"seq": 512, "cmd": "setenv GPUS_HOLD_MIN=30", "reason": "PROBE-8B started 00:06:08Z on its 4 GPUs: the strict hold (seq 509) back to 30 (ops-lead 19:05 / 23:57 UTC)", "utc": "2026-10-24T00:13:36Z"}
   - {"seq": 513, "cmd": "setenv GPUS_SOON_MIN=30", "reason": "PROBE-8B started 00:06:08Z: the soon-free hold (seq 507, 1440) back to 30 (ops-lead 19:05 UTC)", "utc": "2026-10-24T00:13:42Z"}
   - {"seq": 514, "cmd": "rerun READINGS-EXTRA", "reason": "Fable 10-24 08:2x Beijing: the tails of E12b-P3 s100 and its start (two new #tails rows), CPU lane", "utc": "2026-10-24T00:57:12Z"}
+  - {"seq": 515, "cmd": "rerun PROBE-8B", "reason": "PROBE-8B failed in verl's reduce_metrics (ragged per-rank lists on 4 GPUs), fixed by z78 2e03a06; Fable 08:2x / ops-lead 01:14 UTC", "utc": "2026-10-24T01:19:43Z"}
