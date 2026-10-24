@@ -169,6 +169,8 @@ fill15   open   EVAL-ext32k-17route EVAL-ext32k-17mix EVAL-ext32k-17mix75 EVAL-e
 fill16   open   EVAL-ext-17prog EVAL-ext-17progup EVAL-ext-17p5l8ks44 EVAL-ext-17p5l16kkl EVAL-ext-17mix60 EVAL-ext-17routeinv EVAL-ext-4Bp5l8k EVAL-gm-17P5l16kkl EVAL-gm-17P5l8ks44 EVAL-gm-4BP5l8k EVAL-gm-17prog EVAL-gm-17progup
 olpd     open   EVAL-ext32k-17olpd
 b259z24  open   TOKCHECK-X5
+# [v2.5.9z82] (Fable 10-24 18:55 Beijing) tonight's formal arms, ahead of the fill17 pad: Q-072 selfroute and its gate, Q-055b the 0.6B tail to s50
+b259z82  open   PROBE-SELFROUTE:PROBE-DIFFPROBE E10b-P5selfroute:PROBE-SELFROUTE+PROBE-ROUTE EVAL-e10b-P5selfroute:E10b-P5selfroute+EVAL-e10b-P5route EVAL-budA-P5selfroute:E10b-P5selfroute+EVAL-budA-P5route EVAL-ext32k-17selfroute:E10b-P5selfroute+EVAL-ext32k-17route E10c-P5tail-c50:E10c-P5tail+PROBE-TAIL EVAL-e10c-P5tail-c50:E10c-P5tail-c50+EVAL-e10c-P5tail EVAL-ext32k-06tail-c50:E10c-P5tail-c50+EVAL-ext32k-06tail
 fill17   open   EVAL-ext-17bud2k:E10b-P5bud2k EVAL-gm-17bud2k:E10b-P5bud2k EVAL-ext-17bud3k:E10b-P5bud3k EVAL-gm-17bud3k:E10b-P5bud3k EVAL-ext-17dense:E10b-P5-dense EVAL-gm-17dense:E10b-P5-dense EVAL-ext-4Bp5selfs43:E10d-P5self-s43 EVAL-gm-4Bp5selfs43:E10d-P5self-s43
 # [v2.5.9m] padding stages (ops-lead, Runming 10-21 21:2x Beijing): dispatched after every other stage, each group in file order;
 # every later fill list gets a #pad line too (a #pad line holds stage names only)
@@ -2825,3 +2827,45 @@ fill17   open   EVAL-ext-17bud2k:E10b-P5bud2k EVAL-gm-17bud2k:E10b-P5bud2k EVAL-
 #eval EVAL-gm-4Bp5selfs43 gm_4Bp5selfs43_mmlupro1k_T0_4k result:runs/E10d-P5self-s43/global_step_50/actor/huggingface mmlupro1k 1 0 4096 no_think
 #eval EVAL-gm-4Bp5selfs43 gm_4Bp5selfs43_gpqa_T0.6_16k result:runs/E10d-P5self-s43/global_step_50/actor/huggingface gpqa 4 0.6 16384 no_think
 #eval EVAL-gm-4Bp5selfs43 gm_4Bp5selfs43_mmlupro1k_T0_16k result:runs/E10d-P5self-s43/global_step_50/actor/huggingface mmlupro1k 1 0 16384 no_think
+
+# [v2.5.9z82] (Q-072, Fable 10-24 18:55 Beijing, research_program 3c; Q-062 stage two, its H1 held) E10b-P5selfroute: E10b-P5route
+# with PROBE-SELFROUTE's labels (Q-062's probe at H1's layer, the 6,400 train prompts out of fold; p_easy >= 0.5 -> the non-thinking
+# teacher), 1.7B from the base, 4K, 50 steps, s25 kept, s50 up. Readings as route's, each paired with route s50 too: MATH-500 16K
+# T0.6 / T1.0, TWR, the 32K budget curves (plus one against route), AIME24/25 32K avg@16 (H4: against P5 s150), a #split row (H2: the
+# hard / easy length ratio), its TERM4 row held until s50; the 4K-wall step from wall.json (H3, against route's s32)
+#eval EVAL-e10b-P5selfroute e10b_P5selfroute_s50_math500_T0.6 result:runs/E10b-P5selfroute/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-e10b-P5selfroute e10b_P5selfroute_s50_math500_T1.0 result:runs/E10b-P5selfroute/global_step_50/actor/huggingface math500 4 1.0
+#twr EVAL-e10b-P5selfroute e10b_P5selfroute_s50_math500_T0.6
+#pair EVAL-e10b-P5selfroute e10b_P5selfroute_s50_math500_T0.6 EVAL-e10b-P5route/e10b_P5route_s50_math500_T0.6_math500_no_think_t0.6.jsonl archive:runs/e10/e10_P5_1.7B_s50_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P2/e11b_P2_math500_T0.6_math500_no_think_t0.6.jsonl
+#pair EVAL-e10b-P5selfroute e10b_P5selfroute_s50_math500_T1.0 EVAL-e10b-P5route/e10b_P5route_s50_math500_T1.0_math500_no_think_t1.0.jsonl E11b-P5/e11b_P5_math500_T1.0_math500_no_think_t1.0.jsonl E11b-P2/e11b_P2_math500_T1.0_math500_no_think_t1.0.jsonl
+#eval EVAL-budA-P5selfroute budAP5selfroute_s50_math500_T0.6_32k result:runs/E10b-P5selfroute/global_step_50/actor/huggingface math500 4 0.6 32768
+#budget EVAL-budA-P5selfroute budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5selfroute_s50_math500_T0.6_32k
+#budget EVAL-budA-P5selfroute budget_curve_vsP5s150 EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5selfroute_s50_math500_T0.6_32k
+#budget EVAL-budA-P5selfroute budget_curve_vsP2s150 EVAL-budA17b/budA_E10bP2_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5selfroute_s50_math500_T0.6_32k
+#budget EVAL-budA-P5selfroute budget_curve_vsRoute EVAL-budA-P5route/budAP5route_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5selfroute_s50_math500_T0.6_32k
+#eval EVAL-ext32k-17selfroute ext32k17_P5selfroute_s50_aime24_T0.6 result:runs/E10b-P5selfroute/global_step_50/actor/huggingface aime24 16 0.6 32768
+#pair EVAL-ext32k-17selfroute ext32k17_P5selfroute_s50_aime24_T0.6 EVAL-ext32k-17route/ext32k17_P5route_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#eval EVAL-ext32k-17selfroute ext32k17_P5selfroute_s50_aime25_T0.6 result:runs/E10b-P5selfroute/global_step_50/actor/huggingface aime25 16 0.6 32768
+#pair EVAL-ext32k-17selfroute ext32k17_P5selfroute_s50_aime25_T0.6 EVAL-ext32k-17route/ext32k17_P5route_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl
+#split READINGS-EXTRA 17_P5selfroute_s50 EVAL-e10b-P5selfroute/e10b_P5selfroute_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-e10b-P5selfroute rerun READINGS-EXTRA
+# [held until E10b-P5selfroute has s50] term PROBE-TERM4 17_P5selfroute result:runs/E10b-P5selfroute/global_step_50/actor/huggingface EVAL-e10b-P5selfroute/e10b_P5selfroute_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+# [held until E10b-P5selfroute has s50; restored together with the term row above] after EVAL-e10b-P5selfroute rerun PROBE-TERM4
+
+# [v2.5.9z82] (Q-055b, Fable 10-24 18:55 Beijing, research_program 3c) E10c-P5tail-c50: E10c-P5tail continued from its s20 weights for
+# 30 steps (a fresh optimizer and data.seed 43: its resume state was not kept, Fable's registered fallback and A1 19:4x Beijing); its
+# global_step_30 is the arm's s50 (the tags say s50). Readings: MATH-500 16K T0.6 / T1.0 and 32K paired with s20 and the start
+# (E10c-P5-fix4 s150), the 32K budget curves against both, AIME25 32K avg@16 paired with s20 and the start, TERM4-06B's 06_P5tail_s50
+# row (H2' p_stop_last, H4' the no-box rate)
+#eval EVAL-e10c-P5tail-c50 e10c_P5tailc50_s50_math500_T0.6 result:runs/E10c-P5tail-c50/global_step_30/actor/huggingface math500 4 0.6
+#eval EVAL-e10c-P5tail-c50 e10c_P5tailc50_s50_math500_T1.0 result:runs/E10c-P5tail-c50/global_step_30/actor/huggingface math500 4 1.0
+#eval EVAL-e10c-P5tail-c50 budA06tailc50_s50_math500_T0.6_32k result:runs/E10c-P5tail-c50/global_step_30/actor/huggingface math500 4 0.6 32768
+#pair EVAL-e10c-P5tail-c50 e10c_P5tailc50_s50_math500_T0.6 EVAL-e10c-P5tail/e10c_P5tail_s20_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e10c-P5-fix4/e10c_P5-fix4_s150_math500_T0.6_math500_no_think_t0.6.jsonl
+#pair EVAL-e10c-P5tail-c50 e10c_P5tailc50_s50_math500_T1.0 EVAL-e10c-P5tail/e10c_P5tail_s20_math500_T1.0_math500_no_think_t1.0.jsonl EVAL-e10c-P5-fix4/e10c_P5-fix4_s150_math500_T1.0_math500_no_think_t1.0.jsonl
+#pair EVAL-e10c-P5tail-c50 budA06tailc50_s50_math500_T0.6_32k EVAL-e10c-P5tail/budA06tail_s20_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA06p5/budA06_E10cP5fix4_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#budget EVAL-e10c-P5tail-c50 budget_curve_vsS20 EVAL-e10c-P5tail/budA06tail_s20_math500_T0.6_32k_math500_no_think_t0.6.jsonl budA06tailc50_s50_math500_T0.6_32k
+#budget EVAL-e10c-P5tail-c50 budget_curve_vsStart EVAL-budA06p5/budA06_E10cP5fix4_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budA06tailc50_s50_math500_T0.6_32k
+#eval EVAL-ext32k-06tail-c50 ext32k06_P5tailc50_s50_aime25_T0.6 result:runs/E10c-P5tail-c50/global_step_30/actor/huggingface aime25 16 0.6 32768
+#pair EVAL-ext32k-06tail-c50 ext32k06_P5tailc50_s50_aime25_T0.6 EVAL-ext32k-06tail/ext32k06_P5tail_s20_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-06/ext32k06_E10cP5fix4_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl
+#term PROBE-TERM4-06B 06_P5tail_s50 result:runs/E10c-P5tail-c50/global_step_30/actor/huggingface EVAL-e10c-P5tail-c50/e10c_P5tailc50_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-e10c-P5tail-c50 rerun PROBE-TERM4-06B

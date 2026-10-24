@@ -270,6 +270,9 @@ def test_run_accepts_v259z73(env):   # [v2.5.9z73] (Q-061) the budget arms and t
     for i, t in enumerate(("E10d-P5self-s43", "E12d-P5-8k-s43")):   # [v2.5.9z77] (Q-070 / Q-071)
         st, msg, _ = env.c.v_run([t], 95 + i)
         assert st == "accepted", (t, msg)
+    for i, t in enumerate(("E10b-P5selfroute", "E10c-P5tail-c50", "PROBE-SELFROUTE")):   # [v2.5.9z82] (Q-072 / Q-055b)
+        st, msg, _ = env.c.v_run([t], 97 + i)
+        assert st == "accepted", (t, msg)
     for i, t in enumerate(("E10b-P5-dense", "E10b-P5-akl", "PROBE-DENSE")):   # [v2.5.9z76] (Q-065)
         st, msg, _ = env.c.v_run([t], 87 + i)
         assert st == "accepted", (t, msg)
@@ -1309,6 +1312,14 @@ def test_run_and_rerun_accept_v259z45(env):   # [v2.5.9z45] (Q-063) E10b-P5route
         assert env.c.v_run([t], 120 + i)[0] == "rejected", t
     R.parse({"cmd": "rerun PROBE-ROUTE-INV", "reason": "t"})
     assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 71)
+
+
+def test_run_and_rerun_accept_v259z82(env):   # [v2.5.9z82] (Q-072 / Q-055b) E10b-P5selfroute, E10c-P5tail-c50, PROBE-SELFROUTE (rules 2.5.90)
+    for i, t in enumerate(("E10b-P5selfroute2", "E10c-P5tail-c60", "PROBE-SELFROUTE2", "E10d-P5selfroute")):
+        assert env.c.v_run([t], 130 + i)[0] == "rejected", t
+    for t in ("PROBE-SELFROUTE", "E10b-P5selfroute", "E10c-P5tail-c50"):
+        R.parse({"cmd": f"rerun {t}", "reason": "t"})
+    assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 90)
 
 
 def test_run_and_rerun_accept_v259z46(env):   # [v2.5.9z46] (Q-057) E16-X5 / -X5e and their gate PROBE-X5 (rules 2.5.72)

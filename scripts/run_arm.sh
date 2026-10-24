@@ -101,6 +101,12 @@ TAIL=0; [[ $TASK == E10b-P5tail || $TASK == E10b-P5tail-s43 ]] && { TAIL=1; BASE
 # vs P5 s150) E10c-P5tail = the tail-swapped 8B teacher (its thinking reading up to the first box, the non-thinking one after it, as
 # E10b-P5tail) for the 0.6B P5 student from E10c-P5-fix4 s150 (as E10c-P5-polish), 20 steps, fix4, the venv in use, s20 up; PROBE-TAIL
 TAIL06=0; [ $TASK = E10c-P5tail ] && { TAIL=1; TAIL06=1; BASE=E10b-P5; MODE=fix4; }
+# [v2.5.9z82] (Q-055b, Fable 10-24 18:55 Beijing, research_program 3c) E10c-P5tail-c50 = E10c-P5tail continued to s50: the same recipe
+# for 30 more steps from E10c-P5tail's s20 weights. Its resume state (optimizer, data position) was not kept on the node (the checkpoint
+# holds the HF weights only; nothing under dr/), so Fable's registered fallback: the s20 bf16 weights, a fresh optimizer (constant lr),
+# data.seed 43 (a new prompt order, not batches 1-30 again; Fable's A1 10-24 19:4x Beijing); its global_step_30 is the arm's s50
+# (uploaded); the deviation goes into config.yaml
+TAILC50=0; [ $TASK = E10c-P5tail-c50 ] && { TAIL=1; TAIL06=1; TAILC50=1; BASE=E10b-P5; MODE=fix4; SEED=43; }
 # [v2.5.9z73] (Q-061, budget-position routing; pre-registered 10-22 07:39 UTC, Fable 10-24 02:0x Beijing) E10b-P5bud2k / E10b-P5bud3k =
 # the tail swap with the switch at min(the first box, N), N = 2048 / 3072 (opd_tailswap.py, OPD_TAILSWAP_BUDGET=N): the 8B teacher's
 # thinking reading up to the switch, its non-thinking one after it. P5's recipe, 4K, 50 steps, s25 kept on the node, s50 uploaded.
@@ -122,6 +128,11 @@ ROUTE=""; ROUTE_P=""; case $TASK in E10b-P5route) ROUTE=route; BASE=E10b-P5;; E1
 # [v2.5.9z45] (Q-063, the reviewer's pre-registration 10-22) E10b-P5route-inv = E10b-P5route with the rule reversed (OPD_ROUTE_INVERT=1):
 # r >= 0.5 (easy) -> the thinking template, otherwise (hard) -> the non-thinking one; gated by PROBE-ROUTE-INV (probe_route.sh reused)
 ROUTE_INV=""; [ $TASK = E10b-P5route-inv ] && { ROUTE=route; ROUTE_INV=1; BASE=E10b-P5; }
+# [v2.5.9z82] (Q-072, Fable 10-24 18:55 Beijing, research_program 3c: Q-062 H1 held, stage two) E10b-P5selfroute = E10b-P5route with
+# the probe's labels: PROBE-SELFROUTE's labels_probe_17.jsonl (Q-062's probe at H1's layer, the 6,400 train prompts labelled out of
+# fold; r = p_easy, the same rule r >= 0.5 -> the non-thinking teacher); 1.7B from the base, 4K, 50 steps, s25 kept, s50 up; gated by
+# PROBE-ROUTE (passed) and PROBE-SELFROUTE (the labels and their check)
+ROUTE_SELF=""; [ $TASK = E10b-P5selfroute ] && { ROUTE=route; ROUTE_SELF=1; BASE=E10b-P5; ROUTE_LABELS=${ROUTE_LABELS:-$OPD_ROOT/runs/PROBE-SELFROUTE/labels_probe_17.jsonl}; }
 # [v2.5.9z47] (the reviewer 10-22 18:5x Beijing via ops-lead) E10b-P5mix60 = mix75 / mix90's recipe with the coin at p = 0.6; it starts only
 # after PROBE-MIXP checked 0.6 (the share and the nesting under 0.75 / 0.9), besides PROBE-ROUTE
 [ $TASK = E10b-P5mix60 ] && { ROUTE=mix; ROUTE_P=0.6; BASE=E10b-P5; }
@@ -152,6 +163,10 @@ STUDENT=${STUDENT:-$STUDENT_17B}   # the verification smoke uses $STUDENT_06B
 [ -n "$MODE" ] && STUDENT=$STUDENT_06B
 if [ $POLISH = 1 ] || [ $TAIL06 = 1 ]; then   # [v2.5.9u] the start: P5-fix4's s150 on this node (the bf16 copy, else the fp32 HF save); [v2.5.9z70] E10c-P5tail too
   STUDENT=$OPD_ROOT/runs/E10c-P5-fix4/ckpt/global_step_150/actor/huggingface_bf16; has_weights $STUDENT || STUDENT=${STUDENT%_bf16}
+  [ "${DRYRUN:-0}" = 1 ] || has_weights $STUDENT || { echo "missing start checkpoint $STUDENT"; exit 1; }
+fi
+if [ $TAILC50 = 1 ]; then   # [v2.5.9z82] (Q-055b) the start: E10c-P5tail's s20 (the bf16 copy, else the fp32 HF save)
+  STUDENT=$OPD_ROOT/runs/E10c-P5tail/ckpt/global_step_20/actor/huggingface_bf16; has_weights $STUDENT || STUDENT=${STUDENT%_bf16}
   [ "${DRYRUN:-0}" = 1 ] || has_weights $STUDENT || { echo "missing start checkpoint $STUDENT"; exit 1; }
 fi
 [ "$SIZE" = 4B ] && { STUDENT=$STUDENT_4B; GC=1; }
@@ -191,6 +206,7 @@ if [ -n "$ROUTE" ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
   [ -z "$ROUTE_P" ] || grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-MIXP/report.json 2> /dev/null || { echo "PROBE-MIXP has not passed: $TASK not started"; exit 3; }   # [v2.5.9z38]
 fi
 [ -n "$ROUTE_INV" ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ] && { grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-ROUTE-INV/report.json 2> /dev/null || { echo "PROBE-ROUTE-INV has not passed: $TASK not started"; exit 3; }; }   # [v2.5.9z45]
+[ -n "$ROUTE_SELF" ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ] && { grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-SELFROUTE/report.json 2> /dev/null || { echo "PROBE-SELFROUTE has not passed: $TASK not started"; exit 3; }; [ -s $ROUTE_LABELS ] || { echo "WAIT_INPUTS $TASK: runs/PROBE-SELFROUTE/labels_probe_17.jsonl not on this node"; exit 1; }; }   # [v2.5.9z82]
 [ "$ROUTE_P" = 0.6 ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ] && { python3 -c "import json, sys; r = json.load(open(sys.argv[1])); sys.exit(0 if r.get('result') == 'PASS' and '0.6' in r.get('mix_check', {}).get('share', {}) else 1)" $OPD_ROOT/runs/PROBE-MIXP/report.json 2> /dev/null || { echo "PROBE-MIXP has not checked p = 0.6: $TASK not started"; exit 3; }; }   # [v2.5.9z47]
 # [v2.5.9n] the tail-swap arm starts only after PROBE-TAIL passed (the unit tests on the node + a 3-step smoke)
 if [ $TAIL = 1 ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
@@ -268,6 +284,7 @@ case $ARM in P5top10|P5rand10m) export OPD_VARIANT=P6 OPD_VARIANT_OVERRIDE=$ARM 
 [ $TAIL = 1 ] && NSTEPS=${TAIL_STEPS:-50}   # [v2.5.9n]
 [ -n "$DENSE" ] && NSTEPS=${DENSE_STEPS:-50}   # [v2.5.9z76]
 [ $TAIL06 = 1 ] && NSTEPS=${TAIL06_STEPS:-20}   # [v2.5.9z70] (Q-055) 20 steps, as the polish arm
+[ $TAILC50 = 1 ] && NSTEPS=${TAILC50_STEPS:-30}   # [v2.5.9z82] (Q-055b) 30 more: its global_step_30 = s50
 [ -n "$ROUTE" ] && NSTEPS=${ROUTE_STEPS:-50}   # [v2.5.9x]
 [ $POLISH = 1 ] && NSTEPS=${POLISH_STEPS:-20}   # [v2.5.9u]
 [ $TOOL = 1 ] && NSTEPS=${TOOL_STEPS:-50}   # [v2.5.9b]
@@ -322,6 +339,7 @@ UW=$NSTEPS; [ $TASK = E10c-P5-fix4 ] && UW=100,$NSTEPS; [ -n "$XARM" ] && UW=25,
 [ $W8K = 1 ] && SAVE=${SAVE:-25}   # [v2.5.9z66] (Q-059) s25 and s50 saved; s50 uploaded (UW), s25 kept on the node
 [ $BUD -gt 0 ] && SAVE=${SAVE:-25}   # [v2.5.9z73] (Q-061) s25 and s50 saved; s50 uploaded (UW), s25 kept on the node
 [ -n "$DENSE" ] && SAVE=${SAVE:-25}   # [v2.5.9z76] (Q-065) s25 and s50 saved; s50 uploaded (UW), s25 kept on the node
+[ -n "$ROUTE_SELF" ] && SAVE=${SAVE:-25}   # [v2.5.9z82] (Q-072) s25 and s50 saved; s50 uploaded (UW), s25 kept on the node
 # [v2.5.9z40] (ops-lead 10-22, PROBE-T32's first run: vLLM found 127.6 of 267.7 GiB free at start-up, below 0.5 x total) the 32B arm and
 # its smoke only: the rollout's GPU memory share 0.4 (T32_VLLM_UTIL), and T32_OPT_OFFLOAD=1 (PROBE-T32's retry after an out of
 # memory) offloads the actor's optimizer (the 32B reference is offloaded already); every other arm keeps VLLM_UTIL (0.5) and no offload
@@ -335,6 +353,7 @@ ROLL_UTIL=${VLLM_UTIL:-0.5}; ACT_OPT_OFF=False
 [ "${DRYRUN:-0}" = 1 ] && [ $POLISH = 1 ] && echo "DRYRUN_POLISH student=$(echo $STUDENT | sed 's|.*/runs/|runs/|') teacher=$TEACHER"   # [v2.5.9u] tests
 [ "${DRYRUN:-0}" = 1 ] && [ -n "$ROUTE" ] && echo "DRYRUN_ROUTE OPD_ROUTE=${OPD_ROUTE:-} labels=$(echo ${OPD_ROUTE_LABELS:-none} | sed 's|.*/runs/|runs/|') log=$(basename ${OPD_ROUTE_LOG:-none})$([ -n "${OPD_ROUTE_P:-}" ] && echo " p=$OPD_ROUTE_P")"   # [v2.5.9x] tests
 [ "${DRYRUN:-0}" = 1 ] && [ -n "$ROUTE_INV" ] && echo "DRYRUN_ROUTE_INV OPD_ROUTE_INVERT=${OPD_ROUTE_INVERT:-}"   # [v2.5.9z45] tests
+[ "${DRYRUN:-0}" = 1 ] && [ $TAILC50 = 1 ] && echo "DRYRUN_TAILC50 student=$(echo $STUDENT | sed 's|.*/runs/|runs/|') steps=$NSTEPS upload=$UW"   # [v2.5.9z82] tests
 [ "${DRYRUN:-0}" = 1 ] && [ $X5 = 1 ] && echo "DRYRUN_X5 student=$(basename $STUDENT) teacher=$(basename $TEACHER) maxresp=$MAXRESP refthink=$OPD_REF_THINK empty=${OPD_X5_EMPTY_THINK:-0} log=$(basename ${OPD_X5_LOG:-none}) save=$SAVE upload=$UW"   # [v2.5.9z46] tests
 [ "${DRYRUN:-0}" = 1 ] && [ $T32 = 1 ] && echo "DRYRUN_T32 teacher=$(echo $TEACHER | sed 's|.*/models/|models/|') offload=$TEACHER_OFFLOAD save=$SAVE upload=$UW route=${OPD_ROUTE:-none} log=$(basename ${OPD_ROUTE_LOG:-none}) util=$ROLL_UTIL optoff=$ACT_OPT_OFF"   # [v2.5.9z9] tests
 [ "${DRYRUN:-0}" = 1 ] && [ -n "$DENSE" ] && echo "DRYRUN_DENSE mode=${OPD_DENSE:-} k=${OPD_DENSE_K:-64} mu=${OPD_DENSE_MU:-0.5} kern=[$KERN] save=$SAVE upload=$UW"   # [v2.5.9z76] tests
@@ -370,6 +389,8 @@ gpu: $(nvidia-smi --query-gpu=name --format=csv,noheader -i $GPU | head -1) x$NG
 started: $(date -u +%FT%TZ)
 CFG
 [ -n "$ROUTE_INV" ] && ! grep -q "^route_invert:" $OUT/config.yaml && echo "route_invert: easy (PROBE-DIFF17 r >= 0.5) -> the thinking teacher, hard -> the non-thinking one (OPD_ROUTE_INVERT=1)" >> $OUT/config.yaml   # [v2.5.9z45]
+[ -n "$ROUTE_SELF" ] && ! grep -q "^route_labels:" $OUT/config.yaml && echo "route_labels: probe (PROBE-SELFROUTE labels_probe_17.jsonl: Q-062's probe at H1's layer, the train prompts out of fold; p_easy >= 0.5 -> the non-thinking teacher)" >> $OUT/config.yaml   # [v2.5.9z82]
+[ $TAILC50 = 1 ] && ! grep -q "^continued:" $OUT/config.yaml && echo "continued: E10c-P5tail s20 weights; no resume state on the node, so a fresh optimizer and data.seed 43 (Fable's fallback, Q-055b): 30 more steps on the s20 weights, not the same trajectory; global_step_30 = s50" >> $OUT/config.yaml   # [v2.5.9z82]
 [ $X5 = 1 ] && ! grep -q "^x5:" $OUT/config.yaml && echo "x5: a student without a thinking mode (4096 positions: responses $MAXRESP), its stop id at the end read as the teacher's EOS 151643, the other special ids out of the loss; teacher prompt $([ $X5E = 1 ] && echo 'with an empty thought' || echo 'ending in one <think>') (opd_x5.py)" >> $OUT/config.yaml   # [v2.5.9z46]
 [ "${SMOKE:-0}" = 1 ] || ckpt_link $OUT   # v2.4: checkpoints on $CKPT_ROOT (the large disk)
 [ "${SMOKE:-0}" = 1 ] || { dr_restore $OUT || echo "DR_RESTORE_FAILED $TASK"; dr_start_sync $OUT; }   # v2.5.7

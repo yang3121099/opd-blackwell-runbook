@@ -14,6 +14,12 @@ research_program 10-22): can a problem's difficulty be read off the 1.7B base be
 5. H3: a MATH-500 16K reading of the route arm (gen_eval jsonl: pid, n_tokens): mean length hard / easy with the true labels and
    with the probe's (p_easy >= 0.5 at H1's layer); H3 holds when the two ratios differ by < 0.2.
 Pre-registered lines: H1 AUC >= 0.8 at some layer (H1's layer); H2 probe AUC > first-token-entropy AUC; H3 as above.
+6. [v2.5.9z82] (Q-072, Fable 10-24 18:55 Beijing, research_program 3c: H1 held, so stage two) --emit <labels_probe_17.jsonl> with
+   --probe-report <PROBE-DIFFPROBE's diff_probe.json>: the probe at H1's layer and its strength only (no confidence proxy, no other
+   layer): the 6,400 train prompts labelled out of fold (5 folds as the CV; each prompt by the probe fit without its fold), MATH-500 by
+   the fit on all of train; written in labels_17's format (split / pos / key, r = the probe's p_easy, so the route arm's rule
+   r >= 0.5 -> easy is unchanged; r_true = PROBE-DIFF17's pass rate) for E10b-P5selfroute, and selfroute.json: the gate's check on the
+   train labels (easy share within 5 pp of the true one, agreement >= 0.75), the same numbers on MATH-500, the out-of-fold AUC.
 The numerics (auc, the logistic fit, cv, the ratio) are plain numpy and run without a GPU (test_diff_probe.py); torch / the model
 only in main(). Usage: python diff_probe.py --model <base> --labels <labels_17.jsonl> --train <dapo_train.parquet> --out <dir>
 [--route <reading.jsonl>] [--limit N]
@@ -115,6 +121,36 @@ def layer_probe(Xtr, ytr, Xte, yte, fit=fit_logreg, grid=L2_GRID, k=5):
     return {"l2": best[0], "cv_auc": round(best[1], 4), "cv_auc_sd": round(best[2], 4), "test_auc": round(auc(yte, p), 4), "p_test": p}
 
 
+def oof_predict(X, y, Xte, l2, fit=fit_logreg, k=5):
+    """[v2.5.9z82] (p_oof, p_test): each row's p_easy from the probe fit on the other k - 1 folds (standardized on them; the folds of
+    layer_probe's CV), and Xte's from the fit on all of X."""
+    y = np.asarray(y, dtype=float); p = np.zeros(len(y))
+    for f in folds(len(y), k):
+        tr = np.setdiff1d(np.arange(len(y)), f)
+        a, b = standardize(X[tr], X[f])
+        w, c = fit(a, y[tr], l2); p[f] = predict(w, c, b)
+    a, b = standardize(X, Xte)
+    w, c = fit(a, y, l2)
+    return p, predict(w, c, b)
+
+
+def selfroute_check(p, y, max_share_pp=5.0, min_agree=0.75):
+    """[v2.5.9z82] (Q-072's gate) probe labels (p >= 0.5 easy) against the true ones (y = 1 easy): the two easy shares, their
+    difference in percentage points, the agreement, pass = difference < max_share_pp and agreement >= min_agree."""
+    e = np.asarray(p) >= 0.5; t = np.asarray(y) > 0.5
+    d = abs(float(e.mean()) - float(t.mean())) * 100; agree = float((e == t).mean())
+    return {"n": int(len(e)), "probe_easy_share": round(float(e.mean()), 4), "true_easy_share": round(float(t.mean()), 4),
+            "share_diff_pp": round(d, 2), "agreement": round(agree, 4), "pass": bool(d < max_share_pp and agree >= min_agree)}
+
+
+def probe_label_rows(train, p_train, math500, p_math500, layer):
+    """[v2.5.9z82] labels_probe_17.jsonl rows: train = [(pos, key, r_true)], math500 = [(pos, key, r_true)]; r = the probe's p_easy."""
+    rows = [{"split": "train", "pos": int(i), "key": k, "r": round(float(p), 4), "r_true": float(r), "src": "probe_oof", "layer": int(layer)}
+            for (i, k, r), p in zip(train, p_train)]
+    return rows + [{"split": "math500", "pos": int(i), "key": k, "r": round(float(p), 4), "r_true": float(r), "src": "probe_full", "layer": int(layer)}
+                   for (i, k, r), p in zip(math500, p_math500)]
+
+
 def length_ratio(recs, easy):
     """mean n_tokens on hard / on easy problems; recs: [{pid index, n_tokens}], easy: {index: bool}; None if a side is empty."""
     h = [r["n_tokens"] for r in recs if easy.get(r["i"]) is False]
@@ -185,7 +221,10 @@ def main():
     ap.add_argument("--out", required=True); ap.add_argument("--route", default=""); ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--bs", type=int, default=64); ap.add_argument("--steps", type=int, default=50); ap.add_argument("--tbs", type=int, default=128)
     ap.add_argument("--seed", type=int, default=42); ap.add_argument("--maxp", type=int, default=1024)
+    ap.add_argument("--emit", default=""); ap.add_argument("--probe-report", default="")   # [v2.5.9z82] (Q-072)
     a = ap.parse_args()
+    if a.emit and not a.probe_report:
+        ap.error("--emit needs --probe-report (PROBE-DIFFPROBE's diff_probe.json)")
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
     sys.path.insert(0, HERE); import diff_labels as DL
@@ -195,14 +234,33 @@ def main():
     mp_lab = {int(r["pos"]): float(r["r"]) for r in lab if r.get("split") == "math500"}
     tok = AutoTokenizer.from_pretrained(a.model); ck = {"enable_thinking": False}
     tr, _, _ = DL.train_prompts(a.train, tok, a.steps, a.tbs, a.seed, a.maxp, ck)
+    tr_pos = [i for i, m, _, _ in tr if DL.key(m) in tr_lab]   # [v2.5.9z82] the positions, for --emit
     tr = [(m, tr_lab[DL.key(m)]) for _, m, _, _ in tr if DL.key(m) in tr_lab]
+    mp_pos = [i for i, m, _, _ in DL.math500_prompts() if i in mp_lab]
     mp = [(m, mp_lab[i]) for i, m, _, _ in DL.math500_prompts() if i in mp_lab]
     if a.limit:
         tr, mp = tr[:a.limit], mp[:max(50, a.limit // 4)]
+        tr_pos, mp_pos = tr_pos[:len(tr)], mp_pos[:len(mp)]
     model = AutoModelForCausalLM.from_pretrained(a.model, torch_dtype=torch.bfloat16).to("cuda").eval()
     txt = lambda rows: [tok.apply_chat_template(m, add_generation_prompt=True, tokenize=False, **ck) for m, _ in rows]
     Xtr, etr = forward_feats(model, tok, txt(tr), a.bs, torch); Xte, ete = forward_feats(model, tok, txt(mp), a.bs, torch)
     ytr = np.array([r >= 0.5 for _, r in tr], dtype=float); yte = np.array([r >= 0.5 for _, r in mp], dtype=float)
+    if a.emit:   # [v2.5.9z82] (Q-072) H1's layer only: the out-of-fold train labels, the full fit's MATH-500 ones, the gate's check
+        del model; torch.cuda.empty_cache()
+        pr = json.load(open(a.probe_report)); L = int(pr["h1_layer"]); l2 = float(pr["layers"][L]["l2"])
+        p_tr, p_mp = oof_predict(Xtr[:, L, :], ytr, Xte[:, L, :], l2, fit=torch_fit(torch))
+        rows = probe_label_rows([(i, DL.key(m), r) for i, (m, r) in zip(tr_pos, tr)], p_tr, [(i, DL.key(m), r) for i, (m, r) in zip(mp_pos, mp)], p_mp, L)
+        tmp = a.emit + ".tmp"
+        with open(tmp, "w") as f:
+            for r in rows:
+                f.write(json.dumps(r) + "\n")
+        os.replace(tmp, a.emit)
+        rep = {"model": os.path.basename(a.model.rstrip("/")), "layer": L, "l2": l2, "n_train": len(tr), "n_math500": len(mp),
+               "train": selfroute_check(p_tr, ytr), "math500": selfroute_check(p_mp, yte), "auc_oof_train": auc(ytr, p_tr), "auc_math500": auc(yte, p_mp),
+               "lines": {"gate": "train (out of fold): |easy share - true| < 5 pp and agreement >= 0.75"}, "seconds": round(time.time() - t0, 1)}
+        json.dump(rep, open(os.path.join(a.out, "selfroute.json"), "w"), indent=1)
+        print("SELFROUTE", json.dumps({k: rep[k] for k in ("layer", "train", "auc_oof_train", "auc_math500")}))
+        return
     t1 = time.time()
     conf = confidence(model, tok, [m for m, _ in mp], a.bs, torch)
     t2 = time.time()

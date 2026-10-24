@@ -63,3 +63,35 @@ def test_judge():
     assert (j["h1_layer"], j["h1_auc"], j["H1"]) == (1, 0.79, False)    # H1's layer by train CV, not by MATH-500
     assert (j["best_test_layer"], j["best_test_auc"]) == (2, 0.9) and j["H2"] is True and j["H3"] is True
     assert P.judge(L, 0.8, None, {})["H2"] is False and P.judge(L, 0.8, None, {})["H3"] is None
+
+
+def test_oof_predict_and_check():   # [v2.5.9z82] (Q-072) out of fold: each row by a fit that never saw it; the gate's two numbers
+    rng = np.random.RandomState(3)
+    X = rng.randn(400, 6); y = (X[:, 0] + 0.3 * rng.randn(400) > 0).astype(float); Xte = rng.randn(80, 6)
+    p, pt = P.oof_predict(X, y, Xte, 1e-2)
+    assert p.shape == (400,) and pt.shape == (80,) and np.all((p > 0) & (p < 1))
+    f = P.folds(400)[2]; tr = np.setdiff1d(np.arange(400), f)                   # row f[0] from the fit without its fold
+    a, b = P.standardize(X[tr], X[f]); w, c = P.fit_logreg(a, y[tr], 1e-2)
+    assert abs(P.predict(w, c, b)[0] - p[f[0]]) < 1e-9
+    a, b = P.standardize(X, Xte); w, c = P.fit_logreg(a, y, 1e-2)
+    assert np.allclose(P.predict(w, c, b), pt)                                   # MATH-500: the fit on all of train
+    assert P.auc(y, p) > 0.85
+    ok = P.selfroute_check(p, y)
+    assert ok["pass"] and ok["agreement"] >= 0.75 and ok["share_diff_pp"] < 5
+    assert not P.selfroute_check(np.ones(400), y)["pass"]                        # all easy: the share is far off
+    yb = np.array([1.0, 0.0] * 200); flip = np.where(yb > 0.5, 0.2, 0.8)       # the same share (half easy), every label wrong
+    r = P.selfroute_check(flip, yb); assert r["share_diff_pp"] == 0 and r["agreement"] == 0.0 and not r["pass"]
+
+
+def test_probe_label_rows_feed_the_route_rule():   # [v2.5.9z82] labels_17's format: opd_route reads r, p_easy >= 0.5 -> non-thinking
+    rows = P.probe_label_rows([(0, "k0", 0.875), (1, "k1", 0.0)], [0.91, 0.12], [(7, "m7", 0.5)], [0.4], 12)
+    assert rows[0] == {"split": "train", "pos": 0, "key": "k0", "r": 0.91, "r_true": 0.875, "src": "probe_oof", "layer": 12}
+    assert rows[2]["split"] == "math500" and rows[2]["src"] == "probe_full" and rows[2]["pos"] == 7
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "patches"))
+    import opd_route as R
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "labels_probe_17.jsonl")
+        open(p, "w").write("".join(json.dumps(r) + "\n" for r in rows))
+        lab = R.load_labels(p)
+        assert lab == {"k0": 0.91, "k1": 0.12}                                    # train rows only, r = the probe's p_easy
+        assert R.decide("k0", "route", lab) == (False, 0.91) and R.decide("k1", "route", lab) == (True, 0.12)
