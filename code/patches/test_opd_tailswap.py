@@ -52,6 +52,8 @@ def test_hook_text_on_the_real_trainer():   # GOPD_RAY_TRAINER=<G-OPD's ray_trai
     if not rt:
         return
     src = open(rt).read()
+    if (P.MARK in src or LP.MARK in src) and os.path.exists(rt + ".orig"):   # [v2.5.9z80] an arm patched the installed file already
+        src = open(rt + ".orig").read()                                       # (PROBE-TAIL-BUD 10-24): the unpatched copy patch_file kept
     for base in (src, LP.patch_text(src)[0] if LP.MARK not in src else src):   # alone and with the length-selection hook
         new, changed = P.patch_text(base)
         assert changed and new.count(P.MARK) == 1
@@ -153,5 +155,7 @@ def test_budget_switch_torch():
     th, pl, box, valid = _bud_case(torch)
     out, st = S.swap(th, pl, box, valid, torch, budget=3)
     ref, sref = S.swap(*_bud_case(np), np, budget=3)
-    assert out.tolist() == ref.tolist() and abs(st["delta_mean"] - sref["delta_mean"]) < 1e-5   # float32 against float64
+    # [v2.5.9z80] float32 against float64 (PROBE-TAIL-BUD 10-24: -0.7 and -0.9 are not exact in float32), no exact compare
+    assert max(abs(a - b) for ra, rb in zip(out.tolist(), ref.tolist()) for a, b in zip(ra, rb)) < 1e-6
+    assert abs(st["delta_mean"] - sref["delta_mean"]) < 1e-5
     assert {k: v for k, v in st.items() if k != "delta_mean"} == {k: v for k, v in sref.items() if k != "delta_mean"}
