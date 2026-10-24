@@ -148,7 +148,8 @@ b259z76p open   PROBE-DENSE
 b259z76  open   E10b-P5-dense:PROBE-DENSE EVAL-dense:E10b-P5-dense EVAL-ext32k-17dense:E10b-P5-dense
 # [held until the literature reader confirms AKL's head definition in the inbox (Fable's A1 10-24 08:2x Beijing; the dense arm does not wait); restored by a queue push] b259z76a open   E10b-P5-akl:PROBE-DENSE EVAL-akl:E10b-P5-akl+EVAL-dense EVAL-ext32k-17akl:E10b-P5-akl+EVAL-ext32k-17dense
 # [v2.5.9z77] (Fable 10-24 08:2x Beijing; research_program 3c) tonight's fill: Q-070 the 4B self-distillation's second start, Q-071 the 4B 8K arm's second start, R-VLM32 the VLM readings at 32K
-b259z77  open   E10d-P5self-s43:PROBE-P5SELF-4B EVAL-e10d-P5self-s43:E10d-P5self-s43 EVAL-budA-e10dP5self-s43:E10d-P5self-s43 EVAL-ext32k-4Bp5self-s43:E10d-P5self-s43 E12d-P5-8k-s43:PROBE-E12B-8K EVAL-e12d-P5-8k-s43:E12d-P5-8k-s43 EVAL-budA-e12dP5-8k-s43:E12d-P5-8k-s43 EVAL-ext32k-4Bp5l8k-s43:E12d-P5-8k-s43 EVAL-vlm32-base EVAL-vlm32-s50
+b259z77  open   E10d-P5self-s43:PROBE-P5SELF-4B EVAL-e10d-P5self-s43:E10d-P5self-s43 EVAL-budA-e10dP5self-s43:E10d-P5self-s43 EVAL-ext32k-4Bp5self-s43:E10d-P5self-s43 E12d-P5-8k-s43:PROBE-E12B-8K EVAL-e12d-P5-8k-s43:E12d-P5-8k-s43 EVAL-budA-e12dP5-8k-s43:E12d-P5-8k-s43 EVAL-ext32k-4Bp5l8k-s43:E12d-P5-8k-s43
+# [held until E10e-P5self starts (ops-lead's A1 10-24 05:33 UTC: one GPU each for 15-23 h would keep E10e-P5self from four GPUs after 06:00 UTC); restored by a queue push as six one-GPU readings] b259z77v open   EVAL-vlm32-base EVAL-vlm32-s50
 b259z41o open   EVAL-ood32k-17base EVAL-ood32k-4Bbase EVAL-ood32k-17p5self:EVAL-ood32k-17base EVAL-ood32k-17p5l8k:EVAL-ood32k-17base EVAL-ood32k-4Bp5:EVAL-ood32k-4Bbase EVAL-ood32k-4Bp5self:EVAL-ood32k-4Bbase EVAL-ood32k-4Bx4:EVAL-ood32k-4Bbase
 diff4b   open   PROBE-DIFF17-4B:PROBE-DIFF17
 b259q028 open   EVAL-ext32k-17p5l8k-s25
