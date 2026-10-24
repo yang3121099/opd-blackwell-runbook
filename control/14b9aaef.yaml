@@ -511,3 +511,4 @@ commands:
   - {"seq": 509, "cmd": "setenv GPUS_HOLD_MIN=600", "reason": "ops-lead 19:05 UTC standing A1: strict GPU hold so PROBE-8B (4 GPUs) gathers its GPUs; back to 30 once PROBE-8B starts", "utc": "2026-10-23T19:26:34Z"}
   - {"seq": 510, "cmd": "logs control 400", "reason": "Fable 20:0x UTC pre-push check (1): place_run results (PLACE_RUN lines) and the planned switch's state in logs/control.log; read-only", "utc": "2026-10-23T20:09:36Z"}
   - {"seq": 511, "cmd": "logs control 300", "reason": "ops-lead 22:52 post-push checks: the switch's lines, CTRL_REOPEN, PLACE_RUN of new tasks; read-only", "utc": "2026-10-23T23:02:20Z"}
+  - {"seq": 512, "cmd": "setenv GPUS_HOLD_MIN=30", "reason": "PROBE-8B started 00:06:08Z on its 4 GPUs: the strict hold (seq 509) back to 30 (ops-lead 19:05 / 23:57 UTC)", "utc": "2026-10-24T00:13:36Z"}
