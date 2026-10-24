@@ -2503,8 +2503,8 @@ b259z24  open   TOKCHECK-X5
 #pair EVAL-ext32k-4Bp5l16k ext32k4B_E12dP5l16k_s25_aime25_T0.6 EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Brl/ext32k4B_E12dP5_s100_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Bp5l8k/ext32k4B_E12dP5l8k_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
 #pair EVAL-ext32k-4Bp5l16k ext32k4B_E12dP5l16k_s50_aime24_T0.6 EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4Brl/ext32k4B_E12dP5_s100_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4Bp5l8k/ext32k4B_E12dP5l8k_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4Bmid/ext32k4B_E12dP5_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #pair EVAL-ext32k-4Bp5l16k ext32k4B_E12dP5l16k_s50_aime25_T0.6 EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Brl/ext32k4B_E12dP5_s100_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Bp5l8k/ext32k4B_E12dP5l8k_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Bmid/ext32k4B_E12dP5_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
-# [held until E12d-P5-16k has s50] term PROBE-TERM4-4B 4B_P5l16k result:runs/E12d-P5-16k/global_step_50/actor/huggingface EVAL-e12d-P5-16k/e12d_P5-16k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
-# [held until E12d-P5-16k has s50; restored together with the term row above] after EVAL-e12d-P5-16k rerun PROBE-TERM4-4B
+#term PROBE-TERM4-4B 4B_P5l16k result:runs/E12d-P5-16k/global_step_50/actor/huggingface EVAL-e12d-P5-16k/e12d_P5-16k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-e12d-P5-16k rerun PROBE-TERM4-4B
 # [v2.5.9z68] Q-068 (Fable 10-23 15:1x UTC, research_program 3c; Runming 23:0x Beijing): E10e-P5self = the 8B student (Qwen3-8B,
 # non-thinking template) taught by its own weights on the thinking template, P5's recipe with E10d's batching and lr, 50 steps,
 # four GPUs (FSDP over four ranks, the teacher offloaded), flash-attn, s25 / s50 up; gated by PROBE-8B (a 4-GPU 3-step smoke: memory,
