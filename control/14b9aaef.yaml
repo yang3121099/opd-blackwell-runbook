@@ -517,3 +517,4 @@ commands:
   - {"seq": 515, "cmd": "rerun PROBE-8B", "reason": "PROBE-8B failed in verl's reduce_metrics (ragged per-rank lists on 4 GPUs), fixed by z78 2e03a06; Fable 08:2x / ops-lead 01:14 UTC", "utc": "2026-10-24T01:19:43Z"}
   - {"seq": 516, "cmd": "setenv GPUS_SOON_MIN=1440", "reason": "ops-lead 01:14 UTC: hold GPUs for the PROBE-8B rerun (4 GPUs)", "utc": "2026-10-24T01:19:48Z"}
   - {"seq": 517, "cmd": "setenv GPUS_HOLD_MIN=600", "reason": "ops-lead 01:14 UTC: strict hold for the PROBE-8B rerun; back to 30 once it starts", "utc": "2026-10-24T01:19:59Z"}
+  - {"seq": 518, "cmd": "inventory", "reason": "ops-lead 10-23 18:05 UTC item 1: the local-only GB by weights / readings / logs (read-only; pend only after ops-lead has seen the numbers)", "utc": "2026-10-24T01:21:23Z"}
