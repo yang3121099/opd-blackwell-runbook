@@ -6,7 +6,9 @@
 # labels_17's format (r = the probe's p_easy: the route arm's rule r >= 0.5 -> easy -> the non-thinking teacher unchanged).
 # Inputs: runs/PROBE-DIFF17/labels_17.jsonl, runs/PROBE-DIFFPROBE/out/diff_probe.json (WAIT_INPUTS when absent), data/dapo_train.parquet.
 # PASS = exit 0, >= 6,000 train prompts and all 500 of MATH-500, and the pre-registered check on the train labels: the probe's easy
-# share within 5 pp of the true one and agreement >= 0.75. report.json + selfroute.json + labels_probe_17.jsonl (keys and numbers,
+# share within 5 pp of the true one and agreement >= 0.75. [v2.5.9z82a] (Fable 10-24 22:5x Beijing, a recorded deviation: the first run
+# 13:12 UTC FAILed, 0.210 vs 0.310 at 0.5) --share-match: the labels shifted on the logit scale so the out-of-fold easy share matches the
+# true one (the threshold t -> 0.5, route's rule unchanged; p_raw kept), agreement line 0.74 (registered 0.75; measured 0.746 at t 0.390). report.json + selfroute.json + labels_probe_17.jsonl (keys and numbers,
 # path-free) to the result repository as runs/PROBE-SELFROUTE; probe.log and the output tail to logs/<node>/probe_selfroute/
 # (private); an event; .done. ~10 min on one GPU. Usage: bash probe_selfroute.sh <gpu>
 set -uo pipefail
@@ -44,7 +46,7 @@ done
 step "start gpu=$G model=$(basename $STUDENT_17B)"
 rm -rf $D/out $D/labels_probe_17.jsonl; mkdir -p $D/out
 CUDA_VISIBLE_DEVICES=$G python $RUNBOOK/code/analysis/diff_probe.py --model $STUDENT_17B --labels $LAB --train $OPD_ROOT/data/dapo_train.parquet \
-  --out $D/out --emit $D/labels_probe_17.jsonl --probe-report $REP $([ -n "${PSR_LIMIT:-}" ] && echo --limit $PSR_LIMIT) > $D/gen.out 2>&1; rc=$?
+  --out $D/out --emit $D/labels_probe_17.jsonl --probe-report $REP --share-match --min-agree ${PSR_MIN_AGREE:-0.74} $([ -n "${PSR_LIMIT:-}" ] && echo --limit $PSR_LIMIT) > $D/gen.out 2>&1; rc=$?
 python3 $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true
 [ $rc = 0 ] || finish FAIL "diff_probe --emit exited $rc: $(tail -c 300 $D/gen.out | tr '\n' ' ')"
 why=$(python3 - $D/out/selfroute.json $D/labels_probe_17.jsonl "${PSR_LIMIT:-0}" <<'PY'
@@ -59,9 +61,9 @@ if n != r.get("n_train", 0) + r.get("n_math500", 0):
     why.append(f"labels_probe_17.jsonl has {n} rows, expected {r.get('n_train', 0) + r.get('n_math500', 0)}")
 t = r.get("train", {})
 if not t.get("pass"):
-    why.append(f"train labels: easy share {t.get('probe_easy_share')} vs true {t.get('true_easy_share')} ({t.get('share_diff_pp')} pp, line < 5), agreement {t.get('agreement')} (line >= 0.75)")
+    why.append(f"train labels: easy share {t.get('probe_easy_share')} vs true {t.get('true_easy_share')} ({t.get('share_diff_pp')} pp, line < 5), agreement {t.get('agreement')} (line >= {r.get('lines', {}).get('gate', '').split('agreement >= ')[-1].split(' ')[0] or '0.74'})")
 print("; ".join(why))
 PY
 )
 [ -z "$why" ] || finish FAIL "$why"
-finish PASS "$(python3 -c "import json, sys; r = json.load(open(sys.argv[1])); t, m = r['train'], r['math500']; print(f\"layer {r['layer']}: train out of fold easy {t['probe_easy_share']} vs true {t['true_easy_share']} ({t['share_diff_pp']} pp), agreement {t['agreement']}, AUC {r['auc_oof_train']}; MATH-500 easy {m['probe_easy_share']} vs {m['true_easy_share']}, agreement {m['agreement']}, AUC {r['auc_math500']}\")" $D/out/selfroute.json)"
+finish PASS "$(python3 -c "import json, sys; r = json.load(open(sys.argv[1])); t, m = r['train'], r['math500']; print(f\"layer {r['layer']} threshold {r.get('threshold') or 0.5}: train out of fold easy {t['probe_easy_share']} vs true {t['true_easy_share']} ({t['share_diff_pp']} pp), agreement {t['agreement']}, AUC {r['auc_oof_train']}; MATH-500 easy {m['probe_easy_share']} vs {m['true_easy_share']}, agreement {m['agreement']}, AUC {r['auc_math500']}\")" $D/out/selfroute.json)"

@@ -39,6 +39,7 @@ def test_split_and_frontier():
     assert a["101-500"]["acc"] == 50.0 and a["101-500"]["mean_tokens"] == 300.0 and a["101-500"]["n_problems"] == 400 and a["101-500"]["trunc_rate"] == round(1 / 800, 4)
     assert a["all"]["acc"] == 60.0 and a["metrics_avg_acc"] == 60.0
     assert a["easy"]["n_problems"] == 250 and a["hard"]["n_problems"] == 250 and a["easy"]["acc"] == 70.0 and a["easy"]["mean_tokens"] == 220.0 and a["hard"]["acc"] == 50.0
+    assert a["hard_easy_len_ratio"] == round(a["hard"]["mean_tokens"] / a["easy"]["mean_tokens"], 4)   # [v2.5.9z82a] (Q-072) by the true labels
     assert s["frontier"]["06think"]["mean_tokens_16k"] == 5372.9 and s["frontier"]["06think"]["source"] == "EVAL-b/budget_curve.json [ref_x]"
     assert s["frontier"]["Pstop"] == {"mean_tokens_16k": 1449.0, "trunc_16k": 0.01, "acc_16k": 55.7, "how": "metrics.json (max_tokens 16384)", "source": "EVAL-b/m.metrics.json"}
     assert "EVAL-z/z.jsonl" in s["missing"] and any(m.startswith("EVAL-b/budget_curve.json") for m in s["missing"])

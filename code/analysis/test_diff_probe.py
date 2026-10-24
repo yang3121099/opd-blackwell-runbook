@@ -95,3 +95,16 @@ def test_probe_label_rows_feed_the_route_rule():   # [v2.5.9z82] labels_17's for
         lab = R.load_labels(p)
         assert lab == {"k0": 0.91, "k1": 0.12}                                    # train rows only, r = the probe's p_easy
         assert R.decide("k0", "route", lab) == (False, 0.91) and R.decide("k1", "route", lab) == (True, 0.12)
+
+
+def test_share_matched_shift():   # [v2.5.9z82a] (Q-072, Fable's release) t from the out-of-fold p; the shift puts t at 0.5, order kept
+    rng = np.random.RandomState(5)
+    y = (rng.rand(1000) < 0.31).astype(float); p = np.clip(0.35 * y + 0.4 * rng.rand(1000), 0.01, 0.99)
+    t = P.share_threshold(p, y)
+    q = P.shift(p, t)
+    assert abs(float((q >= 0.5).mean()) - float(y.mean())) <= 2 / len(y)        # the easy share now matches the true one
+    assert abs(float(P.shift(np.array([t]), t)[0]) - 0.5) < 1e-9 and np.all(np.argsort(q, kind="stable") == np.argsort(p, kind="stable"))
+    assert P.selfroute_check(q, y, min_agree=0.74)["share_diff_pp"] < 0.5
+    rows = P.probe_label_rows([(0, "k0", 0.5)], q[:1], [], [], 22, raw_train=p[:1])
+    assert rows[0]["r"] == round(float(q[0]), 4) and rows[0]["p_raw"] == round(float(p[0]), 4)
+    assert "p_raw" not in P.probe_label_rows([(0, "k0", 0.5)], p[:1], [], [], 22)[0]          # without the shift: as z82

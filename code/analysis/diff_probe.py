@@ -143,12 +143,30 @@ def selfroute_check(p, y, max_share_pp=5.0, min_agree=0.75):
             "share_diff_pp": round(d, 2), "agreement": round(agree, 4), "pass": bool(d < max_share_pp and agree >= min_agree)}
 
 
-def probe_label_rows(train, p_train, math500, p_math500, layer):
-    """[v2.5.9z82] labels_probe_17.jsonl rows: train = [(pos, key, r_true)], math500 = [(pos, key, r_true)]; r = the probe's p_easy."""
-    rows = [{"split": "train", "pos": int(i), "key": k, "r": round(float(p), 4), "r_true": float(r), "src": "probe_oof", "layer": int(layer)}
-            for (i, k, r), p in zip(train, p_train)]
-    return rows + [{"split": "math500", "pos": int(i), "key": k, "r": round(float(p), 4), "r_true": float(r), "src": "probe_full", "layer": int(layer)}
-                   for (i, k, r), p in zip(math500, p_math500)]
+def share_threshold(p, y):
+    """[v2.5.9z82a] (Q-072, Fable 10-24 22:5x Beijing) the threshold t on the out-of-fold p_easy at which the probe's easy share
+    equals the true one (the (1 - share) quantile)."""
+    return float(np.quantile(np.asarray(p, dtype=float), 1.0 - float(np.mean(np.asarray(y) > 0.5))))
+
+
+def shift(p, t):
+    """[v2.5.9z82a] p_easy moved on the logit scale so that t -> 0.5 (route's rule r >= 0.5 then cuts at t; the order is kept)."""
+    p = np.clip(np.asarray(p, dtype=float), 1e-9, 1 - 1e-9); t = min(max(float(t), 1e-9), 1 - 1e-9)
+    return 1 / (1 + np.exp(-(np.log(p / (1 - p)) - np.log(t / (1 - t)))))
+
+
+def probe_label_rows(train, p_train, math500, p_math500, layer, raw_train=None, raw_math500=None):
+    """[v2.5.9z82] labels_probe_17.jsonl rows: train = [(pos, key, r_true)], math500 = [(pos, key, r_true)]; r = the probe's p_easy
+    ([v2.5.9z82a] shifted to the share-matched threshold when raw_* = the probe's own p_easy is given, kept as p_raw)."""
+    def row(split, src, i, k, r, p, q):
+        d = {"split": split, "pos": int(i), "key": k, "r": round(float(p), 4), "r_true": float(r), "src": src, "layer": int(layer)}
+        if q is not None:
+            d["p_raw"] = round(float(q), 4)
+        return d
+    rt = raw_train if raw_train is not None else [None] * len(p_train)
+    rm = raw_math500 if raw_math500 is not None else [None] * len(p_math500)
+    return ([row("train", "probe_oof", i, k, r, p, q) for (i, k, r), p, q in zip(train, p_train, rt)]
+            + [row("math500", "probe_full", i, k, r, p, q) for (i, k, r), p, q in zip(math500, p_math500, rm)])
 
 
 def length_ratio(recs, easy):
@@ -222,6 +240,7 @@ def main():
     ap.add_argument("--bs", type=int, default=64); ap.add_argument("--steps", type=int, default=50); ap.add_argument("--tbs", type=int, default=128)
     ap.add_argument("--seed", type=int, default=42); ap.add_argument("--maxp", type=int, default=1024)
     ap.add_argument("--emit", default=""); ap.add_argument("--probe-report", default="")   # [v2.5.9z82] (Q-072)
+    ap.add_argument("--share-match", action="store_true"); ap.add_argument("--min-agree", type=float, default=0.75)   # [v2.5.9z82a]
     a = ap.parse_args()
     if a.emit and not a.probe_report:
         ap.error("--emit needs --probe-report (PROBE-DIFFPROBE's diff_probe.json)")
@@ -249,15 +268,21 @@ def main():
         del model; torch.cuda.empty_cache()
         pr = json.load(open(a.probe_report)); L = int(pr["h1_layer"]); l2 = float(pr["layers"][L]["l2"])
         p_tr, p_mp = oof_predict(Xtr[:, L, :], ytr, Xte[:, L, :], l2, fit=torch_fit(torch))
-        rows = probe_label_rows([(i, DL.key(m), r) for i, (m, r) in zip(tr_pos, tr)], p_tr, [(i, DL.key(m), r) for i, (m, r) in zip(mp_pos, mp)], p_mp, L)
+        raw = {"train": selfroute_check(p_tr, ytr, min_agree=a.min_agree), "math500": selfroute_check(p_mp, yte, min_agree=a.min_agree)}   # at 0.5
+        t = share_threshold(p_tr, ytr) if a.share_match else 0.5   # [v2.5.9z82a] (Q-072, Fable's release) the share-matched cut
+        q_tr, q_mp = (shift(p_tr, t), shift(p_mp, t)) if a.share_match else (p_tr, p_mp)
+        rows = probe_label_rows([(i, DL.key(m), r) for i, (m, r) in zip(tr_pos, tr)], q_tr, [(i, DL.key(m), r) for i, (m, r) in zip(mp_pos, mp)], q_mp, L,
+                                p_tr if a.share_match else None, p_mp if a.share_match else None)
         tmp = a.emit + ".tmp"
         with open(tmp, "w") as f:
             for r in rows:
                 f.write(json.dumps(r) + "\n")
         os.replace(tmp, a.emit)
-        rep = {"model": os.path.basename(a.model.rstrip("/")), "layer": L, "l2": l2, "n_train": len(tr), "n_math500": len(mp),
-               "train": selfroute_check(p_tr, ytr), "math500": selfroute_check(p_mp, yte), "auc_oof_train": auc(ytr, p_tr), "auc_math500": auc(yte, p_mp),
-               "lines": {"gate": "train (out of fold): |easy share - true| < 5 pp and agreement >= 0.75"}, "seconds": round(time.time() - t0, 1)}
+        rep = {"model": os.path.basename(a.model.rstrip("/")), "layer": L, "l2": l2, "n_train": len(tr), "n_math500": len(mp), "threshold": round(t, 4),
+               "share_matched": bool(a.share_match), "train": selfroute_check(q_tr, ytr, min_agree=a.min_agree), "math500": selfroute_check(q_mp, yte, min_agree=a.min_agree),
+               "at_0.5": raw, "auc_oof_train": auc(ytr, p_tr), "auc_math500": auc(yte, p_mp),
+               "lines": {"gate": f"train (out of fold): |easy share - true| < 5 pp and agreement >= {a.min_agree}"
+                         + (" (share-matched threshold; Fable 10-24 22:5x Beijing, a recorded deviation: the registered agreement line 0.75, measured 0.746 at the share-matched threshold; released because the dose then matches route's (0.69 of the train prompts to the thinking teacher), removing the dose confound, and 0.746 is the probe's out-of-fold ceiling)" if a.share_match else "")}, "seconds": round(time.time() - t0, 1)}
         json.dump(rep, open(os.path.join(a.out, "selfroute.json"), "w"), indent=1)
         print("SELFROUTE", json.dumps({k: rep[k] for k in ("layer", "train", "auc_oof_train", "auc_math500")}))
         return

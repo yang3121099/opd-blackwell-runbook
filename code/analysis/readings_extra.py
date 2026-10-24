@@ -72,6 +72,8 @@ def split(recs, easy=None):
         res["easy"] = stats([r for r in recs if easy.get(pid_index(r["pid"]), -1) >= 0.5])
         res["hard"] = stats([r for r in recs if 0 <= easy.get(pid_index(r["pid"]), -1) < 0.5])
         res["labels"] = "PROBE-DIFF17 labels_17.jsonl (MATH-500, 1.7B base non-thinking k=8: easy = r >= 0.5)"
+        if res["easy"] and res["hard"] and res["easy"]["mean_tokens"]:   # [v2.5.9z82a] (Q-072) hard / easy mean length by the true labels
+            res["hard_easy_len_ratio"] = round(res["hard"]["mean_tokens"] / res["easy"]["mean_tokens"], 4)
     return res
 
 
@@ -288,7 +290,7 @@ def main(runs, qfile, out):
         stem = os.path.basename(rel)[:-len(".jsonl")]
         json.dump(dict(s, reading=rel), open(os.path.join(dst, stem + ".split.json"), "w"), indent=1)
         json.dump(dict(s, reading=rel), open(p[:-len(".jsonl")] + ".split.json", "w"), indent=1)
-        summary["split"][label] = {**{k: s[k] for k in s if k in ("1-100", "101-500", "all", "easy", "hard", "metrics_avg_acc")}, "reading": rel}
+        summary["split"][label] = {**{k: s[k] for k in s if k in ("1-100", "101-500", "all", "easy", "hard", "hard_easy_len_ratio", "metrics_avg_acc")}, "reading": rel}   # [v2.5.9z82a] the ratio
     for row in queue_rows(qfile, "frontier"):
         label, rel, reading = row[0], row[1], (row[2] if len(row) > 2 else None)
         if not safe(rel):
