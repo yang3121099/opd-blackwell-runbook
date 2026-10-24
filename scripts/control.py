@@ -1394,19 +1394,31 @@ def v_run(a, seq, flags=None, entry=None):
     return "accepted", f"{t} starts on the next GPU that is free after the queue's own tasks (deps must be done)", {}
 
 
+def _gate_failed(t, d):
+    """[v2.5.9z79] a gate (PROBE-*) whose report.json says result FAIL."""
+    if not t.startswith("PROBE-"):
+        return False
+    try:
+        return json.load(open(os.path.join(d, "report.json"))).get("result") == "FAIL"
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
 def v_rerun(a, seq, flags=None, entry=None):
     """rerun <task> (v2.5.5, v2.5.6b): a finished probe or queue evaluation (FA-PROBE, EVAL-*) runs once more, or any
     task that failed for good (3 attempts) or was skipped because a dependency failed gets a new start (B300 18:52:
     SFT-P1 failed 3 times on a missing patch, E12b-P1 was skipped). A finished training is never rerun. .done,
-    report.json, .failed and .skipped are kept as *.prev_<seq>; the queue starts it on the next free GPU."""
+    report.json, .failed and .skipped are kept as *.prev_<seq>; the queue starts it on the next free GPU.
+    [v2.5.9z79] (ops-lead 10-24 03:14 UTC: seq 515 `rerun PROBE-8B` was rejected) a finished gate (PROBE-*) whose report.json says
+    FAIL is rerun too, listed or not."""
     t = a[0]
     if running_pids(t):
         return "rejected", f"{t} is running", {}
     d = os.path.join(ROOT, "runs", t)
     done, failed = os.path.exists(os.path.join(d, ".done")), os.path.exists(os.path.join(d, ".failed"))
     skipped = os.path.exists(os.path.join(d, ".skipped"))
-    if done and not re.fullmatch(r"FA-PROBE|SPEED-PROBE|PROBE-4B|PROBE-TERM(?:[234]|4-4B|4-06B)?|PROBE-TOP10|STRICT-C1|PROBE-T14|PROBE-T32|PROBE-P5THINK|PROBE-P5SELF|PROBE-P5SELF-4B|PROBE-P5SELF-06B|PROBE-P2SELF|PROBE-E12C|PROBE-E12B-KL|PROBE-E12B-STOP|PROBE-E12B-STOP2|PROBE-E12B-8K|PROBE-E12B-16K|PROBE-E12B-R3|PROBE-X2507-X1|PROBE-X2507-X2|PROBE-X2507-X4|PROBE-LENSEL|PROBE-2GPU|PROBE-TOOL|PROBE-NET2?|BUILD-VENV-VL|PROBE-VLLM-VL|READINGS-EXTRA|PROBE-VLM|PROBE-ROLLOUT-U(60|75|85)|PROBE-STOPMERGE(?:-UNIT)?|PROBE-WDIFF|TOKCHECK-X5|VENV-VL-NVRTC|PROBE-MIXP|PROBE-PROG|PROBE-ROUTE-INV|PROBE-X5|PROBE-TAIL|PROBE-TAIL-BUD|PROBE-DIFF17|PROBE-DIFF17-4B|PROBE-DIFFPROBE|PROBE-PSTAR|PROBE-DENSE|PROBE-ROUTE|PROBE-POLISH|FA-SPEED-(17|4B|E12|TWIN)|EVAL-[A-Za-z0-9._-]+", t):
-        return "rejected", f"{t} is done (only FA-PROBE, SPEED-PROBE and EVAL tasks are rerun after finishing)", {}
+    if done and not _gate_failed(t, d) and not re.fullmatch(r"FA-PROBE|SPEED-PROBE|PROBE-4B|PROBE-TERM(?:[234]|4-4B|4-06B)?|PROBE-TOP10|STRICT-C1|PROBE-T14|PROBE-T32|PROBE-P5THINK|PROBE-P5SELF|PROBE-P5SELF-4B|PROBE-P5SELF-06B|PROBE-P2SELF|PROBE-E12C|PROBE-E12B-KL|PROBE-E12B-STOP|PROBE-E12B-STOP2|PROBE-E12B-8K|PROBE-E12B-16K|PROBE-E12B-R3|PROBE-X2507-X1|PROBE-X2507-X2|PROBE-X2507-X4|PROBE-LENSEL|PROBE-2GPU|PROBE-TOOL|PROBE-NET2?|BUILD-VENV-VL|PROBE-VLLM-VL|READINGS-EXTRA|PROBE-VLM|PROBE-ROLLOUT-U(60|75|85)|PROBE-STOPMERGE(?:-UNIT)?|PROBE-WDIFF|TOKCHECK-X5|VENV-VL-NVRTC|PROBE-MIXP|PROBE-PROG|PROBE-ROUTE-INV|PROBE-X5|PROBE-TAIL|PROBE-TAIL-BUD|PROBE-DIFF17|PROBE-DIFF17-4B|PROBE-DIFFPROBE|PROBE-PSTAR|PROBE-DENSE|PROBE-ROUTE|PROBE-POLISH|FA-SPEED-(17|4B|E12|TWIN)|EVAL-[A-Za-z0-9._-]+", t):
+        return "rejected", f"{t} is done (only FA-PROBE, SPEED-PROBE, EVAL tasks and failed PROBE-* gates are rerun after finishing)", {}
     if not (done or failed or skipped):
         return "rejected", f"{t} is neither done, failed nor skipped", {}
     kept = []

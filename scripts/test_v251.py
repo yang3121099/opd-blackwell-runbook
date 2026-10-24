@@ -442,6 +442,26 @@ def test_v_rerun(env, monkeypatch):
     assert c.v_rerun(["FA-PROBE"], 52)[0] == "rejected"                    # running
 
 
+def test_v_rerun_failed_gate(env, monkeypatch):   # [v2.5.9z79] a finished gate whose report says FAIL is rerun, listed or not
+    c = env.c; monkeypatch.setattr(c, "running_pids", lambda t=None: [])
+    def done(t, report):
+        d = os.path.join(c.ROOT, "runs", t); os.makedirs(d, exist_ok=True); open(os.path.join(d, ".done"), "w").write("x")
+        if report is not None:
+            json.dump(report, open(os.path.join(d, "report.json"), "w"))
+        return d
+    d = done("PROBE-8B", {"result": "FAIL"})                                # not on v_rerun's list (seq 515 was rejected)
+    st, msg, _ = c.v_rerun(["PROBE-8B"], 80)
+    assert st == "ok" and os.path.exists(os.path.join(d, "report.json.prev_80")) and not os.path.exists(os.path.join(d, ".done"))
+    done("PROBE-8B", {"result": "PASS"})
+    assert c.v_rerun(["PROBE-8B"], 81)[0] == "rejected"                    # a passed gate off the list stays done
+    done("PROBE-P5-8K", None)
+    assert c.v_rerun(["PROBE-P5-8K"], 82)[0] == "rejected"                 # no report: as before
+    done("E10b-P5", {"result": "FAIL"})
+    assert c.v_rerun(["E10b-P5"], 83)[0] == "rejected"                     # a finished training is never rerun
+    d = done("PROBE-TAIL-BUD", {"result": "FAIL"})
+    assert c.v_rerun(["PROBE-TAIL-BUD"], 84)[0] == "ok"                    # a listed gate as before
+
+
 def test_pulse_task_gpu_kind_started(env):
     st = {"tasks": {"FA-PROBE": {"state": "running", "gpu": 6, "kind": "probe", "started_utc": "2026-10-17T17:28:20Z"},
                     "E10b-P2": {"state": "done", "gpu": None, "kind": "train", "started_utc": None},
