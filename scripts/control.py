@@ -1893,6 +1893,202 @@ def do_du(seq, prefix, rel):
             fs_free_gb=round(st.f_bavail * st.f_frsize / 1e9, 1), seconds=round(time.time() - t0, 1))
 
 
+# ---------- [v2.5.9z72] (ops-lead 10-23 18:05 UTC, item 1; Runming 10-24 02:0x Beijing: everything of ours to HF as the cloud backup) ----------
+INV_TRAINING = re.compile(r"(E0[2-9]|E1[0-9][a-e]?|SFT)-")
+INV_WEIGHT = re.compile(r"^ckpt/(global_step_\d+)/actor/(huggingface(?:_bf16)?)/([^/]+\.safetensors)$")
+INV_HF = re.compile(r"^ckpt/(global_step_\d+)/actor/huggingface(?:_bf16)?/(.+)$")   # the HF folder's config / tokenizer files
+INV_SUMMARY = re.compile(r"(\.metrics\.json|(^|/)report\.json|(^|/)summary[^/]*\.json|(^|/)paired[^/]*\.json|\.md|\.csv)$")
+
+
+def _repo_runs(kind):
+    """{path: size} of every file under runs/ in one repository ('public', 'private', or 'old': the old public one, private
+    since 10-18): one recursive listing."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import remote as _rm_mod
+    api, repo = _rm_mod.hf("private" if kind == "old" else kind)
+    repo = OLD_PUBLIC if kind == "old" else repo
+    try:
+        return {f.path: f.size for f in api.list_repo_tree(repo, path_in_repo="runs", recursive=True) if type(f).__name__ == "RepoFile"}
+    except Exception as e:
+        if _rm_mod.is_429(e):
+            _rm_mod.note_429()
+        raise
+
+
+def inventory_scan(remote, root=None, ckpt=None, busy=None, unit=1e9):
+    """[v2.5.9z72] what of ours is on this node only (read-only). remote: {repository: {path: size}}.
+    Weights: each runs/<task>/ckpt/global_step_<N> with HF weights (huggingface_bf16, else huggingface) is in the cloud when one
+    repository holds every one of its safetensors at runs/<task>/global_step_<N>/actor/huggingface/<file> at the same size, else
+    queued when that destination is in control/weights_pending.txt, else local only. Every other file of runs/<task> is in the
+    cloud when a repository holds runs/<task>/<path> at the same size; it counts as a log (*.log, *.err, *.out, *.log.gz), a
+    reading (any task that is not a training) or other (a training's rollouts, configs, ...). The resume state (the rest of ckpt/)
+    stays local by the checkpoint policy and is counted apart, as is logs/ (only tails go up). A done reading is missing when
+    none of its summary files (*.metrics.json, report.json, summary*.json, paired*.json, *.md, *.csv) is in the cloud. Each
+    inode is counted once (the holds are hard links). Returns the report."""
+    root = root or ROOT
+    ckpt = ckpt if ckpt is not None else os.environ.get("CKPT_ROOT", "")
+    busy = busy if busy is not None else (lambda t: bool(running_pids(t)))
+    runs = os.path.join(root, "runs")
+    queued = set()
+    for line in _read(os.path.join(root, "control", "weights_pending.txt")).splitlines():
+        f = line.split("\t")
+        if len(f) >= 2:
+            queued.add(f[1].strip("/"))
+    seen = set()
+
+    def once(st):
+        k = (st.st_dev, st.st_ino)
+        if k in seen:
+            return False
+        seen.add(k); return True
+
+    def up(path, size):
+        return next((k for k, r in remote.items() if r.get(path) == size), None)
+
+    gb = {c: {"local_only": 0, "queued": 0, "in_cloud": 0} for c in ("weights", "readings", "logs", "other")}
+    gb["weights"]["second_copy"] = 0
+    gb["resume_state_local"] = 0
+    weights, missing, by_task = [], [], {}
+    for t in sorted(os.listdir(runs)) if os.path.isdir(runs) else []:
+        d = os.path.join(runs, t)
+        if t.startswith(".") or not os.path.isdir(d):
+            continue
+        training = bool(INV_TRAINING.match(t)); steps = {}; summ = []; done = os.path.exists(os.path.join(d, ".done"))
+        for dp, dns, fs in os.walk(d, followlinks=True):
+            for f in fs:
+                p = os.path.join(dp, f); rel = os.path.relpath(p, d)
+                try:
+                    st = os.stat(p)
+                except OSError:
+                    continue
+                m = INV_WEIGHT.match(rel)
+                if m:
+                    steps.setdefault(m.group(1), {}).setdefault(m.group(2), {})[m.group(3)] = (st.st_size, st)
+                    continue
+                if not once(st):
+                    continue
+                m = INV_HF.match(rel)
+                if m:   # a weight folder's small files: with the weights, at the upload's path
+                    gb["weights"]["in_cloud" if up(f"runs/{t}/{m.group(1)}/actor/huggingface/{m.group(2)}", st.st_size) else "local_only"] += st.st_size
+                    continue
+                if rel.startswith("ckpt/"):
+                    gb["resume_state_local"] += st.st_size; continue
+                cat = "logs" if f.endswith((".log", ".err", ".out", ".log.gz")) else ("other" if training else "readings")
+                k = up(f"runs/{t}/{rel}", st.st_size)
+                gb[cat]["in_cloud" if k else "local_only"] += st.st_size
+                if not k and cat != "logs":
+                    by_task[t] = by_task.get(t, 0) + st.st_size
+                if cat == "readings" and INV_SUMMARY.search(rel):
+                    summ.append(bool(k))
+        if done and not training and summ and not any(summ):
+            missing.append(t)
+        final = _read(os.path.join(d, "final_step")).strip()
+        for gs, folders in sorted(steps.items(), key=lambda x: int(x[0].split("_")[-1])):
+            dst = f"runs/{t}/{gs}/actor/huggingface"
+            where = None
+            for name in ("huggingface_bf16", "huggingface"):
+                fl = folders.get(name)
+                if fl:
+                    where = next((k for k in remote if all(remote[k].get(f"{dst}/{f}") == sz for f, (sz, _) in fl.items())), None)
+                    if where:
+                        break
+            fl = folders.get("huggingface_bf16") or folders.get("huggingface")
+            size = sum(sz for sz, st in fl.values() if once(st))
+            for name, other in folders.items():   # an fp32 copy beside the bf16 one: local, counted apart
+                if other is not fl:
+                    gb["weights"]["second_copy"] += sum(sz for sz, st in other.values() if once(st))
+            state = f"cloud:{where}" if where else ("queued" if dst in queued else "local")
+            gb["weights"]["in_cloud" if where else ("queued" if dst in queued else "local_only")] += size
+            weights.append({"task": t, "step": int(gs.split("_")[-1]), "gb": round(size / 1e9, 2), "state": state,
+                            "final": final == gs.split("_")[-1], "running": busy(t),
+                            "folder": "huggingface_bf16" if folders.get("huggingface_bf16") else "huggingface"})
+    hold = os.path.join(ckpt, "weights_pending") if ckpt else ""
+    for dp, dns, fs in os.walk(hold) if hold and os.path.isdir(hold) else []:   # holds whose run directory is gone
+        dns[:] = [x for x in dns if not x.startswith(".stage_")]
+        for f in fs:
+            try:
+                st = os.stat(os.path.join(dp, f))
+            except OSError:
+                continue
+            if f.endswith(".safetensors") and once(st):
+                gb["weights"]["queued"] += st.st_size
+    logs = os.path.join(root, "logs")
+    for dp, _, fs in os.walk(logs) if os.path.isdir(logs) else []:
+        for f in fs:
+            try:
+                st = os.stat(os.path.join(dp, f))
+            except OSError:
+                continue
+            if once(st):
+                gb["logs"]["local_only"] += st.st_size
+    out = {"utc": utc(), "repos": {k: len(v) for k, v in remote.items()},
+           "gb": {c: ({k: round(v / unit, 1) for k, v in x.items()} if isinstance(x, dict) else round(x / unit, 1)) for c, x in gb.items()},
+           "weights_local": [w for w in weights if w["state"] == "local"], "weights_queued": [w for w in weights if w["state"] == "queued"],
+           "weights_in_cloud": len([w for w in weights if w["state"].startswith("cloud")]), "readings_missing": missing,
+           "local_only_by_task_gb": dict(sorted(((t, round(b / 1e9, 2)) for t, b in by_task.items()), key=lambda x: -x[1])[:40])}
+    return out
+
+
+def inventory_pend(rep, root=None):
+    """[v2.5.9z72] (ops-lead: what is missing goes to weights_pending.txt or the results queue) every local-only weight step of a
+    task that is not running into the weights queue (remote.py defer_weight: hard links under $CKPT_ROOT/weights_pending, one
+    line in weights_pending.txt), every done reading with no summary in the cloud into the results queue (remote.py
+    pend_result, unless it already waits there). Returns (weights, readings) added."""
+    root = root or ROOT
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import remote as _rm_mod
+    nw = nr = 0
+    for w in rep["weights_local"]:
+        if w["running"]:
+            continue
+        src = os.path.join(root, "runs", w["task"], "ckpt", f"global_step_{w['step']}", "actor", w["folder"])
+        try:
+            _rm_mod.defer_weight(src, f"runs/{w['task']}/global_step_{w['step']}/actor/huggingface"); nw += 1
+        except Exception as e:
+            print(f"INVENTORY_PEND_FAILED {w['task']} s{w['step']}: {type(e).__name__}", file=sys.stderr)
+    for t in rep["readings_missing"]:
+        d = os.path.join(root, "runs", t)
+        if os.path.exists(os.path.join(d, ".upload_pending")):
+            continue
+        try:
+            _rm_mod.pend_result(d, f"runs/{t}"); nr += 1
+        except Exception as e:
+            print(f"INVENTORY_PEND_FAILED {t}: {type(e).__name__}", file=sys.stderr)
+    return nw, nr
+
+
+def v_inventory(a, seq, flags=None, entry=None):
+    """inventory [pend] ([v2.5.9z72], read-only unless pend): in the background, one recursive listing of runs/ in each of the
+    three repositories against this node's runs/, the holds and logs/; the receipt gives the local-only GB by weights /
+    readings / logs / other; the full report to logs/<node>/inventory/ (private). pend: then queues what is missing."""
+    if _backoff_left() > 0:
+        return "rejected", "the HF API backs off (429): later", {}
+    subprocess.Popen(["setsid", sys.executable, os.path.abspath(__file__), "do_inventory", str(seq)] + list(a[:1]),
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return "accepted", "inventory started (read-only" + ("; then the missing items queued)" if a else ")"), {}
+
+
+def do_inventory(seq, pend=False):
+    t0 = time.time()
+    try:
+        remote = {k: _repo_runs(k) for k in ("public", "private", "old")}
+    except Exception as e:
+        receipt(seq, None, "failed", f"listing failed: {type(e).__name__}"); return
+    rep = inventory_scan(remote)
+    if pend:
+        rep["pended_weights"], rep["pended_readings"] = inventory_pend(rep)
+    rep["seconds"] = round(time.time() - t0, 1)
+    d = _p("inventory"); os.makedirs(d, exist_ok=True)
+    json.dump(rep, open(os.path.join(d, "inventory.json"), "w"), indent=1)
+    ok = remote_put(d, f"logs/{node_id()}/inventory")
+    g = rep["gb"]
+    receipt(seq, None, "ok", f"local only: weights {g['weights']['local_only']} GB (+{g['weights']['queued']} GB queued), readings "
+            f"{g['readings']['local_only']} GB ({len(rep['readings_missing'])} done readings with no summary in the cloud), logs "
+            f"{g['logs']['local_only']} GB, other {g['other']['local_only']} GB; resume state {g['resume_state_local']} GB (local by policy)"
+            + (f"; queued now: {rep['pended_weights']} weight steps, {rep['pended_readings']} readings" if pend else "")
+            + ("" if ok else "; the report upload failed (kept in control/inventory)"),
+            gb=g, weights_local=[f"{w['task']} s{w['step']} {w['gb']} GB" for w in rep["weights_local"]][:60],
+            readings_missing=rep["readings_missing"][:60], seconds=rep["seconds"])
+
+
 def v_rm_ours(a, seq, flags=None, entry=None):
     """rm-ours <dr|old_base> <relative path> (v2.5.7): our own directory or file under one of the two prefixes, never a
     venv, $OPD_ROOT, the runbook, CKPT_ROOT, a model in use, a running task's mirror or a path a running process names;
@@ -2824,7 +3020,7 @@ def _v24(fn):
 VERBS = {"pause": _v24(v_pause), "resume": _v24(v_resume), "kill": _v24(v_kill), "prio": _v24(v_prio),
          "restore": _v24(v_restore), "rerun_verify": _v24(v_rerun_verify), "setenv": v_set, "set": v_set,
          "snapshot": lambda a, seq, flags=None, entry=None: v_snapshot0(seq) if not a else v_snapshot(a, seq),
-         "ps": v_ps, "logs": v_logs, "run": v_run, "rerun": v_rerun, "republish": v_republish, "publish": v_publish, "leakscan": v_leakscan, "fa-build": v_fa_build, "scrubdiff": v_scrubdiff, "du": v_du, "rm-ours": v_rm_ours, "dr-keep": v_dr_keep, "persist-env": v_persist_env, "rebuild-drill": v_rebuild_drill, "eval": v_eval, "update": v_update, "upload": v_upload,
+         "ps": v_ps, "logs": v_logs, "run": v_run, "rerun": v_rerun, "republish": v_republish, "publish": v_publish, "leakscan": v_leakscan, "fa-build": v_fa_build, "scrubdiff": v_scrubdiff, "du": v_du, "inventory": v_inventory, "rm-ours": v_rm_ours, "dr-keep": v_dr_keep, "persist-env": v_persist_env, "rebuild-drill": v_rebuild_drill, "eval": v_eval, "update": v_update, "upload": v_upload,
          "signal": v_signal, "kill-pgid": v_killpgid, "cancel": v_cancel, "heartbeat": v_heartbeat, "move-ckpt": v_move_ckpt, "reap": v_reap}
 assert set(VERBS) == set(R.VERBS), set(VERBS) ^ set(R.VERBS)
 TASK_VERBS = R.TASK_VERBS
@@ -3236,6 +3432,8 @@ if __name__ == "__main__":
         do_fa_build(int(sys.argv[2]))
     elif cmd == "do_scrubdiff":
         do_scrubdiff(int(sys.argv[2]), fix=sys.argv[3:4] == ["fix"])
+    elif cmd == "do_inventory":   # [v2.5.9z72] v_inventory's background half
+        do_inventory(int(sys.argv[2]), len(sys.argv) > 3 and sys.argv[3] == "pend")
     elif cmd == "do_du":
         do_du(int(sys.argv[2]), sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else "")
     elif cmd == "do_rm_ours":
