@@ -2048,6 +2048,9 @@ b259z24  open   TOKCHECK-X5
 # GPQA 16K (86% truncated, 61% unparsed vs the base's 1% / 9%): loops or long reasoning
 #tails READINGS-EXTRA vlm_base_geo3k EVAL-e15-base/e15_base2B_geo3k_T0.6_geo3k_no_think_t0.6.jsonl 20 20261024 500
 #tails READINGS-EXTRA vlm_base_mathvista EVAL-e15-base/e15_base2B_mathvista_T0.6_mathvista_no_think_t0.6.jsonl 20 20261024 500
+# [Fable 10-24 08:2x Beijing, E12b-P3's collapse] 20 tails of P3 -> RL s100 (32K) and of its start E10b-P3 s150 (E11b-P3, 16K): loops or gibberish
+#tails READINGS-EXTRA e12bP3_s100_32k EVAL-budA-e12bP13/budAe12b_E12bP3_s100_math500_T0.6_32k_math500_no_think_t0.6.jsonl 20 20261024 500
+#tails READINGS-EXTRA e11bP3_start_16k E11b-P3/e11b_P3_math500_T0.6_math500_no_think_t0.6.jsonl 20 20261024 500
 #tails READINGS-EXTRA vlm_base_mathvision EVAL-e15-base2/e15_base2B_mathvision_T0_mathvision_no_think_t0.0.jsonl 20 20261024 500
 #tails READINGS-EXTRA vlm_base_mathverse EVAL-e15-base2/e15_base2B_mathverse_T0_mathverse_no_think_t0.0.jsonl 20 20261024 500
 #tails READINGS-EXTRA vlm_s50_geo3k EVAL-e15-vlm-s50/e15_P5_s50_geo3k_T0.6_geo3k_no_think_t0.6.jsonl 20 20261024 500
