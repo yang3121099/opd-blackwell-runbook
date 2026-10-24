@@ -520,3 +520,4 @@ commands:
   - {"seq": 518, "cmd": "inventory", "reason": "ops-lead 10-23 18:05 UTC item 1: the local-only GB by weights / readings / logs (read-only; pend only after ops-lead has seen the numbers)", "utc": "2026-10-24T01:21:23Z"}
   - {"seq": 519, "cmd": "update", "reason": "pull runbook 754a23c (z77 tonight's fill; z79 rerun of failed PROBE-* gates; ops-lead A1 03:14 UTC)", "utc": "2026-10-24T03:23:50Z"}
   - {"seq": 520, "cmd": "rerun PROBE-8B", "reason": "PROBE-8B's report FAIL was z78's ragged-metrics bug (fixed 2e03a06); z79 lets rerun take failed gates; gates E10e-P5self (ops-lead A1 03:14 UTC)", "utc": "2026-10-24T03:25:57Z"}
+  - {"seq": 521, "cmd": "update", "reason": "pull runbook a7e350c (z80: PROBE-TAIL-BUD's two node-only test faults fixed)", "utc": "2026-10-24T03:29:32Z"}
