@@ -2849,8 +2849,8 @@ fill17   open   EVAL-ext-17bud2k:E10b-P5bud2k EVAL-gm-17bud2k:E10b-P5bud2k EVAL-
 #pair EVAL-ext32k-17selfroute ext32k17_P5selfroute_s50_aime25_T0.6 EVAL-ext32k-17route/ext32k17_P5route_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl
 #split READINGS-EXTRA 17_P5selfroute_s50 EVAL-e10b-P5selfroute/e10b_P5selfroute_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 #after EVAL-e10b-P5selfroute rerun READINGS-EXTRA
-# [held until E10b-P5selfroute has s50] term PROBE-TERM4 17_P5selfroute result:runs/E10b-P5selfroute/global_step_50/actor/huggingface EVAL-e10b-P5selfroute/e10b_P5selfroute_s50_math500_T0.6_math500_no_think_t0.6.jsonl
-# [held until E10b-P5selfroute has s50; restored together with the term row above] after EVAL-e10b-P5selfroute rerun PROBE-TERM4
+#term PROBE-TERM4 17_P5selfroute result:runs/E10b-P5selfroute/global_step_50/actor/huggingface EVAL-e10b-P5selfroute/e10b_P5selfroute_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-e10b-P5selfroute rerun PROBE-TERM4
 
 # [v2.5.9z82] (Q-055b, Fable 10-24 18:55 Beijing, research_program 3c) E10c-P5tail-c50: E10c-P5tail continued from its s20 weights for
 # 30 steps (a fresh optimizer and data.seed 43: its resume state was not kept, Fable's registered fallback and A1 19:4x Beijing); its
