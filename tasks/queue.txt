@@ -148,8 +148,7 @@ b259z76p open   PROBE-DENSE
 b259z76  open   E10b-P5-dense:PROBE-DENSE EVAL-dense:E10b-P5-dense EVAL-ext32k-17dense:E10b-P5-dense
 # [held until the literature reader confirms AKL's head definition in the inbox (Fable's A1 10-24 08:2x Beijing; the dense arm does not wait); restored by a queue push] b259z76a open   E10b-P5-akl:PROBE-DENSE EVAL-akl:E10b-P5-akl+EVAL-dense EVAL-ext32k-17akl:E10b-P5-akl+EVAL-ext32k-17dense
 # [v2.5.9z77] (Fable 10-24 08:2x Beijing; research_program 3c) tonight's fill: Q-070 the 4B self-distillation's second start, Q-071 the 4B 8K arm's second start, R-VLM32 the VLM readings at 32K
-b259z77  open   E10d-P5self-s43:PROBE-P5SELF-4B EVAL-e10d-P5self-s43:E10d-P5self-s43 EVAL-budA-e10dP5self-s43:E10d-P5self-s43 EVAL-ext32k-4Bp5self-s43:E10d-P5self-s43 E12d-P5-8k-s43:PROBE-E12B-8K EVAL-e12d-P5-8k-s43:E12d-P5-8k-s43 EVAL-budA-e12dP5-8k-s43:E12d-P5-8k-s43 EVAL-ext32k-4Bp5l8k-s43:E12d-P5-8k-s43
-# [held until E10e-P5self starts (ops-lead's A1 10-24 05:33 UTC: one GPU each for 15-23 h would keep E10e-P5self from four GPUs after 06:00 UTC); restored by a queue push as six one-GPU readings] b259z77v open   EVAL-vlm32-base EVAL-vlm32-s50
+b259z77  open   E10d-P5self-s43:PROBE-P5SELF-4B EVAL-e10d-P5self-s43:E10d-P5self-s43 EVAL-budA-e10dP5self-s43:E10d-P5self-s43 EVAL-ext32k-4Bp5self-s43:E10d-P5self-s43 E12d-P5-8k-s43:PROBE-E12B-8K EVAL-e12d-P5-8k-s43:E12d-P5-8k-s43 EVAL-budA-e12dP5-8k-s43:E12d-P5-8k-s43 EVAL-ext32k-4Bp5l8k-s43:E12d-P5-8k-s43 EVAL-vlm32-base-mathvista EVAL-vlm32-base-mathvision EVAL-vlm32-base-mathverse EVAL-vlm32-s50-mathvista EVAL-vlm32-s50-mathvision EVAL-vlm32-s50-mathverse
 b259z41o open   EVAL-ood32k-17base EVAL-ood32k-4Bbase EVAL-ood32k-17p5self:EVAL-ood32k-17base EVAL-ood32k-17p5l8k:EVAL-ood32k-17base EVAL-ood32k-4Bp5:EVAL-ood32k-4Bbase EVAL-ood32k-4Bp5self:EVAL-ood32k-4Bbase EVAL-ood32k-4Bx4:EVAL-ood32k-4Bbase
 diff4b   open   PROBE-DIFF17-4B:PROBE-DIFF17
 b259q028 open   EVAL-ext32k-17p5l8k-s25
@@ -2768,16 +2767,21 @@ b259z24  open   TOKCHECK-X5
 # [v2.5.9z77] (R-VLM32; Fable 10-24 08:2x Beijing) the VL-2B base and E15-VLM-P5 s50 at 32K on MathVista / MathVision / MathVerse, avg@4
 # T0.6 (otherwise as the 16K rows), six one-GPU readings; their tails' loop rates (READINGS-EXTRA). Forced answers: forced_stop.py reads
 # text only (no image inputs), so the image benches have none yet (a follow-up).
-#eval EVAL-vlm32-base vlm32_base2B_mathvista_T0.6_32k local:models/Qwen3-VL-2B-Instruct mathvista 4 0.6 32768
-#eval EVAL-vlm32-base vlm32_base2B_mathvision_T0.6_32k local:models/Qwen3-VL-2B-Instruct mathvision 4 0.6 32768
-#eval EVAL-vlm32-base vlm32_base2B_mathverse_T0.6_32k local:models/Qwen3-VL-2B-Instruct mathverse 4 0.6 32768
-#eval EVAL-vlm32-s50 vlm32_P5_s50_mathvista_T0.6_32k result:runs/E15-VLM-P5/global_step_50/actor/huggingface mathvista 4 0.6 32768
-#eval EVAL-vlm32-s50 vlm32_P5_s50_mathvision_T0.6_32k result:runs/E15-VLM-P5/global_step_50/actor/huggingface mathvision 4 0.6 32768
-#eval EVAL-vlm32-s50 vlm32_P5_s50_mathverse_T0.6_32k result:runs/E15-VLM-P5/global_step_50/actor/huggingface mathverse 4 0.6 32768
-#tails READINGS-EXTRA vlm32_base_mathvista EVAL-vlm32-base/vlm32_base2B_mathvista_T0.6_32k_mathvista_no_think_t0.6.jsonl 20 20261024 500
-#tails READINGS-EXTRA vlm32_base_mathvision EVAL-vlm32-base/vlm32_base2B_mathvision_T0.6_32k_mathvision_no_think_t0.6.jsonl 20 20261024 500
-#tails READINGS-EXTRA vlm32_base_mathverse EVAL-vlm32-base/vlm32_base2B_mathverse_T0.6_32k_mathverse_no_think_t0.6.jsonl 20 20261024 500
-#tails READINGS-EXTRA vlm32_s50_mathvista EVAL-vlm32-s50/vlm32_P5_s50_mathvista_T0.6_32k_mathvista_no_think_t0.6.jsonl 20 20261024 500
-#tails READINGS-EXTRA vlm32_s50_mathvision EVAL-vlm32-s50/vlm32_P5_s50_mathvision_T0.6_32k_mathvision_no_think_t0.6.jsonl 20 20261024 500
-#tails READINGS-EXTRA vlm32_s50_mathverse EVAL-vlm32-s50/vlm32_P5_s50_mathverse_T0.6_32k_mathverse_no_think_t0.6.jsonl 20 20261024 500
-#after EVAL-vlm32-s50 rerun READINGS-EXTRA
+#eval EVAL-vlm32-base-mathvista vlm32_base2B_mathvista_T0.6_32k local:models/Qwen3-VL-2B-Instruct mathvista 4 0.6 32768
+#eval EVAL-vlm32-base-mathvision vlm32_base2B_mathvision_T0.6_32k local:models/Qwen3-VL-2B-Instruct mathvision 4 0.6 32768
+#eval EVAL-vlm32-base-mathverse vlm32_base2B_mathverse_T0.6_32k local:models/Qwen3-VL-2B-Instruct mathverse 4 0.6 32768
+#eval EVAL-vlm32-s50-mathvista vlm32_P5_s50_mathvista_T0.6_32k result:runs/E15-VLM-P5/global_step_50/actor/huggingface mathvista 4 0.6 32768
+#eval EVAL-vlm32-s50-mathvision vlm32_P5_s50_mathvision_T0.6_32k result:runs/E15-VLM-P5/global_step_50/actor/huggingface mathvision 4 0.6 32768
+#eval EVAL-vlm32-s50-mathverse vlm32_P5_s50_mathverse_T0.6_32k result:runs/E15-VLM-P5/global_step_50/actor/huggingface mathverse 4 0.6 32768
+#tails READINGS-EXTRA vlm32_base_mathvista EVAL-vlm32-base-mathvista/vlm32_base2B_mathvista_T0.6_32k_mathvista_no_think_t0.6.jsonl 20 20261024 500
+#tails READINGS-EXTRA vlm32_base_mathvision EVAL-vlm32-base-mathvision/vlm32_base2B_mathvision_T0.6_32k_mathvision_no_think_t0.6.jsonl 20 20261024 500
+#tails READINGS-EXTRA vlm32_base_mathverse EVAL-vlm32-base-mathverse/vlm32_base2B_mathverse_T0.6_32k_mathverse_no_think_t0.6.jsonl 20 20261024 500
+#tails READINGS-EXTRA vlm32_s50_mathvista EVAL-vlm32-s50-mathvista/vlm32_P5_s50_mathvista_T0.6_32k_mathvista_no_think_t0.6.jsonl 20 20261024 500
+#tails READINGS-EXTRA vlm32_s50_mathvision EVAL-vlm32-s50-mathvision/vlm32_P5_s50_mathvision_T0.6_32k_mathvision_no_think_t0.6.jsonl 20 20261024 500
+#tails READINGS-EXTRA vlm32_s50_mathverse EVAL-vlm32-s50-mathverse/vlm32_P5_s50_mathverse_T0.6_32k_mathverse_no_think_t0.6.jsonl 20 20261024 500
+#after EVAL-vlm32-base-mathvista rerun READINGS-EXTRA
+#after EVAL-vlm32-base-mathvision rerun READINGS-EXTRA
+#after EVAL-vlm32-base-mathverse rerun READINGS-EXTRA
+#after EVAL-vlm32-s50-mathvista rerun READINGS-EXTRA
+#after EVAL-vlm32-s50-mathvision rerun READINGS-EXTRA
+#after EVAL-vlm32-s50-mathverse rerun READINGS-EXTRA
