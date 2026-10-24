@@ -137,6 +137,8 @@ b259z68r open   EVAL-8B-base EVAL-8B-think16k
 b259z68p open   PROBE-8B
 # [v2.5.9z74] (Q-062; Fable 10-24 02:0x Beijing) the difficulty probe on the 1.7B base, one GPU, ~15 min (after PROBE-8B's stage, ahead of Q-061's arms: the scheduler's v100, 10-24 07:1x Beijing)
 b259z74  open   PROBE-DIFFPROBE:PROBE-DIFF17
+# [v2.5.9z75] (Q-064; Fable 10-24 02:0x Beijing) p* from the 8B teacher's sequence log-probs on P2 s150's short and P5 s150's long answers, one GPU, ~10 min
+b259z75  open   PROBE-PSTAR
 b259z68  open   E10e-P5self:PROBE-8B EVAL-e10e-P5self:E10e-P5self+EVAL-8B-base+EVAL-8B-think16k EVAL-budA-e10eP5self:E10e-P5self+EVAL-8B-base EVAL-ext32k-8Bp5self:E10e-P5self+EVAL-8B-base
 # [v2.5.9z73] (Q-061; Fable 10-24 02:0x Beijing) budget-position routing: the gate (the unit tests and bud2k's 3-step smoke), then the two arms, their readings
 b259z73p open   PROBE-TAIL-BUD

@@ -86,6 +86,7 @@ case $T in
   PROBE-DIFF17) bash $RUNBOOK/scripts/probe_diff17.sh $G;;   # [v2.5.9x] (Q-041) difficulty labels, the 1.7B base
   PROBE-DIFF17-4B) bash $RUNBOOK/scripts/probe_diff17.sh $G 4b;;   # [v2.5.9x] the k_4b column (Q-050), a pad
   PROBE-DIFFPROBE) bash $RUNBOOK/scripts/probe_diffprobe.sh $G;;   # [v2.5.9z74] (Q-062) the difficulty probe on the 1.7B base's hidden states
+  PROBE-PSTAR) bash $RUNBOOK/scripts/probe_pstar.sh $G;;   # [v2.5.9z75] (Q-064) p* from the 8B teacher's sequence log-probs
   PROBE-ROUTE) bash $RUNBOOK/scripts/probe_route.sh $G;;   # [v2.5.9x] the gate of E10b-P5route / -P5mix
   PROBE-ROUTE-INV) PRT_TASK=PROBE-ROUTE-INV PRT_ARM=E10b-P5route-inv PRT_INVERT=1 bash $RUNBOOK/scripts/probe_route.sh $G;;   # [v2.5.9z45] (Q-063) the gate of E10b-P5route-inv: PROBE-ROUTE's checks, the rule reversed
   PROBE-X5) bash $RUNBOOK/scripts/probe_x5.sh $G;;   # [v2.5.9z46] (Q-057) the gate of E16-X5: unit tests, the teacher's completions, its stop probability under two prefixes, a 3-step smoke
