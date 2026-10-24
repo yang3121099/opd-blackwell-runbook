@@ -536,3 +536,4 @@ commands:
   - {"seq": 534, "cmd": "rerun EVAL-e10e-P5self", "reason": "skipped 05:22Z when E10e-P5self failed; E10e done 07:53Z (ops-lead A1 05:33 UTC)", "utc": "2026-10-24T08:14:35Z"}
   - {"seq": 535, "cmd": "rerun EVAL-budA-e10eP5self", "reason": "skipped 05:22Z when E10e-P5self failed; E10e done 07:53Z (ops-lead A1 05:33 UTC)", "utc": "2026-10-24T08:14:40Z"}
   - {"seq": 536, "cmd": "rerun EVAL-ext32k-8Bp5self", "reason": "skipped 05:22Z when E10e-P5self failed; E10e done 07:53Z (ops-lead A1 05:33 UTC)", "utc": "2026-10-24T08:14:46Z"}
+  - {"seq": 537, "cmd": "du opd_root runs/E10c-P5tail/ckpt/global_step_20/actor", "reason": "Q-055b: is E10c-P5tail's s20 resume state (optimizer) on the node (read-only)", "utc": "2026-10-24T11:01:40Z"}
