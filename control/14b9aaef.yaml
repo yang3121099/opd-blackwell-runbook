@@ -544,3 +544,4 @@ commands:
   - {"seq": 542, "cmd": "update", "reason": "pull z82 eeafad4 (Q-072 selfroute + PROBE-SELFROUTE, Q-055b tail-c50; rules 2.5.90; Fable + ops-lead A1)", "utc": "2026-10-24T11:54:07Z"}
   - {"seq": 543, "cmd": "update", "reason": "pull z82a 0402200 (Q-072 gate released share-matched; Fable A1)", "utc": "2026-10-24T15:14:10Z"}
   - {"seq": 544, "cmd": "rerun PROBE-SELFROUTE", "reason": "z82a: share-matched labels, agreement line 0.74 (Fable A1 22:5x Beijing, a recorded deviation)", "utc": "2026-10-24T15:15:36Z"}
+  - {"seq": 545, "cmd": "setenv DR=0", "reason": "idx0 free 1971.1 GB < 2000 (ops-lead standing rule 10-22)", "utc": "2026-10-24T16:48:00Z"}
