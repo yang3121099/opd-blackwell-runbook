@@ -147,6 +147,8 @@ b259z73  open   E10b-P5bud2k:PROBE-TAIL-BUD+PROBE-TAIL E10b-P5bud3k:PROBE-TAIL-B
 b259z76p open   PROBE-DENSE
 b259z76  open   E10b-P5-dense:PROBE-DENSE EVAL-dense:E10b-P5-dense EVAL-ext32k-17dense:E10b-P5-dense
 # [held until the literature reader confirms AKL's head definition in the inbox (Fable's A1 10-24 08:2x Beijing; the dense arm does not wait); restored by a queue push] b259z76a open   E10b-P5-akl:PROBE-DENSE EVAL-akl:E10b-P5-akl+EVAL-dense EVAL-ext32k-17akl:E10b-P5-akl+EVAL-ext32k-17dense
+# [v2.5.9z77] (Fable 10-24 08:2x Beijing; research_program 3c) tonight's fill: Q-070 the 4B self-distillation's second start, Q-071 the 4B 8K arm's second start, R-VLM32 the VLM readings at 32K
+b259z77  open   E10d-P5self-s43:PROBE-P5SELF-4B EVAL-e10d-P5self-s43:E10d-P5self-s43 EVAL-budA-e10dP5self-s43:E10d-P5self-s43 EVAL-ext32k-4Bp5self-s43:E10d-P5self-s43 E12d-P5-8k-s43:PROBE-E12B-8K EVAL-e12d-P5-8k-s43:E12d-P5-8k-s43 EVAL-budA-e12dP5-8k-s43:E12d-P5-8k-s43 EVAL-ext32k-4Bp5l8k-s43:E12d-P5-8k-s43 EVAL-vlm32-base EVAL-vlm32-s50
 b259z41o open   EVAL-ood32k-17base EVAL-ood32k-4Bbase EVAL-ood32k-17p5self:EVAL-ood32k-17base EVAL-ood32k-17p5l8k:EVAL-ood32k-17base EVAL-ood32k-4Bp5:EVAL-ood32k-4Bbase EVAL-ood32k-4Bp5self:EVAL-ood32k-4Bbase EVAL-ood32k-4Bx4:EVAL-ood32k-4Bbase
 diff4b   open   PROBE-DIFF17-4B:PROBE-DIFF17
 b259q028 open   EVAL-ext32k-17p5l8k-s25
@@ -2728,3 +2730,53 @@ b259z24  open   TOKCHECK-X5
 # [held with b259z76a] pair EVAL-ext32k-17akl ext32k17_P5akl_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17dense/ext32k17_P5dense_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
 # [held until E10b-P5-akl has s50] term PROBE-TERM4 17_P5akl result:runs/E10b-P5-akl/global_step_50/actor/huggingface EVAL-akl/e10b_P5akl_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 # [held until E10b-P5-akl has s50; restored together with the term row above] after EVAL-akl rerun PROBE-TERM4
+
+# [v2.5.9z77] (Q-070; Fable 10-24 08:2x Beijing, research_program 3c) E10d-P5self-s43 = E10d-P5self with data.seed 43 (the second start),
+# 50 steps, s50 up, gate PROBE-P5SELF-4B. Readings at s50: MATH500 16K T0.6 / T1.0 paired against E10d-P5self s50 (T0.6 against the 4B
+# thinking mode too); MATH500 32K with the budget curves against the base, the s42 arm and the thinking mode; AIME24/25 avg@16 32K paired
+# against the s42 arm and the thinking mode; its Q-056 fingerprint row (READINGS-EXTRA, CPU).
+#eval EVAL-e10d-P5self-s43 e10d_P5self-s43_s50_math500_T0.6 result:runs/E10d-P5self-s43/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-e10d-P5self-s43 e10d_P5self-s43_s50_math500_T1.0 result:runs/E10d-P5self-s43/global_step_50/actor/huggingface math500 4 1.0
+#pair EVAL-e10d-P5self-s43 e10d_P5self-s43_s50_math500_T0.6 EVAL-e10d-P5self/e10d_P5self_s50_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-budF-4B/budF4B_P0think_math500_T0.6_16k_math500_think_t0.6.jsonl
+#pair EVAL-e10d-P5self-s43 e10d_P5self-s43_s50_math500_T1.0 EVAL-e10d-P5self/e10d_P5self_s50_math500_T1.0_math500_no_think_t1.0.jsonl
+#eval EVAL-budA-e10dP5self-s43 budA4B_E10dP5selfs43_s50_math500_T0.6_32k result:runs/E10d-P5self-s43/global_step_50/actor/huggingface math500 4 0.6 32768
+#budget EVAL-budA-e10dP5self-s43 budget_curve EVAL-budA-4B/budA4B_base4B_math500_T0.6_32k_math500_no_think_t0.6.jsonl budA4B_E10dP5selfs43_s50_math500_T0.6_32k
+#budget EVAL-budA-e10dP5self-s43 budget_curve_vsS42 EVAL-budA-e10dP5self/budA4B_E10dP5self_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl budA4B_E10dP5selfs43_s50_math500_T0.6_32k
+#budget EVAL-budA-e10dP5self-s43 budget_curve_vs4Bthink EVAL-budA-4Bthink/budA4B_P0think_math500_T0.6_32k_math500_think_t0.6.jsonl budA4B_E10dP5selfs43_s50_math500_T0.6_32k
+#eval EVAL-ext32k-4Bp5self-s43 ext32k4B_E10dP5selfs43_s50_aime24_T0.6 result:runs/E10d-P5self-s43/global_step_50/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-4Bp5self-s43 ext32k4B_E10dP5selfs43_s50_aime25_T0.6 result:runs/E10d-P5self-s43/global_step_50/actor/huggingface aime25 16 0.6 32768
+#pair EVAL-ext32k-4Bp5self-s43 ext32k4B_E10dP5selfs43_s50_aime24_T0.6 EVAL-ext32k-4Bp5self/ext32k4B_E10dP5self_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4Bthink/ext32k4B_P0think_aime24_T0.6_aime24_think_t0.6.jsonl
+#pair EVAL-ext32k-4Bp5self-s43 ext32k4B_E10dP5selfs43_s50_aime25_T0.6 EVAL-ext32k-4Bp5self/ext32k4B_E10dP5self_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Bthink/ext32k4B_P0think_aime25_T0.6_aime25_think_t0.6.jsonl
+#fpmodel READINGS-EXTRA q056 4B_P5self_s43 EVAL-budA-e10dP5self-s43/budA4B_E10dP5selfs43_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl 16384
+#after EVAL-budA-e10dP5self-s43 rerun READINGS-EXTRA
+# [v2.5.9z77] (Q-071) E12d-P5-8k-s43 = E12d-P5-8k's recipe from E10d-P5-s43 s150 (the second start), 50 steps, s25 / s50 up, gate PROBE-E12B-8K.
+# Readings: MATH500 16K T0.6 at s25 / s50 paired against the start and E12d-P5-8k at the same step; MATH500 32K with the budget curves
+# against the start and E12d-P5-8k s50; AIME24/25 avg@16 32K at s50 paired against the start (EVAL-ext32k-4Bs43) and E12d-P5-8k s50.
+#eval EVAL-e12d-P5-8k-s43 e12d_P5-8k-s43_s25_math500_T0.6 result:runs/E12d-P5-8k-s43/global_step_25/actor/huggingface math500 4 0.6
+#pair EVAL-e12d-P5-8k-s43 e12d_P5-8k-s43_s25_math500_T0.6 EVAL-e10d-P5-s43/e10d_P5-s43_s150_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e12d-P5-8k/e12d_P5-8k_s25_math500_T0.6_math500_no_think_t0.6.jsonl
+#eval EVAL-e12d-P5-8k-s43 e12d_P5-8k-s43_s50_math500_T0.6 result:runs/E12d-P5-8k-s43/global_step_50/actor/huggingface math500 4 0.6
+#pair EVAL-e12d-P5-8k-s43 e12d_P5-8k-s43_s50_math500_T0.6 EVAL-e10d-P5-s43/e10d_P5-s43_s150_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e12d-P5-8k/e12d_P5-8k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#eval EVAL-budA-e12dP5-8k-s43 budAe12dP5-8ks43_s25_math500_T0.6_32k result:runs/E12d-P5-8k-s43/global_step_25/actor/huggingface math500 4 0.6 32768
+#eval EVAL-budA-e12dP5-8k-s43 budAe12dP5-8ks43_s50_math500_T0.6_32k result:runs/E12d-P5-8k-s43/global_step_50/actor/huggingface math500 4 0.6 32768
+#budget EVAL-budA-e12dP5-8k-s43 budget_curve_vsStart EVAL-budA-4Bs43/budA4Bs43_E10dP5s43_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12dP5-8ks43_s25_math500_T0.6_32k budAe12dP5-8ks43_s50_math500_T0.6_32k
+#budget EVAL-budA-e12dP5-8k-s43 budget_curve_vsS42 EVAL-budA-e12dP5-8k/budAe12dP5-8k_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12dP5-8ks43_s25_math500_T0.6_32k budAe12dP5-8ks43_s50_math500_T0.6_32k
+#eval EVAL-ext32k-4Bp5l8k-s43 ext32k4B_E12dP5l8ks43_s50_aime24_T0.6 result:runs/E12d-P5-8k-s43/global_step_50/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-4Bp5l8k-s43 ext32k4B_E12dP5l8ks43_s50_aime25_T0.6 result:runs/E12d-P5-8k-s43/global_step_50/actor/huggingface aime25 16 0.6 32768
+#pair EVAL-ext32k-4Bp5l8k-s43 ext32k4B_E12dP5l8ks43_s50_aime24_T0.6 EVAL-ext32k-4Bs43/ext32k4B_E10dP5s43_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4Bp5l8k/ext32k4B_E12dP5l8k_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#pair EVAL-ext32k-4Bp5l8k-s43 ext32k4B_E12dP5l8ks43_s50_aime25_T0.6 EVAL-ext32k-4Bs43/ext32k4B_E10dP5s43_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Bp5l8k/ext32k4B_E12dP5l8k_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
+# [v2.5.9z77] (R-VLM32; Fable 10-24 08:2x Beijing) the VL-2B base and E15-VLM-P5 s50 at 32K on MathVista / MathVision / MathVerse, avg@4
+# T0.6 (otherwise as the 16K rows), six one-GPU readings; their tails' loop rates (READINGS-EXTRA). Forced answers: forced_stop.py reads
+# text only (no image inputs), so the image benches have none yet (a follow-up).
+#eval EVAL-vlm32-base vlm32_base2B_mathvista_T0.6_32k local:models/Qwen3-VL-2B-Instruct mathvista 4 0.6 32768
+#eval EVAL-vlm32-base vlm32_base2B_mathvision_T0.6_32k local:models/Qwen3-VL-2B-Instruct mathvision 4 0.6 32768
+#eval EVAL-vlm32-base vlm32_base2B_mathverse_T0.6_32k local:models/Qwen3-VL-2B-Instruct mathverse 4 0.6 32768
+#eval EVAL-vlm32-s50 vlm32_P5_s50_mathvista_T0.6_32k result:runs/E15-VLM-P5/global_step_50/actor/huggingface mathvista 4 0.6 32768
+#eval EVAL-vlm32-s50 vlm32_P5_s50_mathvision_T0.6_32k result:runs/E15-VLM-P5/global_step_50/actor/huggingface mathvision 4 0.6 32768
+#eval EVAL-vlm32-s50 vlm32_P5_s50_mathverse_T0.6_32k result:runs/E15-VLM-P5/global_step_50/actor/huggingface mathverse 4 0.6 32768
+#tails READINGS-EXTRA vlm32_base_mathvista EVAL-vlm32-base/vlm32_base2B_mathvista_T0.6_32k_mathvista_no_think_t0.6.jsonl 20 20261024 500
+#tails READINGS-EXTRA vlm32_base_mathvision EVAL-vlm32-base/vlm32_base2B_mathvision_T0.6_32k_mathvision_no_think_t0.6.jsonl 20 20261024 500
+#tails READINGS-EXTRA vlm32_base_mathverse EVAL-vlm32-base/vlm32_base2B_mathverse_T0.6_32k_mathverse_no_think_t0.6.jsonl 20 20261024 500
+#tails READINGS-EXTRA vlm32_s50_mathvista EVAL-vlm32-s50/vlm32_P5_s50_mathvista_T0.6_32k_mathvista_no_think_t0.6.jsonl 20 20261024 500
+#tails READINGS-EXTRA vlm32_s50_mathvision EVAL-vlm32-s50/vlm32_P5_s50_mathvision_T0.6_32k_mathvision_no_think_t0.6.jsonl 20 20261024 500
+#tails READINGS-EXTRA vlm32_s50_mathverse EVAL-vlm32-s50/vlm32_P5_s50_mathverse_T0.6_32k_mathverse_no_think_t0.6.jsonl 20 20261024 500
+#after EVAL-vlm32-s50 rerun READINGS-EXTRA

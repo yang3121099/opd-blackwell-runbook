@@ -28,6 +28,7 @@ source "$(dirname "$0")/env.sh"; source "$(dirname "$0")/dr.sh"; G=$1; T=$2; LAD
 # low_var_kl, the reference = the start); gated by both of its parts' gates (PROBE-E12B-16K and PROBE-E12B-KL), no smoke of its own
 VAR=""; case $A in P5-kl|P5-stop|P5-stop2|P5-8k|P5-16k|P5-r3|P5-16k-kl) VAR=${A#P5-}; A=P5;; esac
 [ "$A" = P5-8k-s44 ] && { VAR=8k; A=P5-s44; }   # [v2.5.9z41] (the reviewer's padding ruling 10-22) E12b-P5-8k-s44: the 8K arm from E10b-P5-s44 s150
+[ "$A" = P5-8k-s43 ] && { VAR=8k; A=P5-s43; }   # [v2.5.9z77] (Q-071; Fable 10-24 08:2x Beijing) E12d-P5-8k-s43: E12d-P5-8k's recipe from E10d-P5-s43 s150 (the second start; data.seed 4242 as every E12)
 [ "$A" = P5-prog-up ] && VAR=8k   # [v2.5.9z43] (Q-058) the grow-window arm: the 8K recipe (its gate PROBE-E12B-8K too)
 # [v2.5.8h] (Runming 10-20 17:5x UTC via the reviewer, Q-028: the 4K limit costs too much): E12b-P5-8k / -16k = E12b-P5 with
 # max_response_length 8192 / 16384 and what the length forces: flash-attn with remove-padding (an SDPA micro-batch is
@@ -144,6 +145,7 @@ UW=$STEPS; case $T in E12b-P5-s44|E12d-P5) UW=25,50,75,$STEPS;; E12b-P5-8k|E12b-
 [ $T = E12b-P5-8k-s44 ] && UW=25,$STEPS   # [v2.5.9z41] as the 8K arm: s25 too
 [ $T = E12d-P5-8k ] && UW=25,$STEPS   # [v2.5.9z60] (Q-066) as the 8K arm: s25 and s50 up
 [ $T = E12d-P5-16k ] && UW=25,$STEPS   # [v2.5.9z67] (Q-069) as the 16K arm: s25 and s50 up
+[ $T = E12d-P5-8k-s43 ] && UW=25,$STEPS   # [v2.5.9z77] (Q-071) as E12d-P5-8k: s25 and s50 up
 # [v2.5.8b] the variant's settings (KL loss and its reference; the reward function)
 KL="actor_rollout_ref.actor.use_kl_loss=False"; REWARD=$RUNBOOK/code/train/reward_mathverify.py
 # [v2.5.8c] stop: the stop reward, counting the student's tokens (its start's tokenizer) against the 4K response limit

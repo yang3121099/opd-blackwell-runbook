@@ -11,6 +11,7 @@
 #        [v2.5.9z66]: E10b-P5-8k / E10b-P5smerge-8k (Q-059: P5 / stop-merged P5 with 8K rollouts); [v2.5.9z68]: E10e-P5self (Q-068: 8B, 4 GPUs)
 #        [v2.5.9z73]: E10b-P5bud2k / E10b-P5bud3k (Q-061: the tail swap at min(the first box, 2048 / 3072 tokens))
 #        [v2.5.9z76]: E10b-P5-dense / E10b-P5-akl (Q-065: the per-token KL over the vocabulary, reverse / AKL)
+#        [v2.5.9z77]: E10d-P5self-s43 (Q-070: the 4B self-distillation with data.seed 43; its gate PROBE-P5SELF-4B, flash-attn as every -s43)
 set -euo pipefail
 source "$(dirname "$0")/env.sh"; source "$(dirname "$0")/dr.sh"; GPU=$1; TASK=$2
 # task id E10b-<arm>[-s<seed>]: the seed changes only the data order (data.seed); the default seed is 42
@@ -53,7 +54,7 @@ POLISH=0; [ $TASK = E10c-P5-polish ] && { POLISH=1; BASE=E10b-P5; MODE=fix4; }
 # v2.5.7b (queue v3 V3-c5, the 4B probe): E10d-<P2|P5> = the E10b arm with the 4B student ($STUDENT_4B); gradient
 # checkpointing stays on for it (GC=0 was measured on 1.7B only), the batching is the node's (FIXED_MICRO_BSZ)
 SIZE=""; [[ $TASK =~ ^E10d-(P2|P5)(-s43)?$ ]] && { BASE=E10b-${BASH_REMATCH[1]}; SIZE=4B; }   # v2.5.7o: -s43 = data.seed 43
-[ $TASK = E10d-P5self ] && { BASE=E10b-P5; SIZE=4B; SELF=1; }   # [v2.5.8e]
+[[ $TASK =~ ^E10d-P5self(-s43)?$ ]] && { BASE=E10b-P5; SIZE=4B; SELF=1; }   # [v2.5.8e]; [v2.5.9z77] (Q-070) -s43 = data.seed 43, its second start
 # [v2.5.9z68] (Q-068, research_program 3c; Fable 10-23 15:1x UTC, Runming 23:0x Beijing: multi-GPU work for the main line) E10e-P5self =
 # P5self with the 8B student: Qwen3-8B on the non-thinking template taught by its own weights on the thinking template (P5's teacher
 # prompt); E10d's batching and lr, 50 steps, four GPUs (#gpus 4: FSDP over four ranks, one vLLM engine each, the teacher offloaded),
