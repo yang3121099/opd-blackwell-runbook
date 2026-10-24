@@ -527,3 +527,4 @@ commands:
   - {"seq": 525, "cmd": "logs E10e-P5self 800", "reason": "E10e-P5self failed twice at step 25/26 with AssertionError; need the traceback", "utc": "2026-10-24T05:16:06Z"}
   - {"seq": 526, "cmd": "logs E10e-P5self 400", "reason": "E10e-P5self failed 3 times (bare AssertionError); the stack for ops-lead / Fable", "utc": "2026-10-24T05:22:18Z"}
   - {"seq": 527, "cmd": "update", "reason": "pull z81 6356581 + queue cc47545 (ops-lead A1 05:33 UTC)", "utc": "2026-10-24T05:50:01Z"}
+  - {"seq": 528, "cmd": "setenv GPUS_SOON_MIN=1440", "reason": "collect 4 GPUs for E10e-P5self's rerun (ops-lead A1 05:33 UTC)", "utc": "2026-10-24T05:50:25Z"}
