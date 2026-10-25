@@ -597,3 +597,4 @@ commands:
   - {"seq": 595, "cmd": "du opd_root runs/EVAL-vlm32-s50-mathvision", "reason": "ops-lead 20:23Z (2): run dir on idx1 (a link: refused as leaving the prefix) or a real idx0 dir", "utc": "2026-10-25T20:48:27Z"}
   - {"seq": 596, "cmd": "du opd_root runs/EVAL-vlm32-s50-mathverse", "reason": "ops-lead 20:23Z (2): run dir on idx1 (a link: refused as leaving the prefix) or a real idx0 dir", "utc": "2026-10-25T20:49:42Z"}
   - {"seq": 597, "cmd": "du opd_root runs/EVAL-e10b-P5selfroute-c100", "reason": "ops-lead 20:23Z (2): run dir on idx1 (a link: refused as leaving the prefix) or a real idx0 dir", "utc": "2026-10-25T20:50:57Z"}
+  - {"seq": 598, "cmd": "du opd_root runs/EVAL-ext32k-17selfroute-c100", "reason": "ops-lead 20:23Z (2): run dir on idx1 (a link: refused as leaving the prefix) or a real idx0 dir", "utc": "2026-10-25T20:52:11Z"}
