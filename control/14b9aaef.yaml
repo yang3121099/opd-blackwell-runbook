@@ -570,3 +570,4 @@ commands:
   - {"seq": 568, "cmd": "du opd_root logs", "reason": "Runming 10-25: no new idx0 writes; where logs lives", "utc": "2026-10-25T12:10:55Z"}
   - {"seq": 569, "cmd": "du opd_root control", "reason": "Runming 10-25: no new idx0 writes; where control lives", "utc": "2026-10-25T12:12:15Z"}
   - {"seq": 570, "cmd": "du opd_root runs/CORPUS-RECORD", "reason": "Runming 10-25: no new idx0 writes; where runs/CORPUS-RECORD lives", "utc": "2026-10-25T12:13:36Z"}
+  - {"seq": 571, "cmd": "setenv READINGS_DISK_MIN_GB=1000000", "reason": "Runming 10-25 20:1x Beijing: no new writes to the shared idx0 (via patrol / Fable): the readings guard always on (fetch / prefetch / #git and idx0-run-dir readings held); idx1 tasks unaffected", "utc": "2026-10-25T12:17:38Z"}
