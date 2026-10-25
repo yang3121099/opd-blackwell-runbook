@@ -547,3 +547,4 @@ commands:
   - {"seq": 545, "cmd": "setenv DR=0", "reason": "idx0 free 1971.1 GB < 2000 (ops-lead standing rule 10-22)", "utc": "2026-10-24T16:48:00Z"}
   - {"seq": 546, "cmd": "update", "reason": "pull z83 1b080c0 (Q-073 softmix + PROBE-SOFTMIX, rules 2.5.91; Fable + ops-lead A1)", "utc": "2026-10-25T00:52:05Z"}
   - {"seq": 547, "cmd": "du opd_root data/hf/google__IFEval", "reason": "z16 condition 3: is IFEval's .fetch_ok on the node (read-only)", "utc": "2026-10-25T02:01:07Z"}
+  - {"seq": 548, "cmd": "update", "reason": "pull z16 (IFEval bench, rules 2.5.92; Fable + ops-lead A1, Runming's go 10-25)", "utc": "2026-10-25T02:12:13Z"}
