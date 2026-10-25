@@ -3100,8 +3100,8 @@ fill17   open   EVAL-ext-17bud2k:E10b-P5bud2k EVAL-gm-17bud2k:E10b-P5bud2k EVAL-
 #pair EVAL-ext32k-17densek256 ext32k17_P5densek256_s50_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17dense/ext32k17_P5dense_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #eval EVAL-ext32k-17densek256 ext32k17_P5densek256_s50_aime25_T0.6 result:runs/E10b-P5-dense-k256/global_step_50/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-17densek256 ext32k17_P5densek256_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17dense/ext32k17_P5dense_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
-# [held until E10b-P5-dense-k256 has s50] term PROBE-TERM4 17_P5densek256 result:runs/E10b-P5-dense-k256/global_step_50/actor/huggingface EVAL-densek256/e10b_P5densek256_s50_math500_T0.6_math500_no_think_t0.6.jsonl
-# [held until E10b-P5-dense-k256 has s50; restored together with the term row above] after EVAL-densek256 rerun PROBE-TERM4
+#term PROBE-TERM4 17_P5densek256 result:runs/E10b-P5-dense-k256/global_step_50/actor/huggingface EVAL-densek256/e10b_P5densek256_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-densek256 rerun PROBE-TERM4
 # E10b-P5-akl-mu03: AKL mu 0.3 (H1 16K within P5 +-1; H2 the wall step monotone in mu); pairs vs P5 s150 and akl (mu 0.5) s50
 #eval EVAL-aklmu03 e10b_P5aklmu03_s50_math500_T0.6 result:runs/E10b-P5-akl-mu03/global_step_50/actor/huggingface math500 4 0.6
 #eval EVAL-aklmu03 e10b_P5aklmu03_s50_math500_T1.0 result:runs/E10b-P5-akl-mu03/global_step_50/actor/huggingface math500 4 1.0
