@@ -588,3 +588,4 @@ commands:
   - {"seq": 586, "cmd": "du ckpt E10d-P5-s43", "reason": "ops-lead 18:00Z (3): E12d-P5-16k-s43's start E10d-P5-s43 s150 local on idx1, and its own run dir", "utc": "2026-10-25T18:03:20Z"}
   - {"seq": 587, "cmd": "du ckpt E12d-P5-16k-s43", "reason": "ops-lead 18:00Z (3): E12d-P5-16k-s43's start E10d-P5-s43 s150 local on idx1, and its own run dir", "utc": "2026-10-25T18:04:19Z"}
   - {"seq": 588, "cmd": "du opd_root runs/E12d-P5-16k-s43", "reason": "ops-lead 18:00Z (3): E12d-P5-16k-s43's run dir on idx0 - markers only (placeable) or not", "utc": "2026-10-25T18:05:44Z"}
+  - {"seq": 589, "cmd": "du ckpt E10d-P5-s43/ckpt", "reason": "ops-lead 18:00Z (3): E10d-P5-s43 global_step_150 present", "utc": "2026-10-25T18:06:58Z"}
