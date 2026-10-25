@@ -565,3 +565,4 @@ commands:
   - {"seq": 563, "cmd": "update", "reason": "queue: five held TERM4 rows restored (standing A1)", "utc": "2026-10-25T07:02:21Z"}
   - {"seq": 564, "cmd": "rerun PROBE-TERM4", "reason": "five restored term rows (akl, dense, bud2k, bud3k, 8B P5self): their after lines are older than PROBE-TERM4's done", "utc": "2026-10-25T07:02:43Z"}
   - {"seq": 565, "cmd": "update", "reason": "queue: E10d-P5tail TERM4-4B row restored (standing A1)", "utc": "2026-10-25T08:18:48Z"}
+  - {"seq": 566, "cmd": "update", "reason": "v2.5.9z85 pushed (rules 2.5.94): Q-079 AKL series, Q-072b, Q-077 (Fable + ops-lead A1)", "utc": "2026-10-25T08:41:59Z"}
