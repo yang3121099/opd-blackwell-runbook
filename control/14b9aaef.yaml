@@ -560,3 +560,4 @@ commands:
   - {"seq": 558, "cmd": "setenv GPUS_HOLD_MIN=600", "reason": "z84 pushed: hold GPUs for the 4-GPU E12d-P5-16k-s43 (ops-lead pre-approval 02:20)", "utc": "2026-10-25T04:56:40Z"}
   - {"seq": 559, "cmd": "update", "reason": "queue: b259z84 order E12b-16k-s44 before E12d-16k-s43 (ops-lead A1 06:45)", "utc": "2026-10-25T06:48:44Z"}
   - {"seq": 560, "cmd": "du opd_root runs/E10d-P5-s43/ckpt", "reason": "z85 / Q-076 start inputs before idx0 300 GB (ops-lead 06:19)", "utc": "2026-10-25T06:52:46Z"}
+  - {"seq": 561, "cmd": "du opd_root runs/E10c-P5-fix4/ckpt", "reason": "z85 / Q-076 start inputs before idx0 300 GB (ops-lead 06:19)", "utc": "2026-10-25T06:53:09Z"}
