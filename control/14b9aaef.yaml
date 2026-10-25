@@ -564,3 +564,4 @@ commands:
   - {"seq": 562, "cmd": "du opd_root runs/E10b-P5selfroute/ckpt", "reason": "z85 / Q-076 start inputs before idx0 300 GB (ops-lead 06:19)", "utc": "2026-10-25T06:54:35Z"}
   - {"seq": 563, "cmd": "update", "reason": "queue: five held TERM4 rows restored (standing A1)", "utc": "2026-10-25T07:02:21Z"}
   - {"seq": 564, "cmd": "rerun PROBE-TERM4", "reason": "five restored term rows (akl, dense, bud2k, bud3k, 8B P5self): their after lines are older than PROBE-TERM4's done", "utc": "2026-10-25T07:02:43Z"}
+  - {"seq": 565, "cmd": "update", "reason": "queue: E10d-P5tail TERM4-4B row restored (standing A1)", "utc": "2026-10-25T08:18:48Z"}
