@@ -3045,8 +3045,8 @@ fill17   open   EVAL-ext-17bud2k:E10b-P5bud2k EVAL-gm-17bud2k:E10b-P5bud2k EVAL-
 #eval EVAL-ext32k-17p5l16k-s44 ext32k17_E12bP5l16ks44_s50_aime25_T0.6 result:runs/E12b-P5-16k-s44/global_step_50/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-17p5l16k-s44 ext32k17_E12bP5l16ks44_s50_aime24_T0.6 EVAL-ext32k-17s44/ext32k17_E10bP5s44_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17p5l16k/ext32k17_E12bP5l16k_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #pair EVAL-ext32k-17p5l16k-s44 ext32k17_E12bP5l16ks44_s50_aime25_T0.6 EVAL-ext32k-17s44/ext32k17_E10bP5s44_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17p5l16k/ext32k17_E12bP5l16k_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
-# [held until E12b-P5-16k-s44 has s50] term PROBE-TERM4 17_P5l16ks44 result:runs/E12b-P5-16k-s44/global_step_50/actor/huggingface EVAL-e12b-P5-16k-s44/e12b_P5-16k-s44_s50_math500_T0.6_math500_no_think_t0.6.jsonl
-# [held until E12b-P5-16k-s44 has s50; restored together with the term row above] after EVAL-e12b-P5-16k-s44 rerun PROBE-TERM4
+#term PROBE-TERM4 17_P5l16ks44 result:runs/E12b-P5-16k-s44/global_step_50/actor/huggingface EVAL-e12b-P5-16k-s44/e12b_P5-16k-s44_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-e12b-P5-16k-s44 rerun PROBE-TERM4
 
 # [v2.5.9z85] (Q-079 / Q-072b / Q-077; Fable 10-25, research_program 3d, paper_core 4) readings, each arm mirroring its comparator's set:
 # MATH-500 16K T0.6 / T1.0 at s50 paired with P5 s150 and the comparator, 32K with its budget curves, AIME24/25 32K avg@16, TERM4 rows held
@@ -3068,8 +3068,8 @@ fill17   open   EVAL-ext-17bud2k:E10b-P5bud2k EVAL-gm-17bud2k:E10b-P5bud2k EVAL-
 #pair EVAL-ext32k-17akl2 ext32k17_P5akl2_s50_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17akl/ext32k17_P5akl_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #eval EVAL-ext32k-17akl2 ext32k17_P5akl2_s50_aime25_T0.6 result:runs/E10b-P5-akl2/global_step_50/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-17akl2 ext32k17_P5akl2_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17akl/ext32k17_P5akl_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
-# [held until E10b-P5-akl2 has s50] term PROBE-TERM4 17_P5akl2 result:runs/E10b-P5-akl2/global_step_50/actor/huggingface EVAL-akl2/e10b_P5akl2_s50_math500_T0.6_math500_no_think_t0.6.jsonl
-# [held until E10b-P5-akl2 has s50; restored together with the term row above] after EVAL-akl2 rerun PROBE-TERM4
+#term PROBE-TERM4 17_P5akl2 result:runs/E10b-P5-akl2/global_step_50/actor/huggingface EVAL-akl2/e10b_P5akl2_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-akl2 rerun PROBE-TERM4
 # E10b-P5-fkl: the pure forward KL (H1 16K >= P5 - 1; H2 the wall later than akl's s9; H3 p_stop_last > 0.30); pairs vs P5 s150 and akl s50
 #eval EVAL-fkl e10b_P5fkl_s50_math500_T0.6 result:runs/E10b-P5-fkl/global_step_50/actor/huggingface math500 4 0.6
 #eval EVAL-fkl e10b_P5fkl_s50_math500_T1.0 result:runs/E10b-P5-fkl/global_step_50/actor/huggingface math500 4 1.0
@@ -3084,8 +3084,8 @@ fill17   open   EVAL-ext-17bud2k:E10b-P5bud2k EVAL-gm-17bud2k:E10b-P5bud2k EVAL-
 #pair EVAL-ext32k-17fkl ext32k17_P5fkl_s50_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17akl/ext32k17_P5akl_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #eval EVAL-ext32k-17fkl ext32k17_P5fkl_s50_aime25_T0.6 result:runs/E10b-P5-fkl/global_step_50/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-17fkl ext32k17_P5fkl_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17akl/ext32k17_P5akl_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
-# [held until E10b-P5-fkl has s50] term PROBE-TERM4 17_P5fkl result:runs/E10b-P5-fkl/global_step_50/actor/huggingface EVAL-fkl/e10b_P5fkl_s50_math500_T0.6_math500_no_think_t0.6.jsonl
-# [held until E10b-P5-fkl has s50; restored together with the term row above] after EVAL-fkl rerun PROBE-TERM4
+#term PROBE-TERM4 17_P5fkl result:runs/E10b-P5-fkl/global_step_50/actor/huggingface EVAL-fkl/e10b_P5fkl_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-fkl rerun PROBE-TERM4
 # E10b-P5-dense-k256: dense RKL with the top-256 (H1 16K vs dense K=64 >= +1.5 and truncation < 15%: M1); pairs vs P5 s150 and dense s50
 #eval EVAL-densek256 e10b_P5densek256_s50_math500_T0.6 result:runs/E10b-P5-dense-k256/global_step_50/actor/huggingface math500 4 0.6
 #eval EVAL-densek256 e10b_P5densek256_s50_math500_T1.0 result:runs/E10b-P5-dense-k256/global_step_50/actor/huggingface math500 4 1.0
