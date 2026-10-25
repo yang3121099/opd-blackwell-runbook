@@ -2602,8 +2602,8 @@ fill17   open   EVAL-ext-17bud2k:E10b-P5bud2k EVAL-gm-17bud2k:E10b-P5bud2k EVAL-
 #eval EVAL-ext32k-8Bp5self ext32k8B_E10eP5self_s50_aime25_T0.6 result:runs/E10e-P5self/global_step_50/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-8Bp5self ext32k8B_E10eP5self_s50_aime24_T0.6 EVAL-ext32k-8Bthink-aime/ext32k8B_think_aime24_T0.6_aime24_think_t0.6.jsonl EVAL-8B-base/ext32k8B_base_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #pair EVAL-ext32k-8Bp5self ext32k8B_E10eP5self_s50_aime25_T0.6 EVAL-ext32k-8Bthink-aime/ext32k8B_think_aime25_T0.6_aime25_think_t0.6.jsonl EVAL-8B-base/ext32k8B_base_aime25_T0.6_aime25_no_think_t0.6.jsonl
-# [held until E10e-P5self has s50] term PROBE-TERM4 8B_P5self result:runs/E10e-P5self/global_step_50/actor/huggingface EVAL-e10e-P5self/e10e_P5self_s50_math500_T0.6_math500_no_think_t0.6.jsonl
-# [held until E10e-P5self has s50; restored together with the term row above] after EVAL-e10e-P5self rerun PROBE-TERM4
+#term PROBE-TERM4 8B_P5self result:runs/E10e-P5self/global_step_50/actor/huggingface EVAL-e10e-P5self/e10e_P5self_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-e10e-P5self rerun PROBE-TERM4
 
 
 # b259z66p / b259z66 (runbook v2.5.9z66, Q-059; the reviewer's pre-registration research_program 3c, Fable 10-23 04:2x UTC):
@@ -2732,8 +2732,8 @@ fill17   open   EVAL-ext-17bud2k:E10b-P5bud2k EVAL-gm-17bud2k:E10b-P5bud2k EVAL-
 #eval EVAL-ext32k-17bud2k ext32k17_P5bud2k_s50_aime25_T0.6 result:runs/E10b-P5bud2k/global_step_50/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-17bud2k ext32k17_P5bud2k_s50_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17tail/ext32k17_P5tail_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #pair EVAL-ext32k-17bud2k ext32k17_P5bud2k_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17tail/ext32k17_P5tail_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
-# [held until E10b-P5bud2k has s50] term PROBE-TERM4 17_P5bud2k result:runs/E10b-P5bud2k/global_step_50/actor/huggingface EVAL-bud2k/e10b_P5bud2k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
-# [held until E10b-P5bud2k has s50; restored together with the term row above] after EVAL-bud2k rerun PROBE-TERM4
+#term PROBE-TERM4 17_P5bud2k result:runs/E10b-P5bud2k/global_step_50/actor/huggingface EVAL-bud2k/e10b_P5bud2k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-bud2k rerun PROBE-TERM4
 #eval EVAL-bud3k e10b_P5bud3k_s50_math500_T0.6 result:runs/E10b-P5bud3k/global_step_50/actor/huggingface math500 4 0.6
 #eval EVAL-bud3k e10b_P5bud3k_s50_math500_T1.0 result:runs/E10b-P5bud3k/global_step_50/actor/huggingface math500 4 1.0
 #eval EVAL-bud3k budAbud3k_s50_math500_T0.6_32k result:runs/E10b-P5bud3k/global_step_50/actor/huggingface math500 4 0.6 32768
@@ -2752,8 +2752,8 @@ fill17   open   EVAL-ext-17bud2k:E10b-P5bud2k EVAL-gm-17bud2k:E10b-P5bud2k EVAL-
 #eval EVAL-ext32k-17bud3k ext32k17_P5bud3k_s50_aime25_T0.6 result:runs/E10b-P5bud3k/global_step_50/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-17bud3k ext32k17_P5bud3k_s50_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17tail/ext32k17_P5tail_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17bud2k/ext32k17_P5bud2k_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #pair EVAL-ext32k-17bud3k ext32k17_P5bud3k_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17tail/ext32k17_P5tail_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17bud2k/ext32k17_P5bud2k_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
-# [held until E10b-P5bud3k has s50] term PROBE-TERM4 17_P5bud3k result:runs/E10b-P5bud3k/global_step_50/actor/huggingface EVAL-bud3k/e10b_P5bud3k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
-# [held until E10b-P5bud3k has s50; restored together with the term row above] after EVAL-bud3k rerun PROBE-TERM4
+#term PROBE-TERM4 17_P5bud3k result:runs/E10b-P5bud3k/global_step_50/actor/huggingface EVAL-bud3k/e10b_P5bud3k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-bud3k rerun PROBE-TERM4
 
 # [v2.5.9z76] (Q-065; pre-registered 10-22, Fable 10-24 02:0x Beijing) E10b-P5-dense (the per-token reverse KL over the vocabulary) and
 # E10b-P5-akl (AKL), P5's recipe, 50 steps, gated by PROBE-DENSE. Readings at s50: MATH500 16K T0.6 / T1.0 paired against P5 s150 (akl
@@ -2775,8 +2775,8 @@ fill17   open   EVAL-ext-17bud2k:E10b-P5bud2k EVAL-gm-17bud2k:E10b-P5bud2k EVAL-
 #eval EVAL-ext32k-17dense ext32k17_P5dense_s50_aime25_T0.6 result:runs/E10b-P5-dense/global_step_50/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-17dense ext32k17_P5dense_s50_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #pair EVAL-ext32k-17dense ext32k17_P5dense_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl
-# [held until E10b-P5-dense has s50] term PROBE-TERM4 17_P5dense result:runs/E10b-P5-dense/global_step_50/actor/huggingface EVAL-dense/e10b_P5dense_s50_math500_T0.6_math500_no_think_t0.6.jsonl
-# [held until E10b-P5-dense has s50; restored together with the term row above] after EVAL-dense rerun PROBE-TERM4
+#term PROBE-TERM4 17_P5dense result:runs/E10b-P5-dense/global_step_50/actor/huggingface EVAL-dense/e10b_P5dense_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-dense rerun PROBE-TERM4
 #eval EVAL-akl e10b_P5akl_s50_math500_T0.6 result:runs/E10b-P5-akl/global_step_50/actor/huggingface math500 4 0.6
 #eval EVAL-akl e10b_P5akl_s50_math500_T1.0 result:runs/E10b-P5-akl/global_step_50/actor/huggingface math500 4 1.0
 #eval EVAL-akl budAP5akl_s50_math500_T0.6_32k result:runs/E10b-P5-akl/global_step_50/actor/huggingface math500 4 0.6 32768
@@ -2793,8 +2793,8 @@ fill17   open   EVAL-ext-17bud2k:E10b-P5bud2k EVAL-gm-17bud2k:E10b-P5bud2k EVAL-
 #eval EVAL-ext32k-17akl ext32k17_P5akl_s50_aime25_T0.6 result:runs/E10b-P5-akl/global_step_50/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-17akl ext32k17_P5akl_s50_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17dense/ext32k17_P5dense_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #pair EVAL-ext32k-17akl ext32k17_P5akl_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17dense/ext32k17_P5dense_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
-# [held until E10b-P5-akl has s50] term PROBE-TERM4 17_P5akl result:runs/E10b-P5-akl/global_step_50/actor/huggingface EVAL-akl/e10b_P5akl_s50_math500_T0.6_math500_no_think_t0.6.jsonl
-# [held until E10b-P5-akl has s50; restored together with the term row above] after EVAL-akl rerun PROBE-TERM4
+#term PROBE-TERM4 17_P5akl result:runs/E10b-P5-akl/global_step_50/actor/huggingface EVAL-akl/e10b_P5akl_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-akl rerun PROBE-TERM4
 
 # [v2.5.9z77] (Q-070; Fable 10-24 08:2x Beijing, research_program 3c) E10d-P5self-s43 = E10d-P5self with data.seed 43 (the second start),
 # 50 steps, s50 up, gate PROBE-P5SELF-4B. Readings at s50: MATH500 16K T0.6 / T1.0 paired against E10d-P5self s50 (T0.6 against the 4B
