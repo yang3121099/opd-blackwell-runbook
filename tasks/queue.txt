@@ -3000,8 +3000,8 @@ fill17   open   EVAL-ext-17bud2k:E10b-P5bud2k EVAL-gm-17bud2k:E10b-P5bud2k EVAL-
 #pair EVAL-ext32k-4Bp5tail ext32k4B_E10dP5tail_s50_aime24_T0.6 EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4Bp5self/ext32k4B_E10dP5self_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #eval EVAL-ext32k-4Bp5tail ext32k4B_E10dP5tail_s50_aime25_T0.6 result:runs/E10d-P5tail/global_step_50/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-4Bp5tail ext32k4B_E10dP5tail_s50_aime25_T0.6 EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Bp5self/ext32k4B_E10dP5self_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
-# [held until E10d-P5tail has s50] term PROBE-TERM4-4B 4B_P5tail result:runs/E10d-P5tail/global_step_50/actor/huggingface EVAL-e10d-P5tail/e10d_P5tail_s50_math500_T0.6_math500_no_think_t0.6.jsonl
-# [held until E10d-P5tail has s50; restored together with the term row above] after EVAL-e10d-P5tail rerun PROBE-TERM4-4B
+#term PROBE-TERM4-4B 4B_P5tail result:runs/E10d-P5tail/global_step_50/actor/huggingface EVAL-e10d-P5tail/e10d_P5tail_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-e10d-P5tail rerun PROBE-TERM4-4B
 
 # [v2.5.9z84] (Q-076, Fable 10-25, research_program 3d, paper_core 3) the 16K window's second starts, the first starts' readings each
 # paired with its own start and the first start: E12b-P5-16k-s44 (1.7B, E12b-P5-16k's recipe from E10b-P5-s44 s150, #gpus 2, 50 steps,
