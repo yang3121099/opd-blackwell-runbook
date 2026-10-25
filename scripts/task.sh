@@ -40,11 +40,13 @@ case $T in
   E12b-P5-prog) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z43] (Q-058) the 4K recipe from E12b-P5-8k s25 (shrink the window)
   E12b-P5-prog-up) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z43] (Q-058) the 8K recipe from E12b-P5-s44 s25 (grow the window)
   E12b-P5tail-8k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z84a] (Q-074) the 8K RL arm from E10b-P5tail s50 (the method's chain); [v2.5.9z84b] above E12b-*, which took it first (exit 2, no log line)
+  E12b-P5-16k-s44) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z84] (Q-076) the 1.7B 16K arm from E10b-P5-s44 s150, #gpus 2; [v2.5.9z84b] above E12b-*
   E12b-*)  [[ $T =~ ^E12b-(P0|P1|$ARMS|P5-s4[34]|P2-s43|P5self|P5self-s43|P5-kl|P5-stop|P5-stop2|P5-8k|P5-16k|P5-r3|P5-16k-kl)$ ]] || exit 2; bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # v2.5.6j: P5-s43; v2.5.7n: P5-s44; v2.5.7o: P2-s43; [v2.5.8a] P5self; [v2.5.8b] P5-kl; [v2.5.8c] P5-stop; [v2.5.9f] P5-stop2
   E12c-*)  [[ $T =~ ^E12c-(P0|P5)$ ]] || exit 2; bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.8a] the 0.6B GRPO ladder (Q-023)
   E12d-P5-8k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z60] (Q-066) E12d-P5 (4B, from E10d-P5 s150) at the 8K limit, 50 steps, gated by PROBE-E12B-8K
   E12d-P5-8k-s43) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z77] (Q-071) the 8K arm from E10d-P5-s43 s150
   E12d-P5-16k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z67] (Q-069) E12d-P5 (4B, from E10d-P5 s150) at the 16K limit on two GPUs (#gpus 2), 50 steps, gated by PROBE-E12B-16K
+  E12d-P5-16k-s43) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z84] (Q-076) the 4B 16K arm from E10d-P5-s43 s150, #gpus 4
   E12d-*)  [[ $T =~ ^E12d-(P0|P5)$ ]] || exit 2; bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # v2.5.7o: the 4B GRPO ladder
   E03-MI-l0.0|E03-MI-l0.3|E03-MI-l0.5|E03-MI-l0.7|E03-MI-l1.0) bash $RUNBOOK/scripts/run_zero.sh $G $T;;
   E02-opsa17-c0.5|E02-opsa17-c1.5|E02-opsa4-c-1|E02-opsa4-c0.5|E02-opsa4-c1.5) bash $RUNBOOK/scripts/run_zero.sh $G $T;;

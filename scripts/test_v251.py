@@ -1332,6 +1332,15 @@ def test_run_and_rerun_accept_v259z83(env):   # [v2.5.9z83] (Q-073) E10b-P5softm
     assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 91)
 
 
+def test_run_and_rerun_accept_v259z84(env):   # [v2.5.9z84] (Q-076) the 16K window's second starts (no rules change: the E12 families)
+    for i, t in enumerate(("E12b-P5-16k-s44", "E12d-P5-16k-s43")):
+        st, msg, _ = env.c.v_run([t], 200 + i)
+        assert st == "accepted", (t, msg)
+        R.parse({"cmd": f"rerun {t}", "reason": "t"})
+    for i, t in enumerate(("E12b-P5-16k-s45", "E12d-P5-16k-s44")):
+        assert env.c.v_run([t], 210 + i)[0] == "rejected", t
+
+
 def test_run_and_rerun_accept_v259z84a(env):   # [v2.5.9z84a] (Q-074 / Q-075) E12b-P5tail-8k, E10d-P5tail and PROBE-TAIL-4B (rules 2.5.93)
     for i, t in enumerate(("E12b-P5tail-8k", "E10d-P5tail", "PROBE-TAIL-4B")):
         st, msg, _ = env.c.v_run([t], 180 + i)
