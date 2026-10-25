@@ -157,6 +157,10 @@ UW=$STEPS; case $T in E12b-P5-s44|E12d-P5) UW=25,50,75,$STEPS;; E12b-P5-8k|E12b-
 [ $T = E12b-P5tail-8k ] && UW=25,$STEPS   # [v2.5.9z84a] (Q-074) as the 8K arm: s25 and s50 up
 case $T in E12b-P5-16k-s44|E12d-P5-16k-s43) UW=25,$STEPS;; esac   # [v2.5.9z84] (Q-076) as the 16K arms: s25 and s50 up
 case $T in E12c-P5-8k|E12c-P5-16k) UW=25,$STEPS;; esac   # [v2.5.9z85] (Q-077) as the 1.7B / 4B window arms: s25 and s50 up
+# [v2.5.9z86] (fix; found 10-25 16:5x UTC: EVAL-e12b-P5tail-8k's s25 weights did not exist) with DR off (seq 545, 10-24) the save
+# interval above fell to the final step, so an arm uploading s25 (UW=25,...) saved no s25 checkpoint; the save interval is
+# now the first upload step whenever it defaulted to the final one (DR / SPOT / SAVE set and the smokes unchanged)
+[ "$SAVE" = "$STEPS" ] && [ "${UW%%,*}" -lt "$STEPS" ] 2> /dev/null && SAVE=${UW%%,*}
 # [v2.5.8b] the variant's settings (KL loss and its reference; the reward function)
 KL="actor_rollout_ref.actor.use_kl_loss=False"; REWARD=$RUNBOOK/code/train/reward_mathverify.py
 # [v2.5.8c] stop: the stop reward, counting the student's tokens (its start's tokenizer) against the 4K response limit
