@@ -553,3 +553,4 @@ commands:
   - {"seq": 551, "cmd": "update", "reason": "queue: softmix50 TERM4 row restored (standing A1)", "utc": "2026-10-25T03:02:59Z"}
   - {"seq": 552, "cmd": "logs E12b-P5tail-8k 80", "reason": "Q-074 failed x3, empty failure tail (ops-lead 04:10)", "utc": "2026-10-25T04:18:09Z"}
   - {"seq": 553, "cmd": "update", "reason": "v2.5.9z84b b0a6716 + z84 c474b2d (ops-lead A1 04:41, Fable A1)", "utc": "2026-10-25T04:49:06Z"}
+  - {"seq": 554, "cmd": "rerun E12b-P5tail-8k", "reason": "Q-074: task.sh case order fixed in z84b (ops-lead A1 04:41)", "utc": "2026-10-25T04:49:33Z"}
