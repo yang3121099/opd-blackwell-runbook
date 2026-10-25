@@ -584,3 +584,4 @@ commands:
   - {"seq": 582, "cmd": "du opd_root", "reason": "idx0 free 508 -> 79 GB in 5 min (17:51-17:56Z), tasks_guard_critical: is it ours", "utc": "2026-10-25T17:57:19Z"}
   - {"seq": 583, "cmd": "du dr", "reason": "idx0 dropping (508 -> 69 GB since 17:51Z); opd_root is 308 GB in all, so check the DR tree too", "utc": "2026-10-25T17:59:06Z"}
   - {"seq": 584, "cmd": "du dr keep", "reason": "idx0 dropping since 17:51Z; dr/keep is 526 GB: which entries", "utc": "2026-10-25T18:00:21Z"}
+  - {"seq": 585, "cmd": "du opd_root runs", "reason": "ops-lead 18:00Z (3): which next tasks have a run dir on idx0", "utc": "2026-10-25T18:02:41Z"}
