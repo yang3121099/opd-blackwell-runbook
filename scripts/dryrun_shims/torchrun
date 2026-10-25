@@ -1,0 +1,3 @@
+#!/bin/sh
+# [v2.6 S0] a recorder (dryrun_shim.py): the sandbox of dryrun_json.py puts this directory first on PATH (-S: stdlib only, fast start)
+exec "$DRYRUN_REAL_PY" -I -S "$DRYRUN_SHIM_PY" torchrun "$@"

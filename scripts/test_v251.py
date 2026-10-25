@@ -1332,6 +1332,15 @@ def test_run_and_rerun_accept_v259z83(env):   # [v2.5.9z83] (Q-073) E10b-P5softm
     assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 91)
 
 
+def test_run_and_rerun_accept_v26_s0(env):   # [v2.6 S0] CORPUS-RECORD (rules 2.5.95): run, rerun after done; the CPU lane
+    st, msg, _ = env.c.v_run(["CORPUS-RECORD"], 250)
+    assert st == "accepted", msg
+    R.parse({"cmd": "rerun CORPUS-RECORD", "reason": "t"})
+    assert env.c.v_run(["CORPUS-RECORDS"], 251)[0] == "rejected"
+    assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 95)
+    assert " CORPUS-RECORD) return 0;;" in open(os.path.join(os.path.dirname(__file__), "run_tasks.sh")).read()
+
+
 def test_run_and_rerun_accept_v259z85(env):   # [v2.5.9z85] (Q-079 / Q-072b / Q-077) the AKL series, selfroute-c100, the 0.6B window arms and their gates (rules 2.5.94)
     names = ("E10b-P5-akl2", "E10b-P5-fkl", "E10b-P5-dense-k256", "E10b-P5-akl-mu03", "E10b-P5-akl-mu07", "E10d-P5-akl", "E10b-P5self-akl",
              "E10b-P5selfroute-c100", "E12c-P5-8k", "E12c-P5-16k", "PROBE-DENSE-4B", "PROBE-E12C-8K", "PROBE-E12C-16K")
