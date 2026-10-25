@@ -1342,6 +1342,22 @@ def test_run_and_rerun_accept_v259z84a(env):   # [v2.5.9z84a] (Q-074 / Q-075) E1
     assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 93)
 
 
+def test_task_sh_named_lines_not_shadowed():   # [v2.5.9z84b] E12b-P5tail-8k sat below E12b-*, whose name check exits 2 before any output
+    """Every literal name on a branch of task.sh's main case reaches its own line: no earlier glob branch takes it (bash's own matching)."""
+    import subprocess
+    d = os.path.dirname(os.path.abspath(__file__))
+    L = open(os.path.join(d, "task.sh")).read().split("\n")
+    start = next(i for i, l in enumerate(L) if re.match(r'^case "?\$T"? in', l))
+    end = next(i for i in range(start + 1, len(L)) if L[i] == "esac")
+    pats = [(i + 1, m.group(1)) for i in range(start + 1, end) for m in [re.match(r"^  ([^ )#][^)]*)\)", L[i])] if m]
+    names = [(ln, a) for ln, p in pats for a in p.split("|") if not re.search(r"[*?\[]", a)]
+    assert len(pats) > 50 and len(names) > 50
+    sh = "for n in " + " ".join(a for _, a in names) + '; do case $n in ' + " ".join(f"{p}) echo $n {ln};;" for ln, p in pats) + " esac; done"
+    got = dict(l.split() for l in subprocess.run(["bash", "-c", sh], capture_output=True, text=True, check=True).stdout.split("\n") if l)
+    bad = [(a, ln, got.get(a)) for ln, a in names if got.get(a) != str(ln)]
+    assert not bad, bad   # (name, its line, the line bash takes)
+
+
 def test_run_and_rerun_accept_v259z46(env):   # [v2.5.9z46] (Q-057) E16-X5 / -X5e and their gate PROBE-X5 (rules 2.5.72)
     for i, t in enumerate(("E16-X5", "E16-X5e", "PROBE-X5")):
         st, msg, _ = env.c.v_run([t], 130 + i)
