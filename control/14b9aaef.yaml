@@ -557,3 +557,4 @@ commands:
   - {"seq": 555, "cmd": "rerun EVAL-e12b-P5tail-8k", "reason": "Q-074 readings were skipped after its task.sh failure (ops-lead A1 04:41)", "utc": "2026-10-25T04:51:17Z"}
   - {"seq": 556, "cmd": "rerun EVAL-budA-e12bP5tail-8k", "reason": "Q-074 readings were skipped after its task.sh failure (ops-lead A1 04:41)", "utc": "2026-10-25T04:52:24Z"}
   - {"seq": 557, "cmd": "setenv GPUS_SOON_MIN=1440", "reason": "z84 pushed: hold GPUs for the 4-GPU E12d-P5-16k-s43 (ops-lead pre-approval 02:20)", "utc": "2026-10-25T04:55:31Z"}
+  - {"seq": 558, "cmd": "setenv GPUS_HOLD_MIN=600", "reason": "z84 pushed: hold GPUs for the 4-GPU E12d-P5-16k-s43 (ops-lead pre-approval 02:20)", "utc": "2026-10-25T04:56:40Z"}
