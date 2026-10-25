@@ -562,3 +562,4 @@ commands:
   - {"seq": 560, "cmd": "du opd_root runs/E10d-P5-s43/ckpt", "reason": "z85 / Q-076 start inputs before idx0 300 GB (ops-lead 06:19)", "utc": "2026-10-25T06:52:46Z"}
   - {"seq": 561, "cmd": "du opd_root runs/E10c-P5-fix4/ckpt", "reason": "z85 / Q-076 start inputs before idx0 300 GB (ops-lead 06:19)", "utc": "2026-10-25T06:53:09Z"}
   - {"seq": 562, "cmd": "du opd_root runs/E10b-P5selfroute/ckpt", "reason": "z85 / Q-076 start inputs before idx0 300 GB (ops-lead 06:19)", "utc": "2026-10-25T06:54:35Z"}
+  - {"seq": 563, "cmd": "update", "reason": "queue: five held TERM4 rows restored (standing A1)", "utc": "2026-10-25T07:02:21Z"}
