@@ -572,3 +572,4 @@ commands:
   - {"seq": 570, "cmd": "du opd_root runs/CORPUS-RECORD", "reason": "Runming 10-25: no new idx0 writes; where runs/CORPUS-RECORD lives", "utc": "2026-10-25T12:13:36Z"}
   - {"seq": 571, "cmd": "setenv READINGS_DISK_MIN_GB=1000000", "reason": "Runming 10-25 20:1x Beijing: no new writes to the shared idx0 (via patrol / Fable): the readings guard always on (fetch / prefetch / #git and idx0-run-dir readings held); idx1 tasks unaffected", "utc": "2026-10-25T12:17:38Z"}
   - {"seq": 572, "cmd": "update", "reason": "queue: b259z85a (four short z85 arms ahead of E12d-P5-16k-s43; ops-lead handover item 3)", "utc": "2026-10-25T12:55:55Z"}
+  - {"seq": 573, "cmd": "update", "reason": "queue: s25 rows without weights held; Q-074 TERM4 restored", "utc": "2026-10-25T16:58:01Z"}
