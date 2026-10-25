@@ -44,6 +44,12 @@ if [ -z "${CKPT_ROOT:-}" ]; then   # first use: the writable directory under $HO
     && mv $OPD_ROOT/paths.env.new $OPD_ROOT/paths.env; CKPT_ROOT_FROM=paths.env
 fi
 export CKPT_ROOT CKPT_ROOT_FROM=${CKPT_ROOT_FROM:-} CKPT_CANDIDATES_EXTRA=${CKPT_CANDIDATES_EXTRA:-} ARCHIVE_ROOT=${ARCHIVE_ROOT:-}
+# [v2.5.9z88] (ops-lead 10-26 02:0x Beijing: another user filled the shared work disk to 69 GB; Runming "no new writes to the shared
+# disk") the caches that only save time are written on the checkpoint disk: hf_xet's chunk cache (HF_XET_CACHE), and no __pycache__
+# next to any .py (existing .pyc files are still read). HF_HOME stays: the token is there, and the hub / datasets caches under it
+# hold what the evals load by repo id (gen_eval's load_dataset) and the 2507 arms find with local_files_only
+[ -n "${CKPT_ROOT:-}" ] && export HF_XET_CACHE=${HF_XET_CACHE:-$CKPT_ROOT/hf_cache/xet}   # never an empty or root-level path
+export PYTHONDONTWRITEBYTECODE=1
 export CKPT_CANDIDATES=$(ckpt_candidates)   # colon list of candidate bases (v2.5)
 ckpt_link() {   # <task dir>: its ckpt becomes a symlink into $CKPT_ROOT; a real ckpt dir from an older run stays as it is
   local t=$(basename "$1"); mkdir -p "$CKPT_ROOT/$t/ckpt"
