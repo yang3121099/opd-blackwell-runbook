@@ -555,3 +555,4 @@ commands:
   - {"seq": 553, "cmd": "update", "reason": "v2.5.9z84b b0a6716 + z84 c474b2d (ops-lead A1 04:41, Fable A1)", "utc": "2026-10-25T04:49:06Z"}
   - {"seq": 554, "cmd": "rerun E12b-P5tail-8k", "reason": "Q-074: task.sh case order fixed in z84b (ops-lead A1 04:41)", "utc": "2026-10-25T04:49:33Z"}
   - {"seq": 555, "cmd": "rerun EVAL-e12b-P5tail-8k", "reason": "Q-074 readings were skipped after its task.sh failure (ops-lead A1 04:41)", "utc": "2026-10-25T04:51:17Z"}
+  - {"seq": 556, "cmd": "rerun EVAL-budA-e12bP5tail-8k", "reason": "Q-074 readings were skipped after its task.sh failure (ops-lead A1 04:41)", "utc": "2026-10-25T04:52:24Z"}
