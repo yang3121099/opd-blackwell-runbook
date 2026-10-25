@@ -2952,8 +2952,8 @@ fill17   open   EVAL-ext-17bud2k:E10b-P5bud2k EVAL-gm-17bud2k:E10b-P5bud2k EVAL-
 #pair EVAL-ext32k-17softmix50 ext32k17_P5softmix50_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17mix/ext32k17_P5mix_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
 #split READINGS-EXTRA 17_P5softmix50_s50 EVAL-e10b-P5softmix50/e10b_P5softmix50_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 #after EVAL-e10b-P5softmix50 rerun READINGS-EXTRA
-# [held until E10b-P5softmix50 has s50] term PROBE-TERM4 17_P5softmix50 result:runs/E10b-P5softmix50/global_step_50/actor/huggingface EVAL-e10b-P5softmix50/e10b_P5softmix50_s50_math500_T0.6_math500_no_think_t0.6.jsonl
-# [held until E10b-P5softmix50 has s50; restored together with the term row above] after EVAL-e10b-P5softmix50 rerun PROBE-TERM4
+#term PROBE-TERM4 17_P5softmix50 result:runs/E10b-P5softmix50/global_step_50/actor/huggingface EVAL-e10b-P5softmix50/e10b_P5softmix50_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-e10b-P5softmix50 rerun PROBE-TERM4
 
 # [v2.5.9z84a] (Q-074, Fable 10-25, research_program 3d, paper_core 2: the method = the tail swap then the narrow-window short RL)
 # E12b-P5tail-8k: E12b-P5-8k's recipe (GRPO, 8K rollouts, 50 steps, s25 / s50 up) from E10b-P5tail s50. Readings: MATH-500 16K T0.6
