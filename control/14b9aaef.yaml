@@ -580,3 +580,4 @@ commands:
   - {"seq": 578, "cmd": "rerun EVAL-ext32k-17p5tail8k", "reason": "Q-074's AIME reading, skipped since 04:20Z after the z84b task.sh failure (ops-lead 17:02)", "utc": "2026-10-25T17:08:30Z"}
   - {"seq": 579, "cmd": "update", "reason": "v2.5.9z86: run_e12 saves the first upload step (s25) when DR is off (Fable exception, ops-lead A1)", "utc": "2026-10-25T17:14:09Z"}
   - {"seq": 580, "cmd": "du ckpt E10b-P5selfroute-c100/ckpt", "reason": "z87: c100 global_step_50 local? (ops-lead 17:17 cond 4)", "utc": "2026-10-25T17:25:37Z"}
+  - {"seq": 581, "cmd": "update", "reason": "z87 ae0fc07: queue only, Q-072b AIME reading EVAL-ext32k-17selfroute-c100 (ops-lead A1 17:32Z)", "utc": "2026-10-25T17:35:57Z"}
