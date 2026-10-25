@@ -101,6 +101,10 @@ TAIL=0; [[ $TASK == E10b-P5tail || $TASK == E10b-P5tail-s43 ]] && { TAIL=1; BASE
 # vs P5 s150) E10c-P5tail = the tail-swapped 8B teacher (its thinking reading up to the first box, the non-thinking one after it, as
 # E10b-P5tail) for the 0.6B P5 student from E10c-P5-fix4 s150 (as E10c-P5-polish), 20 steps, fix4, the venv in use, s20 up; PROBE-TAIL
 TAIL06=0; [ $TASK = E10c-P5tail ] && { TAIL=1; TAIL06=1; BASE=E10b-P5; MODE=fix4; }
+# [v2.5.9z84a] (Q-075, Fable 10-25, paper_core 2: the method's 4B prerequisite) E10d-P5tail = E10b-P5tail's recipe for the 4B student
+# (its base, the 8B teacher tail-swapped), 50 steps, s25 kept on the node, s50 uploaded; gated by PROBE-TAIL (the hook) and
+# PROBE-TAIL-4B (probe_tail.sh: a 3-step smoke of this arm on the 4B)
+[ $TASK = E10d-P5tail ] && { TAIL=1; BASE=E10b-P5; SIZE=4B; }
 # [v2.5.9z82] (Q-055b, Fable 10-24 18:55 Beijing, research_program 3c) E10c-P5tail-c50 = E10c-P5tail continued to s50: the same recipe
 # for 30 more steps from E10c-P5tail's s20 weights. Its resume state (optimizer, data position) was not kept on the node (the checkpoint
 # holds the HF weights only; nothing under dr/), so Fable's registered fallback: the s20 bf16 weights, a fresh optimizer (constant lr),
@@ -220,6 +224,9 @@ if [ $TAIL = 1 ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
 fi
 if [ -n "$SOFTMIX" ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then   # [v2.5.9z83] (Q-073) and the soft mix's own gate
   grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-SOFTMIX/report.json 2> /dev/null || { echo "PROBE-SOFTMIX has not passed: $TASK not started"; exit 3; }
+fi
+if [ $TASK = E10d-P5tail ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then   # [v2.5.9z84a] (Q-075) and the 4B smoke
+  grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-TAIL-4B/report.json 2> /dev/null || { echo "PROBE-TAIL-4B has not passed: $TASK not started"; exit 3; }
 fi
 if [ $BUD -gt 0 ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then   # [v2.5.9z73] (Q-061) and the budget's own gate
   grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-TAIL-BUD/report.json 2> /dev/null || { echo "PROBE-TAIL-BUD has not passed: $TASK not started"; exit 3; }
@@ -349,6 +356,7 @@ UW=$NSTEPS; [ $TASK = E10c-P5-fix4 ] && UW=100,$NSTEPS; [ -n "$XARM" ] && UW=25,
 [ $W8K = 1 ] && SAVE=${SAVE:-25}   # [v2.5.9z66] (Q-059) s25 and s50 saved; s50 uploaded (UW), s25 kept on the node
 [ $BUD -gt 0 ] && SAVE=${SAVE:-25}   # [v2.5.9z73] (Q-061) s25 and s50 saved; s50 uploaded (UW), s25 kept on the node
 [ -n "$SOFTMIX" ] && SAVE=${SAVE:-25}   # [v2.5.9z83] (Q-073) s25 and s50 saved; s50 uploaded (UW), s25 kept on the node
+[ $TASK = E10d-P5tail ] && SAVE=${SAVE:-25}   # [v2.5.9z84a] (Q-075) s25 and s50 saved; s50 uploaded (UW), s25 kept on the node
 [ -n "$DENSE" ] && SAVE=${SAVE:-25}   # [v2.5.9z76] (Q-065) s25 and s50 saved; s50 uploaded (UW), s25 kept on the node
 [ -n "$ROUTE_SELF" ] && SAVE=${SAVE:-25}   # [v2.5.9z82] (Q-072) s25 and s50 saved; s50 uploaded (UW), s25 kept on the node
 # [v2.5.9z40] (ops-lead 10-22, PROBE-T32's first run: vLLM found 127.6 of 267.7 GiB free at start-up, below 0.5 x total) the 32B arm and

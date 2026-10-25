@@ -28,6 +28,7 @@ source "$(dirname "$0")/env.sh"; source "$(dirname "$0")/dr.sh"; G=$1; T=$2; LAD
 # low_var_kl, the reference = the start); gated by both of its parts' gates (PROBE-E12B-16K and PROBE-E12B-KL), no smoke of its own
 VAR=""; case $A in P5-kl|P5-stop|P5-stop2|P5-8k|P5-16k|P5-r3|P5-16k-kl) VAR=${A#P5-}; A=P5;; esac
 [ "$A" = P5-8k-s44 ] && { VAR=8k; A=P5-s44; }   # [v2.5.9z41] (the reviewer's padding ruling 10-22) E12b-P5-8k-s44: the 8K arm from E10b-P5-s44 s150
+[ "$A" = P5tail-8k ] && { VAR=8k; A=P5tail; }   # [v2.5.9z84a] (Q-074; Fable 10-25, paper_core 2: the method's chain) E12b-P5tail-8k: E12b-P5-8k's recipe from E10b-P5tail s50
 [ "$A" = P5-8k-s43 ] && { VAR=8k; A=P5-s43; }   # [v2.5.9z77] (Q-071; Fable 10-24 08:2x Beijing) E12d-P5-8k-s43: E12d-P5-8k's recipe from E10d-P5-s43 s150 (the second start; data.seed 4242 as every E12)
 [ "$A" = P5-prog-up ] && VAR=8k   # [v2.5.9z43] (Q-058) the grow-window arm: the 8K recipe (its gate PROBE-E12B-8K too)
 # [v2.5.8h] (Runming 10-20 17:5x UTC via the reviewer, Q-028: the 4K limit costs too much): E12b-P5-8k / -16k = E12b-P5 with
@@ -42,6 +43,7 @@ fi
 SRC=E10b; [ $LADDER = E12d ] && SRC=E10d   # v2.5.7o: the preparation run a start comes from
 SRUN=$SRC-$A; [ $LADDER = E12c ] && SRUN=E10c-$A-fix4   # [v2.5.8a] the 0.6B starts: E10c-<arm>-fix4, this node's 0.6B batching
 SS=150; case $A in P5self|P5self-s43) SS=50;; esac       # [v2.5.8a] E10b-P5self ran 50 steps; [v2.5.8e] its seed 43 too
+[ "$A" = P5tail ] && SS=50   # [v2.5.9z84a] (Q-074) E10b-P5tail ran 50 steps
 # [v2.5.9z43] (Q-058, the reviewer's pre-registration 10-22) the progressive-window arms continue a run's step 25 for 25 more
 # steps (PROG_STEPS): E12b-P5-prog = E12b-P5's recipe (4K) from E12b-P5-8k s25 (shrink), E12b-P5-prog-up = the 8K recipe from
 # E12b-P5-s44 s25 (grow). Both read the continuation file PROBE-PROG built and checked against the parents' rollouts
@@ -90,6 +92,7 @@ TBS=64; ADV=grpo; [ "$VAR" = r3 ] && { TBS=128; ADV=reinforce_plus_plus_baseline
 V=$OPD_ROOT/venv; [ "${VENV:-}" = fa ] && [ "${E12B_FA:-0}" = 1 ] && V=$OPD_ROOT/venv-fa
 case $T in E12d-*|E12b-P2-s43|E12b-P5-8k|E12b-P5-16k|E12b-P5-16k-kl) V=$OPD_ROOT/venv-fa;; esac   # v2.5.7o: new arms on flash-attn (reviewer 06:0x UTC); [v2.5.8h] the long limits
 [ $T = E12b-P5-8k-s44 ] && V=$OPD_ROOT/venv-fa   # [v2.5.9z41] as the 8K arm
+[ $T = E12b-P5tail-8k ] && V=$OPD_ROOT/venv-fa   # [v2.5.9z84a] as the 8K arm
 [ $T = E12b-P5-prog-up ] && V=$OPD_ROOT/venv-fa   # [v2.5.9z43] as the 8K arm
 [ $LADDER = E12d ] && VLLM_UTIL=${E12D_VLLM_UTIL:-0.5}   # v2.5.7o: vLLM 0.5 for the 4B actor (a node-wide VLLM_UTIL does not reach it)
 source $V/bin/activate
@@ -146,6 +149,7 @@ UW=$STEPS; case $T in E12b-P5-s44|E12d-P5) UW=25,50,75,$STEPS;; E12b-P5-8k|E12b-
 [ $T = E12d-P5-8k ] && UW=25,$STEPS   # [v2.5.9z60] (Q-066) as the 8K arm: s25 and s50 up
 [ $T = E12d-P5-16k ] && UW=25,$STEPS   # [v2.5.9z67] (Q-069) as the 16K arm: s25 and s50 up
 [ $T = E12d-P5-8k-s43 ] && UW=25,$STEPS   # [v2.5.9z77] (Q-071) as E12d-P5-8k: s25 and s50 up
+[ $T = E12b-P5tail-8k ] && UW=25,$STEPS   # [v2.5.9z84a] (Q-074) as the 8K arm: s25 and s50 up
 # [v2.5.8b] the variant's settings (KL loss and its reference; the reward function)
 KL="actor_rollout_ref.actor.use_kl_loss=False"; REWARD=$RUNBOOK/code/train/reward_mathverify.py
 # [v2.5.8c] stop: the stop reward, counting the student's tokens (its start's tokenizer) against the 4K response limit

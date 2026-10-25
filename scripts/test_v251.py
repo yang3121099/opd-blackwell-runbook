@@ -1332,6 +1332,16 @@ def test_run_and_rerun_accept_v259z83(env):   # [v2.5.9z83] (Q-073) E10b-P5softm
     assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 91)
 
 
+def test_run_and_rerun_accept_v259z84a(env):   # [v2.5.9z84a] (Q-074 / Q-075) E12b-P5tail-8k, E10d-P5tail and PROBE-TAIL-4B (rules 2.5.93)
+    for i, t in enumerate(("E12b-P5tail-8k", "E10d-P5tail", "PROBE-TAIL-4B")):
+        st, msg, _ = env.c.v_run([t], 180 + i)
+        assert st == "accepted", (t, msg)
+    for i, t in enumerate(("E12b-P5tail-16k", "E10d-P5tail-s43", "PROBE-TAIL-8B")):
+        assert env.c.v_run([t], 190 + i)[0] == "rejected", t
+    R.parse({"cmd": "rerun PROBE-TAIL-4B", "reason": "t"})
+    assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 93)
+
+
 def test_run_and_rerun_accept_v259z46(env):   # [v2.5.9z46] (Q-057) E16-X5 / -X5e and their gate PROBE-X5 (rules 2.5.72)
     for i, t in enumerate(("E16-X5", "E16-X5e", "PROBE-X5")):
         st, msg, _ = env.c.v_run([t], 130 + i)
@@ -1435,7 +1445,8 @@ def test_ifeval_rules_and_rows_v259z16(env):   # [v2.5.9z16] (rules 2.5.92) benc
     i = next(k for k, l in enumerate(L) if l.startswith("b259z15  open "))
     tasks = L[i].split()[2:]
     j = next(k for k, l in enumerate(L) if l.startswith("b259z16  open "))   # [10-25] ops-lead's condition 2: after b259z83, before fill17
-    assert len(tasks) == 18 and L[j] == "b259z16  open   BUILD-VENV-IFEVAL" and L[j - 1].startswith("b259z83 ") and L[j + 1].startswith("fill17 ")
+    z83 = next(k for k, l in enumerate(L) if l.startswith("b259z83 "))   # [v2.5.9z84a] later formal stages may sit between: after b259z83, right before fill17
+    assert len(tasks) == 18 and L[j] == "b259z16  open   BUILD-VENV-IFEVAL" and z83 < j and L[j + 1].startswith("fill17 ")
     assert " b259z16 b259z15" in next(l for l in L if l.startswith("#pad "))   # [10-25] Fable's A1: padding
     rows = [(k, l.split()) for k, l in enumerate(L) if l.startswith("#eval EVAL-gm-")]
     for t in tasks:

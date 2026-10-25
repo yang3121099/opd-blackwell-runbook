@@ -29,6 +29,7 @@ case $T in
   E10e-P5self) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z68] (Q-068) the 8B student taught by itself, four GPUs (#gpus 4)
   PROBE-8B) bash $RUNBOOK/scripts/probe_8b.sh $G;;   # [v2.5.9z68] (Q-068): the gate of E10e-P5self, a 4-GPU 3-step smoke
   E10b-*)  [[ $T =~ ^E10b-(($ARMS)(-s(43|44))?|(P2|P5)-t14|P5think|P5self|P5self-s43|P2self|P5len[SLR]|P5stopmerge|P5tail|P5route|P5mix|P5mix75|P5mix90)$ ]] || exit 2; bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # v2.5.7p: -t14; v2.5.7r: P5think; v2.5.7v: P5self; [v2.5.8e] P5self-s43
+  E10d-P5tail) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z84a] (Q-075) E10b-P5tail's recipe on the 4B student
   E10c-P5tail) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z70] (Q-055) the 0.6B P5 student with the tail-swapped 8B teacher, 20 steps from E10c-P5-fix4 s150
   E10c-P5tail-c50) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z82] (Q-055b) E10c-P5tail continued: 30 steps from its s20 weights
   E10c-*)  [[ $T =~ ^E10c-(($ARMS)-(fix4|dyn16k|dyn6144)(-s43)?|P5-polish|P5self)$ ]] || exit 2; bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # v2.5.6f: 0.6B, V3-c1; v2.5.7g: dyn6144, -s43
@@ -41,6 +42,7 @@ case $T in
   E12b-*)  [[ $T =~ ^E12b-(P0|P1|$ARMS|P5-s4[34]|P2-s43|P5self|P5self-s43|P5-kl|P5-stop|P5-stop2|P5-8k|P5-16k|P5-r3|P5-16k-kl)$ ]] || exit 2; bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # v2.5.6j: P5-s43; v2.5.7n: P5-s44; v2.5.7o: P2-s43; [v2.5.8a] P5self; [v2.5.8b] P5-kl; [v2.5.8c] P5-stop; [v2.5.9f] P5-stop2
   E12c-*)  [[ $T =~ ^E12c-(P0|P5)$ ]] || exit 2; bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.8a] the 0.6B GRPO ladder (Q-023)
   E12d-P5-8k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z60] (Q-066) E12d-P5 (4B, from E10d-P5 s150) at the 8K limit, 50 steps, gated by PROBE-E12B-8K
+  E12b-P5tail-8k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z84a] (Q-074) the 8K RL arm from E10b-P5tail s50 (the method's chain)
   E12d-P5-8k-s43) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z77] (Q-071) the 8K arm from E10d-P5-s43 s150
   E12d-P5-16k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z67] (Q-069) E12d-P5 (4B, from E10d-P5 s150) at the 16K limit on two GPUs (#gpus 2), 50 steps, gated by PROBE-E12B-16K
   E12d-*)  [[ $T =~ ^E12d-(P0|P5)$ ]] || exit 2; bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # v2.5.7o: the 4B GRPO ladder
@@ -87,6 +89,7 @@ case $T in
   PROBE-PROG) bash $RUNBOOK/scripts/probe_prog.sh;;   # [v2.5.9z43] (Q-058): the gate of E12b-P5-prog / -prog-up, the continuation file and the starts (the CPU lane)
   VENV-VL-NVRTC) bash $RUNBOOK/scripts/venv_vl_nvrtc.sh;;   # [v2.5.9z31] (ops-lead, Q-051): CUDA 12.9's NVRTC into venv-vl (sm_103), the CPU lane   # [v2.5.9z24] (ops-lead, Q-057): vocab / special tokens / chat template of the X5 trio once pulled (the CPU lane)
   PROBE-TAIL) bash $RUNBOOK/scripts/probe_tail.sh $G;;   # [v2.5.9n] (T4): the gate of E10b-P5tail
+  PROBE-TAIL-4B) PTL_PROBE=PROBE-TAIL-4B PTL_ARM=E10d-P5tail bash $RUNBOOK/scripts/probe_tail.sh $G;;   # [v2.5.9z84a] (Q-075): the 4B tail arm's smoke
   PROBE-SOFTMIX) PTL_PROBE=PROBE-SOFTMIX PTL_ARM=E10b-P5softmix50 PTL_SOFTMIX=0.5 bash $RUNBOOK/scripts/probe_tail.sh $G;;   # [v2.5.9z83] (Q-073): the soft mix's gate
   PROBE-TAIL-BUD) PTL_PROBE=PROBE-TAIL-BUD PTL_ARM=E10b-P5bud2k PTL_BUD=2048 bash $RUNBOOK/scripts/probe_tail.sh $G;;   # [v2.5.9z73] (Q-061): the budget arms' gate
   PROBE-POLISH) bash $RUNBOOK/scripts/probe_polish.sh $G;;   # [v2.5.9u] (T2): the gate of E10c-P5-polish
