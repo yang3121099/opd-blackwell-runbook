@@ -586,3 +586,4 @@ commands:
   - {"seq": 584, "cmd": "du dr keep", "reason": "idx0 dropping since 17:51Z; dr/keep is 526 GB: which entries", "utc": "2026-10-25T18:00:21Z"}
   - {"seq": 585, "cmd": "du opd_root runs", "reason": "ops-lead 18:00Z (3): which next tasks have a run dir on idx0", "utc": "2026-10-25T18:02:41Z"}
   - {"seq": 586, "cmd": "du ckpt E10d-P5-s43", "reason": "ops-lead 18:00Z (3): E12d-P5-16k-s43's start E10d-P5-s43 s150 local on idx1, and its own run dir", "utc": "2026-10-25T18:03:20Z"}
+  - {"seq": 587, "cmd": "du ckpt E12d-P5-16k-s43", "reason": "ops-lead 18:00Z (3): E12d-P5-16k-s43's start E10d-P5-s43 s150 local on idx1, and its own run dir", "utc": "2026-10-25T18:04:19Z"}
