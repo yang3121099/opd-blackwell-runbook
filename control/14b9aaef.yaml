@@ -548,3 +548,4 @@ commands:
   - {"seq": 546, "cmd": "update", "reason": "pull z83 1b080c0 (Q-073 softmix + PROBE-SOFTMIX, rules 2.5.91; Fable + ops-lead A1)", "utc": "2026-10-25T00:52:05Z"}
   - {"seq": 547, "cmd": "du opd_root data/hf/google__IFEval", "reason": "z16 condition 3: is IFEval's .fetch_ok on the node (read-only)", "utc": "2026-10-25T02:01:07Z"}
   - {"seq": 548, "cmd": "update", "reason": "pull z16 (IFEval bench, rules 2.5.92; Fable + ops-lead A1, Runming's go 10-25)", "utc": "2026-10-25T02:12:13Z"}
+  - {"seq": 549, "cmd": "update", "reason": "v2.5.9z84a pushed 5888f4e (rules 2.5.93): Q-074 E12b-P5tail-8k + Q-075 E10d-P5tail, Fable + ops-lead A1", "utc": "2026-10-25T02:51:22Z"}
