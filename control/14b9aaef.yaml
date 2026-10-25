@@ -599,3 +599,4 @@ commands:
   - {"seq": 597, "cmd": "du opd_root runs/EVAL-e10b-P5selfroute-c100", "reason": "ops-lead 20:23Z (2): run dir on idx1 (a link: refused as leaving the prefix) or a real idx0 dir", "utc": "2026-10-25T20:50:57Z"}
   - {"seq": 598, "cmd": "du opd_root runs/EVAL-ext32k-17selfroute-c100", "reason": "ops-lead 20:23Z (2): run dir on idx1 (a link: refused as leaving the prefix) or a real idx0 dir", "utc": "2026-10-25T20:52:11Z"}
   - {"seq": 599, "cmd": "update", "reason": "queue e9bba42: restore the held TERM4 rows of akl2 / fkl / E12b-P5-16k-s44 (s50 done) for the PROBE-TERM4 rerun", "utc": "2026-10-25T20:56:09Z"}
+  - {"seq": 600, "cmd": "setenv GPUS_HOLD_MIN=30", "reason": "E12d-P5-16k-s43 started 21:33:29Z on its 4 GPUs: the hold back to 30 (ops-lead 20:45Z condition)", "utc": "2026-10-25T21:48:01Z"}
