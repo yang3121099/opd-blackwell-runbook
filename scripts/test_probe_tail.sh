@@ -61,4 +61,17 @@ setup; FAKE_BUDM="${BM/switch_max:2048.0/switch_max:2050.0}" bud; checkb "[z73] 
 setup; FAKE_BUDM="${BM/rows_switched:90.0/rows_switched:91.0}" bud; checkb "[z73] switched rows not by box + by budget is FAIL" "switched rows 91.0"; cd $SRC; rm -rf $T
 setup; FAKE_BUDM="${BM/budget:2048.0/budget:3072.0}" bud; checkb "[z73] the wrong budget is FAIL" "expected 2048"; cd $SRC; rm -rf $T
 setup; FAKE_BUDM="$BM"; PTL_PROBE=PROBE-TAIL-BUD PTL_ARM=E10b-P5bud2k PTL_BUD=2048 bash $T/rb/scripts/probe_tail.sh 3 > /dev/null 2>&1; checkb "[z73] a config without the budget is FAIL" "does not name the budget 2048"; cd $SRC; rm -rf $T
+# [v2.5.9z83] (Q-073) PROBE-SOFTMIX: probe_tail.sh with PTL_SOFTMIX: the merge checked, no box / swap needed
+SCFG="; soft-mixed: 0.5 * the thinking reading + (1 - 0.5) * the non-thinking one at every position (opd_tailswap.py OPD_TAILSWAP_SOFTMIX; the unnormalized geometric mean)"
+SM="tail/softmix_w:0.5 - tail/valid:30000.0 - tail/merged_finite:1.0 - tail/merged_between:1.0"
+ress() { python3 -c "import json, sys; v = json.load(open(sys.argv[1])); print(eval(sys.argv[2]))" $T/root/runs/PROBE-SOFTMIX/report.json "$1"; }
+smix() { PTL_PROBE=PROBE-SOFTMIX PTL_ARM=E10b-P5softmix50 PTL_SOFTMIX=0.5 FAKE_CFG="$SCFG" FAKE_BOX=0.0 FAKE_SW=0.0 bash $T/rb/scripts/probe_tail.sh 3 > /dev/null 2>&1; }
+checks() { ok "$1" '[ "$(ress "v[\"result\"]")" = FAIL ] && [[ "$(ress "v[\"reason\"]")" == *"'"$2"'"* ]]'; }
+setup; FAKE_BUDM="$SM" smix
+ok "[z83] PROBE-SOFTMIX PASS: the smoke of E10b-P5softmix50, no box or swap needed; its report, event; the summary" '[ "$(ress "v[\"result\"]")" = PASS ] && [ -f $T/root/runs/PROBE-SOFTMIX/.done ] && grep -q "^run_arm 3 E10b-P5softmix50 SMOKE=1 STEPS=3 PROBE_TASK=PROBE-SOFTMIX-smoke$" $CALLS && [ "$(ress "v[\"checks\"][\"tail\"][\"softmix_w\"]")" = 0.5 ] && [[ "$(ress "v[\"reason\"]")" == *"soft mix w 0.5: the merge between the two readings"* ]] && grep -q "^control event PROBE-SOFTMIX " $CALLS'
+cd $SRC; rm -rf $T
+setup; FAKE_BUDM="${SM/merged_between:1.0/merged_between:0.0}" smix; checks "[z83] a merge outside the two readings is FAIL" "between the readings 0.0"; cd $SRC; rm -rf $T
+setup; FAKE_BUDM="${SM/merged_finite:1.0/merged_finite:0.0}" smix; checks "[z83] a non-finite merge is FAIL" "the merge finite 0.0"; cd $SRC; rm -rf $T
+setup; FAKE_BUDM="${SM/softmix_w:0.5/softmix_w:0.4}" smix; checks "[z83] the wrong weight is FAIL" "expected 0.5"; cd $SRC; rm -rf $T
+setup; FAKE_BUDM="$SM"; PTL_PROBE=PROBE-SOFTMIX PTL_ARM=E10b-P5softmix50 PTL_SOFTMIX=0.5 FAKE_BOX=0.0 FAKE_SW=0.0 bash $T/rb/scripts/probe_tail.sh 3 > /dev/null 2>&1; checks "[z83] a config naming the tail swap, not the soft mix, is FAIL" "does not name the soft mix at 0.5"; cd $SRC; rm -rf $T
 [ $fails = 0 ] && echo "PROBE_TAIL_TEST PASS ($n checks)" || echo "PROBE_TAIL_TEST FAIL ($fails of $n)"

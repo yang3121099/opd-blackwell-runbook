@@ -1322,6 +1322,16 @@ def test_run_and_rerun_accept_v259z82(env):   # [v2.5.9z82] (Q-072 / Q-055b) E10
     assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 90)
 
 
+def test_run_and_rerun_accept_v259z83(env):   # [v2.5.9z83] (Q-073) E10b-P5softmix50 and its gate PROBE-SOFTMIX (rules 2.5.91)
+    for i, t in enumerate(("E10b-P5softmix50", "PROBE-SOFTMIX")):
+        st, msg, _ = env.c.v_run([t], 140 + i)
+        assert st == "accepted", (t, msg)
+    for i, t in enumerate(("E10b-P5softmix60", "PROBE-SOFTMIX2", "E10d-P5softmix50")):
+        assert env.c.v_run([t], 150 + i)[0] == "rejected", t
+    R.parse({"cmd": "rerun PROBE-SOFTMIX", "reason": "t"})
+    assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 91)
+
+
 def test_run_and_rerun_accept_v259z46(env):   # [v2.5.9z46] (Q-057) E16-X5 / -X5e and their gate PROBE-X5 (rules 2.5.72)
     for i, t in enumerate(("E16-X5", "E16-X5e", "PROBE-X5")):
         st, msg, _ = env.c.v_run([t], 130 + i)

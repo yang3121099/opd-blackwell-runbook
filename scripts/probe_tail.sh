@@ -15,6 +15,9 @@
 # N (budget_late 0), the switched rows = by a box + by the budget, the switch positions p50 / p90 / max <= N; over the smoke at
 # least one row switched by the budget (else the budget never bound and the arm would be the plain tail swap). report.json adds
 # the switch-position summary (rows by box / by budget, p10 / p50 / p90 / max per step).
+# [v2.5.9z83] (Q-073) PTL_PROBE=PROBE-SOFTMIX PTL_ARM=E10b-P5softmix50 PTL_SOFTMIX=<w>: the gate of the soft mix: the same unit tests and
+# hook check; the smoke's config must name the soft mix at w, and each step's tail/* must show softmix_w = w, both readings and the merge
+# finite on every valid token, the merge between the two readings (no swap, so the box / swap / violation checks do not apply).
 # Usage: bash probe_tail.sh <gpu>
 set -uo pipefail
 G=$1; T=${PTL_PROBE:-PROBE-TAIL}; source "$(dirname "$0")/env.sh"
@@ -92,7 +95,11 @@ import json, os, re, sys
 d, nsteps, rt = sys.argv[1], int(sys.argv[2]), sys.argv[3]
 sm = os.path.join(d, "smoke"); why = []
 rd = lambda p: open(p, errors="ignore").read() if os.path.exists(p) else ""
-if "tail-swapped: the non-thinking reading after the first box" not in rd(os.path.join(sm, "config.yaml")):
+smx = float(os.environ.get("PTL_SOFTMIX", "0") or 0)   # [v2.5.9z83] (Q-073) the soft mix's gate
+if smx:
+    if f"soft-mixed: {os.environ.get('PTL_SOFTMIX')} * the thinking reading" not in rd(os.path.join(sm, "config.yaml")):
+        why.append(f"the smoke's config does not name the soft mix at {smx}")
+elif "tail-swapped: the non-thinking reading after the first box" not in rd(os.path.join(sm, "config.yaml")):
     why.append("the smoke's config does not name the tail swap")
 steps = {}
 for st, body in re.findall(r"(?:^|[ )\]])step:(\d+) - (.*)", rd(os.path.join(sm, "train.log"))):
@@ -104,11 +111,16 @@ for st, m in sorted(steps.items()):
         why.append(f"step {st}: score {m.get('critic/score/mean')} outside [0, 1]")
     if m.get("tail/lp_think_finite") != 1.0 or m.get("tail/lp_plain_finite") != 1.0:
         why.append(f"step {st}: a reading not finite on every valid token (thinking {m.get('tail/lp_think_finite')}, non-thinking {m.get('tail/lp_plain_finite')})")
-    if m.get("tail/violations", 1) != 0.0:
+    if smx:   # [v2.5.9z83] the merge
+        if m.get("tail/softmix_w") != smx:
+            why.append(f"step {st}: tail/softmix_w {m.get('tail/softmix_w')}, expected {smx}")
+        if m.get("tail/merged_finite") != 1.0 or m.get("tail/merged_between") != 1.0:
+            why.append(f"step {st}: the merge finite {m.get('tail/merged_finite')}, between the readings {m.get('tail/merged_between')}")
+    elif m.get("tail/violations", 1) != 0.0:
         why.append(f"step {st}: {m.get('tail/violations')} swaps at or before a box")
-if sum(m.get("tail/rows_box", 0) for m in steps.values()) == 0:
+if not smx and sum(m.get("tail/rows_box", 0) for m in steps.values()) == 0:
     why.append("no response with a complete box was found")
-if sum(m.get("tail/swapped", 0) for m in steps.values()) == 0:
+if not smx and sum(m.get("tail/swapped", 0) for m in steps.values()) == 0:
     why.append("no position was swapped")
 rows = [json.loads(x) for x in rd(os.path.join(sm, "tailswap.jsonl")).splitlines() if x.strip()]
 if len(rows) < nsteps:
@@ -138,9 +150,13 @@ tot = lambda k: sum(m.get(k, 0) for m in steps.values())
 summ = {"rows": tot("tail/rows"), "rows_box_share": round(tot("tail/rows_box") / max(tot("tail/rows"), 1), 4),
         "swapped_frac_mean": round(tot("tail/swapped_frac") / max(len(steps), 1), 4),
         "delta_mean": round(sum(m.get("tail/delta_mean", 0) * m.get("tail/swapped", 0) for m in steps.values()) / max(tot("tail/swapped"), 1), 4)}
+if smx:   # [v2.5.9z83] the mean (non-thinking - thinking) over every valid token
+    summ = {"rows": tot("tail/rows"), "softmix_w": smx, "valid": tot("tail/valid"),
+            "delta_mean": round(sum(m.get("tail/delta_mean", 0) * m.get("tail/valid", 0) for m in steps.values()) / max(tot("tail/valid"), 1), 4)}
 json.dump({"steps": steps, "tail": summ, "hooks": hooks, "jsonl_lines": len(rows), "budget": budsum}, open(os.path.join(d, "checks.json"), "w"), indent=1)
 print("; ".join(why))
 PY
 )
 [ -z "$why" ] || finish FAIL "$why"
+[ -n "${PTL_SOFTMIX:-}" ] && finish PASS "unit tests ok; ${PTL_STEPS:-3}-step smoke ok, peak ${peak} MiB; $(python3 -c "import json, sys; s = json.load(open(sys.argv[1]))['tail']; print(f\"soft mix w {s['softmix_w']}: the merge between the two readings and finite on every step, mean (non-thinking - thinking) {s['delta_mean']} over {s['valid']} tokens\")" $D/checks.json)"   # [v2.5.9z83]
 finish PASS "unit tests ok; ${PTL_STEPS:-3}-step smoke ok, peak ${peak} MiB; $(python3 -c "import json, sys; s = json.load(open(sys.argv[1]))['tail']; print(f\"{s['rows_box_share']:.0%} of responses with a box, {s['swapped_frac_mean']:.1%} of tokens swapped, mean change of the teacher's log-prob there {s['delta_mean']}\")" $D/checks.json)"

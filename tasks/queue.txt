@@ -171,6 +171,8 @@ olpd     open   EVAL-ext32k-17olpd
 b259z24  open   TOKCHECK-X5
 # [v2.5.9z82] (Fable 10-24 18:55 Beijing) tonight's formal arms, ahead of the fill17 pad: Q-072 selfroute and its gate, Q-055b the 0.6B tail to s50
 b259z82  open   PROBE-SELFROUTE:PROBE-DIFFPROBE E10b-P5selfroute:PROBE-SELFROUTE+PROBE-ROUTE EVAL-e10b-P5selfroute:E10b-P5selfroute+EVAL-e10b-P5route EVAL-budA-P5selfroute:E10b-P5selfroute+EVAL-budA-P5route EVAL-ext32k-17selfroute:E10b-P5selfroute+EVAL-ext32k-17route E10c-P5tail-c50:E10c-P5tail+PROBE-TAIL EVAL-e10c-P5tail-c50:E10c-P5tail-c50+EVAL-e10c-P5tail EVAL-ext32k-06tail-c50:E10c-P5tail-c50+EVAL-ext32k-06tail
+# [v2.5.9z83] (Fable 10-24 19:51 Beijing) Q-073 the soft mix and its gate, a formal arm ahead of the fill17 pad
+b259z83  open   PROBE-SOFTMIX:PROBE-TAIL E10b-P5softmix50:PROBE-SOFTMIX+PROBE-TAIL EVAL-e10b-P5softmix50:E10b-P5softmix50+EVAL-e10b-P5mix EVAL-budA-P5softmix50:E10b-P5softmix50+EVAL-budA-P5mix EVAL-ext32k-17softmix50:E10b-P5softmix50+EVAL-ext32k-17mix
 fill17   open   EVAL-ext-17bud2k:E10b-P5bud2k EVAL-gm-17bud2k:E10b-P5bud2k EVAL-ext-17bud3k:E10b-P5bud3k EVAL-gm-17bud3k:E10b-P5bud3k EVAL-ext-17dense:E10b-P5-dense EVAL-gm-17dense:E10b-P5-dense EVAL-ext-4Bp5selfs43:E10d-P5self-s43 EVAL-gm-4Bp5selfs43:E10d-P5self-s43
 # [v2.5.9m] padding stages (ops-lead, Runming 10-21 21:2x Beijing): dispatched after every other stage, each group in file order;
 # every later fill list gets a #pad line too (a #pad line holds stage names only)
@@ -2869,3 +2871,28 @@ fill17   open   EVAL-ext-17bud2k:E10b-P5bud2k EVAL-gm-17bud2k:E10b-P5bud2k EVAL-
 #pair EVAL-ext32k-06tail-c50 ext32k06_P5tailc50_s50_aime25_T0.6 EVAL-ext32k-06tail/ext32k06_P5tail_s20_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-06/ext32k06_E10cP5fix4_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl
 #term PROBE-TERM4-06B 06_P5tail_s50 result:runs/E10c-P5tail-c50/global_step_30/actor/huggingface EVAL-e10c-P5tail-c50/e10c_P5tailc50_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 #after EVAL-e10c-P5tail-c50 rerun PROBE-TERM4-06B
+
+# [v2.5.9z83] (Q-073, Fable 10-24 19:51 Beijing, research_program 3c; the Q-064 series' decisive test) E10b-P5softmix50: P5's recipe
+# with the tail swap's two reference passes soft-mixed at every position (0.5 * thinking + 0.5 * non-thinking, the unnormalized
+# geometric mean) instead of Q-042's per-prompt hard choice; 1.7B from the base, 4K, 50 steps, s25 kept, s50 up. Readings: MATH-500
+# 16K T0.6 / T1.0 paired with P5 (s50, s150), P2 s150 and mix0.5 s50; the 32K budget curves (H1: >= P2 s150 + 5; H2: the mean length
+# between P2's and P5's) against the base, P5 s150, P2 s150 and mix0.5; AIME24/25 32K avg@16 against P5 s150 and mix0.5; a #split
+# row; its TERM4 row held until s50; the 4K wall from len_by_step / wall.json (H3: none within 50 steps)
+#eval EVAL-e10b-P5softmix50 e10b_P5softmix50_s50_math500_T0.6 result:runs/E10b-P5softmix50/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-e10b-P5softmix50 e10b_P5softmix50_s50_math500_T1.0 result:runs/E10b-P5softmix50/global_step_50/actor/huggingface math500 4 1.0
+#twr EVAL-e10b-P5softmix50 e10b_P5softmix50_s50_math500_T0.6
+#pair EVAL-e10b-P5softmix50 e10b_P5softmix50_s50_math500_T0.6 archive:runs/e10/e10_P5_1.7B_s50_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P2/e11b_P2_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e10b-P5mix/e10b_P5mix_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#pair EVAL-e10b-P5softmix50 e10b_P5softmix50_s50_math500_T1.0 E11b-P5/e11b_P5_math500_T1.0_math500_no_think_t1.0.jsonl E11b-P2/e11b_P2_math500_T1.0_math500_no_think_t1.0.jsonl EVAL-e10b-P5mix/e10b_P5mix_s50_math500_T1.0_math500_no_think_t1.0.jsonl
+#eval EVAL-budA-P5softmix50 budAP5softmix50_s50_math500_T0.6_32k result:runs/E10b-P5softmix50/global_step_50/actor/huggingface math500 4 0.6 32768
+#budget EVAL-budA-P5softmix50 budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5softmix50_s50_math500_T0.6_32k
+#budget EVAL-budA-P5softmix50 budget_curve_vsP5s150 EVAL-budA17b/budA_E10bP5_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5softmix50_s50_math500_T0.6_32k
+#budget EVAL-budA-P5softmix50 budget_curve_vsP2s150 EVAL-budA17b/budA_E10bP2_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5softmix50_s50_math500_T0.6_32k
+#budget EVAL-budA-P5softmix50 budget_curve_vsMix EVAL-budA-P5mix/budAP5mix_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAP5softmix50_s50_math500_T0.6_32k
+#eval EVAL-ext32k-17softmix50 ext32k17_P5softmix50_s50_aime24_T0.6 result:runs/E10b-P5softmix50/global_step_50/actor/huggingface aime24 16 0.6 32768
+#pair EVAL-ext32k-17softmix50 ext32k17_P5softmix50_s50_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17mix/ext32k17_P5mix_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#eval EVAL-ext32k-17softmix50 ext32k17_P5softmix50_s50_aime25_T0.6 result:runs/E10b-P5softmix50/global_step_50/actor/huggingface aime25 16 0.6 32768
+#pair EVAL-ext32k-17softmix50 ext32k17_P5softmix50_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17mix/ext32k17_P5mix_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
+#split READINGS-EXTRA 17_P5softmix50_s50 EVAL-e10b-P5softmix50/e10b_P5softmix50_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-e10b-P5softmix50 rerun READINGS-EXTRA
+# [held until E10b-P5softmix50 has s50] term PROBE-TERM4 17_P5softmix50 result:runs/E10b-P5softmix50/global_step_50/actor/huggingface EVAL-e10b-P5softmix50/e10b_P5softmix50_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+# [held until E10b-P5softmix50 has s50; restored together with the term row above] after EVAL-e10b-P5softmix50 rerun PROBE-TERM4

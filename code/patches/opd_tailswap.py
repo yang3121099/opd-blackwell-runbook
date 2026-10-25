@@ -17,6 +17,10 @@ for the call (P2's prompt) and the same reference worker; P5's reference inputs 
 Logged per step (metrics tail/*): rows, rows with a box, positions swapped, the mean change of the teacher's log-prob there
 (non-thinking - thinking), whether both readings are finite on every valid token, violations (swaps at or before a box);
 the same per step as JSON lines in OPD_TAILSWAP_LOG (optional).
+[v2.5.9z83] (Q-073, Fable 10-24 19:51 Beijing) OPD_TAILSWAP_SOFTMIX = w in (0, 1): no swap - at every valid response position the
+reference log-prob is w * the thinking reading + (1 - w) * the non-thinking one (the unnormalized geometric mean of the two teachers:
+per position its normalizer only shifts every sampled token's advantage by a constant, unbiased in expectation; a known approximation);
+logged: the mean (non-thinking - thinking), whether the merge lies between the two readings and is finite on every valid token.
 """
 import json
 import os
@@ -32,6 +36,30 @@ def budget():
         return max(0, int(os.environ.get("OPD_TAILSWAP_BUDGET", "0") or 0))
     except ValueError:
         return 0
+
+
+def softmix_w():
+    """[v2.5.9z83] OPD_TAILSWAP_SOFTMIX as a weight in (0, 1); anything else (unset, 0, 1, not a number): 0.0, the swap."""
+    try:
+        w = float(os.environ.get("OPD_TAILSWAP_SOFTMIX", "0") or 0)
+    except ValueError:
+        return 0.0
+    return w if 0.0 < w < 1.0 else 0.0
+
+
+def softmix(lp_think, lp_plain, valid, xp, w=0.5):
+    """[v2.5.9z83] (merged, stats): w * lp_think + (1 - w) * lp_plain on the valid positions (the rest keep the thinking reading)."""
+    v = valid > 0
+    out = xp.where(v, w * lp_think + (1.0 - w) * lp_plain, lp_think)
+    nv = int(v.sum())
+    lo, hi = xp.minimum(lp_think, lp_plain), xp.maximum(lp_think, lp_plain)
+    fin = (lambda a: bool(xp.isfinite(a[v]).all())) if nv else (lambda a: True)
+    between = bool(((out >= lo - 1e-6) & (out <= hi + 1e-6))[v].all()) if nv else True
+    stats = {"rows": int(lp_think.shape[0]), "valid": nv, "softmix_w": float(w),
+             "delta_mean": float((lp_plain - lp_think)[v].mean()) if nv else 0.0,
+             "lp_think_finite": int(fin(lp_think)), "lp_plain_finite": int(fin(lp_plain)),
+             "merged_finite": int(fin(out)), "merged_between": int(between)}
+    return out, stats
 
 
 def _q(xs, q):
@@ -82,7 +110,8 @@ def second_pass(trainer, batch, apply_chat_template_kwargs):
     from verl.trainer.ppo.ref_input_utils import prepare_ref_model_inputs
     import opd_stopmerge as _sm
     responses, valid = batch.batch["responses"], batch.batch["response_mask"]
-    box = torch.tensor(_sm.box_ends(responses, valid, trainer.ref_tokenizer), dtype=torch.long)
+    w = softmix_w()   # [v2.5.9z83] (Q-073) the soft mix needs no box
+    box = None if w else torch.tensor(_sm.box_ends(responses, valid, trainer.ref_tokenizer), dtype=torch.long)
     lp_think = batch.batch["ref_log_prob"].clone()
     keep = {k: batch.batch[k].clone() for k in ("ref_input_ids", "ref_attention_mask", "ref_position_ids") if k in batch.batch.keys()}
     old = os.environ.get("OPD_REF_THINK"); os.environ["OPD_REF_THINK"] = "0"   # P2's prompt for this call only
@@ -94,7 +123,10 @@ def second_pass(trainer, batch, apply_chat_template_kwargs):
     lp_plain = wg.compute_ref_log_prob(batch).batch["ref_log_prob"].to(lp_think.device, lp_think.dtype)
     for k, t in keep.items():   # P5's reference inputs back (nothing later reads them, but the batch stays as P5 leaves it)
         batch.batch[k] = t
-    merged, stats = swap(lp_think, lp_plain, box, valid, torch, budget=budget())   # [v2.5.9z73] 0 unless OPD_TAILSWAP_BUDGET
+    if w:   # [v2.5.9z83] (Q-073) every position: w * thinking + (1 - w) * non-thinking
+        merged, stats = softmix(lp_think, lp_plain, valid, torch, w)
+    else:
+        merged, stats = swap(lp_think, lp_plain, box, valid, torch, budget=budget())   # [v2.5.9z73] 0 unless OPD_TAILSWAP_BUDGET
     batch.batch["ref_log_prob"] = merged   # assigned, not union-ed (union asserts equal values on a shared key)
     p = os.environ.get("OPD_TAILSWAP_LOG")
     if p:
