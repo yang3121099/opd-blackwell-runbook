@@ -32,6 +32,12 @@ with open(os.path.join(d, 'train.log'), 'a') as lg, open(os.path.join(d, 'vardro
 PY
   exit 0
 fi
+if [[ $2 == E12c-P5-8k || $2 == E12c-P5-16k ]]; then   # [v2.5.9z85] (Q-077) the 0.6B window arms
+  N=${2##*-P5-}; N=$(( ${N%k} * 1024 ))
+  printf "task: $2\nstart: /runs/E10c-P5-fix4/ckpt/global_step_150/actor/huggingface_bf16\nvariant: ${2##*-P5-}\nmax_response_length: ${FAKE_MAXR:-$N}\n" > $d/config.yaml
+  for i in 1 2 3; do echo "(TaskRunner pid=1) step:$i - response_length/mean:$((5000 + i)) - critic/score/mean:0.4" >> $d/train.log; done
+  exit 0
+fi
 if [ $2 = E12b-P5-16k ]; then   # [v2.5.8h]
   printf "task: E12b-P5-16k\nstart: $S\nvariant: 16k\nmax_response_length: ${FAKE_MAXR:-16384}\n" > $d/config.yaml
   for i in 1 2 3; do echo "(TaskRunner pid=1) step:$i - response_length/mean:$((9000 + i)) - critic/score/mean:0.5" >> $d/train.log; done
@@ -130,6 +136,17 @@ rm -rf $T
 setup
 FAKE_MAXR=4096 bash $T/rb/scripts/probe_e12var.sh 2 16k > /dev/null 2>&1
 ok "16k: a smoke at another limit is FAIL" '[ "$(lres result)" = FAIL ] && [[ "$(lres reason)" == *"max_response_length 16384"* ]]'
+rm -rf $T
+# [v2.5.9z85] (Q-077) PEV_LADDER=E12c: PROBE-E12C-8K / -16K smoke E12c-P5-8k / -16k (their own directories); an E12c variant other than 8k / 16k is refused
+cres() { python3 -c "import json, sys; print(json.load(open(sys.argv[1])).get(sys.argv[2], ''))" $T/root/runs/$1/report.json "$2"; }
+setup
+PEV_LADDER=E12c bash $T/rb/scripts/probe_e12var.sh 2 8k > /dev/null 2>&1; PEV_LADDER=E12c bash $T/rb/scripts/probe_e12var.sh 2 16k > /dev/null 2>&1
+PEV_LADDER=E12c bash $T/rb/scripts/probe_e12var.sh 2 kl > /dev/null 2>&1; rkl=$?
+ok "[v2.5.9z85] E12c 8k / 16k PASS at their limits in PROBE-E12C-8K / -16K, smoking E12c-P5-<v>; E12c kl refused" '[ "$(cres PROBE-E12C-8K result)" = PASS ] && [[ "$(cres PROBE-E12C-8K reason)" == *"at the 8192 limit"*"5001/5002/5003"* ]] && [ "$(cres PROBE-E12C-16K result)" = PASS ] && [[ "$(cres PROBE-E12C-16K reason)" == *"at the 16384 limit"* ]] && grep -q "^run_e12 2 E12c-P5-8k SMOKE=1 STEPS=3 PROBE_TASK=PROBE-E12C-8K-smoke" $CALLS && grep -q "^run_e12 2 E12c-P5-16k SMOKE=1 STEPS=3 PROBE_TASK=PROBE-E12C-16K-smoke" $CALLS && [ $rkl = 2 ] && [ ! -e $T/root/runs/PROBE-E12C-KL ] && [ ! -e $T/root/runs/PROBE-E12B-8K ] && grep -q "^control event PROBE-E12C-8K probe_e12var_pass" $CALLS'
+rm -rf $T
+setup
+PEV_LADDER=E12c FAKE_MAXR=4096 bash $T/rb/scripts/probe_e12var.sh 2 8k > /dev/null 2>&1
+ok "[v2.5.9z85] E12c 8k: a smoke at another limit is FAIL" '[ "$(cres PROBE-E12C-8K result)" = FAIL ] && [[ "$(cres PROBE-E12C-8K reason)" == *"max_response_length 8192"* ]]'
 rm -rf $T
 # [v2.5.9f] stop2: PASS with the fixed cases in range, the reward file named, the rollout dump carrying the tail
 s2() { python3 -c "import json, sys; print(json.load(open(sys.argv[1])).get(sys.argv[2], ''))" $T/root/runs/PROBE-E12B-STOP2/report.json "$1"; }

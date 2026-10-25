@@ -14,7 +14,9 @@
 # report.json (per step: dense/rkl, dense/fkl, dense/mass_topk, dense/corr_sampled, the step times, the ratio), to
 # logs/<node>/probe_dense/ (private), an event, .done. ~30-40 min on one GPU. Usage: bash probe_dense.sh <gpu>
 set -uo pipefail
-G=$1; T=PROBE-DENSE; source "$(dirname "$0")/env.sh"
+# [v2.5.9z85] (Q-079) PROBE-DENSE-4B = the same gate for the 4B AKL arm: PDN_PROBE=PROBE-DENSE-4B, the smokes of PDN_P5=E10d-P5 (the
+# step-time reference) and PDN_ARM=E10d-P5-akl, whose config names PDN_MODE=akl's loss; the defaults are PROBE-DENSE's own
+G=$1; T=${PDN_PROBE:-PROBE-DENSE}; source "$(dirname "$0")/env.sh"
 D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; mkdir -p $D
 [ -f $D/.done ] && { echo "TASK_ALREADY_DONE $T"; exit 0; }
 rm -f $D/mem.csv
@@ -75,7 +77,7 @@ for _w in $(seq 19); do
 done
 ( while true; do echo "$(date -u +%s),$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $G | tr -d ' ')" >> $D/mem.csv; sleep 5; done ) &
 MP=$!; trap 'kill $MP 2> /dev/null' EXIT
-for pair in p5:E10b-P5 dense:E10b-P5-dense; do
+for pair in p5:${PDN_P5:-E10b-P5} dense:${PDN_ARM:-E10b-P5-dense}; do   # [v2.5.9z85]
   s=${pair%%:*}; arm=${pair#*:}
   rm -rf $OPD_ROOT/runs/$T-$s
   step "smoke $s ($arm, ${PDN_STEPS:-3} steps)"
@@ -88,10 +90,11 @@ done
 kill $MP 2> /dev/null
 peak=$(cut -d, -f2 $D/mem.csv 2> /dev/null | sort -n | tail -1)
 [ "${peak:-0}" -lt ${PDN_PEAK_MIB:-266240} ] || finish FAIL "peak ${peak} MiB >= 260 GB"
-why=$(python3 - "$D" "${PDN_STEPS:-3}" "$AC" "$WK" "${PDN_CORR:-0.3}" "${PDN_RATIO:-1.5}" "${PDN_RLO:-0.5}" "${PDN_RHI:-2}" <<'PY'
+why=$(python3 - "$D" "${PDN_STEPS:-3}" "$AC" "$WK" "${PDN_CORR:-0.3}" "${PDN_RATIO:-1.5}" "${PDN_RLO:-0.5}" "${PDN_RHI:-2}" "${PDN_MODE:-rkl}" <<'PY'
 import json, math, os, re, sys
 d, nsteps, ac, wk, cmin, rmax = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4], float(sys.argv[5]), float(sys.argv[6])
 rlo, rhi = float(sys.argv[7]), float(sys.argv[8])
+dmode = sys.argv[9]   # [v2.5.9z85] the loss the dense smoke's config names
 rd = lambda p: open(p, errors="ignore").read() if os.path.exists(p) else ""
 why = []
 def steps(path):
@@ -100,7 +103,7 @@ def steps(path):
         out[int(st)] = {k: float(v) for k, v in re.findall(r"((?:dense/[a-z_]+|actor/grad_norm|timing_s/step|critic/score/mean)):([-0-9.e]+|nan|inf)", body)}
     return out
 p5, dn = steps(os.path.join(d, "p5", "train.log")), steps(os.path.join(d, "dense", "train.log"))
-if "dense rkl over the teacher's top-" not in rd(os.path.join(d, "dense", "config.yaml")):
+if f"dense {dmode} over the teacher's top-" not in rd(os.path.join(d, "dense", "config.yaml")):
     why.append("the dense smoke's config does not name the dense loss")
 for name, S in (("p5", p5), ("dense", dn)):
     if sorted(S) != list(range(1, nsteps + 1)):

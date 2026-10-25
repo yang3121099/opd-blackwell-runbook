@@ -26,10 +26,12 @@ case $T in
   E10b-P5bud2k|E10b-P5bud3k) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z73] (Q-061) the tail swap at min(the first box, N)
   E10b-P5softmix50) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z83] (Q-073) the two readings soft-mixed (0.5 / 0.5) at every position
   E10b-P5-dense|E10b-P5-akl) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z76] (Q-065) the per-token KL over the vocabulary
+  E10b-P5-akl2|E10b-P5-fkl|E10b-P5-dense-k256|E10b-P5-akl-mu03|E10b-P5-akl-mu07|E10b-P5self-akl|E10b-P5selfroute-c100) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z85] (Q-079) the AKL series; (Q-072b) selfroute continued to s100
   E10e-P5self) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z68] (Q-068) the 8B student taught by itself, four GPUs (#gpus 4)
   PROBE-8B) bash $RUNBOOK/scripts/probe_8b.sh $G;;   # [v2.5.9z68] (Q-068): the gate of E10e-P5self, a 4-GPU 3-step smoke
   E10b-*)  [[ $T =~ ^E10b-(($ARMS)(-s(43|44))?|(P2|P5)-t14|P5think|P5self|P5self-s43|P2self|P5len[SLR]|P5stopmerge|P5tail|P5route|P5mix|P5mix75|P5mix90)$ ]] || exit 2; bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # v2.5.7p: -t14; v2.5.7r: P5think; v2.5.7v: P5self; [v2.5.8e] P5self-s43
   E10d-P5tail) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z84a] (Q-075) E10b-P5tail's recipe on the 4B student
+  E10d-P5-akl) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z85] (Q-079) AKL for the 4B student
   E10c-P5tail) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z70] (Q-055) the 0.6B P5 student with the tail-swapped 8B teacher, 20 steps from E10c-P5-fix4 s150
   E10c-P5tail-c50) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z82] (Q-055b) E10c-P5tail continued: 30 steps from its s20 weights
   E10c-*)  [[ $T =~ ^E10c-(($ARMS)-(fix4|dyn16k|dyn6144)(-s43)?|P5-polish|P5self)$ ]] || exit 2; bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # v2.5.6f: 0.6B, V3-c1; v2.5.7g: dyn6144, -s43
@@ -42,6 +44,7 @@ case $T in
   E12b-P5tail-8k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z84a] (Q-074) the 8K RL arm from E10b-P5tail s50 (the method's chain); [v2.5.9z84b] above E12b-*, which took it first (exit 2, no log line)
   E12b-P5-16k-s44) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z84] (Q-076) the 1.7B 16K arm from E10b-P5-s44 s150, #gpus 2; [v2.5.9z84b] above E12b-*
   E12b-*)  [[ $T =~ ^E12b-(P0|P1|$ARMS|P5-s4[34]|P2-s43|P5self|P5self-s43|P5-kl|P5-stop|P5-stop2|P5-8k|P5-16k|P5-r3|P5-16k-kl)$ ]] || exit 2; bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # v2.5.6j: P5-s43; v2.5.7n: P5-s44; v2.5.7o: P2-s43; [v2.5.8a] P5self; [v2.5.8b] P5-kl; [v2.5.8c] P5-stop; [v2.5.9f] P5-stop2
+  E12c-P5-8k|E12c-P5-16k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z85] (Q-077) the 0.6B window arms from E10c-P5-fix4 s150 (above E12c-*)
   E12c-*)  [[ $T =~ ^E12c-(P0|P5)$ ]] || exit 2; bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.8a] the 0.6B GRPO ladder (Q-023)
   E12d-P5-8k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z60] (Q-066) E12d-P5 (4B, from E10d-P5 s150) at the 8K limit, 50 steps, gated by PROBE-E12B-8K
   E12d-P5-8k-s43) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z77] (Q-071) the 8K arm from E10d-P5-s43 s150
@@ -69,6 +72,8 @@ case $T in
   PROBE-E12B-STOP) bash $RUNBOOK/scripts/probe_e12var.sh $G stop;;   # [v2.5.8c] (Q-021): the gate of E12b-P5-stop
   PROBE-E12B-8K) bash $RUNBOOK/scripts/probe_e12var.sh $G 8k;;   # [v2.5.8h] (Q-028): the gate of E12b-P5-8k
   PROBE-E12B-16K) bash $RUNBOOK/scripts/probe_e12var.sh $G 16k;;   # [v2.5.8h] (Q-028): the gate of E12b-P5-16k
+  PROBE-E12C-8K) PEV_LADDER=E12c bash $RUNBOOK/scripts/probe_e12var.sh $G 8k;;   # [v2.5.9z85] (Q-077): the gate of E12c-P5-8k
+  PROBE-E12C-16K) PEV_LADDER=E12c bash $RUNBOOK/scripts/probe_e12var.sh $G 16k;;   # [v2.5.9z85] (Q-077): the gate of E12c-P5-16k
   PROBE-P5SELF-4B) bash $RUNBOOK/scripts/probe_p5self.sh $G 4b;;   # [v2.5.8e] the gate of E10d-P5self
   PROBE-P5SELF-06B) bash $RUNBOOK/scripts/probe_p5self.sh $G 06b;;   # [v2.5.9v] (Q-047) the gate of E10c-P5self
   PROBE-NET) bash $RUNBOOK/scripts/probe_net.sh $G;;   # [v2.5.9c] the routes to the model hubs (the CPU lane)
@@ -101,6 +106,7 @@ case $T in
   PROBE-SELFROUTE) bash $RUNBOOK/scripts/probe_selfroute.sh $G;;   # [v2.5.9z82] (Q-072) the gate of E10b-P5selfroute: the probe's labels and their check
   PROBE-PSTAR) bash $RUNBOOK/scripts/probe_pstar.sh $G;;   # [v2.5.9z75] (Q-064) p* from the 8B teacher's sequence log-probs
   PROBE-DENSE) bash $RUNBOOK/scripts/probe_dense.sh $G;;   # [v2.5.9z76] (Q-065) the dense arms' gate
+  PROBE-DENSE-4B) PDN_PROBE=PROBE-DENSE-4B PDN_P5=E10d-P5 PDN_ARM=E10d-P5-akl PDN_MODE=akl bash $RUNBOOK/scripts/probe_dense.sh $G;;   # [v2.5.9z85] (Q-079) the 4B AKL arm's smoke
   PROBE-ROUTE) bash $RUNBOOK/scripts/probe_route.sh $G;;   # [v2.5.9x] the gate of E10b-P5route / -P5mix
   PROBE-ROUTE-INV) PRT_TASK=PROBE-ROUTE-INV PRT_ARM=E10b-P5route-inv PRT_INVERT=1 bash $RUNBOOK/scripts/probe_route.sh $G;;   # [v2.5.9z45] (Q-063) the gate of E10b-P5route-inv: PROBE-ROUTE's checks, the rule reversed
   PROBE-X5) bash $RUNBOOK/scripts/probe_x5.sh $G;;   # [v2.5.9z46] (Q-057) the gate of E16-X5: unit tests, the teacher's completions, its stop probability under two prefixes, a 3-step smoke

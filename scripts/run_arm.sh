@@ -127,6 +127,22 @@ SOFTMIX=""; [ $TASK = E10b-P5softmix50 ] && { TAIL=1; SOFTMIX=0.5; BASE=E10b-P5;
 # OPD_DENSE=rkl) instead of its sampled estimate; E10b-P5-akl = the same with AKL (Wu et al. 2024; OPD_DENSE=akl, head mass
 # OPD_DENSE_MU 0.5). 50 steps, no fused kernels (the loss needs the logits), s25 kept on the node, s50 uploaded. Gated by PROBE-DENSE
 DENSE=""; case $TASK in E10b-P5-dense) DENSE=rkl; BASE=E10b-P5;; E10b-P5-akl) DENSE=akl; BASE=E10b-P5;; esac
+# [v2.5.9z85] (Q-079, Runming 10-25 10:19 Beijing "improve, try more, explain the mechanism"; research_program 3d; paper_core 4) the
+# AKL series, P5's recipe, 50 steps, s25 kept on the node, s50 uploaded, gated by PROBE-DENSE: E10b-P5-akl2 = E10b-P5-akl at data.seed
+# 43 (the official boundary's confirmation and a second seed); E10b-P5-fkl = the pure forward KL over the vocabulary (OPD_DENSE=rkl's
+# hooks, OPD_DENSE_LOSS=fkl); E10b-P5-dense-k256 = E10b-P5-dense with the teacher's top-256 (OPD_DENSE_K); E10b-P5-akl-mu03 / -mu07 =
+# AKL with mu 0.3 / 0.7 (OPD_DENSE_MU); E10d-P5-akl = AKL for the 4B student (also gated by PROBE-DENSE-4B, a 3-step smoke of it);
+# E10b-P5self-akl = AKL with the student's own thinking mode as the teacher (E10b-P5self's teacher; its gate PROBE-P5SELF)
+DENSE_K=""; DENSE_MU=""
+case $TASK in
+  E10b-P5-akl2) DENSE=akl; SEED=43; BASE=E10b-P5;;
+  E10b-P5-fkl) DENSE=fkl; BASE=E10b-P5;;
+  E10b-P5-dense-k256) DENSE=rkl; DENSE_K=256; BASE=E10b-P5;;
+  E10b-P5-akl-mu03) DENSE=akl; DENSE_MU=0.3; BASE=E10b-P5;;
+  E10b-P5-akl-mu07) DENSE=akl; DENSE_MU=0.7; BASE=E10b-P5;;
+  E10d-P5-akl) DENSE=akl; SIZE=4B; BASE=E10b-P5;;
+  E10b-P5self-akl) DENSE=akl; SELF=1; BASE=E10b-P5;;
+esac
 # [v2.5.9x] (Q-041 / Q-042, the reviewer's pre-registration 10-22): E10b-P5route / E10b-P5mix = P5's recipe from the base with the
 # 8B teacher's template chosen per prompt (code/patches/opd_route.py through route_patch.py; one teacher pass per sample): route =
 # PROBE-DIFF17's pass rate r of the 1.7B base (r >= 0.5: the non-thinking template, P2's teacher; else the thinking one, P5's);
@@ -143,6 +159,10 @@ ROUTE_INV=""; [ $TASK = E10b-P5route-inv ] && { ROUTE=route; ROUTE_INV=1; BASE=E
 # fold; r = p_easy, the same rule r >= 0.5 -> the non-thinking teacher); 1.7B from the base, 4K, 50 steps, s25 kept, s50 up; gated by
 # PROBE-ROUTE (passed) and PROBE-SELFROUTE (the labels and their check)
 ROUTE_SELF=""; [ $TASK = E10b-P5selfroute ] && { ROUTE=route; ROUTE_SELF=1; BASE=E10b-P5; ROUTE_LABELS=${ROUTE_LABELS:-$OPD_ROOT/runs/PROBE-SELFROUTE/labels_probe_17.jsonl}; }
+# [v2.5.9z85] (Q-072b, Fable 10-25 10:12 Beijing, research_program 3c) E10b-P5selfroute-c100 = E10b-P5selfroute continued to s100: the same
+# recipe (the probe's labels, PROBE-ROUTE and PROBE-SELFROUTE) for 50 more steps from its s50 weights, a fresh optimizer (constant lr) and
+# data.seed 43, as E10c-P5tail-c50; its global_step_50 is the arm's s100 (uploaded), its global_step_25 the s75 (kept on the node)
+SRC50=0; [ $TASK = E10b-P5selfroute-c100 ] && { ROUTE=route; ROUTE_SELF=1; SRC50=1; SEED=43; BASE=E10b-P5; ROUTE_LABELS=${ROUTE_LABELS:-$OPD_ROOT/runs/PROBE-SELFROUTE/labels_probe_17.jsonl}; }
 # [v2.5.9z47] (the reviewer 10-22 18:5x Beijing via ops-lead) E10b-P5mix60 = mix75 / mix90's recipe with the coin at p = 0.6; it starts only
 # after PROBE-MIXP checked 0.6 (the share and the nesting under 0.75 / 0.9), besides PROBE-ROUTE
 [ $TASK = E10b-P5mix60 ] && { ROUTE=mix; ROUTE_P=0.6; BASE=E10b-P5; }
@@ -177,6 +197,16 @@ if [ $POLISH = 1 ] || [ $TAIL06 = 1 ]; then   # [v2.5.9u] the start: P5-fix4's s
 fi
 if [ $TAILC50 = 1 ]; then   # [v2.5.9z82] (Q-055b) the start: E10c-P5tail's s20 (the bf16 copy, else the fp32 HF save)
   STUDENT=$OPD_ROOT/runs/E10c-P5tail/ckpt/global_step_20/actor/huggingface_bf16; has_weights $STUDENT || STUDENT=${STUDENT%_bf16}
+  [ "${DRYRUN:-0}" = 1 ] || has_weights $STUDENT || { echo "missing start checkpoint $STUDENT"; exit 1; }
+fi
+if [ $SRC50 = 1 ]; then   # [v2.5.9z85] (Q-072b) the start: E10b-P5selfroute's s50 (the bf16 copy, else the fp32 HF save, else the uploaded one
+  # fetched to the checkpoint disk as run_e12.sh does; waiting, no attempt, while the HF 429 backoff lasts)
+  STUDENT=$OPD_ROOT/runs/E10b-P5selfroute/ckpt/global_step_50/actor/huggingface_bf16; has_weights $STUDENT || STUDENT=${STUDENT%_bf16}
+  if [ "${DRYRUN:-0}" != 1 ] && ! has_weights $STUDENT; then
+    B=$(python3 $RUNBOOK/scripts/remote.py backoff 2> /dev/null); [ "${B:-0}" -gt 0 ] 2> /dev/null && { echo "WAIT_INPUTS $TASK: start checkpoint not in (the HF 429 backoff lasts)"; exit 1; }
+    R=runs/E10b-P5selfroute/global_step_50/actor/huggingface
+    python $RUNBOOK/scripts/fetch_model.py "$(python $RUNBOOK/scripts/remote.py repo public)" $R $CKPT_ROOT/adhoc_models/result --task $TASK && STUDENT=$CKPT_ROOT/adhoc_models/result/$R
+  fi
   [ "${DRYRUN:-0}" = 1 ] || has_weights $STUDENT || { echo "missing start checkpoint $STUDENT"; exit 1; }
 fi
 [ "$SIZE" = 4B ] && { STUDENT=$STUDENT_4B; GC=1; }
@@ -233,6 +263,9 @@ if [ $BUD -gt 0 ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then   #
 fi
 if [ -n "$DENSE" ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then   # [v2.5.9z76] (Q-065)
   grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-DENSE/report.json 2> /dev/null || { echo "PROBE-DENSE has not passed: $TASK not started"; exit 3; }
+  if [ "$SIZE" = 4B ]; then   # [v2.5.9z85] (Q-079) and the 4B smoke
+    grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-DENSE-4B/report.json 2> /dev/null || { echo "PROBE-DENSE-4B has not passed: $TASK not started"; exit 3; }
+  fi
 fi
 # [v2.5.9z66] (Q-059) an 8K cell starts only after its own 3-step smoke passed (the stop-merged one also needs PROBE-STOPMERGE above)
 if [ $W8K = 1 ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
@@ -247,6 +280,7 @@ if [ $T32 = 1 ] && [ "${DRYRUN:-0}" != 1 ] && [ ! -f $TEACHER/.fetch_ok ]; then 
 # v2.5.7v: E10b-P5self starts only after PROBE-P5SELF passed (a 3-step smoke); v2.5.7zg: E10b-P2self after PROBE-P2SELF
 if [ $SELF = 1 ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
   SA=${TASK#E10[bcd]-}; PG=PROBE-$(echo ${SA%-s4[34]} | tr a-z A-Z); [ "$SIZE" = 4B ] && PG=$PG-4B; [ -n "$MODE" ] && PG=$PG-06B; [ "$SIZE" = 8B ] && PG=PROBE-8B   # [v2.5.8e] -s43 shares its arm's gate; 4B: PROBE-P5SELF-4B; [v2.5.9v] 0.6B: PROBE-P5SELF-06B
+  [ $TASK = E10b-P5self-akl ] && PG=PROBE-P5SELF   # [v2.5.9z85] (Q-079) the self-teacher's gate (the dense half: PROBE-DENSE)
   grep -q '"result": "PASS"' $OPD_ROOT/runs/$PG/report.json 2> /dev/null || { echo "$PG has not passed: $TASK not started"; exit 3; }
 fi
 # v2.5.7r: E10b-P5think starts only after PROBE-P5THINK passed (templates + a 3-step smoke whose rollouts open with <think>)
@@ -337,6 +371,8 @@ unset OPD_TAILSWAP OPD_TAILSWAP_LOG OPD_TAILSWAP_BUDGET; [ $TAIL = 1 ] && export
 [ $BUD -gt 0 ] && export OPD_TAILSWAP_BUDGET=$BUD   # [v2.5.9z73] (Q-061)
 unset OPD_TAILSWAP_SOFTMIX; [ -n "$SOFTMIX" ] && export OPD_TAILSWAP_SOFTMIX=$SOFTMIX   # [v2.5.9z83] (Q-073)
 unset OPD_DENSE; [ -n "$DENSE" ] && export OPD_DENSE=$DENSE   # [v2.5.9z76] (Q-065) OPD_DENSE_K / OPD_DENSE_MU / OPD_DENSE_CHUNK pass through
+unset OPD_DENSE_LOSS; [ "$DENSE" = fkl ] && export OPD_DENSE=rkl OPD_DENSE_LOSS=fkl   # [v2.5.9z85] (Q-079) the hooks keyed on rkl, the loss the forward KL
+[ -n "$DENSE_K" ] && export OPD_DENSE_K=$DENSE_K; [ -n "$DENSE_MU" ] && export OPD_DENSE_MU=$DENSE_MU   # [v2.5.9z85] the arm's own top-K / mu
 unset OPD_ROUTE OPD_ROUTE_LABELS OPD_ROUTE_LOG OPD_ROUTE_P; [ -n "$ROUTE" ] && export OPD_ROUTE=$ROUTE OPD_ROUTE_LABELS=${ROUTE_LABELS:-$OPD_ROOT/runs/PROBE-DIFF17/labels_17.jsonl} OPD_ROUTE_LOG=$OUT/route.jsonl   # [v2.5.9x]
 [ -n "$ROUTE_P" ] && export OPD_ROUTE_P=$ROUTE_P   # [v2.5.9z38]
 unset OPD_ROUTE_INVERT; [ -n "$ROUTE_INV" ] && export OPD_ROUTE_INVERT=1   # [v2.5.9z45]
@@ -376,6 +412,8 @@ ROLL_UTIL=${VLLM_UTIL:-0.5}; ACT_OPT_OFF=False
 [ "${DRYRUN:-0}" = 1 ] && [ $X5 = 1 ] && echo "DRYRUN_X5 student=$(basename $STUDENT) teacher=$(basename $TEACHER) maxresp=$MAXRESP refthink=$OPD_REF_THINK empty=${OPD_X5_EMPTY_THINK:-0} log=$(basename ${OPD_X5_LOG:-none}) save=$SAVE upload=$UW"   # [v2.5.9z46] tests
 [ "${DRYRUN:-0}" = 1 ] && [ $T32 = 1 ] && echo "DRYRUN_T32 teacher=$(echo $TEACHER | sed 's|.*/models/|models/|') offload=$TEACHER_OFFLOAD save=$SAVE upload=$UW route=${OPD_ROUTE:-none} log=$(basename ${OPD_ROUTE_LOG:-none}) util=$ROLL_UTIL optoff=$ACT_OPT_OFF"   # [v2.5.9z9] tests
 [ "${DRYRUN:-0}" = 1 ] && [ -n "$DENSE" ] && echo "DRYRUN_DENSE mode=${OPD_DENSE:-} k=${OPD_DENSE_K:-64} mu=${OPD_DENSE_MU:-0.5} kern=[$KERN] save=$SAVE upload=$UW"   # [v2.5.9z76] tests
+[ "${DRYRUN:-0}" = 1 ] && [ -n "$DENSE" ] && echo "DRYRUN_DENSE2 loss=${OPD_DENSE_LOSS:-${OPD_DENSE:-}} seed=$SEED size=${SIZE:-1.7B} self=$SELF teacher=$(basename $TEACHER) steps=$NSTEPS"   # [v2.5.9z85] tests
+[ "${DRYRUN:-0}" = 1 ] && [ $SRC50 = 1 ] && echo "DRYRUN_SRC50 student=$(echo $STUDENT | sed 's|.*/runs/|runs/|') seed=$SEED steps=$NSTEPS save=$SAVE upload=$UW labels=$(basename ${OPD_ROUTE_LABELS:-none})"   # [v2.5.9z85] tests
 [ "${DRYRUN:-0}" = 1 ] && [ $BUD -gt 0 ] && echo "DRYRUN_TAILBUD budget=${OPD_TAILSWAP_BUDGET:-} save=$SAVE upload=$UW maxresp=$MAXRESP"   # [v2.5.9z73] tests
 [ "${DRYRUN:-0}" = 1 ] && [ -n "$SOFTMIX" ] && echo "DRYRUN_SOFTMIX w=${OPD_TAILSWAP_SOFTMIX:-} save=$SAVE upload=$UW maxresp=$MAXRESP"   # [v2.5.9z83] tests
 [ "${DRYRUN:-0}" = 1 ] && [ $TAIL = 1 ] && echo "DRYRUN_TAILSWAP OPD_TAILSWAP=${OPD_TAILSWAP:-} log=$(basename ${OPD_TAILSWAP_LOG:-none})"   # [v2.5.9n] tests
@@ -410,6 +448,7 @@ started: $(date -u +%FT%TZ)
 CFG
 [ -n "$ROUTE_INV" ] && ! grep -q "^route_invert:" $OUT/config.yaml && echo "route_invert: easy (PROBE-DIFF17 r >= 0.5) -> the thinking teacher, hard -> the non-thinking one (OPD_ROUTE_INVERT=1)" >> $OUT/config.yaml   # [v2.5.9z45]
 [ -n "$ROUTE_SELF" ] && ! grep -q "^route_labels:" $OUT/config.yaml && echo "route_labels: $(python3 -c "import json, sys; r = json.load(open(sys.argv[1])); print(f\"probe labels (oof, t={r['threshold']:.3f} share-matched, agreement {r['train']['agreement']:.3f})\")" $OPD_ROOT/runs/PROBE-SELFROUTE/out/selfroute.json 2> /dev/null || echo 'probe labels (oof)') (PROBE-SELFROUTE labels_probe_17.jsonl: Q-062's probe at H1's layer; r >= 0.5 -> the non-thinking teacher)" >> $OUT/config.yaml   # [v2.5.9z82]; [v2.5.9z82a] the threshold and agreement
+[ $SRC50 = 1 ] && ! grep -q "^continued:" $OUT/config.yaml && echo "continued: E10b-P5selfroute s50 weights; a fresh optimizer and data.seed 43 (Q-072b, as Q-055b): 50 more steps, global_step_50 = s100" >> $OUT/config.yaml   # [v2.5.9z85]
 [ $TAILC50 = 1 ] && ! grep -q "^continued:" $OUT/config.yaml && echo "continued: E10c-P5tail s20 weights; no resume state on the node, so a fresh optimizer and data.seed 43 (Fable's fallback, Q-055b): 30 more steps on the s20 weights, not the same trajectory; global_step_30 = s50" >> $OUT/config.yaml   # [v2.5.9z82]
 [ $X5 = 1 ] && ! grep -q "^x5:" $OUT/config.yaml && echo "x5: a student without a thinking mode (4096 positions: responses $MAXRESP), its stop id at the end read as the teacher's EOS 151643, the other special ids out of the loss; teacher prompt $([ $X5E = 1 ] && echo 'with an empty thought' || echo 'ending in one <think>') (opd_x5.py)" >> $OUT/config.yaml   # [v2.5.9z46]
 [ "${SMOKE:-0}" = 1 ] || ckpt_link $OUT   # v2.4: checkpoints on $CKPT_ROOT (the large disk)

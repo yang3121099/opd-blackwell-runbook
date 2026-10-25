@@ -73,6 +73,34 @@ def test_env_and_pearson():
     assert D.pearson(a, np.ones(10)) is None
 
 
+def test_loss_term_env():   # [v2.5.9z85] (Q-079) OPD_DENSE_LOSS picks the loss while the hooks stay on rkl / akl
+    old = {k: os.environ.get(k) for k in ("OPD_DENSE", "OPD_DENSE_LOSS")}
+    try:
+        os.environ.pop("OPD_DENSE_LOSS", None)
+        os.environ["OPD_DENSE"] = "akl"; assert D.loss_term() == "akl"
+        os.environ["OPD_DENSE"] = "rkl"; os.environ["OPD_DENSE_LOSS"] = "fkl"; assert D.mode() == "rkl" and D.active() and D.loss_term() == "fkl"
+        os.environ["OPD_DENSE_LOSS"] = "bogus"; assert D.loss_term() == "rkl"
+        os.environ.pop("OPD_DENSE"); os.environ["OPD_DENSE_LOSS"] = "fkl"; assert D.loss_term() == "" and not D.active()
+    finally:
+        for k, v in old.items():
+            os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
+
+
+def test_fkl_gradient_is_p_minus_q():   # [v2.5.9z85] (Q-079) the forward KL's gradient in the logits is p - q (q with its even remainder)
+    try:
+        import torch
+    except ImportError:   # the Mac has no torch; PROBE-DENSE / PROBE-DENSE-4B run this on the node
+        return
+    z, ids, tlp, q = _case(5)
+    zt = torch.tensor(z, dtype=torch.float64, requires_grad=True)
+    D.dense_terms(zt, torch.tensor(ids), torch.tensor(tlp), 0.5)["fkl"].sum().backward()
+    p = np.exp(z - z.max(-1, keepdims=True)); p /= p.sum(-1, keepdims=True)
+    assert np.allclose(zt.grad.numpy(), p - q, atol=1e-8)
+    dn = D.dense_terms(z, ids, tlp, 0.5)
+    loss, _ = D.dense_loss_rows(torch.tensor(z, dtype=torch.float32, requires_grad=True), torch.tensor(ids), torch.tensor(tlp, dtype=torch.float32), "fkl", chunk=2, mu_=0.5)
+    assert np.allclose(loss.detach().numpy(), dn["fkl"], atol=1e-4)
+
+
 def test_torch_matches_numpy_and_grad():
     try:
         import torch

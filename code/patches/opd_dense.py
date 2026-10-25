@@ -18,6 +18,9 @@ activation checkpointing). Logged per update: dense/rkl, dense/fkl, dense/akl_w_
 its top-K), dense/corr_sampled (Pearson r over the valid tokens between the dense RKL and the sampled one, log p(y) - log q(y)),
 dense/rkl_sampled (the sampled one's token mean: both estimate the same expectation, so their ratio catches sign / index errors).
 dense_terms() works on numpy (the Mac tests) and torch (the trainer) alike.
+[v2.5.9z85] (Q-079) OPD_DENSE_LOSS (rkl | fkl | akl) picks the divergence the loss uses (loss_term); unset, the mode's own. The hooks
+stay keyed on OPD_DENSE (rkl / akl: the patched trainer files test those two names), so the pure forward-KL arm E10b-P5-fkl runs
+OPD_DENSE=rkl with OPD_DENSE_LOSS=fkl; its logged dense/fkl is the loss, dense/rkl the reverse KL beside it.
 """
 import os
 
@@ -45,6 +48,12 @@ def mu():
         return float(os.environ.get("OPD_DENSE_MU", DEFAULT_MU))
     except ValueError:
         return DEFAULT_MU
+
+
+def loss_term():
+    """[v2.5.9z85] (Q-079) the divergence the dense loss uses: OPD_DENSE_LOSS (rkl | fkl | akl) while dense OPD is on, else the mode."""
+    m = os.environ.get("OPD_DENSE_LOSS", "")
+    return m if active() and m in ("rkl", "fkl", "akl") else mode()
 
 
 class _NP:
@@ -235,7 +244,7 @@ def rmpad_hook(logits_rmpad, mb, indices, bsz, seqlen, R, ref, pad_input, index_
     flat = lambda x: index_first_axis(rearrange(x, "b s k -> (b s) k"), indices)
     ti_r, tl_r, v_r = flat(ti), flat(tl), flat(va)[:, 0]
     rows = (v_r > 0).nonzero().squeeze(-1)
-    loss, st = _rows_loss(lambda rc: logits_rmpad.index_select(0, rc), rows, ti_r.index_select(0, rows), tl_r.index_select(0, rows), mode())
+    loss, st = _rows_loss(lambda rc: logits_rmpad.index_select(0, rc), rows, ti_r.index_select(0, rows), tl_r.index_select(0, rows), loss_term())   # [v2.5.9z85]
     nnz = logits_rmpad.shape[0]
     back = lambda v: pad_input(hidden_states=torch.zeros(nnz, dtype=v.dtype, device=dev).index_add(0, rows, v).unsqueeze(-1),
                                indices=indices, batch=bsz, seqlen=seqlen).squeeze(-1)[:, -R - 1:-1]
@@ -256,7 +265,7 @@ def padded_hook(logits, mb, ref):
     rows = valid.nonzero().squeeze(-1)
     ti = mb["ref_topk_ids"].to(dev).long().reshape(b * R, -1).index_select(0, rows)
     tl = mb["ref_topk_lp"].to(dev).float().reshape(b * R, -1).index_select(0, rows)
-    loss, st = _rows_loss(lambda rc: logits[rc // R, rc % R], rows, ti, tl, mode())
+    loss, st = _rows_loss(lambda rc: logits[rc // R, rc % R], rows, ti, tl, loss_term())   # [v2.5.9z85]
     back = lambda v: torch.zeros(b * R, dtype=v.dtype, device=dev).index_add(0, rows, v).reshape(b, R)
     ACT = (back(loss), {k: back(v) for k, v in st.items()})
 
@@ -292,7 +301,7 @@ def take_act_loss(agg_loss, response_mask, loss_agg_mode, log_prob, ref_log_prob
     loss = agg_loss(loss_mat=mat, loss_mask=response_mask, loss_agg_mode=loss_agg_mode)
     m = response_mask > 0
     met = {f"dense/{k}": float(v[m].mean()) if int(m.sum()) else 0.0 for k, v in st.items()}
-    met[f"dense/{mode()}"] = float(mat.detach()[m].mean()) if int(m.sum()) else 0.0
+    met[f"dense/{loss_term()}"] = float(mat.detach()[m].mean()) if int(m.sum()) else 0.0   # [v2.5.9z85] the loss's own name
     if ref_log_prob is not None and int(m.sum()) >= 3:
         smp = (log_prob.detach() - ref_log_prob.to(log_prob.device))[m].double()
         r = pearson(st["rkl"][m].double(), smp)

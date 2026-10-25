@@ -1332,6 +1332,19 @@ def test_run_and_rerun_accept_v259z83(env):   # [v2.5.9z83] (Q-073) E10b-P5softm
     assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 91)
 
 
+def test_run_and_rerun_accept_v259z85(env):   # [v2.5.9z85] (Q-079 / Q-072b / Q-077) the AKL series, selfroute-c100, the 0.6B window arms and their gates (rules 2.5.94)
+    names = ("E10b-P5-akl2", "E10b-P5-fkl", "E10b-P5-dense-k256", "E10b-P5-akl-mu03", "E10b-P5-akl-mu07", "E10d-P5-akl", "E10b-P5self-akl",
+             "E10b-P5selfroute-c100", "E12c-P5-8k", "E12c-P5-16k", "PROBE-DENSE-4B", "PROBE-E12C-8K", "PROBE-E12C-16K")
+    for i, t in enumerate(names):
+        st, msg, _ = env.c.v_run([t], 220 + i)
+        assert st == "accepted", (t, msg)
+    for t in ("PROBE-DENSE-4B", "PROBE-E12C-8K", "PROBE-E12C-16K"):
+        R.parse({"cmd": f"rerun {t}", "reason": "t"})
+    for i, t in enumerate(("E10b-P5-akl3", "E10b-P5-fkl2", "E12c-P5-32k", "PROBE-DENSE-8B", "E10d-P5-fkl")):
+        assert env.c.v_run([t], 240 + i)[0] == "rejected", t
+    assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 94)
+
+
 def test_run_and_rerun_accept_v259z84(env):   # [v2.5.9z84] (Q-076) the 16K window's second starts (no rules change: the E12 families)
     for i, t in enumerate(("E12b-P5-16k-s44", "E12d-P5-16k-s43")):
         st, msg, _ = env.c.v_run([t], 200 + i)

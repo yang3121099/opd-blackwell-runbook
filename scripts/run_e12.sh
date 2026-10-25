@@ -40,6 +40,7 @@ MAXR=4096; case $VAR in 8k) MAXR=8192;; 16k|16k-kl) MAXR=16384;; esac
 # [v2.5.8b] the variant starts only after its gate PROBE-E12B-<VAR> passed (a 3-step smoke that checks the reference; the smoke itself is exempt)
 if [ -n "$VAR" ] && [ "${SMOKE:-0}" != 1 ]; then
   GATES=PROBE-E12B-$(echo $VAR | tr a-z A-Z); [ "$VAR" = 16k-kl ] && GATES="PROBE-E12B-16K PROBE-E12B-KL"   # [v2.5.9y]
+  [ $LADDER = E12c ] && GATES="$GATES PROBE-E12C-$(echo $VAR | tr a-z A-Z)"   # [v2.5.9z85] (Q-077) the 0.6B window arms' own smokes too
   for P in $GATES; do grep -q '"result": "PASS"' $OPD_ROOT/runs/$P/report.json 2> /dev/null || { echo "$P has not passed: $T not started"; exit 3; }; done
 fi
 SRC=E10b; [ $LADDER = E12d ] && SRC=E10d   # v2.5.7o: the preparation run a start comes from
@@ -95,6 +96,7 @@ V=$OPD_ROOT/venv; [ "${VENV:-}" = fa ] && [ "${E12B_FA:-0}" = 1 ] && V=$OPD_ROOT
 case $T in E12d-*|E12b-P2-s43|E12b-P5-8k|E12b-P5-16k|E12b-P5-16k-kl) V=$OPD_ROOT/venv-fa;; esac   # v2.5.7o: new arms on flash-attn (reviewer 06:0x UTC); [v2.5.8h] the long limits
 [ $T = E12b-P5-8k-s44 ] && V=$OPD_ROOT/venv-fa   # [v2.5.9z41] as the 8K arm
 [ $T = E12b-P5tail-8k ] && V=$OPD_ROOT/venv-fa   # [v2.5.9z84a] as the 8K arm
+case $T in E12c-P5-8k|E12c-P5-16k) V=$OPD_ROOT/venv-fa;; esac   # [v2.5.9z85] (Q-077) the long limits on flash-attn, as E12b-P5-8k / -16k (the 0.6B start ran on SDPA: step time and numerical noise only)
 [ $T = E12b-P5-16k-s44 ] && V=$OPD_ROOT/venv-fa   # [v2.5.9z84] as the 16K arm
 [ $T = E12b-P5-prog-up ] && V=$OPD_ROOT/venv-fa   # [v2.5.9z43] as the 8K arm
 [ $LADDER = E12d ] && VLLM_UTIL=${E12D_VLLM_UTIL:-0.5}   # v2.5.7o: vLLM 0.5 for the 4B actor (a node-wide VLLM_UTIL does not reach it)
@@ -154,6 +156,7 @@ UW=$STEPS; case $T in E12b-P5-s44|E12d-P5) UW=25,50,75,$STEPS;; E12b-P5-8k|E12b-
 [ $T = E12d-P5-8k-s43 ] && UW=25,$STEPS   # [v2.5.9z77] (Q-071) as E12d-P5-8k: s25 and s50 up
 [ $T = E12b-P5tail-8k ] && UW=25,$STEPS   # [v2.5.9z84a] (Q-074) as the 8K arm: s25 and s50 up
 case $T in E12b-P5-16k-s44|E12d-P5-16k-s43) UW=25,$STEPS;; esac   # [v2.5.9z84] (Q-076) as the 16K arms: s25 and s50 up
+case $T in E12c-P5-8k|E12c-P5-16k) UW=25,$STEPS;; esac   # [v2.5.9z85] (Q-077) as the 1.7B / 4B window arms: s25 and s50 up
 # [v2.5.8b] the variant's settings (KL loss and its reference; the reward function)
 KL="actor_rollout_ref.actor.use_kl_loss=False"; REWARD=$RUNBOOK/code/train/reward_mathverify.py
 # [v2.5.8c] stop: the stop reward, counting the student's tokens (its start's tokenizer) against the 4K response limit

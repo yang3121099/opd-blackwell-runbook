@@ -14,8 +14,8 @@ setup() {
   cat > $T/rb/scripts/run_arm.sh <<'S2'
 echo "run_arm $* SMOKE=$SMOKE STEPS=$SMOKE_STEPS PROBE_TASK=$PROBE_TASK" >> $CALLS
 d=$OPD_ROOT/runs/$PROBE_TASK; mkdir -p $d
-if [ $2 = E10b-P5-dense ]; then
-  [ -z "${FAKE_CFG+x}" ] && FAKE_CFG="; dense rkl over the teacher's top-64 (opd_dense.py)"
+if [ $2 = ${FAKE_DENSE_ARM:-E10b-P5-dense} ]; then   # [v2.5.9z85] the 4B gate's arm too
+  [ -z "${FAKE_CFG+x}" ] && FAKE_CFG="; dense ${FAKE_MODE:-rkl} over the teacher's top-64 (opd_dense.py)"
   printf "task: $2\nteacher: Qwen/Qwen3-8B (ref; think-template=1; param_offload=1)%s\n" "$FAKE_CFG" > $d/config.yaml
   for i in $(seq ${FAKE_LOGSTEPS:-$SMOKE_STEPS}); do
     echo "(TaskRunner pid=1) step:$i - critic/score/mean:0.5 - actor/grad_norm:${FAKE_GN:-0.8} - dense/rkl:0.31 - dense/fkl:0.4 - dense/mass_topk:0.97 - dense/corr_sampled:${FAKE_CORR:-0.72} - dense/rkl_sampled:${FAKE_RS:-0.28} - timing_s/step:${FAKE_TD:-600}" >> $d/train.log
@@ -25,7 +25,7 @@ else
   printf "task: $2\n" > $d/config.yaml
   for i in $(seq $SMOKE_STEPS); do echo "(TaskRunner pid=1) step:$i - critic/score/mean:0.5 - actor/grad_norm:0.7 - timing_s/step:500" >> $d/train.log; done
 fi
-[ "${FAKE_OOM:-0}" = 1 ] && [ $2 = E10b-P5-dense ] && { echo "torch.OutOfMemoryError: CUDA out of memory" >> $d/train.log; exit 1; }; exit 0
+[ "${FAKE_OOM:-0}" = 1 ] && [ $2 = ${FAKE_DENSE_ARM:-E10b-P5-dense} ] && { echo "torch.OutOfMemoryError: CUDA out of memory" >> $d/train.log; exit 1; }; exit 0
 S2
   cat > $T/bin/fakepy <<'S3'
 #!/usr/bin/env bash
@@ -56,4 +56,13 @@ setup; FAKE_CFG="" bash $T/rb/scripts/probe_dense.sh 5 > /dev/null 2>&1; check "
 setup; FAKE_LOGSTEPS=2 bash $T/rb/scripts/probe_dense.sh 5 > /dev/null 2>&1; check "a missing step is FAIL" "expected 1..3"; cd $SRC; rm -rf $T
 setup; FAKE_OOM=1 bash $T/rb/scripts/probe_dense.sh 5 > /dev/null 2>&1; check "the dense smoke failing is FAIL" "smoke dense exited 1"; cd $SRC; rm -rf $T
 setup; FAKE_PATCH_RC=1 bash $T/rb/scripts/probe_dense.sh 5 > /dev/null 2>&1; check "the patch failing is FAIL" "dense_patch.py failed"; cd $SRC; rm -rf $T
+# [v2.5.9z85] (Q-079) PROBE-DENSE-4B: PDN_PROBE / PDN_P5 / PDN_ARM / PDN_MODE: the 4B smokes (E10d-P5, E10d-P5-akl), its own report and event;
+# a config naming another loss than PDN_MODE's is FAIL
+r4() { python3 -c "import json, sys; v = json.load(open(sys.argv[1])); print(eval(sys.argv[2]))" $T/root/runs/PROBE-DENSE-4B/report.json "$1"; }
+setup; FAKE_DENSE_ARM=E10d-P5-akl FAKE_MODE=akl PDN_PROBE=PROBE-DENSE-4B PDN_P5=E10d-P5 PDN_ARM=E10d-P5-akl PDN_MODE=akl bash $T/rb/scripts/probe_dense.sh 5 > /dev/null 2>&1
+ok "[v2.5.9z85] PROBE-DENSE-4B PASS: the 4B P5 and AKL smokes, its own report, event, .done; PROBE-DENSE untouched" '[ "$(r4 "v[\"result\"]")" = PASS ] && [ -f $T/root/runs/PROBE-DENSE-4B/.done ] && [ ! -e $T/root/runs/PROBE-DENSE ] && grep -q "^run_arm 5 E10d-P5 SMOKE=1 STEPS=3 PROBE_TASK=PROBE-DENSE-4B-p5$" $CALLS && grep -q "^run_arm 5 E10d-P5-akl SMOKE=1 STEPS=3 PROBE_TASK=PROBE-DENSE-4B-dense$" $CALLS && grep -q "^control event PROBE-DENSE-4B probe_dense_pass" $CALLS'
+cd $SRC; rm -rf $T
+setup; FAKE_DENSE_ARM=E10d-P5-akl PDN_PROBE=PROBE-DENSE-4B PDN_P5=E10d-P5 PDN_ARM=E10d-P5-akl PDN_MODE=akl bash $T/rb/scripts/probe_dense.sh 5 > /dev/null 2>&1
+ok "[v2.5.9z85] PROBE-DENSE-4B: a config naming rkl, not akl, is FAIL" '[ "$(r4 "v[\"result\"]")" = FAIL ] && [[ "$(r4 "v[\"reason\"]")" == *"does not name the dense loss"* ]]'
+cd $SRC; rm -rf $T
 [ $fails = 0 ] && echo "PROBE_DENSE_TEST PASS ($n checks)" || echo "PROBE_DENSE_TEST FAIL ($fails of $n)"
