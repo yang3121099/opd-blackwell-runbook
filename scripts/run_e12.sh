@@ -173,6 +173,7 @@ UW=$STEPS; case $T in E12b-P5-s44|E12d-P5) UW=25,50,75,$STEPS;; E12b-P5-8k|E12b-
 [ $T = E12b-P5tail-8k ] && UW=25,$STEPS   # [v2.5.9z84a] (Q-074) as the 8K arm: s25 and s50 up
 case $T in E12b-P5tail-8k-s43|E12b-P5tail-8k-s44|E12e-P5self-8k) UW=25,$STEPS;; esac   # [v2.5.9z91] (Q-074c / Q-081) s25 and s50 up (z86: saved every 25 steps); [v2.5.9z93] s44
 case $T in E12b-P5tail-16k|E12c-P5tail-8k|E12e-P5tail-8k) UW=25,$STEPS;; esac   # [v2.5.9z92] (Q-074d / f / e) s25 and s50 up
+[ $T = E12d-P5tail-16k ] && UW=25,$STEPS   # [v2.5.9z95] (Q-074h) s25 and s50 up (the 16K parse P5tail-16k is z92's; E12d-* runs on venv-fa, vLLM 0.5)
 [ $T = E12d-P5tail-8k ] && UW=25,$STEPS   # [v2.5.9z90] (Q-074b) as E12d-P5-8k: s25 and s50 up (z86: saved every 25 steps)
 case $T in E12b-P5-16k-s44|E12d-P5-16k-s43) UW=25,$STEPS;; esac   # [v2.5.9z84] (Q-076) as the 16K arms: s25 and s50 up
 case $T in E12c-P5-8k|E12c-P5-16k) UW=25,$STEPS;; esac   # [v2.5.9z85] (Q-077) as the 1.7B / 4B window arms: s25 and s50 up
