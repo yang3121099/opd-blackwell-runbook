@@ -628,3 +628,4 @@ commands:
   - {"seq": 626, "cmd": "ps", "reason": "sandbox watch: keep procs.json fresh (:13 / :43)", "utc": "2026-10-26T08:50:24Z"}
   - {"seq": 627, "cmd": "update", "reason": "z88c: sandboxes invisible to every scan, run-id reaping, SELF += HEARTBEAT-UNSTICK / PROBE-NET2, canary (ops-lead A1 08:57Z); heartbeat restarts by sha", "utc": "2026-10-26T08:58:33Z"}
   - {"seq": 628, "cmd": "ps", "reason": "keep procs.json fresh (:13 / :43)", "utc": "2026-10-26T09:26:09Z"}
+  - {"seq": 629, "cmd": "update", "reason": "z88d: script-name scans skip sandbox processes via ours_pgrep (ops-lead A1 09:26Z); run_tasks restarts", "utc": "2026-10-26T09:31:54Z"}
