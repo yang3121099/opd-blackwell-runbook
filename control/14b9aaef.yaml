@@ -604,3 +604,4 @@ commands:
   - {"seq": 602, "cmd": "logs E12d-P5-16k-s43 400", "reason": "z86 check: trainer.save_freq=25 in E12d-P5-16k-s43's launch", "utc": "2026-10-25T21:50:59Z"}
   - {"seq": 603, "cmd": "update", "reason": "queue: restore dense-k256's TERM4 row (s50 done)", "utc": "2026-10-25T21:53:31Z"}
   - {"seq": 604, "cmd": "du ckpt", "reason": "storage review §1 (Runming 08:00 via Fable): idx1 by top-level entry", "utc": "2026-10-26T00:01:51Z"}
+  - {"seq": 605, "cmd": "inventory", "reason": "storage review §1 / §4 (Runming 08:00 via Fable): read-only, no pend", "utc": "2026-10-26T00:02:17Z"}
