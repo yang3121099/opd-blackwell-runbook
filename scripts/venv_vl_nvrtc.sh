@@ -48,7 +48,7 @@ PY
 }
 # 1. guards
 [ -d "$V" ] && [ ! -L "$V" ] && [ "$(readlink -f "$V")" = "$ROOT/venv-vl" ] && [ -x "$V/bin/python" ] || finish FAIL "no plain \$OPD_ROOT/venv-vl with bin/python"
-pgrep -f "venv-vl/bin/python" > /dev/null && { echo "WAIT_INPUTS $T: a venv-vl python is running"; exit 1; }
+[ -n "$(ours_pgrep -f "venv-vl/bin/python")" ] && { echo "WAIT_INPUTS $T: a venv-vl python is running"; exit 1; }
 PY=$V/bin/python; PIP="$PY -m pip"
 $PIP --version > /dev/null 2>&1 || finish FAIL "no pip in venv-vl"
 SPV=$($PY -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])' 2> /dev/null)

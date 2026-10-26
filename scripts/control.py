@@ -685,6 +685,24 @@ def _git_head():
 SANDBOX_MARK = "--dryrun-sandbox"
 
 
+def _sandboxed(pid):
+    """[v2.5.9z88d] a CORPUS-RECORD sandbox process: it inherits DRYRUN_SB (dryrun_json.py's child_env); False where /proc is absent"""
+    try:
+        return b"\0DRYRUN_SB=" in b"\0" + open(f"/proc/{pid}/environ", "rb").read()
+    except (OSError, ValueError):
+        return False
+
+
+def ours_pgrep(*args):
+    """[v2.5.9z88d] pgrep <args> -> its output lines (pids, or -a lines) without CORPUS-RECORD's sandbox processes: a scan that keys
+    on a script name must not count them (a sandboxed task.sh runs the bash scripts it dispatches for real)"""
+    try:
+        out = subprocess.run(["pgrep", *args], capture_output=True, text=True, timeout=10).stdout
+    except Exception:
+        return []
+    return [l for l in out.split("\n") if l.strip() and not _sandboxed(int(l.split()[0]))]
+
+
 def sandbox_cmd(cmd):
     """[v2.5.9z88c] a CORPUS-RECORD sandbox's task.sh (dryrun_json.py): it carries --dryrun-sandbox and GPU indices from 90 (no node
     has a GPU 90), so no scan may take it for a task (10-26 06:49Z: heartbeat.sh's live_tasks did and its loop hung)."""
@@ -1217,7 +1235,7 @@ def assets_view():
     repo ids with "/" as "__" (the pulse's leak check refuses "/"), never a path."""
     cache = _jread("assets_cache.json", {}); out = {}
     try:
-        procs = subprocess.run(["pgrep", "-af", "fetch_model[.]py|git_fetch[.]sh"], capture_output=True, text=True, timeout=10).stdout
+        procs = "\n".join(ours_pgrep("-af", "fetch_model[.]py|git_fetch[.]sh"))   # [v2.5.9z88d]
     except Exception:
         procs = ""
     fmt = lambda t, b: f"{t} {b / 1e9:.2f} GB" if b is not None else t
@@ -1725,7 +1743,7 @@ def v_fa_build(a, seq, flags=None, entry=None):
     written when the build ends; `rerun FA-PROBE` afterwards runs the probe's varlen and smoke steps."""
     if not os.path.isdir(os.path.join(ROOT, "venv-fa")):
         return "rejected", "no venv-fa on this node (FA-PROBE builds it)", {}
-    if subprocess.run(["pgrep", "-f", "scripts/fa_build[.]sh"], capture_output=True).returncode == 0:
+    if ours_pgrep("-f", "scripts/fa_build[.]sh"):   # [v2.5.9z88d]
         return "rejected", "a build is already running", {}
     subprocess.Popen(["setsid", sys.executable, os.path.abspath(__file__), "do_fa_build", str(seq)],
                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -2304,7 +2322,7 @@ def lru_clean(limit_gb=None):
 def _script_verb(name, script, out_json):
     """v2.5.7a: a verb that runs one script in the background (nice 19) and writes the receipt from its JSON result."""
     def v(a, seq, flags=None, entry=None):
-        if subprocess.run(["pgrep", "-f", f"scripts/{script}"], capture_output=True).returncode == 0:
+        if ours_pgrep("-f", f"scripts/{script}"):   # [v2.5.9z88d]
             return "rejected", f"{script} is already running", {}
         subprocess.Popen(["setsid", sys.executable, os.path.abspath(__file__), "do_script", str(seq), script, out_json],
                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -2371,7 +2389,7 @@ def alerts(status_path):
             # event file name made every round raise FileNotFoundError from 2026-10-17 09:31 UTC on, and the alert,
             # with every alert after it, never went out
             now.add(f"ckpt_root_alert:root{i}")
-    ups = subprocess.run(["pgrep", "-af", "scripts/upload_syn[c].sh"], capture_output=True, text=True).stdout
+    ups = "\n".join(ours_pgrep("-af", "scripts/upload_syn[c].sh"))   # [v2.5.9z88d] a sandbox's recorded launch names /runs/<task> too
     for pid in running_pids():
         m = re.search(r"task\.sh\s+\d+(?:,\d+)*\s+(\S+)", _read(f"/proc/{pid}/cmdline").replace("\0", " ") + " ")
         if not m:

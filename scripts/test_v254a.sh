@@ -52,7 +52,7 @@ for case in oom trainlog other; do
   if [ $case = oom ]; then printf 'echo "torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 32 GiB"; exit 1\n' > $T/rb/scripts/task.sh
   elif [ $case = trainlog ]; then printf 'mkdir -p %s/root/runs/X-trainlog; echo "torch.OutOfMemoryError: CUDA out of memory." > %s/root/runs/X-trainlog/train.log; echo "trainer exited"; exit 1\n' "$T" "$T" > $T/rb/scripts/task.sh
   else printf 'echo "RuntimeError: something else"; exit 1\n' > $T/rb/scripts/task.sh; fi
-  ( OPD_ROOT=$T/root RUNBOOK=$T/rb; attempts() { echo 0; }; eval "$(sed -n '/^launch() {/,/^}/p' $SRC/scripts/run_tasks.sh)"; launch 3 X-$case )
+  ( OPD_ROOT=$T/root RUNBOOK=$T/rb; attempts() { echo 0; }; eval "$(grep -E '^ours_(pgrep|pargs)\(\)' $SRC/scripts/env.sh)"; eval "$(sed -n '/^launch() {/,/^}/p' $SRC/scripts/run_tasks.sh)"; launch 3 X-$case )
   for _ in $(seq 30); do [ -f $T/root/runs/X-$case/.failed ] && break; sleep 0.2; done; sleep 0.5
 done
 ok "oom marker" '[ -f $T/root/runs/X-oom/.oom ] && grep -q "control event X-oom oom_retry_fixed_micro" $CALLS'
@@ -95,7 +95,7 @@ sed -i.bak '$d' $T/rb/tasks/queue.txt; sed -i.bak 's|^#twr EVAL-bridge e12_P5c05
 printf 'import sys, os, json\nopen(os.environ["CALLS"], "a").write("twr " + " ".join(sys.argv[1:]) + "\\n")\nprint("ALPHA_REFUSED hidden size: judge 2560 != model_k 2048")\nout = sys.argv[sys.argv.index("--out") + 1]; json.dump({"alpha_error": "x"}, open(out, "w"))\n' > $T/rb/code/leakage/twr_alpha.py
 rm -f $T/root/runs/EVAL-bridge/twr.json $T/root/runs/EVAL-bridge/.done; : > $CALLS; bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-bridge > $T/tw5 2>&1
 ok "[v2.5.8] #twr: a judge of another size is one clear line in the task log" 'grep -q "^twr " $CALLS && grep -q "^TWR_e12_P5c05_s40_math500_T0.6 ALPHA_REFUSED hidden size: judge 2560 != model_k 2048" $T/tw5'
-got=$( OPD_ROOT=$T/root; eval "$(sed -n '/^run_rel() {/p' $SRC/scripts/run_queue_eval.sh)"; for x in A/b.jsonl ../b.jsonl ./b.jsonl A/..jsonl; do run_rel "$x" && printf "%s=1 " $x || printf "%s=0 " $x; done )
+got=$( OPD_ROOT=$T/root; eval "$(grep -E '^ours_(pgrep|pargs)\(\)' $SRC/scripts/env.sh)"; eval "$(sed -n '/^run_rel() {/p' $SRC/scripts/run_queue_eval.sh)"; for x in A/b.jsonl ../b.jsonl ./b.jsonl A/..jsonl; do run_rel "$x" && printf "%s=1 " $x || printf "%s=0 " $x; done )
 ok "[v2.5.8] run_rel: <task>/<file>.jsonl only, never .. / ." '[ "$got" = "A/b.jsonl=1 ../b.jsonl=0 ./b.jsonl=0 A/..jsonl=1 " ]'
 rm -f $T/root/runs/EVAL-bridge/.done; : > $CALLS; bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-bridge > $T/out2 2>&1
 ok "finished evals skipped" '[ "$(grep -c "^gen_eval" $CALLS)" = 0 ] && grep -q DONE_ALREADY $T/out2'
@@ -181,17 +181,17 @@ version: 2
 #eval EVAL-res e12b_P0_s100_math500_T0.6 result:runs/E12b-P0/global_step_100/actor/huggingface math500 4 0.6
 EOF2
 bash $T/rb/scripts/run_queue_eval.sh prefetch EVAL-bridge > $T/p1 2>&1; rc1=$?
-H=$( Q=$T/rb/tasks/queue.txt; eval "$(sed -n '/^eval_hash() {/p;/^inputs_ok() {/p' $SRC/scripts/run_tasks.sh)"; OPD_ROOT=$T/root; inputs_ok EVAL-bridge && echo yes || echo no )
+H=$( Q=$T/rb/tasks/queue.txt; eval "$(grep -E '^ours_(pgrep|pargs)\(\)' $SRC/scripts/env.sh)"; eval "$(sed -n '/^eval_hash() {/p;/^inputs_ok() {/p' $SRC/scripts/run_tasks.sh)"; OPD_ROOT=$T/root; inputs_ok EVAL-bridge && echo yes || echo no )
 ok "prefetch ok + inputs_ok" '[ $rc1 = 0 ] && [ "$H" = yes ] && [ "$(grep -c "^fetch yang31210999/opd-lab-ckpts runs/E12-P5c05" $CALLS)" = 2 ] && ! grep -q "^gen_eval" $CALLS'
 echo "#eval EVAL-bridge e12_P5c05_s60_math500_T0.6 yang31210999/opd-lab-ckpts/runs/E12-P5c05/global_step_60/actor/huggingface math500 4 0.6" >> $T/rb/tasks/queue.txt
-H2=$( Q=$T/rb/tasks/queue.txt; eval "$(sed -n '/^eval_hash() {/p;/^inputs_ok() {/p' $SRC/scripts/run_tasks.sh)"; OPD_ROOT=$T/root; inputs_ok EVAL-bridge && echo yes || echo no )
+H2=$( Q=$T/rb/tasks/queue.txt; eval "$(grep -E '^ours_(pgrep|pargs)\(\)' $SRC/scripts/env.sh)"; eval "$(sed -n '/^eval_hash() {/p;/^inputs_ok() {/p' $SRC/scripts/run_tasks.sh)"; OPD_ROOT=$T/root; inputs_ok EVAL-bridge && echo yes || echo no )
 ok "new spec invalidates" '[ "$H2" = no ]'
 bash $T/rb/scripts/run_queue_eval.sh prefetch EVAL-gone > $T/p2 2>&1; rc2=$?
 ok "failed fetch: no inputs_ok" '[ $rc2 = 1 ] && [ ! -f $T/root/runs/EVAL-gone/.inputs_ok ] && grep -q PREFETCH_FAILED $T/p2'
 : > $CALLS; bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-gone > $T/p3 2>&1
 bash $T/rb/scripts/run_queue_eval.sh prefetch EVAL-res > $T/p4 2>&1; rc4=$?
-R1=$( Q=$T/rb/tasks/queue.txt; eval "$(sed -n '/^result_only() {/p' $SRC/scripts/run_tasks.sh)"; result_only EVAL-res && echo yes || echo no )
-R2=$( Q=$T/rb/tasks/queue.txt; eval "$(sed -n '/^result_only() {/p' $SRC/scripts/run_tasks.sh)"; result_only EVAL-bridge && echo yes || echo no )
+R1=$( Q=$T/rb/tasks/queue.txt; eval "$(grep -E '^ours_(pgrep|pargs)\(\)' $SRC/scripts/env.sh)"; eval "$(sed -n '/^result_only() {/p' $SRC/scripts/run_tasks.sh)"; result_only EVAL-res && echo yes || echo no )
+R2=$( Q=$T/rb/tasks/queue.txt; eval "$(grep -E '^ours_(pgrep|pargs)\(\)' $SRC/scripts/env.sh)"; eval "$(sed -n '/^result_only() {/p' $SRC/scripts/run_tasks.sh)"; result_only EVAL-bridge && echo yes || echo no )
 ok "result-only EVAL ready without inputs_ok" '[ "$R1" = yes ] && [ "$R2" = no ]'
 ok "result: model from the public repository" '[ $rc4 = 0 ] && grep -q "^fetch me/pub runs/E12b-P0/global_step_100/actor/huggingface $T/root/adhoc_models/result" $CALLS'
 ok "eval with failed fetch not run" '! grep -q "^gen_eval" $CALLS && grep -q MODEL_FETCH_FAILED $T/p3 && [ ! -f $T/root/runs/EVAL-gone/.done ]'
@@ -463,7 +463,7 @@ printf 'import sys, os, time; open(os.environ["CALLS"], "a").write("fetch " + " 
 printf 'version: 2\n#fetch Qwen/Qwen3-32B\n#fetch evil/model\n' > $T/q.txt
 export CALLS=$T/calls; : > $CALLS
 mkdir -p $T/bin; printf '#!/usr/bin/env bash\nexec "$@"\n' > $T/bin/setsid; printf '#!/usr/bin/env bash\nexec python3 "$@"\n' > $T/bin/python; chmod +x $T/bin/setsid $T/bin/python   # macOS has no setsid
-( PATH=$T/bin:$PATH OPD_ROOT=$T/root RUNBOOK=$T/rb Q=$T/q.txt; eval "$(sed -n '/^fetch_pass() {/,/^  done; }$/p' $SRC/scripts/run_tasks.sh)"; fetch_pass; sleep 2; fetch_pass; sleep 1 )
+( PATH=$T/bin:$PATH OPD_ROOT=$T/root RUNBOOK=$T/rb Q=$T/q.txt; eval "$(grep -E '^ours_(pgrep|pargs)\(\)' $SRC/scripts/env.sh)"; eval "$(sed -n '/^fetch_pass() {/,/^  done; }$/p' $SRC/scripts/run_tasks.sh)"; fetch_pass; sleep 2; fetch_pass; sleep 1 )
 ok "v2.5.7w #fetch: Qwen3-32B fetched once to models/, evil/model ignored" '[ "$(grep -c "^fetch Qwen/Qwen3-32B  $T/root/models/Qwen3-32B --task FETCH-Qwen3-32B" $CALLS)" = 1 ] && [ -f $T/root/models/Qwen3-32B/.fetch_ok ] && ! grep -q evil $CALLS'
 rm -rf $T
 # 3c2. [v2.5.9e] fetch_pass: dataset:<owner>/<name> -> data/hf/<owner>__<name> with --dataset, Qwen3-VL ids, niced, a 6 h cap; no new
@@ -473,7 +473,7 @@ printf 'import sys, os; open(os.environ["CALLS"], "a").write("fetch " + " ".join
 printf 'version: 2\n#fetch dataset:BytedTsinghua-SIA/DAPO-Math-17k\n#fetch Qwen/Qwen3-VL-2B-Instruct\n#fetch dataset:bad;name/x\n' > $T/q.txt
 export CALLS=$T/calls; : > $CALLS
 printf '#!/usr/bin/env bash\nexec "$@"\n' > $T/bin/setsid; printf '#!/usr/bin/env bash\nexec python3 "$@"\n' > $T/bin/python; chmod +x $T/bin/setsid $T/bin/python
-fp() { ( PATH=$T/bin:$PATH OPD_ROOT=$T/root RUNBOOK=$T/rb Q=$T/q.txt CDIR=$T/root/control; eval "$(sed -n '/^fetch_pass() {/,/^  done; }$/p' $SRC/scripts/run_tasks.sh)"; fetch_pass; sleep 1.5 ); }
+fp() { ( PATH=$T/bin:$PATH OPD_ROOT=$T/root RUNBOOK=$T/rb Q=$T/q.txt CDIR=$T/root/control; eval "$(grep -E '^ours_(pgrep|pargs)\(\)' $SRC/scripts/env.sh)"; eval "$(sed -n '/^fetch_pass() {/,/^  done; }$/p' $SRC/scripts/run_tasks.sh)"; fetch_pass; sleep 1.5 ); }
 echo "UPLOAD_TIMEOUT 10:00:00 x y rc=124" > $T/root/logs/heartbeat.err; fp
 ok "[v2.5.9e] no pull while result uploads time out" '[ ! -s $CALLS ]'
 rm -f $T/root/logs/heartbeat.err; fp; fp; fp
@@ -487,7 +487,7 @@ printf 'import sys, os, time; open(os.environ["CALLS"], "a").write("fetch " + " 
 printf 'version: 2\n#fetch Qwen/Qwen2.5-Math-1.5B-Instruct\n#fetch deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B\n#fetch Qwen/Qwen2.5-Math-1.5B\n#fetch Qwen/Qwen3-8B\n#fetch deepseek-ai/DeepSeek-V3\n#fetch deepseek-ai/DeepSeek-R1-Distill-Llama-8B\n#fetch Qwen/Qwen2.5-7B-Instruct\n#fetch evil/Qwen2.5-Math-1.5B\n#fetch Qwen/Qwen2.5-Math-1.5B-Instruct;x\n#fetch Qwen/Qwen2.5-Math-7B-Base\n' > $T/q.txt
 export CALLS=$T/calls; : > $CALLS
 printf '#!/usr/bin/env bash\nexec "$@"\n' > $T/bin/setsid; printf '#!/usr/bin/env bash\nexec python3 "$@"\n' > $T/bin/python; chmod +x $T/bin/setsid $T/bin/python
-fp3() { ( PATH=$T/bin:$PATH OPD_ROOT=$T/root RUNBOOK=$T/rb Q=$T/q.txt CDIR=$T/root/control; eval "$(sed -n '/^fetch_pass() {/,/^  done; }$/p' $SRC/scripts/run_tasks.sh)"; fetch_progress() { :; }; fetch_pass ); }
+fp3() { ( PATH=$T/bin:$PATH OPD_ROOT=$T/root RUNBOOK=$T/rb Q=$T/q.txt CDIR=$T/root/control; eval "$(grep -E '^ours_(pgrep|pargs)\(\)' $SRC/scripts/env.sh)"; eval "$(sed -n '/^fetch_pass() {/,/^  done; }$/p' $SRC/scripts/run_tasks.sh)"; fetch_progress() { :; }; fetch_pass ); }
 export HOLD=4; fp3; sleep 1; fp3; sleep 0.5
 ok "[v2.5.9z24] 3 pulls at once: Qwen2.5-Math-1.5B-Instruct, DeepSeek-R1-Distill-Qwen-1.5B, Qwen2.5-Math-1.5B to models/<name>, none twice" '[ "$(grep -c "^fetch " $CALLS)" = 3 ] && grep -q "^fetch Qwen/Qwen2.5-Math-1.5B-Instruct  $T/root/models/Qwen2.5-Math-1.5B-Instruct --task FETCH-Qwen2.5-Math-1.5B-Instruct$" $CALLS && grep -q "^fetch deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B  $T/root/models/DeepSeek-R1-Distill-Qwen-1.5B --task FETCH-DeepSeek-R1-Distill-Qwen-1.5B$" $CALLS && grep -q "^fetch Qwen/Qwen2.5-Math-1.5B  $T/root/models/Qwen2.5-Math-1.5B --task FETCH-Qwen2.5-Math-1.5B$" $CALLS'
 sleep 4.5; export HOLD=0; fp3; sleep 1.5
@@ -506,7 +506,7 @@ printf 'version: 2\n#fetch result:runs/E12b-P5-s44/global_step_25/actor/huggingf
 R8=$T/ck/adhoc_models/result/runs/E12b-P5-8k/global_step_25/actor/huggingface; mkdir -p $R8; : > $R8/.fetch_ok
 export CALLS=$T/calls; : > $CALLS
 printf '#!/usr/bin/env bash\nexec "$@"\n' > $T/bin/setsid; printf '#!/usr/bin/env bash\nexec python3 "$@"\n' > $T/bin/python; chmod +x $T/bin/setsid $T/bin/python
-fp4() { ( PATH=$T/bin:$PATH OPD_ROOT=$T/root RUNBOOK=$T/rb CKPT_ROOT=$T/ck Q=$T/q.txt CDIR=$T/root/control; eval "$(sed -n '/^fetch_pass() {/,/^  done; }$/p' $SRC/scripts/run_tasks.sh)"; fetch_progress() { :; }; fetch_pass; sleep 1.5 ); }
+fp4() { ( PATH=$T/bin:$PATH OPD_ROOT=$T/root RUNBOOK=$T/rb CKPT_ROOT=$T/ck Q=$T/q.txt CDIR=$T/root/control; eval "$(grep -E '^ours_(pgrep|pargs)\(\)' $SRC/scripts/env.sh)"; eval "$(sed -n '/^fetch_pass() {/,/^  done; }$/p' $SRC/scripts/run_tasks.sh)"; fetch_progress() { :; }; fetch_pass; sleep 1.5 ); }
 fp4; fp4
 ok "[v2.5.9z43] #fetch result: the s44 start into adhoc_models/result once, parallel, at most 32 connections; the 8k one already in and bad paths not pulled" '[ "$(grep -c "^fetch " $CALLS)" = 1 ] && grep -q "^fetch me/pub runs/E12b-P5-s44/global_step_25/actor/huggingface $T/ck/adhoc_models/result --task FETCH-result_E12b-P5-s44_s25 cap=32 par=1$" $CALLS && [ -f $T/ck/adhoc_models/result/runs/E12b-P5-s44/global_step_25/actor/huggingface/.fetch_ok ]'
 rm -rf $T/ck/adhoc_models/result/runs/E12b-P5-s44; : > $CALLS; ( export RESULT_FETCH_CONNS=16; fp4 )
@@ -518,7 +518,7 @@ printf '#!/usr/bin/env bash\necho "timeout $*" >> %s; [ "$1" = -k ] && shift 2; 
 printf 'import sys, os; open(os.environ["CALLS"], "a").write("py " + " ".join(sys.argv[1:]) + "\\n")\n' > $T/rb/scripts/remote.py; cp $T/rb/scripts/remote.py $T/rb/scripts/control.py
 export CALLS=$T/calls; : > $CALLS
 ( PATH=$T/bin:$PATH OPD_ROOT=$T/root RUNBOOK=$T/rb; python() { python3 "$@"; }; export -f python
-  eval "$(sed -n '/^TO=""; command -v timeout/,/^  return \$rc; }$/p' $SRC/scripts/heartbeat.sh)"
+  eval "$(grep -E '^ours_(pgrep|pargs)\(\)' $SRC/scripts/env.sh)"; eval "$(sed -n '/^TO=""; command -v timeout/,/^  return \$rc; }$/p' $SRC/scripts/heartbeat.sh)"
   hb_to python $RUNBOOK/scripts/remote.py put a status/x.json; echo "rc1 $?" >> $CALLS
   hb_to python $RUNBOOK/scripts/remote.py hang a; echo "rc2 $?" >> $CALLS )
 ok "[v2.5.8] hb_to runs its uploads under timeout -k 30" 'grep -q "^timeout -k 30 180 python .*remote.py put a status/x.json" $T/targs'
@@ -540,7 +540,7 @@ PY
 chmod +x $T/bin/timeout; printf 'import sys, os; open(os.environ["CALLS"], "a").write("py " + " ".join(sys.argv[1:]) + "\\n")\n' > $T/rb/scripts/control.py
 export CALLS=$T/calls; : > $CALLS
 ( PATH=$T/bin:$PATH OPD_ROOT=$T/root RUNBOOK=$T/rb; python() { python3 "$@"; }; export -f python
-  eval "$(sed -n '/^bounded() {/,/^  return \$rc; }$/p' $SRC/scripts/run_tasks.sh)"
+  eval "$(grep -E '^ours_(pgrep|pargs)\(\)' $SRC/scripts/env.sh)"; eval "$(sed -n '/^bounded() {/,/^  return \$rc; }$/p' $SRC/scripts/run_tasks.sh)"
   t0=$(date +%s); bounded 2 sleep 30; echo "rc_hang $? $(( $(date +%s) - t0 ))" >> $CALLS
   bounded 5 true; echo "rc_ok $?" >> $CALLS; sleep 1 )
 ok "v2.5.7zb bounded: a hung call returns 124 at its timeout and is logged + evented; a normal one passes" 'grep -qE "^rc_hang 124 [23]$" $CALLS && grep -q "^rc_ok 0" $CALLS && grep -q "LOOP_TIMEOUT .* 2s rc=124 sleep 30" $T/root/logs/control.log && grep -q "^py event node loop_timeout sleep 30" $CALLS'
@@ -569,7 +569,7 @@ printf '#!/usr/bin/env bash\nexec "$@"\n' > $T/bin/setsid; chmod +x $T/bin/timeo
 printf 'version: 2\n' > $T/q.txt; for i in 1 2 3 4 5; do echo "#eval EVAL-p$i t$i result:runs/X/global_step_$i math500 4 0.6" >> $T/q.txt; done
 export CALLS=$T/calls; : > $CALLS
 ( PATH=$T/bin:$PATH OPD_ROOT=$T/root RUNBOOK=$T/rb Q=$T/q.txt PREFETCH_PAR=3 PREFETCH_TIMEOUT=77; deps_of() { :; }
-  eval "$(sed -n '/^eval_hash() {/,/^  done; }$/p' $SRC/scripts/run_tasks.sh)"
+  eval "$(grep -E '^ours_(pgrep|pargs)\(\)' $SRC/scripts/env.sh)"; eval "$(sed -n '/^eval_hash() {/,/^  done; }$/p' $SRC/scripts/run_tasks.sh)"
   prefetch_pass; sleep 1; prefetch_pass; sleep 1; echo "mid $(grep -c '^prefetch' $CALLS)" >> $CALLS; sleep 4; prefetch_pass; sleep 5 )
 ok "[v2.5.8] prefetch_pass: 3 at once, none twice, the rest after them" 'grep -q "^mid 3$" $CALLS && [ "$(grep -c "^prefetch" $CALLS)" = 5 ] && [ "$(grep "^prefetch" $CALLS | sort -u | wc -l | tr -d " ")" = 5 ]'
 ok "[v2.5.8] prefetch_pass: every prefetch under PREFETCH_TIMEOUT" '[ "$(grep -c "^limit 77$" $CALLS)" = 5 ]'
@@ -599,7 +599,7 @@ rm -rf $T
 #      written as name:dep (it was called stale before)
 T=$(mktemp -d); printf 'version: 2\n# a comment\na  open X1\np1 open P1a P1b\nb  auto Y1\np2 open P2a\nc  open Z1:Y1\n#pad p1\n#pad p2 p9\n' > $T/q.txt
 grep -v '^#pad' $T/q.txt > $T/q0.txt
-sl() { ( eval "$(sed -n '/^stage_lines() {/,/; }$/p' $SRC/scripts/run_tasks.sh)"; stage_lines "$1" | cut -d' ' -f1 | tr '\n' ' ' ); }
+sl() { ( eval "$(grep -E '^ours_(pgrep|pargs)\(\)' $SRC/scripts/env.sh)"; eval "$(sed -n '/^stage_lines() {/,/; }$/p' $SRC/scripts/run_tasks.sh)"; stage_lines "$1" | cut -d' ' -f1 | tr '\n' ' ' ); }
 o1=$(sl $T/q.txt); o0=$(sl $T/q0.txt)
 ok "[v2.5.9m] stage_lines: formal stages first (file order), then the padding ones (file order); no #pad = the file order (o1=$o1 o0=$o0)" '[ "$o1" = "a b c p1 p2 " ] && [ "$o0" = "a p1 b p2 c " ] && grep -q "done < <(stage_lines \"\$Q\")" $SRC/scripts/run_tasks.sh'
 rm -rf $T
@@ -651,9 +651,9 @@ pkill -f "upload_sync.sh $R" 2> /dev/null; rm -rf $T
 # 3h3. [v2.5.9i] net2_unfreeze: a pull a killed PROBE-NET2 left stopped is resumed, but not while probe_net2.sh runs (pgrep is a
 #      stub reading $T/probe_running, so no timing; the stopped process is a real one this test starts)
 T=$(mktemp -d); mkdir -p $T/root/runs/PROBE-NET2 $T/rb/scripts $T/bin; printf 'import sys\n' > $T/rb/scripts/control.py
-printf '#!/usr/bin/env bash\n[ "$*" = "-f scripts/probe_net2\\\\.sh" ] && [ -f %s/probe_running ]\n' $T > $T/bin/pgrep; chmod +x $T/bin/pgrep
+printf '#!/usr/bin/env bash\n[ "$*" = "-f scripts/probe_net2\\\\.sh" ] && [ -f %s/probe_running ] && echo 4242\n' $T > $T/bin/pgrep; chmod +x $T/bin/pgrep   # [z88d] a pid, as pgrep prints
 sleep 300 & SP=$!; kill -STOP $SP; echo $SP > $T/root/runs/PROBE-NET2/paused_pids
-uf() { ( PATH=$T/bin:$PATH OPD_ROOT=$T/root RUNBOOK=$T/rb; eval "$(sed -n '/^net2_unfreeze() {/,/; }$/p' $SRC/scripts/run_tasks.sh)"; net2_unfreeze ); }
+uf() { ( PATH=$T/bin:$PATH OPD_ROOT=$T/root RUNBOOK=$T/rb; eval "$(grep -E '^ours_(pgrep|pargs)\(\)' $SRC/scripts/env.sh)"; eval "$(sed -n '/^net2_unfreeze() {/,/; }$/p' $SRC/scripts/run_tasks.sh)"; net2_unfreeze ); }
 touch $T/probe_running; uf; s1=$(ps -o stat= -p $SP | cut -c1)
 rm -f $T/probe_running; uf; for _i in $(seq 30); do s2=$(ps -o stat= -p $SP | cut -c1); [ "$s2" != T ] && break; sleep 0.1; done
 left=$(cat $T/root/runs/PROBE-NET2/paused_pids)
@@ -662,14 +662,14 @@ kill -CONT $SP 2> /dev/null; kill $SP 2> /dev/null; wait $SP 2> /dev/null; rm -r
 # 3i. [v2.5.8] no_fetch(): an EVAL task with only Qwen/ and local: models needs no prefetch; one with a ckpts or
 #     result: model does
 T=$(mktemp -d); printf 'version: 2\n#eval EVAL-a a local:runs/X/ckpt/global_step_1/actor/huggingface math500 4 0.6\n#eval EVAL-a b Qwen/Qwen3-1.7B math500 4 0.6\n#eval EVAL-b c yang31210999/opd-lab-ckpts/runs/Y/global_step_1/actor/huggingface math500 4 0.6\n#eval EVAL-c d result:runs/Z/global_step_1/actor/huggingface math500 4 0.6\n' > $T/q.txt
-got=$( Q=$T/q.txt; eval "$(sed -n '/^no_fetch() {/p' $SRC/scripts/run_tasks.sh)"; for t in EVAL-a EVAL-b EVAL-c EVAL-none; do no_fetch $t && printf "%s=1 " $t || printf "%s=0 " $t; done )
+got=$( Q=$T/q.txt; eval "$(grep -E '^ours_(pgrep|pargs)\(\)' $SRC/scripts/env.sh)"; eval "$(sed -n '/^no_fetch() {/p' $SRC/scripts/run_tasks.sh)"; for t in EVAL-a EVAL-b EVAL-c EVAL-none; do no_fetch $t && printf "%s=1 " $t || printf "%s=0 " $t; done )
 ok "[v2.5.8] no_fetch: local:/Qwen only -> ready; ckpts / result: / no lines -> not" '[ "$got" = "EVAL-a=1 EVAL-b=0 EVAL-c=0 EVAL-none=0 " ]'
 ok "[v2.5.8] the dispatch takes no_fetch tasks" 'grep -q "inputs_ok \$t || result_only \$t || no_fetch \$t || continue" $SRC/scripts/run_tasks.sh'
 rm -rf $T
 # 3j. [v2.5.8] the CPU lane: STRICT-C1 is a CPU task; a running "task.sh cpu <task>" counts as running and fills the
 #     lane (CPU_MAX 1); the dispatch launches it with gpu cpu before any GPU is taken, and launch skips the GPU reap
 T=$(mktemp -d); mkdir -p $T/x/scripts; printf 'sleep 30\n' > $T/x/scripts/task.sh
-got=$( eval "$(sed -n '/^running() {/p;/^cpu_task() {/p;/^cpu_busy() {/p' $SRC/scripts/run_tasks.sh)"
+got=$( eval "$(grep -E '^ours_(pgrep|pargs)\(\)' $SRC/scripts/env.sh)"; eval "$(sed -n '/^running() {/p;/^cpu_task() {/p;/^cpu_busy() {/p' $SRC/scripts/run_tasks.sh)"
   cpu_task STRICT-C1 && printf "c1 "; cpu_task EVAL-x || printf "notcpu "; cpu_busy || printf "free "
   bash $T/x/scripts/task.sh cpu STRICT-C1 & P=$!; sleep 0.5
   running STRICT-C1 && printf "running "; cpu_busy && printf "busy "; kill $P 2> /dev/null; wait $P 2> /dev/null )
@@ -682,7 +682,7 @@ rm -rf $T
 #     up; the eval scripts call it before every engine
 T=$(mktemp -d); mkdir -p $T/bin; echo 0 > $T/n
 printf '#!/usr/bin/env bash\nn=$(cat %s); echo $((n + 1)) > %s; [ $n -ge 2 ] && [ "$STICK" != 1 ] && echo 100 || echo 70000\n' $T/n $T/n > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi
-got=$( PATH=$T/bin:$PATH; eval "$(sed -n '/^gpu_wait_free() {/,/; }$/p' $SRC/scripts/env.sh)"; gpu_wait_free 3 10 > /dev/null && printf "freed "
+got=$( PATH=$T/bin:$PATH; eval "$(grep -E '^ours_(pgrep|pargs)\(\)' $SRC/scripts/env.sh)"; eval "$(sed -n '/^gpu_wait_free() {/,/; }$/p' $SRC/scripts/env.sh)"; gpu_wait_free 3 10 > /dev/null && printf "freed "
   echo 0 > $T/n; STICK=1 gpu_wait_free 3 2 | grep -q GPU_NOT_FREE && printf "timeout " )
 ok "[v2.5.8] gpu_wait_free: waits until free, times out when it stays full" '[ "$got" = "freed timeout " ]'
 ok "[v2.5.8] gpu_wait_free before every engine (gen_eval, forced_stop, E11b)" '[ "$(grep -c "gpu_wait_free \$G" $SRC/scripts/run_queue_eval.sh)" -ge 2 ] && grep -q "gpu_wait_free \$G" $SRC/scripts/run_eval.sh'
@@ -695,7 +695,7 @@ printf 'import sys\n' > $T/rb/scripts/control.py
 printf '#!/usr/bin/env bash\nexec python3 -c "import os, sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])" "$@"\n' > $T/bin/setsid
 printf '#!/usr/bin/env bash\nexec python3 "$@"\n' > $T/bin/python; chmod +x $T/bin/setsid $T/bin/python
 command -v sha1sum > /dev/null || printf '#!/usr/bin/env bash\nshasum "$@"\n' > $T/bin/sha1sum; chmod +x $T/bin/sha1sum 2> /dev/null
-( PATH=$T/bin:$PATH RUNBOOK=$T/rb OPD_ROOT=$T/root CDIR=$T/root/control; eval "$(sed -n '/^ensure_loop() {/,/^  (cd \$RUNBOOK && setsid nohup bash scripts\/\$1.sh .*; }$/p' $SRC/scripts/run_tasks.sh)"
+( PATH=$T/bin:$PATH RUNBOOK=$T/rb OPD_ROOT=$T/root CDIR=$T/root/control; eval "$(grep -E '^ours_(pgrep|pargs)\(\)' $SRC/scripts/env.sh)"; eval "$(sed -n '/^ensure_loop() {/,/^  (cd \$RUNBOOK && setsid nohup bash scripts\/\$1.sh .*; }$/p' $SRC/scripts/run_tasks.sh)"
   ensure_loop uploader; sleep 1; ensure_loop uploader; sleep 1; echo "# changed" >> $T/rb/scripts/uploader.sh; ensure_loop uploader; sleep 2 )
 ok "[v2.5.8] ensure_loop: started once, left alone, restarted after its script changed" '[ "$(grep -c . $T/starts)" = 2 ] && ! kill -0 $(head -1 $T/starts) 2> /dev/null && kill -0 $(tail -1 $T/starts) 2> /dev/null'
 for p in $(cat $T/starts); do kill $p 2> /dev/null; done; rm -rf $T   # only the pids this test started
@@ -704,7 +704,7 @@ T=$(mktemp -d); mkdir -p $T/bin $T/x/scripts
 printf '#!/usr/bin/env bash\ncase "$*" in *compute-apps*) ;; *) echo 0;; esac\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi
 printf 'sleep 30\n' > $T/x/scripts/task.sh; printf 'sleep 30\n' > $T/x/scripts/run_adhoc_eval.sh
 bash $T/x/scripts/task.sh 5 FA-PROBE & P1=$!; bash $T/x/scripts/run_adhoc_eval.sh 13 41 & P2=$!; sleep 0.5
-got=$( PATH=$T/bin:$PATH NGPU=14; eval "$(sed -n '/^cenv() {/p;/^gpu_held() {/,/^}$/p;/^free_gpus() {/,/; }$/p' $SRC/scripts/run_tasks.sh)"; free_gpus | tr '\n' ' ' )
+got=$( PATH=$T/bin:$PATH NGPU=14; eval "$(grep -E '^ours_(pgrep|pargs)\(\)' $SRC/scripts/env.sh)"; eval "$(sed -n '/^cenv() {/p;/^gpu_held() {/,/^}$/p;/^free_gpus() {/,/; }$/p' $SRC/scripts/run_tasks.sh)"; free_gpus | tr '\n' ' ' )
 kill $P1 $P2 2> /dev/null
 ok "running tasks keep their GPUs" '[[ " $got" == *" 1 "* && " $got" == *" 6 "* && " $got" != *" 5 "* && " $got" != *" 13 "* ]]'   # 13 must not hide 1
 rm -rf $T
@@ -714,13 +714,13 @@ T=$(mktemp -d); mkdir -p $T/bin $T/x/scripts $T/root/runs
 printf '#!/usr/bin/env bash\ncase "$*" in *compute-apps*) ;; *) echo 0;; esac\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi
 printf 'sleep 30\n' > $T/x/scripts/task.sh
 bash $T/x/scripts/task.sh 1,2 E12b-P5-16k & P1=$!; sleep 0.5
-got=$( PATH=$T/bin:$PATH NGPU=4; eval "$(sed -n '/^cenv() {/p;/^gpu_held() {/,/^}$/p;/^free_gpus() {/,/; }$/p' $SRC/scripts/run_tasks.sh)"; free_gpus | tr '\n' ' ' )
+got=$( PATH=$T/bin:$PATH NGPU=4; eval "$(grep -E '^ours_(pgrep|pargs)\(\)' $SRC/scripts/env.sh)"; eval "$(sed -n '/^cenv() {/p;/^gpu_held() {/,/^}$/p;/^free_gpus() {/,/; }$/p' $SRC/scripts/run_tasks.sh)"; free_gpus | tr '\n' ' ' )
 kill $P1 2> /dev/null
 ok "[v2.5.9a] a task on gpus 1,2 keeps both" '[ "$got" = "0 3 " ]'
 printf '#gpus A 2\n#gpus B 3\n#gpus C 9\n' > $T/q; mkdir -p $T/root/logs $T/root/control
 echo '{"tasks": {"X": {"state": "running", "eta_min": 12}}}' > $T/root/logs/status_n.json   # a GPU frees within 30 min
-tg=$( Q=$T/q OPD_ROOT=$T/root; eval "$(sed -n '/^gpus_of() {/p' $SRC/scripts/run_tasks.sh)"; eval "$(sed -n '/^cenv() {/p' $SRC/scripts/run_tasks.sh)"; eval "$(sed -n '/^soon_free() {/,/^}$/p' $SRC/scripts/run_tasks.sh)"
-  eval "$(sed -n '/^take_gpus() {/,/; }$/p' $SRC/scripts/run_tasks.sh)"
+tg=$( Q=$T/q OPD_ROOT=$T/root; eval "$(grep -E '^ours_(pgrep|pargs)\(\)' $SRC/scripts/env.sh)"; eval "$(sed -n '/^gpus_of() {/p' $SRC/scripts/run_tasks.sh)"; eval "$(grep -E '^ours_(pgrep|pargs)\(\)' $SRC/scripts/env.sh)"; eval "$(sed -n '/^cenv() {/p' $SRC/scripts/run_tasks.sh)"; eval "$(grep -E '^ours_(pgrep|pargs)\(\)' $SRC/scripts/env.sh)"; eval "$(sed -n '/^soon_free() {/,/^}$/p' $SRC/scripts/run_tasks.sh)"
+  eval "$(grep -E '^ours_(pgrep|pargs)\(\)' $SRC/scripts/env.sh)"; eval "$(sed -n '/^take_gpus() {/,/; }$/p' $SRC/scripts/run_tasks.sh)"
   FREE=(3 5 6); take_gpus A; printf "a=$G:${FREE[*]} "
   FREE=(4 7); take_gpus C; printf "c=$G:${FREE[*]} "
   FREE=(4); take_gpus A > /dev/null; printf "hold=$?:${#FREE[@]} "; [ -f $T/root/runs/A/.gpus_wait ] && printf "wait "

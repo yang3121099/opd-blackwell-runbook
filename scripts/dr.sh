@@ -23,4 +23,4 @@ dr_restore() {   # <task dir>: no resume state on the container disk but one on 
   python3 $RUNBOOK/scripts/control.py event $T dr_restore "resume state of step $n copied back from the share" > /dev/null 2>&1 || true; }
 dr_start_sync() {   # <task dir>: the mirror loop, once per task (like upload_sync.sh)
   dr_on || return 0
-  pgrep -f "dr_syn[c].sh $1\$" > /dev/null || setsid nohup bash $RUNBOOK/scripts/dr_sync.sh $1 >> $1/dr.log 2>&1 < /dev/null & }
+  [ -n "$(ours_pgrep -f "dr_syn[c].sh $1\$")" ] || setsid nohup bash $RUNBOOK/scripts/dr_sync.sh $1 >> $1/dr.log 2>&1 < /dev/null & }

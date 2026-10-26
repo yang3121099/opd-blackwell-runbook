@@ -189,11 +189,11 @@ no_fetch() { local m; m=$(awk -v t="$1" '$1 == "#eval" && $2 == t {print $4}' "$
 # one model download it once
 prefetch_pass() {
   local n t PTO=""   # n = distinct tasks being prefetched (the wrapper, timeout and bash of one prefetch all match)
-  n=$(ps -eo args= | grep -o "run_queue_eval\.sh prefetch [A-Za-z0-9._-]*" | sort -u | wc -l | tr -d ' ')
+  n=$(ours_pargs -f "run_queue_eval\.sh prefetch" | grep -o "run_queue_eval\.sh prefetch [A-Za-z0-9._-]*" | sort -u | wc -l | tr -d ' ')   # [v2.5.9z88d] ours_pgrep
   command -v timeout > /dev/null && PTO="timeout -k 60 ${PREFETCH_TIMEOUT:-5400}"
   for t in $(awk '$1 == "#eval" {print $2}' "$Q" | sort -u); do
     [ "${n:-0}" -ge "${PREFETCH_PAR:-3}" ] && return
-    pgrep -f "run_queue_eval\.sh prefetch $t( |\$)" > /dev/null && continue
+    [ -n "$(ours_pgrep -f "run_queue_eval\.sh prefetch $t( |\$)")" ] && continue
     [ -f $OPD_ROOT/runs/$t/.done ] && continue; inputs_ok $t && continue
     [ -n "$(find $OPD_ROOT/runs/$t/.prefetch_fail -mmin -10 2>/dev/null)" ] && continue   # v2.5.6h: retry after 10 min
     _wait=0; for d in $(deps_of $t); do [ -f $OPD_ROOT/runs/$d/.done ] || _wait=1; done; [ $_wait = 1 ] && continue   # v2.5.6h: only once its inputs exist
@@ -203,7 +203,7 @@ prefetch_pass() {
   done; }
 net2_unfreeze() {   # [v2.5.9i] (ops-lead's A1 of 9h) the slow pull a PROBE-NET2 stopped and could not resume (SIGKILL: no trap) runs again
   local f=$OPD_ROOT/runs/PROBE-NET2/paused_pids
-  [ -s $f ] || return 0; pgrep -f "scripts/probe_net2\.sh" > /dev/null && return 0
+  [ -s $f ] || return 0; [ -n "$(ours_pgrep -f "scripts/probe_net2\.sh")" ] && return 0
   kill -CONT $(cat $f) 2> /dev/null; python3 $RUNBOOK/scripts/control.py event PROBE-NET2 pulls_resumed_by_run_tasks "$(cat $f)" > /dev/null 2>&1 &
   : > $f; }
 # v2.5.7w (reviewer 08:5x UTC): "#fetch Qwen/Qwen3-<n>B" lines of the queue = a model fetched to $OPD_ROOT/models/<name> in the
@@ -213,7 +213,7 @@ net2_unfreeze() {   # [v2.5.9i] (ops-lead's A1 of 9h) the slow pull a PROBE-NET2
 # time); the readings' prefetches above have their own count under the same cap. Models: Qwen3 (text, VL) and, for Q-057's X5 arm,
 # Qwen/Qwen2.5-Math-<n>B(-Instruct) and deepseek-ai/DeepSeek-R1-Distill-Qwen-<n>B (to models/<name>); any other owner or name is skipped
 fetch_pass() {
-  local n; n=$(ps -eo args= | grep -o "fetch_model\.py .* --task FETCH-[A-Za-z0-9._-]*" | sed 's/.*--task //' | sort -u | wc -l | tr -d ' ')   # [v2.5.9z24] distinct pulls
+  local n; n=$(ours_pargs -f "fetch_model\.py .* --task FETCH-" | grep -o "fetch_model\.py .* --task FETCH-[A-Za-z0-9._-]*" | sed 's/.*--task //' | sort -u | wc -l | tr -d ' ')   # [v2.5.9z24] distinct pulls
   [ "${n:-0}" -gt 0 ] && fetch_progress
   # [v2.5.9e] no new pull while result uploads are timing out (the node's proxy is shared; results go first)
   [ -n "$(find $OPD_ROOT/logs/heartbeat.err -mmin -60 2> /dev/null)" ] && tail -20 $OPD_ROOT/logs/heartbeat.err | grep -q UPLOAD_TIMEOUT && return
@@ -234,7 +234,7 @@ fetch_pass() {
     esac
     case $m in result:*) pre=$pp; dst=${d%/$pp}; cap="FETCH_CONNS_CAP=${RESULT_FETCH_CONNS:-32}";; *) pre=""; dst=$d; cap="";; esac   # [v2.5.9z43]
     [ -f $d/.fetch_ok ] && continue
-    pgrep -f "fetch_model\.py .* --task FETCH-${nm//./\\.}( |\$)" > /dev/null && continue   # [v2.5.9z24] already being pulled
+    [ -n "$(ours_pgrep -f "fetch_model\.py .* --task FETCH-${nm//./\\.}( |\$)")" ] && continue   # [v2.5.9z24] already being pulled
     [ -n "$(find $d.fetch_fail -mmin -${FETCH_RETRY_MIN:-10} 2>/dev/null)" ] && continue
     mkdir -p $(dirname $d) $OPD_ROOT/logs
     # [v2.5.9e] slow background pulls (0.03-0.05 MB/s through the proxy, PROBE-NET 10-21): niced, idle I/O class, each call
@@ -250,7 +250,7 @@ fetch_progress() {
   local c=${CDIR:-$OPD_ROOT/control} last p a d seen=""; last=$(cat $c/fetch_progress.t 2> /dev/null || echo 0)
   [ $(( $(date +%s) - last )) -ge ${FETCH_PROGRESS_SEC:-3600} ] || return
   date +%s > $c/fetch_progress.t
-  for p in $(pgrep -f "fetch_model\.py .* --task FETCH-"); do
+  for p in $(ours_pgrep -f "fetch_model\.py .* --task FETCH-"); do
     a=$(tr '\0' ' ' < /proc/$p/cmdline 2> /dev/null); d=$(echo "$a" | grep -oE "$OPD_ROOT/(models|data/hf)/[A-Za-z0-9._-]+" | head -1); [ -n "$d" ] || continue
     case " $seen " in *" $d "*) continue;; esac; seen="$seen $d"   # [v2.5.9z24] one event per pull (was: the first pull only)
     python $RUNBOOK/scripts/control.py event FETCH-$(basename $d) fetch_progress "$(du -sm $d 2> /dev/null | cut -f1) MB on disk" > /dev/null 2>&1 &
@@ -260,7 +260,7 @@ fetch_progress() {
 # checked, sha256 manifest, a summary of its data files to the private repository, .fetch_ok = the commit), without a
 # GPU or the Mac; one at a time, a failure retried after 30 min, a changed commit fetched again
 git_pass() {
-  pgrep -f "scripts/git_fetch\.sh " > /dev/null && return
+  [ -n "$(ours_pgrep -f "scripts/git_fetch\.sh ")" ] && return
   local r c d k
   while read -r r c k; do
     [[ $r =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ && $c =~ ^[0-9a-f]{40}$ ]] || continue
@@ -364,7 +364,7 @@ ctrl_reopen() {
     rm -f $CDIR/ctrl_reopen; exec >> $OPD_ROOT/logs/run_tasks.log 2>&1
     echo "CTRL_REOPEN $(date -u +%T) control -> $(readlink $OPD_ROOT/control || echo the work disk)"
   fi
-  if [ -f $CDIR/ctrl_reopen_wr ] && ! pgrep -f "scripts/weights_replay[.]py" > /dev/null; then rm -f $CDIR/ctrl_reopen_wr $CDIR/weights_replay.sha; fi
+  if [ -f $CDIR/ctrl_reopen_wr ] && [ -z "$(ours_pgrep -f "scripts/weights_replay[.]py")" ]; then rm -f $CDIR/ctrl_reopen_wr $CDIR/weights_replay.sha; fi
 }
 readings_guard() {
   READ_LOW=$(python $RUNBOOK/scripts/control.py readings_disk_low 2> /dev/null)

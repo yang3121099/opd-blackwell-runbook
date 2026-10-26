@@ -111,3 +111,48 @@ def test_corpus_selfcheck_passes_on_this_node():
         assert J.scanner_selfcheck(RB, base) == ("ok", [])
     finally:
         shutil.rmtree(base, ignore_errors=True)
+
+
+# ------------------------------------------------------------------------------------------------ [v2.5.9z88d] script-name scans
+RAW = re.compile(r"(?<![_A-Za-z])pgrep -f \"(run_queue_eval|scripts/probe_net2|fetch_model|scripts/git_fetch|scripts/weights_replay|dr_syn|venv-vl)"
+                 r"|ps -eo args= \| grep -o \"(run_queue_eval|fetch_model)")
+
+
+def test_z88d_script_name_scans_use_ours_pgrep():   # static: none of the listed scans calls pgrep / ps directly any more
+    for f in ("run_tasks.sh", "dr.sh", "venv_vl_nvrtc.sh"):
+        bad = [l for l in open(os.path.join(HERE, f)).read().split("\n") if RAW.search(l) and not l.lstrip().startswith("#")]
+        assert not bad, (f, bad)
+    src = open(os.path.join(HERE, "control.py")).read()
+    raw = [m.group(0) for m in re.finditer(r'\["pgrep", "-a?f", [^\]]*\]', src)]
+    assert all("task.sh" in x or '"-f", t]' in x or "pat]" in x for x in raw if "*args" not in x), raw   # running_pids (anchored), rm-ours (paths)
+
+
+def test_z88d_ours_pgrep_shell_positive_control(tmp_path):   # without DRYRUN_SB a matching process is seen (Mac and node alike)
+    sh = tmp_path / "scripts" / "probe_net2.sh"; sh.parent.mkdir(); sh.write_text("sleep 60\n")
+    env = {k: v for k, v in os.environ.items() if k != "DRYRUN_SB"}
+    p = subprocess.Popen(["bash", str(sh), "90"], start_new_session=True, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        time.sleep(0.5)
+        fn = re.search(r"^ours_pgrep\(\) \{.*?; \}$", open(os.path.join(HERE, "env.sh")).read(), re.M).group(0)
+        out = subprocess.run(["bash", "-c", fn + f'\nours_pgrep -f "{tmp_path}/scripts/probe_net2\\.sh"'], capture_output=True, text=True).stdout
+        assert str(p.pid) in out.split()
+    finally:
+        os.killpg(p.pid, signal.SIGKILL)
+
+
+@node_only
+def test_z88d_ours_pgrep_hides_a_sandbox_process(tmp_path):
+    sh = tmp_path / "scripts" / "probe_net2.sh"; sh.parent.mkdir(); sh.write_text("sleep 60\n")
+    p = subprocess.Popen(["bash", str(sh), "90"], start_new_session=True, env=dict(os.environ, DRYRUN_SB=str(tmp_path)),
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        time.sleep(0.5)
+        fn = re.search(r"^ours_pgrep\(\) \{.*?; \}$", open(os.path.join(HERE, "env.sh")).read(), re.M).group(0)
+        clean = {k: v for k, v in os.environ.items() if k != "DRYRUN_SB"}
+        out = subprocess.run(["bash", "-c", fn + f'\nours_pgrep -f "{tmp_path}/scripts/probe_net2\\.sh"'], capture_output=True, text=True, env=clean).stdout
+        assert str(p.pid) not in out.split()
+        sys.path.insert(0, HERE)
+        import control
+        assert not [l for l in control.ours_pgrep("-f", f"{tmp_path}/scripts/probe_net2[.]sh") if l.split()[0] == str(p.pid)]
+    finally:
+        os.killpg(p.pid, signal.SIGKILL)

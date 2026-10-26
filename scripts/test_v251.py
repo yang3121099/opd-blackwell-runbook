@@ -646,9 +646,9 @@ def test_v_fa_build_needs_venv_fa(env, monkeypatch):
     monkeypatch.setattr(c.subprocess, "Popen", lambda a, **k: started.append(a))
     assert c.v_fa_build([], 90)[0] == "rejected" and not started
     os.makedirs(os.path.join(c.ROOT, "venv-fa"))
-    monkeypatch.setattr(c.subprocess, "run", lambda a, **k: types.SimpleNamespace(returncode=0))     # pgrep finds a build
+    monkeypatch.setattr(c.subprocess, "run", lambda a, **k: types.SimpleNamespace(returncode=0, stdout="4242\n"))   # pgrep finds a build (its pid)
     assert c.v_fa_build([], 91)[0] == "rejected" and not started
-    monkeypatch.setattr(c.subprocess, "run", lambda a, **k: types.SimpleNamespace(returncode=1))
+    monkeypatch.setattr(c.subprocess, "run", lambda a, **k: types.SimpleNamespace(returncode=1, stdout=""))
     assert c.v_fa_build([], 92)[0] == "accepted" and started[0][-2:] == ["do_fa_build", "92"]
 
 

@@ -668,6 +668,26 @@ def scanner_selfcheck(runbook, base):
         r = subprocess.run(["bash", "-c", f'TASK={SELFCHECK_TASK}; [ -z "{expr}" ]'], timeout=30)
         if r.returncode != 0:
             seen.append("upload_sync still-running")
+        # [v2.5.9z88d] (ops-lead) the scans that key on a script name: a sandbox-environment stub running scripts/probe_net2.sh
+        net2 = os.path.join(base, "selfcheck", "scripts", "probe_net2.sh")
+        _touch(net2, "sleep 120\n")
+        q = subprocess.Popen(["bash", net2, str(SANDBOX_GPU0)], start_new_session=True, env=dict(os.environ, DRYRUN_SB=base),
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            time.sleep(1)
+            env_sh = open(os.path.join(runbook, "scripts", "env.sh")).read()
+            fn = re.search(r"^ours_pgrep\(\) \{.*?; \}$", env_sh, re.M).group(0)
+            got = subprocess.run(["bash", "-c", fn + '\nours_pgrep -f "scripts/probe_net2\\.sh"'], capture_output=True, text=True,
+                                 timeout=30, env={k: v for k, v in os.environ.items() if k != "DRYRUN_SB"}).stdout.split()
+            if str(q.pid) in got:   # the stub only: a real probe_net2.sh of the node is not this check's business
+                seen.append("env.sh ours_pgrep")
+            if any(l.split()[0] == str(q.pid) for l in control.ours_pgrep("-f", "scripts/probe_net2[.]sh")):
+                seen.append("control ours_pgrep")
+        finally:
+            try:
+                os.killpg(q.pid, signal.SIGKILL)
+            except OSError:
+                pass
     except Exception as e:   # a scan that cannot be checked counts as seeing it
         seen.append(f"selfcheck error {type(e).__name__}")
     finally:

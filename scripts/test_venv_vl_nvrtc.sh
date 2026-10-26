@@ -11,6 +11,7 @@ setup() {
   T=$(mktemp -d); T=$(cd $T && pwd -P); mkdir -p $T/rb/scripts $T/root/runs $T/root/venv-fa/lib
   cp $SRC/scripts/venv_vl_nvrtc.sh $T/rb/scripts/
   echo "export OPD_ROOT=$T/root RUNBOOK=$T/rb" > $T/rb/scripts/env.sh
+  grep -E '^ours_(pgrep|pargs)\(\)' $SRC/scripts/env.sh >> $T/rb/scripts/env.sh   # [z88d] the real scan helpers
   printf 'import sys, os; open(os.environ["CALLS"], "a").write("control " + " ".join(sys.argv[1:]) + "\\n"); sys.argv[1:2] == ["node"] and print("abcd1234")\n' > $T/rb/scripts/control.py
   printf 'import sys, os; open(os.environ["CALLS"], "a").write("remote " + " ".join(sys.argv[1:]) + "\\n")\n' > $T/rb/scripts/remote.py
   printf 'import json, os, sys\nopen(os.environ["CALLS"], "a").write("wheel_fetch " + " ".join(sys.argv[1:]) + " PARFIRST=" + os.environ.get("WHEEL_PAR_FIRST", "") + " CONNS=" + os.environ.get("FETCH_CONNS", "") + "\\n")\nos.makedirs(sys.argv[1], exist_ok=True)\nif os.environ.get("FAKE_WHEEL_FAIL"):\n    print("WHEEL nvidia-cuda-nvrtc-cu12 sha256 mismatch"); sys.exit(1)\njson.dump({"nvidia-cuda-nvrtc-cu12": {"version": "12.9.86", "sha256": "210cf05005a447e2"}}, open(os.path.join(sys.argv[1], "manifest.json"), "w"))\n' > $T/rb/scripts/wheel_fetch.py

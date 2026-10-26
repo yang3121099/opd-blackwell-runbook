@@ -83,6 +83,11 @@ mkdir -p $OPD_ROOT/logs $OPD_ROOT/runs $OPD_ROOT/data
 # HF weights present in a folder: model.safetensors or shards model-0000k-of-0000n.safetensors (every 1.7B checkpoint is
 # sharded; v2.3: run_e12/run_eval/run_sft used to look for model.safetensors only and failed on every 1.7B start)
 has_weights() { ls "$1"/*.safetensors > /dev/null 2>&1; }
+# [v2.5.9z88d] (ops-lead 10-26) a scan that keys on a script name must not count CORPUS-RECORD's sandbox processes: a sandboxed
+# task.sh runs the bash scripts it dispatches for real, and every sandbox process inherits DRYRUN_SB (dryrun_json.py's child_env).
+# ours_pgrep <pgrep args>: pgrep's matches (pids, or -a lines) without those; it reads only the matches' /proc/<pid>/environ
+ours_pargs() { local p; for p in $(ours_pgrep "$@"); do ps -o args= -p ${p%% *} 2> /dev/null; done; }   # their command lines (portable: no pgrep -a)
+ours_pgrep() { local l; pgrep "$@" | while read -r l; do [ -n "$l" ] || continue; tr '\0' '\n' < /proc/${l%% *}/environ 2> /dev/null | grep -q '^DRYRUN_SB=' || echo "$l"; done; }
 # [v2.5.8] (10-19 03:0x UTC: E11b engine-init failures) gpu_wait_free <gpu> [seconds]: before the next engine on a GPU, wait
 # until its memory has fallen to <= GPU_FREE_MIB (2048) MiB, i.e. the previous engine and its workers are gone; 1 on timeout
 gpu_wait_free() {
