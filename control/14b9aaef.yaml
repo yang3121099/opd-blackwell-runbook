@@ -619,3 +619,4 @@ commands:
   - {"seq": 617, "cmd": "update", "reason": "z88b: pend-weight verb, rules 2.5.96 (ops-lead A1 07:44Z)", "utc": "2026-10-26T07:40:12Z"}
   - {"seq": 618, "cmd": "pend-weight SFT-P1 283", "reason": "storage review §3 P1 (Fable / ops-lead): SFT-P1's final bf16 (runs/SFT-P1/final_bf16) to the public repository as global_step_283/actor/huggingface", "utc": "2026-10-26T07:40:52Z"}
   - {"seq": 619, "cmd": "ps", "reason": "ops-lead 07:5xZ: keep procs.json fresh for the sandbox watch (every 30 min near :15 / :45)", "utc": "2026-10-26T07:53:26Z"}
+  - {"seq": 620, "cmd": "update", "reason": "z88e: the recorder refuses inside a sandbox + all_tasks set-precedence fix (Fable approved, ops-lead A1 08:11Z)", "utc": "2026-10-26T08:16:45Z"}
