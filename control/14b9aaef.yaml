@@ -630,3 +630,4 @@ commands:
   - {"seq": 628, "cmd": "ps", "reason": "keep procs.json fresh (:13 / :43)", "utc": "2026-10-26T09:26:09Z"}
   - {"seq": 629, "cmd": "update", "reason": "z88d: script-name scans skip sandbox processes via ours_pgrep (ops-lead A1 09:26Z); run_tasks restarts", "utc": "2026-10-26T09:31:54Z"}
   - {"seq": 630, "cmd": "ps", "reason": "keep procs.json fresh (:13 / :43)", "utc": "2026-10-26T09:47:37Z"}
+  - {"seq": 631, "cmd": "ps", "reason": "keep procs.json fresh (:13 / :43)", "utc": "2026-10-26T10:17:52Z"}
