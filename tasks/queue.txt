@@ -3025,8 +3025,8 @@ fill17   open   EVAL-ext-17bud2k:E10b-P5bud2k EVAL-gm-17bud2k:E10b-P5bud2k EVAL-
 #eval EVAL-ext32k-4Bp5l16k-s43 ext32k4B_E12dP5l16ks43_s50_aime25_T0.6 result:runs/E12d-P5-16k-s43/global_step_50/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-4Bp5l16k-s43 ext32k4B_E12dP5l16ks43_s50_aime24_T0.6 EVAL-ext32k-4Bs43/ext32k4B_E10dP5s43_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4Bp5l16k/ext32k4B_E12dP5l16k_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #pair EVAL-ext32k-4Bp5l16k-s43 ext32k4B_E12dP5l16ks43_s50_aime25_T0.6 EVAL-ext32k-4Bs43/ext32k4B_E10dP5s43_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Bp5l16k/ext32k4B_E12dP5l16k_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
-# [held until E12d-P5-16k-s43 has s50] term PROBE-TERM4-4B 4B_P5l16ks43 result:runs/E12d-P5-16k-s43/global_step_50/actor/huggingface EVAL-e12d-P5-16k-s43/e12d_P5-16k-s43_s50_math500_T0.6_math500_no_think_t0.6.jsonl
-# [held until E12d-P5-16k-s43 has s50; restored together with the term row above] after EVAL-e12d-P5-16k-s43 rerun PROBE-TERM4-4B
+#term PROBE-TERM4-4B 4B_P5l16ks43 result:runs/E12d-P5-16k-s43/global_step_50/actor/huggingface EVAL-e12d-P5-16k-s43/e12d_P5-16k-s43_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-e12d-P5-16k-s43 rerun PROBE-TERM4-4B
 # [held: no s25 weights - SAVE fell to the final step with DR off since seq 545; v2.5.9 run_e12.sh] eval EVAL-e12b-P5-16k-s44 e12b_P5-16k-s44_s25_math500_T0.6 result:runs/E12b-P5-16k-s44/global_step_25/actor/huggingface math500 4 0.6
 #eval EVAL-e12b-P5-16k-s44 e12b_P5-16k-s44_s50_math500_T0.6 result:runs/E12b-P5-16k-s44/global_step_50/actor/huggingface math500 4 0.6
 #eval EVAL-e12b-P5-16k-s44 e12b_P5-16k-s44_s50_math500_T1.0 result:runs/E12b-P5-16k-s44/global_step_50/actor/huggingface math500 4 1.0
@@ -3116,8 +3116,8 @@ fill17   open   EVAL-ext-17bud2k:E10b-P5bud2k EVAL-gm-17bud2k:E10b-P5bud2k EVAL-
 #pair EVAL-ext32k-17aklmu03 ext32k17_P5aklmu03_s50_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17akl/ext32k17_P5akl_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #eval EVAL-ext32k-17aklmu03 ext32k17_P5aklmu03_s50_aime25_T0.6 result:runs/E10b-P5-akl-mu03/global_step_50/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-17aklmu03 ext32k17_P5aklmu03_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17akl/ext32k17_P5akl_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
-# [held until E10b-P5-akl-mu03 has s50] term PROBE-TERM4 17_P5aklmu03 result:runs/E10b-P5-akl-mu03/global_step_50/actor/huggingface EVAL-aklmu03/e10b_P5aklmu03_s50_math500_T0.6_math500_no_think_t0.6.jsonl
-# [held until E10b-P5-akl-mu03 has s50; restored together with the term row above] after EVAL-aklmu03 rerun PROBE-TERM4
+#term PROBE-TERM4 17_P5aklmu03 result:runs/E10b-P5-akl-mu03/global_step_50/actor/huggingface EVAL-aklmu03/e10b_P5aklmu03_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-aklmu03 rerun PROBE-TERM4
 # E10b-P5-akl-mu07: AKL mu 0.7 (as mu 0.3)
 #eval EVAL-aklmu07 e10b_P5aklmu07_s50_math500_T0.6 result:runs/E10b-P5-akl-mu07/global_step_50/actor/huggingface math500 4 0.6
 #eval EVAL-aklmu07 e10b_P5aklmu07_s50_math500_T1.0 result:runs/E10b-P5-akl-mu07/global_step_50/actor/huggingface math500 4 1.0
@@ -3132,8 +3132,8 @@ fill17   open   EVAL-ext-17bud2k:E10b-P5bud2k EVAL-gm-17bud2k:E10b-P5bud2k EVAL-
 #pair EVAL-ext32k-17aklmu07 ext32k17_P5aklmu07_s50_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17akl/ext32k17_P5akl_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #eval EVAL-ext32k-17aklmu07 ext32k17_P5aklmu07_s50_aime25_T0.6 result:runs/E10b-P5-akl-mu07/global_step_50/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-17aklmu07 ext32k17_P5aklmu07_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17akl/ext32k17_P5akl_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
-# [held until E10b-P5-akl-mu07 has s50] term PROBE-TERM4 17_P5aklmu07 result:runs/E10b-P5-akl-mu07/global_step_50/actor/huggingface EVAL-aklmu07/e10b_P5aklmu07_s50_math500_T0.6_math500_no_think_t0.6.jsonl
-# [held until E10b-P5-akl-mu07 has s50; restored together with the term row above] after EVAL-aklmu07 rerun PROBE-TERM4
+#term PROBE-TERM4 17_P5aklmu07 result:runs/E10b-P5-akl-mu07/global_step_50/actor/huggingface EVAL-aklmu07/e10b_P5aklmu07_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-aklmu07 rerun PROBE-TERM4
 # E10b-P5self-akl: AKL with the self teacher (H1 32K within P5self s50 +-1; H2 p_stop_last >= P5self); pairs vs P5 s150 and P5self s50
 #eval EVAL-selfakl e10b_P5selfakl_s50_math500_T0.6 result:runs/E10b-P5self-akl/global_step_50/actor/huggingface math500 4 0.6
 #eval EVAL-selfakl e10b_P5selfakl_s50_math500_T1.0 result:runs/E10b-P5self-akl/global_step_50/actor/huggingface math500 4 1.0
@@ -3148,8 +3148,8 @@ fill17   open   EVAL-ext-17bud2k:E10b-P5bud2k EVAL-gm-17bud2k:E10b-P5bud2k EVAL-
 #pair EVAL-ext32k-17selfakl ext32k17_P5selfakl_s50_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #eval EVAL-ext32k-17selfakl ext32k17_P5selfakl_s50_aime25_T0.6 result:runs/E10b-P5self-akl/global_step_50/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-17selfakl ext32k17_P5selfakl_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
-# [held until E10b-P5self-akl has s50] term PROBE-TERM4 17_P5selfakl result:runs/E10b-P5self-akl/global_step_50/actor/huggingface EVAL-selfakl/e10b_P5selfakl_s50_math500_T0.6_math500_no_think_t0.6.jsonl
-# [held until E10b-P5self-akl has s50; restored together with the term row above] after EVAL-selfakl rerun PROBE-TERM4
+#term PROBE-TERM4 17_P5selfakl result:runs/E10b-P5self-akl/global_step_50/actor/huggingface EVAL-selfakl/e10b_P5selfakl_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-selfakl rerun PROBE-TERM4
 # E10d-P5-akl: AKL for the 4B student (H1 16K / 32K within E10d-P5 s150 +-1; H2 the wall before 4B P5's); pairs vs E10d-P5 s150
 #eval EVAL-e10d-P5akl e10d_P5akl_s50_math500_T0.6 result:runs/E10d-P5-akl/global_step_50/actor/huggingface math500 4 0.6
 #pair EVAL-e10d-P5akl e10d_P5akl_s50_math500_T0.6 EVAL-e10d-P5/e10d_P5_s150_math500_T0.6_math500_no_think_t0.6.jsonl
