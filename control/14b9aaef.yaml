@@ -625,3 +625,4 @@ commands:
   - {"seq": 623, "cmd": "du ckpt E12d-P5-16k-s43/ckpt", "reason": "ops-lead: s25 local on idx1 for EVAL-ext32k-4Bp5l16k-s43-s25 (LOCAL_FIRST)", "utc": "2026-10-26T08:35:21Z"}
   - {"seq": 624, "cmd": "du ckpt E12d-P5-16k-s43/ckpt/global_step_25/actor", "reason": "s25 actor contents (huggingface / huggingface_bf16)", "utc": "2026-10-26T08:36:00Z"}
   - {"seq": 625, "cmd": "update", "reason": "queue: EVAL-ext32k-4Bp5l16k-s43-s25 (stage b259s25; ops-lead A1)", "utc": "2026-10-26T08:40:51Z"}
+  - {"seq": 626, "cmd": "ps", "reason": "sandbox watch: keep procs.json fresh (:13 / :43)", "utc": "2026-10-26T08:50:24Z"}
