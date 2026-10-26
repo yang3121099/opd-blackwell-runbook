@@ -644,3 +644,4 @@ commands:
   - {"seq": 642, "cmd": "du ckpt E10c-P5tail-c50/ckpt", "reason": "Q-074f: start E10c-P5tail-c50 global_step_30 (its s50) local on idx1", "utc": "2026-10-26T11:40:25Z"}
   - {"seq": 643, "cmd": "ps", "reason": "z92 65757a9 pushed: confirm the node pulled it; procs.json fresh", "utc": "2026-10-26T12:14:50Z"}
   - {"seq": 644, "cmd": "ps", "reason": "executor :43 watch: procs.json fresh for ops-lead's :51 read", "utc": "2026-10-26T12:30:41Z"}
+  - {"seq": 645, "cmd": "ps", "reason": "executor :43 watch + z93 5c7aa3c pushed: confirm the pull; procs.json fresh", "utc": "2026-10-26T12:49:41Z"}
