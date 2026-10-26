@@ -16,11 +16,23 @@ def _compile(text, name):
             raise
 
 
+def _unpatched(p):
+    """[v2.5.9z88a] (PROBE-DENSE-4B 10-26 00:23Z: 8 passed, 2 failed) the text to patch: the installed file, or - once an arm has
+    patched it in place (the dense / AKL arms do, in the shared venv) - the unpatched copy dense_patch kept as <file>.orig; the
+    installed file must then be a fixed point of the patch. As test_opd_tailswap's ray_trainer.py.orig (z80)."""
+    src = open(p).read()
+    if P.MARK in src and os.path.exists(p + ".orig"):
+        return open(p + ".orig").read(), src
+    return src, None
+
+
 def test_actor_text():
     p = os.environ.get("GOPD_DP_ACTOR")
     if not p:
         return
-    src = open(p).read()
+    src, installed = _unpatched(p)
+    if installed is not None:
+        assert P.patch_actor_text(installed) == (installed, False)
     new, changed = P.patch_actor_text(src)
     assert changed and new.count(P.MARK) == 8
     _compile(new, p)
@@ -35,9 +47,23 @@ def test_workers_text():
     p = os.environ.get("GOPD_FSDP_WORKERS")
     if not p:
         return
-    src = open(p).read()
+    src, installed = _unpatched(p)
+    if installed is not None:
+        assert P.patch_workers_text(installed) == (installed, False)
     new, changed = P.patch_workers_text(src)
     assert changed and new.count(P.MARK) == 1
     _compile(new, p)
     assert P.patch_workers_text(new) == (new, False)
     assert 'tensors={"ref_log_prob": output, **_dn_t}' in new
+
+
+def test_unpatched_prefers_orig_once_patched():   # [v2.5.9z88a] runs anywhere (no G-OPD needed)
+    import tempfile
+    d = tempfile.mkdtemp()
+    f = os.path.join(str(d), "dp_actor.py")
+    open(f, "w").write("x = 1\n")
+    assert _unpatched(f) == ("x = 1\n", None)                                      # unpatched, no copy: itself
+    open(f, "w").write("x = 1\n" + P.MARK + "\n")
+    assert _unpatched(f) == ("x = 1\n" + P.MARK + "\n", None)                     # patched but no .orig: itself (fails loudly)
+    open(f + ".orig", "w").write("x = 1\n")
+    assert _unpatched(f) == ("x = 1\n", "x = 1\n" + P.MARK + "\n")               # patched in place: the kept copy
