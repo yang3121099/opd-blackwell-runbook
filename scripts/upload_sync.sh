@@ -122,7 +122,8 @@ while true; do
   # resumed or rerun task's run starts a new one
   why=""; [ -f $RUN/.paused ] && why=paused
   [ "$(sed -n 's/^attempts: //p' $RUN/.failed 2>/dev/null)" -ge 3 ] 2> /dev/null && why=failed
-  if [ -n "$why" ] && [ $pend = 0 ] && ! pgrep -f "scripts/task\.sh ([0-9]+(,[0-9]+)*|cpu) $TASK( |\$)" > /dev/null; then
+  # [v2.5.9z88c] a CORPUS-RECORD sandbox's task.sh <90+> $TASK --dryrun-sandbox is not this task running
+  if [ -n "$why" ] && [ $pend = 0 ] && [ -z "$(pgrep -af "scripts/task\.sh ([0-9]+(,[0-9]+)*|cpu) $TASK( |\$)" | grep -v -- --dryrun-sandbox)" ]; then
     upn train.log config.yaml lensel.jsonl stopmerge.jsonl tailswap.jsonl $(sort -u $RUN/.up_due 2> /dev/null) && rm -f $RUN/.up_due   # [v2.5.9z52] one commit
     echo "UPLOAD_STOPPED $TASK $why $(date -u +%T)"; break
   fi

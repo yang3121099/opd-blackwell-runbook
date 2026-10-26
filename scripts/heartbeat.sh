@@ -119,8 +119,12 @@ def live_tasks():
             start = btime + int(open(f"/proc/{p}/stat").read().rsplit(")", 1)[1].split()[19]) / hz
         except (OSError, IndexError, ValueError):
             continue
+        if "--dryrun-sandbox" in a:   # [v2.5.9z88c] CORPUS-RECORD's sandboxed task.sh (10-26 06:49Z: counted here, the loop hung)
+            continue
         for i, x in enumerate(a[:-2]):
             if x.endswith(("/scripts/task.sh", "/scripts/run_adhoc_eval.sh")) and gpu_arg(a[i + 1]) is not None:
+                if gpu_arg(a[i + 1])[0] != "cpu" and max(gpu_arg(a[i + 1])[1]) >= 90:   # [v2.5.9z88c] sandbox GPU indices (from 90)
+                    continue
                 name = a[i + 2] if x.endswith("task.sh") else f"adhoc_eval_{a[i + 2]}"
                 if name not in out or start < out[name][1]:
                     g0, gl = gpu_arg(a[i + 1]); out[name] = (g0, start, gl)   # [v2.5.8] the CPU lane; [v2.5.9a] all its GPUs

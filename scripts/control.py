@@ -682,6 +682,15 @@ def _git_head():
 # their parent is init, and the orphaned prefetch still holds back every other prefetch) is listed in procs.json and
 # can be signalled
 # [v2.5.8] also uploader.sh
+SANDBOX_MARK = "--dryrun-sandbox"
+
+
+def sandbox_cmd(cmd):
+    """[v2.5.9z88c] a CORPUS-RECORD sandbox's task.sh (dryrun_json.py): it carries --dryrun-sandbox and GPU indices from 90 (no node
+    has a GPU 90), so no scan may take it for a task (10-26 06:49Z: heartbeat.sh's live_tasks did and its loop hung)."""
+    return SANDBOX_MARK in cmd or re.search(r"task\.sh (\d+,)*(9\d|\d{3,})(,\d+)* ", cmd + " ") is not None
+
+
 OUR_ROOTS = re.compile(r"scripts/(run_tasks|task|upload_sync|heartbeat|run_adhoc_eval|watchdog|run_queue_eval|uploader)\.sh|scripts/(control|remote|fetch_model)\.py"
                        r"|scripts/gh_heartbeat\.sh"   # [v2.5.9z54]
                        r"|scripts/weights_replay\.(?:sh|py)"   # [v2.5.9z62]
@@ -751,7 +760,7 @@ def proc_table():
         seen = 0
         while p in rows and seen < 64:
             m = re.search(r"scripts/task\.sh (\d+(?:,\d+)*) ([A-Za-z0-9._-]+)", rows[p]["_cmd"]) or re.search(r"run_adhoc_eval\.sh (\d+) (\d+)", rows[p]["_cmd"])
-            if m:
+            if m and not sandbox_cmd(rows[p]["_cmd"]):   # [v2.5.9z88c] a sandbox's task.sh: walk on up (to CORPUS-RECORD's own task.sh)
                 return m.group(2) if "task.sh" in m.group(0) else f"adhoc_eval_{m.group(2)}"
             p, seen = rows[p]["ppid"], seen + 1
         return None

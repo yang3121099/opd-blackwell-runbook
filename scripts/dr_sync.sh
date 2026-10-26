@@ -43,7 +43,8 @@ while true; do
   fi
   # verl's command line carries trainer.experiment_name=<task>: once seen and then gone, this loop ends (the mirror stays)
   # (one more round first after it went: run_arm.sh / run_e12.sh write finished: / .done a moment after verl exits)
-  if pgrep -f "experiment_name=$TASK( |$)" > /dev/null; then seen=1; gone=0
+  # [v2.5.9z88c] a CORPUS-RECORD sandbox's recorded training (scripts/dryrun_shim.py ... experiment_name=$TASK) is not it
+  if [ -n "$(pgrep -af "experiment_name=$TASK( |$)" | grep -v dryrun_shim)" ]; then seen=1; gone=0
   elif [ $seen = 1 ] && [ ${gone:-0} = 0 ]; then gone=1
   elif [ $seen = 1 ] || [ $(( $(date +%s) - t_start )) -gt ${DR_START_GRACE:-1800} ]; then echo "DR_SYNC_EXIT $TASK (training not running; mirror kept)"; exit 0; fi
   sleep ${DR_SYNC_SEC:-120}

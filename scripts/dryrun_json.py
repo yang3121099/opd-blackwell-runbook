@@ -545,6 +545,53 @@ def runbook_state(runbook):
     return st, newest
 
 
+SELFCHECK_TASK = "CORPUS-SELFCHECK"
+
+
+def scanner_selfcheck(runbook, base):
+    """[v2.5.9z88c] (Fable / ops-lead 10-26, after the heartbeat hang of 06:49Z) before recording: a stub
+    `task.sh 90 CORPUS-SELFCHECK --dryrun-sandbox` under the sandbox base must be invisible to the node's own process scans -
+    heartbeat.sh's live_tasks, control.py's running_pids and proc_table, run_tasks.sh's running and upload_sync.sh's
+    still-running check, each read from this runbook. ("ok" | "fail" | "skipped", the scans that saw it). Linux only (/proc)."""
+    if not os.path.isdir("/proc/self"):
+        return "skipped", []
+    stub = os.path.join(base, "selfcheck", "scripts", "task.sh")
+    _touch(stub, "sleep 120\n")
+    p = subprocess.Popen(["bash", stub, str(SANDBOX_GPU0), SELFCHECK_TASK, "--dryrun-sandbox"], start_new_session=True,
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    seen = []
+    try:
+        time.sleep(1)
+        src = open(os.path.join(runbook, "scripts", "heartbeat.sh")).read()
+        ns = {"re": re, "os": os, "time": time, "json": json}
+        exec(src[src.index("def gpu_arg"):src.index("def kind(")], ns)   # the definitions only (gpu_arg .. live_tasks)
+        if SELFCHECK_TASK in ns["live_tasks"]():
+            seen.append("heartbeat live_tasks")
+        sys.path.insert(0, os.path.join(runbook, "scripts"))
+        import control
+        if control.running_pids(SELFCHECK_TASK):
+            seen.append("control running_pids")
+        if any(r.get("task") == SELFCHECK_TASK for r in control.proc_table()):
+            seen.append("control proc_table")
+        rt = open(os.path.join(runbook, "scripts", "run_tasks.sh")).read()
+        fn = re.search(r"^running\(\) \{.*?; \}", rt, re.M).group(0)
+        if subprocess.run(["bash", "-c", fn + f"\nrunning {SELFCHECK_TASK}"], timeout=30).returncode == 0:
+            seen.append("run_tasks running")
+        us = open(os.path.join(runbook, "scripts", "upload_sync.sh")).read()
+        expr = re.search(r'\[ -z "(\$\(pgrep -af "scripts/task.*?--dryrun-sandbox\))" \]', us).group(1)
+        r = subprocess.run(["bash", "-c", f'TASK={SELFCHECK_TASK}; [ -z "{expr}" ]'], timeout=30)
+        if r.returncode != 0:
+            seen.append("upload_sync still-running")
+    except Exception as e:   # a scan that cannot be checked counts as seeing it
+        seen.append(f"selfcheck error {type(e).__name__}")
+    finally:
+        try:
+            os.killpg(p.pid, signal.SIGKILL)
+        except OSError:
+            pass
+    return ("fail" if seen else "ok"), seen
+
+
 def main(argv=None):
     if os.environ.get("DRYRUN_SB") or os.environ.get("DRYRUN_REAL_PY"):   # [v2.5.9z88e] never inside a sandbox (no nested recording)
         print("CORPUS_RECORD_REFUSED inside a sandbox: no nested recording")
@@ -581,6 +628,16 @@ def main(argv=None):
     for sub in ("corpus", "up"):   # [N1] each recording starts empty: a renamed or removed task's old JSON never reaches the tarball
         if os.path.exists(os.path.join(out, sub)):
             shutil.rmtree(_guard(os.path.join(out, sub), out))
+    sc, sc_seen = scanner_selfcheck(runbook, base)   # [v2.5.9z88c] invisible to the node's scans, or no recording at all
+    if sc == "fail":
+        if a.task_dir:
+            os.makedirs(a.task_dir, exist_ok=True)
+            json.dump({"result": "FAIL", "reason": "scanner_selfcheck: a sandbox task.sh is visible to " + ", ".join(sc_seen),
+                       "selfcheck": sc_seen}, open(os.path.join(a.task_dir, "report.json"), "w"), indent=1)
+            open(os.path.join(a.task_dir, ".done"), "w").close()
+        print("CORPUS_RECORD FAIL scanner_selfcheck: " + ", ".join(sc_seen))
+        shutil.rmtree(_guard(base, base), ignore_errors=True)
+        return 1
     names, uncovered = all_tasks(runbook) if a.all else (a.tasks, [])
     cpu = cpu_tasks(os.path.join(runbook, "scripts", "run_tasks.sh"))
     gpus = queue_gpus(os.path.join(runbook, "tasks", "queue.txt"))
@@ -632,7 +689,7 @@ def main(argv=None):
             hits += [{"kind": "leak", "file": os.path.relpath(os.path.join(d, f), out), "what": w, "match": "<redacted>"}
                      for w, _ in N.leak_hits(open(os.path.join(d, f)).read(), lits)]
     findings += hits
-    meta = {"schema": 1, "runbook_head": head, "rules_version": rules, "profiles": profiles, "tasks": len(names),
+    meta = {"schema": 1, "runbook_head": head, "rules_version": rules, "profiles": profiles, "tasks": len(names), "scanner_selfcheck": sc,
             "seconds": round(time.time() - t_start, 1)}
     open(os.path.join(out, "index.json"), "w").write(N.dumps({"meta": meta, "tasks": index}))
     open(os.path.join(out, "findings.json"), "w").write(N.dumps(findings))
