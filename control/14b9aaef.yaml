@@ -606,3 +606,4 @@ commands:
   - {"seq": 604, "cmd": "du ckpt", "reason": "storage review §1 (Runming 08:00 via Fable): idx1 by top-level entry", "utc": "2026-10-26T00:01:51Z"}
   - {"seq": 605, "cmd": "inventory", "reason": "storage review §1 / §4 (Runming 08:00 via Fable): read-only, no pend", "utc": "2026-10-26T00:02:17Z"}
   - {"seq": 606, "cmd": "du ckpt weights_pending", "reason": "storage review §3 ②: weights_pending 232.5 GB on disk vs 91.1 GB not in the cloud; replay says 0 left", "utc": "2026-10-26T00:06:35Z"}
+  - {"seq": 607, "cmd": "update", "reason": "v2.6 S0 pushed (rules 2.5.95, CORPUS-RECORD; Fable F7 sign-off, ops-lead A1): run_tasks restarts itself", "utc": "2026-10-26T06:48:18Z"}
