@@ -449,3 +449,24 @@ def test_z88c_reap_env_kills_a_new_session_child():
         p.wait(timeout=10)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_z88g_canary_first_then_all(tmp_path, monkeypatch):   # [v2.5.9z88g] the first --all records the canary only, the second all
+    rb = _toy_runbook(str(tmp_path))
+    for k in ("OPD_ROOT", "CKPT_ROOT"):
+        monkeypatch.delenv(k, raising=False)
+    runs = []
+    monkeypatch.setattr(J, "canary", lambda *a, **k: runs.append(1) or ("ok", "EVAL-x recorded alone"))
+    td = tmp_path / "td"; args = ["--runbook", rb, "--base", str(tmp_path / "dryrun_json.tmp"), "--out", str(tmp_path / "o" / "dryrun_json.out"),
+                                   "--profile", "clean", "--all", "--task-dir", str(td), "--no-upload"]
+    assert J.main(args) == 0
+    rep = json.load(open(td / "report.json"))
+    assert rep["result"] == "PASS" and "canary only" in rep["reason"] and len(runs) == 1
+    assert not (tmp_path / "o" / "dryrun_json.out" / "corpus" / "clean" / "TOY.json").exists()   # nothing recorded yet
+    assert list(td.glob("canary_ok.*")) and J.code_hash(rb) in list(td.glob("canary_ok.*"))[0].name
+    (td / ".done").unlink()
+    J.main(args)
+    assert len(runs) == 1 and (tmp_path / "o" / "dryrun_json.out" / "corpus" / "clean" / "TOY.json").exists()   # no second canary
+    assert json.load(open(td / "report.json"))["meta"]["canary"][0] == "passed earlier"
+    open(os.path.join(rb, "scripts", "toy.sh"), "a").write("# a code change\n")
+    assert not (td / f"canary_ok.{J.code_hash(rb)}").exists()                     # changed code: the canary again

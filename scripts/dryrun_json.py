@@ -608,6 +608,17 @@ def heartbeat_rounds(real_opd, n=2, limit=600):
     return seen >= n
 
 
+def code_hash(runbook):
+    """[v2.5.9z88g] sha256 over scripts/*.py and scripts/*.sh: what the canary vouches for. The runbook head moves with every control
+    commit (the `rerun` itself is one), this does only when the code does."""
+    h = hashlib.sha256()
+    d = os.path.join(runbook, "scripts")
+    for f in sorted(os.listdir(d)):
+        if f.endswith((".py", ".sh")) and os.path.isfile(os.path.join(d, f)):
+            h.update(f.encode() + b"\0" + open(os.path.join(d, f), "rb").read() + b"\0")
+    return h.hexdigest()[:16]
+
+
 def canary(runbook, real_opd, names, record, proc="/proc"):
     """[v2.5.9z88c] (Fable 10-26: a single harmless task before --all) one EVAL reading recorded alone (record(task) -> its record);
     then none of this recording's sandbox processes may be left (DRYRUN_RUN_ID), the heartbeat must complete 2 rounds, and the
@@ -774,9 +785,21 @@ def _run(a):
     t_start = time.time()
     index, findings = {}, [{"kind": "glob_uncovered", "glob": gl} for gl in uncovered]
     can = ("not run", "")
-    if a.all and a.task_dir:   # [v2.5.9z88c] (Fable 10-26) one harmless EVAL alone first; --all only once it is clean
+    ok_mark = os.path.join(a.task_dir, f"canary_ok.{code_hash(runbook)}") if a.task_dir else ""
+    if a.all and a.task_dir and os.path.exists(ok_mark):   # [v2.5.9z88g] this code's canary passed earlier and was reported
+        can = ("passed earlier", os.path.basename(ok_mark))
+    elif a.all and a.task_dir:   # [v2.5.9z88c] (Fable 10-26) one harmless EVAL alone first; --all only once it is clean
         can = canary(runbook, real_opd, names, lambda t: record_task(t, "clean", gpu_arg(t, cpu, gpus), base, runbook, real, control_env,
                                                                   real_py, fa_clean, a.per_task_sec, head, rules))
+        if can[0] in ("ok", "skipped"):   # [v2.5.9z88g] (ops-lead 10-26) the canary alone this time: reviewed, then a second rerun records all
+            os.makedirs(a.task_dir, exist_ok=True)
+            open(ok_mark, "w").write(f"{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())} {can[0]}: {can[1]}\n")
+            json.dump({"result": "PASS", "reason": f"canary only ({can[0]}): {can[1]}; rerun CORPUS-RECORD to record all",
+                       "canary": list(can)}, open(os.path.join(a.task_dir, "report.json"), "w"), indent=1)
+            open(os.path.join(a.task_dir, ".done"), "w").close()
+            print(f"CORPUS_RECORD CANARY_{can[0].upper()} {can[1]}; rerun CORPUS-RECORD to record all")
+            shutil.rmtree(_guard(base, base), ignore_errors=True)
+            return 0
         if can[0] == "fail":
             os.makedirs(a.task_dir, exist_ok=True)
             json.dump({"result": "FAIL", "reason": "canary: " + can[1]}, open(os.path.join(a.task_dir, "report.json"), "w"), indent=1)
