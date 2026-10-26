@@ -3036,8 +3036,8 @@ fill18   open   EVAL-ext-4Bp5tail:E10d-P5tail EVAL-gm-4Bp5tail:E10d-P5tail EVAL-
 #pair EVAL-ext32k-4Bp5tail8k ext32k4B_E12dP5tail8k_s50_aime24_T0.6 EVAL-ext32k-4Bp5l8k/ext32k4B_E12dP5l8k_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4Bp5tail/ext32k4B_E10dP5tail_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #eval EVAL-ext32k-4Bp5tail8k ext32k4B_E12dP5tail8k_s50_aime25_T0.6 result:runs/E12d-P5tail-8k/global_step_50/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-4Bp5tail8k ext32k4B_E12dP5tail8k_s50_aime25_T0.6 EVAL-ext32k-4Bp5l8k/ext32k4B_E12dP5l8k_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Bp5tail/ext32k4B_E10dP5tail_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
-# [held until E12d-P5tail-8k has s50] term PROBE-TERM4-4B 4B_P5tail8k result:runs/E12d-P5tail-8k/global_step_50/actor/huggingface EVAL-e12d-P5tail-8k/e12d_P5tail-8k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
-# [held until E12d-P5tail-8k has s50; restored together with the term row above] after EVAL-e12d-P5tail-8k rerun PROBE-TERM4-4B
+#term PROBE-TERM4-4B 4B_P5tail8k result:runs/E12d-P5tail-8k/global_step_50/actor/huggingface EVAL-e12d-P5tail-8k/e12d_P5tail-8k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-e12d-P5tail-8k rerun PROBE-TERM4-4B
 
 # [v2.5.9z91] (Fable's pre-registrations research_program 3e / 3g, science A1 in advance; ops-lead names / queue) four arms for the
 # offline window. Q-074c E12b-P5tail-8k-s43 (the method's chain, second seed): E12b-P5tail-8k's recipe (GRPO, 8K, venv-fa, 50 steps,
@@ -3128,8 +3128,8 @@ fill18   open   EVAL-ext-4Bp5tail:E10d-P5tail EVAL-gm-4Bp5tail:E10d-P5tail EVAL-
 #pair EVAL-ext32k-17t32 ext32k17_E10bP5t32_s50_aime24_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17/ext32k17_P0think_aime24_T0.6_aime24_think_t0.6.jsonl
 #eval EVAL-ext32k-17t32 ext32k17_E10bP5t32_s50_aime25_T0.6 result:runs/E10b-P5-t32/global_step_50/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-17t32 ext32k17_E10bP5t32_s50_aime25_T0.6 EVAL-ext32k-17/ext32k17_E10bP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17p5self/ext32k17_E10bP5self_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17/ext32k17_P0think_aime25_T0.6_aime25_think_t0.6.jsonl
-# [held until E10b-P5-t32 has s50] term PROBE-TERM4 17_P5t32 result:runs/E10b-P5-t32/global_step_50/actor/huggingface EVAL-e10b-P5t32/e10b_P5t32_s50_math500_T0.6_math500_no_think_t0.6.jsonl
-# [held until E10b-P5-t32 has s50; restored together with the term row above] after EVAL-e10b-P5t32 rerun PROBE-TERM4
+#term PROBE-TERM4 17_P5t32 result:runs/E10b-P5-t32/global_step_50/actor/huggingface EVAL-e10b-P5t32/e10b_P5t32_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-e10b-P5t32 rerun PROBE-TERM4
 
 # [v2.5.9z92] (Fable's pre-registrations research_program 3g, second batch, science A1 in advance; ops-lead names / queue) in Fable's
 # offline order; readings after every arm (the scheduler: a reading ahead of a multi-GPU arm takes the freed GPUs first).
@@ -3432,8 +3432,8 @@ fill18   open   EVAL-ext-4Bp5tail:E10d-P5tail EVAL-gm-4Bp5tail:E10d-P5tail EVAL-
 #pair EVAL-ext32k-4Bakl ext32k4B_E10dP5akl_s50_aime24_T0.6 EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #eval EVAL-ext32k-4Bakl ext32k4B_E10dP5akl_s50_aime25_T0.6 result:runs/E10d-P5-akl/global_step_50/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-4Bakl ext32k4B_E10dP5akl_s50_aime25_T0.6 EVAL-ext32k-4B/ext32k4B_E10dP5_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl
-# [held until E10d-P5-akl has s50] term PROBE-TERM4-4B 4B_P5akl result:runs/E10d-P5-akl/global_step_50/actor/huggingface EVAL-e10d-P5akl/e10d_P5akl_s50_math500_T0.6_math500_no_think_t0.6.jsonl
-# [held until E10d-P5-akl has s50; restored together with the term row above] after EVAL-e10d-P5akl rerun PROBE-TERM4-4B
+#term PROBE-TERM4-4B 4B_P5akl result:runs/E10d-P5-akl/global_step_50/actor/huggingface EVAL-e10d-P5akl/e10d_P5akl_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-e10d-P5akl rerun PROBE-TERM4-4B
 # E10b-P5selfroute-c100 (Q-072b): its global_step_50 = the arm's s100 (H1 the wall before s100 -> the probe routing only delays; len_by_step); 16K paired vs selfroute s50, P2 s150 and route s50
 #eval EVAL-e10b-P5selfroute-c100 e10b_P5selfroute_s100_math500_T0.6 result:runs/E10b-P5selfroute-c100/global_step_50/actor/huggingface math500 4 0.6
 #pair EVAL-e10b-P5selfroute-c100 e10b_P5selfroute_s100_math500_T0.6 EVAL-e10b-P5selfroute/e10b_P5selfroute_s50_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P2/e11b_P2_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e10b-P5route/e10b_P5route_s50_math500_T0.6_math500_no_think_t0.6.jsonl
