@@ -608,3 +608,4 @@ commands:
   - {"seq": 606, "cmd": "du ckpt weights_pending", "reason": "storage review §3 ②: weights_pending 232.5 GB on disk vs 91.1 GB not in the cloud; replay says 0 left", "utc": "2026-10-26T00:06:35Z"}
   - {"seq": 607, "cmd": "update", "reason": "v2.6 S0 pushed (rules 2.5.95, CORPUS-RECORD; Fable F7 sign-off, ops-lead A1): run_tasks restarts itself", "utc": "2026-10-26T06:48:18Z"}
   - {"seq": 608, "cmd": "update", "reason": "queue: restore 4 held TERM4 / TERM4-4B rows (s50 done)", "utc": "2026-10-26T06:51:50Z"}
+  - {"seq": 609, "cmd": "du opd_root runs/SFT-P1", "reason": "storage review P1: where SFT-P1's weights are (to publish them)", "utc": "2026-10-26T06:57:52Z"}
