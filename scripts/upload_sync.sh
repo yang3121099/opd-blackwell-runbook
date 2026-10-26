@@ -99,7 +99,7 @@ while true; do
   # runs/<task>/ each time it has STATS_EVERY (10) more rows than at the last upload: s10, s20, ...
   case $TASK in E10[bcde]-*) grep -q '^finished:' $RUN/config.yaml 2>/dev/null || lenwall;; esac   # [v2.5.9z38]; [v2.5.9z68] E10e
   case $TASK in E16-*) x5alert;; esac   # [v2.5.9z59]
-  case $TASK in E12[bcd]-*) if ! grep -q '^finished:' $RUN/config.yaml 2>/dev/null && stats 60; then
+  case $TASK in E12[bcde]-*) if ! grep -q '^finished:' $RUN/config.yaml 2>/dev/null && stats 60; then
     n=$(awk 'NR > 1' $RUN/rollout_stats.csv 2> /dev/null | grep -c .); u=$(cat $RUN/.stats_uploaded 2> /dev/null || echo 0)
     [ $n -ge $(( u + ${STATS_EVERY:-10} )) ] && echo rollout_stats.csv >> $RUN/.up_due \
       && { echo $n > $RUN/.stats_uploaded; echo "STATS_UP $TASK $n steps $(date -u +%T) (queued)"; }
@@ -107,7 +107,7 @@ while true; do
   grep -q '^finished:' $RUN/config.yaml 2> /dev/null || flush_due   # [v2.5.9z52]
   if grep -q '^finished:' $RUN/config.yaml 2>/dev/null && [ $pend = 0 ]; then
     [ -f $RUN/train.log ] && python $RUNBOOK/scripts/metrics_jsonl.py $RUN/train.log > $RUN/metrics.jsonl
-    case $TASK in E12[bcd]-*) stats 0;; esac   # [v2.5.9g] complete, whether or not run_e12.sh's own pass (after finished:) is done
+    case $TASK in E12[bcde]-*) stats 0;; esac   # [v2.5.9g] complete, whether or not run_e12.sh's own pass (after finished:) is done
     case $TASK in E10[bcde]-*) lenwall;; esac   # [v2.5.9z38] the last steps' rows and a late wall; [v2.5.9z68] E10e
     upn train.log config.yaml metrics.jsonl rollout_stats.csv lensel.jsonl stopmerge.jsonl tailswap.jsonl len_by_step.csv wall.json && rm -f $RUN/.up_due   # [v2.5.8m] lensel.jsonl: the length-selected arms' per-prompt record; [v2.5.9z52] one commit
     [ -d $RUN/rollouts ] && up $RUN/rollouts runs/$TASK/rollouts

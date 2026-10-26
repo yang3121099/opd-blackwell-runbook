@@ -60,6 +60,10 @@ SIZE=""; [[ $TASK =~ ^E10d-(P2|P5)(-s43)?$ ]] && { BASE=E10b-${BASH_REMATCH[1]};
 # prompt); E10d's batching and lr, 50 steps, four GPUs (#gpus 4: FSDP over four ranks, one vLLM engine each, the teacher offloaded),
 # flash-attn, s25 / s50 up; gated by PROBE-8B (a 4-GPU 3-step smoke; the teacher's rows per call counted)
 [ $TASK = E10e-P5self ] && { BASE=E10b-P5; SIZE=8B; SELF=1; }
+# [v2.5.9z91] (Q-075b, Fable's pre-registration research_program 3g) E10e-P5tail = E10b-P5tail's recipe for the 8B student taught by itself:
+# its own weights read on the thinking template up to the first box and on the non-thinking one after it (self + tail swap; no larger
+# same-family teacher), four GPUs, 50 steps, s25 / s50 saved and uploaded; gated by PROBE-8B (reused), PROBE-TAIL and PROBE-TAIL-8B
+[ $TASK = E10e-P5tail ] && { BASE=E10b-P5; SIZE=8B; SELF=1; }   # its TAIL=1 below, after TAIL=0
 # [v2.5.8i] (reviewer 17:4x UTC, Q-029; Runming: explore Qwen3's separate Instruct / Thinking weights): E10d-X1 = P5's recipe
 # with the student Qwen3-4B-Instruct-2507 and the teacher Qwen3-4B-Thinking-2507, whose own template already opens <think>
 # (so OPD_REF_THINK=0); E10d-X2 = the same student taught by the hybrid Qwen3-4B on the thinking template (as P5). 50 steps;
@@ -74,6 +78,7 @@ XARM=""; [[ $TASK =~ ^E10d-(X1|X2|X4)$ ]] && { XARM=${BASH_REMATCH[1]}; BASE=E10
 # $OPD_ROOT/models/Qwen3-32B), the teacher's parameters offloaded; 50 steps, s25 / s50 saved and uploaded. Gated by PROBE-T32, whose
 # smoke logs the teacher's input rows per call (opd_route.py's count mode, OPD_ROUTE=count: the template unchanged, smoke only).
 T32=0; [ $TASK = E10d-P5-t32 ] && { T32=1; BASE=E10b-P5; SIZE=4B; }
+[ $TASK = E10b-P5-t32 ] && { T32=1; BASE=E10b-P5; }   # [v2.5.9z91] (Q-082, research_program 3e) the same recipe for the 1.7B student, one GPU; PROBE-T32 reused
 # [v2.5.8m] (Q-030, Runming's question 4; reviewer pre-registration 17:5x UTC 10-20): E10b-P5len<S|L|R> = P5's recipe with
 # 16 rollouts per prompt of which only the shortest / longest / a random 4 are kept before the old and reference log-probs
 # (code/patches/opd_lensel.py through the trainer hook lensel_patch.py): 32 prompts x 4 = 128 sequences per update (P5:
@@ -105,6 +110,7 @@ TAIL06=0; [ $TASK = E10c-P5tail ] && { TAIL=1; TAIL06=1; BASE=E10b-P5; MODE=fix4
 # (its base, the 8B teacher tail-swapped), 50 steps, s25 kept on the node, s50 uploaded; gated by PROBE-TAIL (the hook) and
 # PROBE-TAIL-4B (probe_tail.sh: a 3-step smoke of this arm on the 4B)
 [ $TASK = E10d-P5tail ] && { TAIL=1; BASE=E10b-P5; SIZE=4B; }
+[ $TASK = E10e-P5tail ] && TAIL=1   # [v2.5.9z91] (Q-075b) the 8B self + tail swap (BASE / SIZE / SELF above)
 # [v2.5.9z82] (Q-055b, Fable 10-24 18:55 Beijing, research_program 3c) E10c-P5tail-c50 = E10c-P5tail continued to s50: the same recipe
 # for 30 more steps from E10c-P5tail's s20 weights. Its resume state (optimizer, data position) was not kept on the node (the checkpoint
 # holds the HF weights only; nothing under dr/), so Fable's registered fallback: the s20 bf16 weights, a fresh optimizer (constant lr),
@@ -255,6 +261,9 @@ fi
 if [ -n "$SOFTMIX" ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then   # [v2.5.9z83] (Q-073) and the soft mix's own gate
   grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-SOFTMIX/report.json 2> /dev/null || { echo "PROBE-SOFTMIX has not passed: $TASK not started"; exit 3; }
 fi
+if [ $TASK = E10e-P5tail ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then   # [v2.5.9z91] (Q-075b) and the 8B four-GPU smoke
+  grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-TAIL-8B/report.json 2> /dev/null || { echo "PROBE-TAIL-8B has not passed: $TASK not started"; exit 3; }
+fi
 if [ $TASK = E10d-P5tail ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then   # [v2.5.9z84a] (Q-075) and the 4B smoke
   grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-TAIL-4B/report.json 2> /dev/null || { echo "PROBE-TAIL-4B has not passed: $TASK not started"; exit 3; }
 fi
@@ -377,7 +386,7 @@ unset OPD_ROUTE OPD_ROUTE_LABELS OPD_ROUTE_LOG OPD_ROUTE_P; [ -n "$ROUTE" ] && e
 [ -n "$ROUTE_P" ] && export OPD_ROUTE_P=$ROUTE_P   # [v2.5.9z38]
 unset OPD_ROUTE_INVERT; [ -n "$ROUTE_INV" ] && export OPD_ROUTE_INVERT=1   # [v2.5.9z45]
 unset OPD_X5 OPD_X5_EMPTY_THINK OPD_X5_LOG; [ $X5 = 1 ] && export OPD_X5=1 OPD_X5_LOG=$OUT/x5.jsonl; [ $X5E = 1 ] && export OPD_X5_EMPTY_THINK=1   # [v2.5.9z46]
-[ "$SIZE" = 8B ] && [ "${SMOKE:-0}" = 1 ] && export OPD_ROUTE=count OPD_ROUTE_LOG=$OUT/route.jsonl   # [v2.5.9z68] PROBE-8B: the teacher's rows per call
+[ "$SIZE" = 8B ] && [ "${SMOKE:-0}" = 1 ] && [ $TAIL = 0 ] && export OPD_ROUTE=count OPD_ROUTE_LOG=$OUT/route.jsonl   # [v2.5.9z68] PROBE-8B: the teacher's rows per call   # [v2.5.9z91] not in PROBE-TAIL-8B's smoke (the tail swap's two reference passes)
 [ $T32 = 1 ] && [ "${SMOKE:-0}" = 1 ] && export OPD_ROUTE=count OPD_ROUTE_LOG=$OUT/route.jsonl   # [v2.5.9z9] PROBE-T32: the teacher's rows per call
 # [v2.5.9b] the data, prompt length and logged reward: math by default, the tool-call parquet for a tool arm
 TRAIN=$OPD_ROOT/data/dapo_train.parquet; VAL=$OPD_ROOT/data/math500_100.parquet; MAXP=1024; REWARD=$RUNBOOK/code/train/reward_mathverify.py

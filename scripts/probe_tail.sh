@@ -76,16 +76,16 @@ step "unit tests: $(tail -1 $D/unit_tests.txt)"
 [ $rc = 0 ] || finish FAIL "unit tests: $(tail -1 $D/unit_tests.txt)"
 # 2. the 3-step smoke
 for _w in $(seq 19); do
-  used=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $G 2>/dev/null | tr -d ' ')
+  used=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $G 2>/dev/null | tr -d ' ' | sort -n | tail -1)   # [v2.5.9z91] the fullest of a #gpus list
   [ "${used:-1}" -le 1024 ] && break; [ $_w = 19 ] && finish FAIL "gpu $G not empty after 180 s"; sleep ${PTL_WAIT_STEP:-10}
 done
-( while true; do echo "$(date -u +%s),$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $G | tr -d ' ')" >> $D/mem.csv; sleep 5; done ) &
+( while true; do echo "$(date -u +%s),$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $G | tr -d ' ' | sort -n | tail -1)" >> $D/mem.csv; sleep 5; done ) &   # [v2.5.9z91] the fullest GPU
 MP=$!; trap 'kill $MP 2> /dev/null' EXIT
 rm -rf $OPD_ROOT/runs/$T-smoke
 SMOKE=1 SMOKE_STEPS=${PTL_STEPS:-3} PROBE_TASK=$T-smoke bash $RUNBOOK/scripts/run_arm.sh $G ${PTL_ARM:-E10b-P5tail} > $D/smoke.out 2>&1; rc=$?
 kill $MP 2> /dev/null
 mkdir -p $D/smoke; cp $OPD_ROOT/runs/$T-smoke/train.log $OPD_ROOT/runs/$T-smoke/config.yaml $OPD_ROOT/runs/$T-smoke/tailswap.jsonl $D/smoke/ 2> /dev/null
-python3 $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true
+for g in $(echo $G | tr , ' '); do python3 $RUNBOOK/scripts/control.py reap $g $T > /dev/null 2>&1 || true; done   # [v2.5.9z91] each GPU of a #gpus list
 peak=$(cut -d, -f2 $D/mem.csv 2> /dev/null | sort -n | tail -1)
 [ $rc = 0 ] || finish FAIL "smoke exited $rc: $(tail -c 300 $D/smoke.out | tr '\n' ' ')"
 grep -q "CUDA out of memory\|OutOfMemoryError" $D/smoke/train.log 2> /dev/null && finish FAIL "out of memory in the smoke"

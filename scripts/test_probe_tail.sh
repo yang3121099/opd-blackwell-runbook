@@ -74,4 +74,10 @@ setup; FAKE_BUDM="${SM/merged_between:1.0/merged_between:0.0}" smix; checks "[z8
 setup; FAKE_BUDM="${SM/merged_finite:1.0/merged_finite:0.0}" smix; checks "[z83] a non-finite merge is FAIL" "the merge finite 0.0"; cd $SRC; rm -rf $T
 setup; FAKE_BUDM="${SM/softmix_w:0.5/softmix_w:0.4}" smix; checks "[z83] the wrong weight is FAIL" "expected 0.5"; cd $SRC; rm -rf $T
 setup; FAKE_BUDM="$SM"; PTL_PROBE=PROBE-SOFTMIX PTL_ARM=E10b-P5softmix50 PTL_SOFTMIX=0.5 FAKE_BOX=0.0 FAKE_SW=0.0 bash $T/rb/scripts/probe_tail.sh 3 > /dev/null 2>&1; checks "[z83] a config naming the tail swap, not the soft mix, is FAIL" "does not name the soft mix at 0.5"; cd $SRC; rm -rf $T
+# [v2.5.9z91] (Q-075b) PROBE-TAIL-8B: the smoke of E10e-P5tail on four GPUs; the empty check and the memory samples take the fullest GPU of the
+# list (nvidia-smi prints one line per GPU), each GPU is reaped; its own report
+setup; printf '#!/usr/bin/env bash\nprintf "100\\n200\\n300\\n400\\n"\n' > $T/bin/nvidia-smi
+PTL_PROBE=PROBE-TAIL-8B PTL_ARM=E10e-P5tail bash $T/rb/scripts/probe_tail.sh 4,5,6,7 > /dev/null 2>&1
+ok "[z91] PROBE-TAIL-8B PASS on four GPUs: the smoke of E10e-P5tail on 4,5,6,7, each GPU reaped, the fullest GPU sampled; its own report" 'python3 -c "import json, sys; sys.exit(json.load(open(sys.argv[1]))[\"result\"] != \"PASS\")" $T/root/runs/PROBE-TAIL-8B/report.json && grep -q "^run_arm 4,5,6,7 E10e-P5tail SMOKE=1 STEPS=3 PROBE_TASK=PROBE-TAIL-8B-smoke$" $CALLS && [ "$(grep -c "^control reap [4-7] PROBE-TAIL-8B$" $CALLS)" = 4 ] && ! grep -qv "^[0-9]*,400$" $T/root/runs/PROBE-TAIL-8B/mem.csv && [ ! -f $T/root/runs/PROBE-TAIL/.done ]'
+cd $SRC; rm -rf $T
 [ $fails = 0 ] && echo "PROBE_TAIL_TEST PASS ($n checks)" || echo "PROBE_TAIL_TEST FAIL ($fails of $n)"

@@ -7,7 +7,7 @@ set -uo pipefail
 source "$(dirname "$0")/env.sh"; G=$1; T=$2
 # [v2.5.9a] G = one GPU, cpu, or a list a,b (a #gpus task, run_tasks.sh): a list only for the trainings and PROBE-2GPU
 [[ $G =~ ^([0-9]+(,[0-9]+){0,3}|cpu)$ ]] || { echo "bad gpu $G"; exit 2; }
-case $G in *,*) [[ $T =~ ^(E10[bcde]-|E12[bcd]-|PROBE-2GPU$|PROBE-8B$) ]] || { echo "$T takes one GPU (got $G)"; exit 2; };; esac
+case $G in *,*) [[ $T =~ ^(E10[bcde]-|E12[bcde]-|PROBE-2GPU$|PROBE-8B$|PROBE-E12E-8K$|PROBE-TAIL-8B$) ]] || { echo "$T takes one GPU (got $G)"; exit 2; };; esac
 # v2.5.4a: a task whose previous attempt ran out of GPU memory (run_tasks.sh writes runs/<task>/.oom) gets FIXED_MICRO_BSZ=4
 # for its own retries, unless the key is set already; nothing else changes
 [ -f $OPD_ROOT/runs/$T/.oom ] && [ -z "${FIXED_MICRO_BSZ:-}" ] && { export FIXED_MICRO_BSZ=4; echo "OOM_RETRY $T with FIXED_MICRO_BSZ=4"; }
@@ -17,6 +17,12 @@ case $G in *,*) [[ $T =~ ^(E10[bcde]-|E12[bcd]-|PROBE-2GPU$|PROBE-8B$) ]] || { e
 [ $T = E10d-P5-t32 ] && [ -f $OPD_ROOT/runs/$T/.oom ] && [ -z "${T32_OPT_OFFLOAD:-}" ] && { export T32_OPT_OFFLOAD=1; echo "OOM_RETRY $T with T32_OPT_OFFLOAD=1"; python3 $RUNBOOK/scripts/control.py event $T t32_opt_offload_on_retry "the previous attempt ran out of GPU memory: the actor's optimizer offloaded" > /dev/null 2>&1; }
 ARMS="P2|P3|P4lowlr|P5|P6|P6r|P2noEOS|Pstop|P6rand|P6top5|P4EOSpen|P5top10|P5rand10m"
 case $T in
+  E10b-P5-t32) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z91] (Q-082, Fable's pre-registration research_program 3e) E10d-P5-t32's recipe for the 1.7B student (the 32B thinking teacher offloaded, vLLM 0.4, the optimizer offloaded as PROBE-T32 needed), one GPU; gated by PROBE-T32
+  E10e-P5tail) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z91] (Q-075b, research_program 3g) E10b-P5tail's recipe for the 8B student taught by itself (self + tail swap), #gpus 4; gated by PROBE-8B, PROBE-TAIL and PROBE-TAIL-8B
+  E12b-P5tail-8k-s43) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z91] (Q-074c, 3g) the method's chain, second seed: the 8K RL arm from E10b-P5tail-s43 s50; above E12b-* (z84b)
+  E12e-P5self-8k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z91] (Q-081, 3e) the 8B window arm: the 8K RL recipe from E10e-P5self s50, #gpus 4; gated by PROBE-E12B-8K and PROBE-E12E-8K
+  PROBE-E12E-8K) PEV_LADDER=E12e bash $RUNBOOK/scripts/probe_e12var.sh $G 8k;;   # [v2.5.9z91] (Q-081): the gate of E12e-P5self-8k, a 4-GPU 3-step smoke (#gpus 4)
+  PROBE-TAIL-8B) PTL_PROBE=PROBE-TAIL-8B PTL_ARM=E10e-P5tail bash $RUNBOOK/scripts/probe_tail.sh $G;;   # [v2.5.9z91] (Q-075b): the 8B tail arm's smoke, four GPUs (#gpus 4)
   E10b-P5tail-s43) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z41] (padding ruling 10-22) tail-swap, data.seed 43
   E10b-P5route-inv) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z45] (Q-063) route reversed: easy -> thinking teacher
   E10b-P5selfroute) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z82] (Q-072) route with the probe's out-of-fold labels

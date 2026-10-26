@@ -1368,7 +1368,7 @@ def test_run_and_rerun_accept_v259z84a(env):   # [v2.5.9z84a] (Q-074 / Q-075) E1
     for i, t in enumerate(("E12b-P5tail-8k", "E10d-P5tail", "PROBE-TAIL-4B")):
         st, msg, _ = env.c.v_run([t], 180 + i)
         assert st == "accepted", (t, msg)
-    for i, t in enumerate(("E12b-P5tail-16k", "E10d-P5tail-s43", "PROBE-TAIL-8B")):
+    for i, t in enumerate(("E12b-P5tail-16k", "E10d-P5tail-s43", "PROBE-TAIL-16B")):   # [v2.5.9z91] PROBE-TAIL-8B exists since z91
         assert env.c.v_run([t], 190 + i)[0] == "rejected", t
     R.parse({"cmd": "rerun PROBE-TAIL-4B", "reason": "t"})
     assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 93)
@@ -1438,8 +1438,8 @@ def test_run_and_rerun_accept_v259z68(env):   # [v2.5.9z68] (Q-068) the 8B self-
     here = os.path.dirname(os.path.abspath(__file__))
     assert "Qwen/Qwen3-8B) JUDGE=$TEACHER;;" in open(os.path.join(here, "run_queue_eval.sh")).read()     # the 8B base judges TWR
     rt = open(os.path.join(here, "run_tasks.sh")).read()
-    assert "training_task() { case $1 in E10[bcde]-*|" in rt and rt.count("E1(0[bcde]|2[bcd]|6)-") == 2   # trained alike: disk guard, restart
-    assert 'r"E1(0[bcde]|2[bcd]|6)-"' in open(os.path.join(here, "heartbeat.sh")).read()               # kind train
+    assert "training_task() { case $1 in E10[bcde]-*|" in rt and rt.count("E1(0[bcde]|2[bcde]|6)-") == 2   # trained alike: disk guard, restart
+    assert 'r"E1(0[bcde]|2[bcde]|6)-"' in open(os.path.join(here, "heartbeat.sh")).read()               # kind train
     q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
     assert "\n#gpus E10e-P5self 4\n" in q and "\n#gpus PROBE-8B 4\n" in q
 
@@ -1468,7 +1468,7 @@ def test_e12d_p5_8k_run_and_rerun_accepted():   # [v2.5.9z60] (ops-lead's A1 con
     import re
     for c in ("rerun E12d-P5-8k", "run E12d-P5-8k"):
         R.parse({"cmd": c, "reason": "t"})
-    assert re.search(r"E12\[cd\]-\[A-Za-z0-9\._-\]\+", open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "control_rules.py")).read())
+    assert re.search(r"E12\[cde\]-\[A-Za-z0-9\._-\]\+", open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "control_rules.py")).read())
     src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "task.sh")).read()
     assert src.index("  E12d-P5-8k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;") < src.index("  E12d-*)")
 
@@ -1584,3 +1584,22 @@ def test_run_and_rerun_accept_v259z90(env):   # [v2.5.9z90] (Q-074b) E12d-P5tail
     R.parse({"cmd": "rerun E12d-P5tail-8k", "reason": "t"})
     ts = open(os.path.join(os.path.dirname(__file__), "task.sh")).read()
     assert ts.index("  E12d-P5tail-8k) ") < ts.index("  E12d-*) ")
+
+
+def test_run_and_rerun_accept_v259z91(env):   # [v2.5.9z91] (Q-082 / Q-075b / Q-074c / Q-081) four arms and two four-GPU gates (rules 2.5.98)
+    names = ("E10b-P5-t32", "E10e-P5tail", "E12b-P5tail-8k-s43", "E12e-P5self-8k", "PROBE-E12E-8K", "PROBE-TAIL-8B")
+    for i, t in enumerate(names):
+        st, msg, _ = env.c.v_run([t], 280 + i)
+        assert st == "accepted", (t, msg)
+        R.parse({"cmd": f"rerun {t}", "reason": "t"})
+    assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 98)
+    here = os.path.dirname(os.path.abspath(__file__))
+    ts = open(os.path.join(here, "task.sh")).read()
+    assert ts.index("  E12b-P5tail-8k-s43) ") < ts.index("  E12b-*) ") and ts.index("  E10b-P5-t32) ") < ts.index("  E10b-*) ")
+    assert "|E12[bcde]-|PROBE-2GPU$|PROBE-8B$|PROBE-E12E-8K$|PROBE-TAIL-8B$)" in ts      # the four-GPU tasks take a GPU list
+    rt = open(os.path.join(here, "run_tasks.sh")).read()
+    assert "training_task() { case $1 in E10[bcde]-*|E12[bcde]-*|" in rt                 # trained alike: disk guard, restart
+    assert "case $TASK in E12[bcde]-*) stats 0;; esac" in open(os.path.join(here, "upload_sync.sh")).read()
+    q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
+    for g in ("PROBE-E12E-8K", "E12e-P5self-8k", "PROBE-TAIL-8B", "E10e-P5tail"):
+        assert f"\n#gpus {g} 4\n" in q, g

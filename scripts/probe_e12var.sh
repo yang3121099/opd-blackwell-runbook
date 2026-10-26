@@ -28,7 +28,7 @@ set -uo pipefail
 G=$1; VAR=$2; source "$(dirname "$0")/env.sh"
 case $VAR in kl|stop|stop2|8k|16k|r3) ;; *) echo "unknown variant $VAR"; exit 2;; esac   # [v2.5.8c] stop; [v2.5.8h] 8k / 16k; [v2.5.9f] stop2
 # [v2.5.9z85] (Q-077) PEV_LADDER=E12c: PROBE-E12C-8K / -16K, the same smoke of the 0.6B window arm E12c-P5-<8k|16k> (the 1.7B one by default)
-L=${PEV_LADDER:-E12b}; case $L:$VAR in E12b:*|E12c:8k|E12c:16k) ;; *) echo "unknown ladder / variant $L $VAR"; exit 2;; esac
+L=${PEV_LADDER:-E12b}; case $L:$VAR in E12b:*|E12c:8k|E12c:16k|E12e:8k) ;; *) echo "unknown ladder / variant $L $VAR"; exit 2;; esac
 T=PROBE-$(echo $L | tr a-z A-Z)-$(echo $VAR | tr a-z A-Z); D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; mkdir -p $D
 [ -f $D/.done ] && { echo "TASK_ALREADY_DONE $T"; exit 0; }
 rm -f $D/mem.csv   # [v2.5.9z11] this run's memory samples only (a rerun keeps the directory: PROBE-STOPMERGE's 4th peak was the 2nd run's)
@@ -79,17 +79,18 @@ PY
   [ $rc = 0 ] || finish FAIL "r3 unit tests: $(tail -1 $D/unit_tests.txt)"
 fi
 for _w in $(seq 19); do
-  used=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $G 2>/dev/null | tr -d ' ')
+  used=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $G 2>/dev/null | tr -d ' ' | sort -n | tail -1)   # [v2.5.9z91] the fullest of a #gpus list
   [ "${used:-1}" -le 1024 ] && break; [ $_w = 19 ] && finish FAIL "gpu $G not empty after 180 s"; sleep ${PEV_WAIT_STEP:-10}
 done
 step "start gpu=$G variant=$VAR FIXED_MICRO_BSZ=${FIXED_MICRO_BSZ:-} VENV=${VENV:-}"
-( while true; do echo "$(date -u +%s),$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $G | tr -d ' ')" >> $D/mem.csv; sleep 5; done ) &
+( while true; do echo "$(date -u +%s),$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $G | tr -d ' ' | sort -n | tail -1)" >> $D/mem.csv; sleep 5; done ) &   # [v2.5.9z91] the fullest GPU
 MP=$!
 rm -rf $OPD_ROOT/runs/$T-smoke
-SMOKE=1 SMOKE_STEPS=${PEV_STEPS:-3} PROBE_TASK=$T-smoke bash $RUNBOOK/scripts/run_e12.sh $G $L-P5-$VAR > $D/smoke.out 2>&1; rc=$?   # [v2.5.9z85] $L
+ARM=$L-P5-$VAR; [ $L = E12e ] && ARM=$L-P5self-$VAR   # [v2.5.9z91] (Q-081) PEV_LADDER=E12e: PROBE-E12E-8K smokes E12e-P5self-8k on its four GPUs (#gpus 4)
+SMOKE=1 SMOKE_STEPS=${PEV_STEPS:-3} PROBE_TASK=$T-smoke bash $RUNBOOK/scripts/run_e12.sh $G $ARM > $D/smoke.out 2>&1; rc=$?   # [v2.5.9z85] $L
 kill $MP 2> /dev/null
 mkdir -p $D/smoke; cp $OPD_ROOT/runs/$T-smoke/train.log $OPD_ROOT/runs/$T-smoke/config.yaml $D/smoke/ 2> /dev/null
-python3 $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true
+for g in $(echo $G | tr , ' '); do python3 $RUNBOOK/scripts/control.py reap $g $T > /dev/null 2>&1 || true; done   # [v2.5.9z91] each GPU of a #gpus list
 peak=$(cut -d, -f2 $D/mem.csv 2> /dev/null | sort -n | tail -1)
 [ $rc = 0 ] || finish FAIL "smoke exited $rc: $(tail -c 300 $D/smoke.out | tr '\n' ' ')"
 grep -q "CUDA out of memory\|OutOfMemoryError" $D/smoke/train.log 2> /dev/null && finish FAIL "out of memory in the smoke"

@@ -312,7 +312,7 @@ stage_lines() {   # [v2.5.9m] (Runming 10-21 21:2x Beijing via ops-lead: padding
 # [v2.5.9z12] (ops-lead / the reviewer 10-22, the offline-readiness list) a training (E10b/c/d, E12b/c/d, E15, SFT) starts only while
 # the work disk and the checkpoint disk are above the heartbeat's alert lines (DISK_ALERT_GB / CKPT_ALERT_GB; control.py disk_low);
 # readings, probes and the CPU lane go on. An event disk_guard_on / disk_guard_off when it switches.
-training_task() { case $1 in E10[bcde]-*|E12[bcd]-*|E15-*|E16-*|SFT-*) return 0;; esac; return 1; }   # [v2.5.9z68] E10e (8B)
+training_task() { case $1 in E10[bcde]-*|E12[bcde]-*|E15-*|E16-*|SFT-*) return 0;; esac; return 1; }   # [v2.5.9z68] E10e (8B)
 disk_guard() {
   DISK_LOW=$(python $RUNBOOK/scripts/control.py disk_low 2> /dev/null)
   [ "${DRY:-0}" = 1 ] && { [ -n "$DISK_LOW" ] && echo "DISK_GUARD $DISK_LOW"; return; }
@@ -394,8 +394,8 @@ while true; do
       setsid nohup bash $RUNBOOK/scripts/heartbeat.sh >> $OPD_ROOT/logs/heartbeat.log 2>&1 < /dev/null &
       python $RUNBOOK/scripts/control.py event node heartbeat_restarted > /dev/null 2>&1 &
     fi
-    for p in $(pgrep -f "task.sh [0-9]+(,[0-9]+)* E1(0[bcde]|2[bcd]|6)-[A-Za-z0-9._-]+\$"); do   # [v2.5.9z68] E10e
-      t=$(tr '\0' ' ' < /proc/$p/cmdline | grep -oE "E1(0[bcde]|2[bcd]|6)-[A-Za-z0-9._-]+" | tail -1); [ -n "$t" ] || continue
+    for p in $(pgrep -f "task.sh [0-9]+(,[0-9]+)* E1(0[bcde]|2[bcde]|6)-[A-Za-z0-9._-]+\$"); do   # [v2.5.9z68] E10e
+      t=$(tr '\0' ' ' < /proc/$p/cmdline | grep -oE "E1(0[bcde]|2[bcde]|6)-[A-Za-z0-9._-]+" | tail -1); [ -n "$t" ] || continue
       pgrep -f "upload_syn[c].sh $OPD_ROOT/runs/$t\$" > /dev/null && continue
       case $t in
         # [v2.5.9z41] mix75 / mix90 (9z38 left them to the s150 default here) and tail-s43: s50; 8k-s44: s25 / s50, as their arms
@@ -413,6 +413,7 @@ while true; do
         E10c-P5tail-c50) env UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-30} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;   # [v2.5.9z82] (Q-055b) its s30 = s50
         E10b-P5selfroute) env UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-50} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;   # [v2.5.9z82] (Q-072) s50
         E10e-P5self) env UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-25,50} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;   # [v2.5.9z68] s25 / s50
+        E10e-P5tail|E10b-P5-t32) env UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-25,50} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;   # [v2.5.9z91] (Q-075b / Q-082) s25 / s50
         E16-X5|E16-X5e) env UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-25,50} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;   # [v2.5.9z46] (Q-057) s25 / s50
         E12b-P5-prog|E12b-P5-prog-up) env KEEP_BF16=0 UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-25} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;   # [v2.5.9z43] (Q-058) their last step (25 = total s50)
         E10b-P5route|E10b-P5mix|E10b-P5tail|E10b-P5stopmerge|E10b-P5top10|E10b-P5rand10m|E10b-P5think|E10b-P5self|E10b-P5self-s43|E10d-P5self|E10c-P5self|E10b-P2self|E10b-P5len[SLR]) env UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-50} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;   # v2.5.7r: the 50-step arms
@@ -422,7 +423,7 @@ while true; do
         E10c-P5-fix4) env UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-100,150} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;   # [v2.5.8a] s100 too (the lab's 0.6B P5 reading step)
         E10d-P5self-s43) env UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-50} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;   # [v2.5.9z77] (Q-070) s50
         E10b-*|E10c-*|E10d-*) env UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-150} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;
-        E12b-*|E12c-*|E12d-*) case $t in E12b-P5-s44|E12d-P5) s=25,50,75,100;; E12d-P5-8k|E12d-P5-16k|E12d-P5-8k-s43) s=25,50;; E12b-P5-8k|E12b-P5-16k|E12b-P5-r3|E12b-P5-16k-kl) s=25,50;; E12b-P5tail-8k) s=25,50;; E12d-P5tail-8k) s=25,50;; E12b-P5-16k-s44|E12d-P5-16k-s43) s=25,50;; E12c-P5-8k|E12c-P5-16k) s=25,50;; E12c-*|E12d-*|E12b-P0|E12b-P1|E12b-P2|E12b-P3|E12b-P5|E12b-P5-s43|E12b-P2-s43|E12b-P5self|E12b-P5self-s43|E12b-P5-kl|E12b-P5-stop|E12b-P5-stop2) s=100;; *) s=60;; esac   # v2.5.7u: s44's mid-RL steps
+        E12b-*|E12c-*|E12d-*|E12e-*) case $t in E12b-P5-s44|E12d-P5) s=25,50,75,100;; E12b-P5tail-8k-s43|E12e-P5self-8k) s=25,50;; E12d-P5-8k|E12d-P5-16k|E12d-P5-8k-s43) s=25,50;; E12b-P5-8k|E12b-P5-16k|E12b-P5-r3|E12b-P5-16k-kl) s=25,50;; E12b-P5tail-8k) s=25,50;; E12d-P5tail-8k) s=25,50;; E12b-P5-16k-s44|E12d-P5-16k-s43) s=25,50;; E12c-P5-8k|E12c-P5-16k) s=25,50;; E12c-*|E12d-*|E12b-P0|E12b-P1|E12b-P2|E12b-P3|E12b-P5|E12b-P5-s43|E12b-P2-s43|E12b-P5self|E12b-P5self-s43|E12b-P5-kl|E12b-P5-stop|E12b-P5-stop2) s=100;; *) s=60;; esac   # v2.5.7u: s44's mid-RL steps
                 env KEEP_BF16=0 UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-$s} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OPD_ROOT/runs/$t >> $OPD_ROOT/runs/$t/upload.log 2>&1 < /dev/null &;;
       esac
       python $RUNBOOK/scripts/control.py event $t upload_sync_restarted > /dev/null 2>&1 &
