@@ -603,3 +603,4 @@ commands:
   - {"seq": 601, "cmd": "setenv GPUS_SOON_MIN=30", "reason": "E12d-P5-16k-s43 started 21:33:29Z on its 4 GPUs: the hold back to 30 (ops-lead 20:45Z condition)", "utc": "2026-10-25T21:49:15Z"}
   - {"seq": 602, "cmd": "logs E12d-P5-16k-s43 400", "reason": "z86 check: trainer.save_freq=25 in E12d-P5-16k-s43's launch", "utc": "2026-10-25T21:50:59Z"}
   - {"seq": 603, "cmd": "update", "reason": "queue: restore dense-k256's TERM4 row (s50 done)", "utc": "2026-10-25T21:53:31Z"}
+  - {"seq": 604, "cmd": "du ckpt", "reason": "storage review §1 (Runming 08:00 via Fable): idx1 by top-level entry", "utc": "2026-10-26T00:01:51Z"}
