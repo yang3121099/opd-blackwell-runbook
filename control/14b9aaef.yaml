@@ -666,3 +666,4 @@ commands:
   - {"seq": 664, "cmd": "ps", "reason": "executor :13 watch: procs.json fresh for ops-lead's :21 read", "utc": "2026-10-26T22:19:00Z"}
   - {"seq": 665, "cmd": "setenv WEIGHTS_REPLAY_COOL_S=60", "reason": "ops-lead 22:2xZ: retry the 4 results under z94; back to 1800 once struck", "utc": "2026-10-26T22:19:33Z"}
   - {"seq": 666, "cmd": "du opd_root models", "reason": "z89 design: which Qwen3-VL models are on the node (read-only)", "utc": "2026-10-26T22:46:37Z"}
+  - {"seq": 667, "cmd": "setenv WEIGHTS_REPLAY_COOL_S=1800", "reason": "ops-lead 22:2xZ condition met: the 4 old results struck under z94 (ops-lead 22:43Z: all 5 backlog landed); back to 1800", "utc": "2026-10-26T22:51:00Z"}
