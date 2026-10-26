@@ -1368,7 +1368,7 @@ def test_run_and_rerun_accept_v259z84a(env):   # [v2.5.9z84a] (Q-074 / Q-075) E1
     for i, t in enumerate(("E12b-P5tail-8k", "E10d-P5tail", "PROBE-TAIL-4B")):
         st, msg, _ = env.c.v_run([t], 180 + i)
         assert st == "accepted", (t, msg)
-    for i, t in enumerate(("E12b-P5tail-16k", "E10d-P5tail-s43", "PROBE-TAIL-16B")):   # [v2.5.9z91] PROBE-TAIL-8B exists since z91
+    for i, t in enumerate(("E12b-P5tail-32k", "E10d-P5tail-s44", "PROBE-TAIL-16B")):   # [v2.5.9z92] -16k / -s43 exist since z92   # [v2.5.9z91] PROBE-TAIL-8B exists since z91
         assert env.c.v_run([t], 190 + i)[0] == "rejected", t
     R.parse({"cmd": "rerun PROBE-TAIL-4B", "reason": "t"})
     assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 93)
@@ -1603,3 +1603,21 @@ def test_run_and_rerun_accept_v259z91(env):   # [v2.5.9z91] (Q-082 / Q-075b / Q-
     q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
     for g in ("PROBE-E12E-8K", "E12e-P5self-8k", "PROBE-TAIL-8B", "E10e-P5tail"):
         assert f"\n#gpus {g} 4\n" in q, g
+
+
+def test_run_and_rerun_accept_v259z92(env):   # [v2.5.9z92] (Q-074d / Q-075c / Q-074f / Q-074e) the second offline batch, rules unchanged
+    for i, t in enumerate(("E12b-P5tail-16k", "E10d-P5tail-s43", "E12c-P5tail-8k", "E12e-P5tail-8k")):
+        st, msg, _ = env.c.v_run([t], 290 + i)
+        assert st == "accepted", (t, msg)
+        R.parse({"cmd": f"rerun {t}", "reason": "t"})
+    here = os.path.dirname(os.path.abspath(__file__))
+    ts = open(os.path.join(here, "task.sh")).read()
+    assert ts.index("  E12b-P5tail-16k) ") < ts.index("  E12b-*) ") and ts.index("  E12c-P5tail-8k) ") < ts.index("  E12c-*) ")
+    assert ts.index("  E10d-P5tail-s43) ") < ts.index("  E10d-*) ")
+    q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
+    assert "\n#gpus E12b-P5tail-16k 4\n" in q and "\n#gpus E12e-P5tail-8k 4\n" in q
+    st = [l for l in q.split("\n") if l.startswith(("b259z91 ", "b259z92 ", "b259z85 "))]
+    assert [l.split()[0] for l in st] == ["b259z91", "b259z92", "b259z85"]   # the scheduler's order: z91, z92, then z85
+    items = st[1].split()[2:]
+    arms = [x for x in items if not x.startswith("EVAL-")]
+    assert items[:len(arms)] == arms   # readings after every arm

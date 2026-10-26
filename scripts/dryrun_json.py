@@ -96,6 +96,7 @@ KNOWN_READS = [
     (r"^PROBE-T32/escalation\.txt$", "absent by default (the default path); deliberately not planted"),
     (r"^E11b-P0/e11b_P0_math500_T0\.6_\S*$", "INPUT_PLANTS: run_eval.sh's twr reference (an ls under pipefail)"),
     (r"^PROBE-VLM/check_b\.json$", "GATE_FILES: planted with PROBE-VLM's report"),
+    (r"^E10e-P5tail/ckpt/global_step_50$", "[v2.5.9z92] E12e-P5tail-8k's upload check: node_file, the 'not on this node' refusal plants the .uploaded marker"),
 ]
 
 

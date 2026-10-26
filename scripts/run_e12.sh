@@ -29,7 +29,8 @@ source "$(dirname "$0")/env.sh"; source "$(dirname "$0")/dr.sh"; G=$1; T=$2; LAD
 VAR=""; case $A in P5-kl|P5-stop|P5-stop2|P5-8k|P5-16k|P5-r3|P5-16k-kl) VAR=${A#P5-}; A=P5;; esac
 [ "$A" = P5-8k-s44 ] && { VAR=8k; A=P5-s44; }   # [v2.5.9z41] (the reviewer's padding ruling 10-22) E12b-P5-8k-s44: the 8K arm from E10b-P5-s44 s150
 [ "$A" = P5tail-8k ] && { VAR=8k; A=P5tail; }
-[ "$A" = P5tail-8k-s43 ] && { VAR=8k; A=P5tail-s43; }   # [v2.5.9z91] (Q-074c) E12b-P5tail-8k-s43: E12b-P5tail-8k's recipe from E10b-P5tail-s43 s50 (the method's chain, second seed)
+[ "$A" = P5tail-8k-s43 ] && { VAR=8k; A=P5tail-s43; }
+[ "$A" = P5tail-16k ] && { VAR=16k; A=P5tail; }   # [v2.5.9z92] (Q-074d) E12b-P5tail-16k: E12b-P5-16k's recipe from E10b-P5tail s50, #gpus 4   # [v2.5.9z91] (Q-074c) E12b-P5tail-8k-s43: E12b-P5tail-8k's recipe from E10b-P5tail-s43 s50 (the method's chain, second seed)
 [ "$A" = P5self-8k ] && { VAR=8k; A=P5self; }   # [v2.5.9z91] (Q-081) E12e-P5self-8k: the 8K RL recipe for the 8B student from E10e-P5self s50, #gpus 4   # [v2.5.9z84a] (Q-074; Fable 10-25, paper_core 2: the method's chain) E12b-P5tail-8k: E12b-P5-8k's recipe from E10b-P5tail s50
 [ "$A" = P5-16k-s44 ] && { VAR=16k; A=P5-s44; }   # [v2.5.9z84] (Q-076; Fable 10-25) E12b-P5-16k-s44: E12b-P5-16k's recipe from E10b-P5-s44 s150 (the 1.7B 16K window's second start), #gpus 2
 [ "$A" = P5-16k-s43 ] && { VAR=16k; A=P5-s43; }   # [v2.5.9z84] (Q-076) E12d-P5-16k-s43: E12d-P5-16k's recipe from E10d-P5-s43 s150 (the 4B 16K window's second start), #gpus 4
@@ -52,6 +53,11 @@ SRUN=$SRC-$A; [ $LADDER = E12c ] && SRUN=E10c-$A-fix4   # [v2.5.8a] the 0.6B sta
 SS=150; case $A in P5self|P5self-s43) SS=50;; esac       # [v2.5.8a] E10b-P5self ran 50 steps; [v2.5.8e] its seed 43 too
 [ "$A" = P5tail ] && SS=50   # [v2.5.9z84a] (Q-074) E10b-P5tail ran 50 steps
 [ "$A" = P5tail-s43 ] && SS=50   # [v2.5.9z91] (Q-074c) its seed 43 too
+[ $T = E12c-P5tail-8k ] && { SRUN=E10c-P5tail-c50; SS=30; }   # [v2.5.9z92] (Q-074f) the 0.6B tail arm's s50 = E10c-P5tail-c50's global_step_30 (20 + 30 steps)
+if [ $T = E12e-P5tail-8k ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then   # [v2.5.9z92] (Q-074e) its gates as Q-081 (PROBE-E12B-8K / PROBE-E12E-8K, ops-lead 12:06Z: the 8B 4-GPU fit), and E10e-P5tail's s50 uploaded (upload_sync's marker), else WAIT_INPUTS; no wait for Q-075b's readings (Fable)
+  U=$OPD_ROOT/runs/E10e-P5tail/ckpt/global_step_50
+  [ -f $U/.uploaded ] && [ ! -f $U/.not_uploaded ] || { echo "WAIT_INPUTS $T: runs/E10e-P5tail/ckpt/global_step_50/.uploaded not on this node"; exit 1; }   # waiting, no attempt (s50 not uploaded yet)
+fi
 # [v2.5.9z43] (Q-058, the reviewer's pre-registration 10-22) the progressive-window arms continue a run's step 25 for 25 more
 # steps (PROG_STEPS): E12b-P5-prog = E12b-P5's recipe (4K) from E12b-P5-8k s25 (shrink), E12b-P5-prog-up = the 8K recipe from
 # E12b-P5-s44 s25 (grow). Both read the continuation file PROBE-PROG built and checked against the parents' rollouts
@@ -101,7 +107,8 @@ V=$OPD_ROOT/venv; [ "${VENV:-}" = fa ] && [ "${E12B_FA:-0}" = 1 ] && V=$OPD_ROOT
 case $T in E12d-*|E12b-P2-s43|E12b-P5-8k|E12b-P5-16k|E12b-P5-16k-kl) V=$OPD_ROOT/venv-fa;; esac   # v2.5.7o: new arms on flash-attn (reviewer 06:0x UTC); [v2.5.8h] the long limits
 [ $T = E12b-P5-8k-s44 ] && V=$OPD_ROOT/venv-fa   # [v2.5.9z41] as the 8K arm
 [ $T = E12b-P5tail-8k ] && V=$OPD_ROOT/venv-fa   # [v2.5.9z84a] as the 8K arm
-case $T in E12b-P5tail-8k-s43|E12e-*) V=$OPD_ROOT/venv-fa;; esac   # [v2.5.9z91] as the 8K arms
+case $T in E12b-P5tail-8k-s43|E12e-*) V=$OPD_ROOT/venv-fa;; esac
+case $T in E12b-P5tail-16k|E12c-P5tail-8k) V=$OPD_ROOT/venv-fa;; esac   # [v2.5.9z92] as the 16K / 8K arms   # [v2.5.9z91] as the 8K arms
 case $T in E12c-P5-8k|E12c-P5-16k) V=$OPD_ROOT/venv-fa;; esac   # [v2.5.9z85] (Q-077) the long limits on flash-attn, as E12b-P5-8k / -16k (the 0.6B start ran on SDPA: step time and numerical noise only)
 [ $T = E12b-P5-16k-s44 ] && V=$OPD_ROOT/venv-fa   # [v2.5.9z84] as the 16K arm
 [ $T = E12b-P5-prog-up ] && V=$OPD_ROOT/venv-fa   # [v2.5.9z43] as the 8K arm
@@ -162,7 +169,8 @@ UW=$STEPS; case $T in E12b-P5-s44|E12d-P5) UW=25,50,75,$STEPS;; E12b-P5-8k|E12b-
 [ $T = E12d-P5-16k ] && UW=25,$STEPS   # [v2.5.9z67] (Q-069) as the 16K arm: s25 and s50 up
 [ $T = E12d-P5-8k-s43 ] && UW=25,$STEPS   # [v2.5.9z77] (Q-071) as E12d-P5-8k: s25 and s50 up
 [ $T = E12b-P5tail-8k ] && UW=25,$STEPS   # [v2.5.9z84a] (Q-074) as the 8K arm: s25 and s50 up
-case $T in E12b-P5tail-8k-s43|E12e-P5self-8k) UW=25,$STEPS;; esac   # [v2.5.9z91] (Q-074c / Q-081) s25 and s50 up (z86: saved every 25 steps)
+case $T in E12b-P5tail-8k-s43|E12e-P5self-8k) UW=25,$STEPS;; esac
+case $T in E12b-P5tail-16k|E12c-P5tail-8k|E12e-P5tail-8k) UW=25,$STEPS;; esac   # [v2.5.9z92] (Q-074d / f / e) s25 and s50 up   # [v2.5.9z91] (Q-074c / Q-081) s25 and s50 up (z86: saved every 25 steps)
 [ $T = E12d-P5tail-8k ] && UW=25,$STEPS   # [v2.5.9z90] (Q-074b) as E12d-P5-8k: s25 and s50 up (z86: saved every 25 steps)
 case $T in E12b-P5-16k-s44|E12d-P5-16k-s43) UW=25,$STEPS;; esac   # [v2.5.9z84] (Q-076) as the 16K arms: s25 and s50 up
 case $T in E12c-P5-8k|E12c-P5-16k) UW=25,$STEPS;; esac   # [v2.5.9z85] (Q-077) as the 1.7B / 4B window arms: s25 and s50 up

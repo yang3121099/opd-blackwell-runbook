@@ -17,6 +17,10 @@ case $G in *,*) [[ $T =~ ^(E10[bcde]-|E12[bcde]-|PROBE-2GPU$|PROBE-8B$|PROBE-E12
 [ $T = E10d-P5-t32 ] && [ -f $OPD_ROOT/runs/$T/.oom ] && [ -z "${T32_OPT_OFFLOAD:-}" ] && { export T32_OPT_OFFLOAD=1; echo "OOM_RETRY $T with T32_OPT_OFFLOAD=1"; python3 $RUNBOOK/scripts/control.py event $T t32_opt_offload_on_retry "the previous attempt ran out of GPU memory: the actor's optimizer offloaded" > /dev/null 2>&1; }
 ARMS="P2|P3|P4lowlr|P5|P6|P6r|P2noEOS|Pstop|P6rand|P6top5|P4EOSpen|P5top10|P5rand10m"
 case $T in
+  E12b-P5tail-16k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z92] (Q-074d, Fable's pre-registration research_program 3g) E12b-P5-16k's recipe from E10b-P5tail s50, #gpus 4; above E12b-* (z84b)
+  E10d-P5tail-s43) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z92] (Q-075c, 3g) the 4B tail swap with data.seed 43, one GPU; gated by PROBE-TAIL and PROBE-TAIL-4B
+  E12c-P5tail-8k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z92] (Q-074f, 3g) E12c-P5-8k's recipe from E10c-P5tail-c50 s50 (its global_step_30), one GPU; above E12c-*
+  E12e-P5tail-8k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z92] (Q-074e, 3g) the 8B method chain: the 8K RL recipe from E10e-P5tail s50, #gpus 4; gated by PROBE-E12B-8K / PROBE-E12E-8K as Q-081, starts once E10e-P5tail's s50 is uploaded (no wait for Q-075b's readings)
   E10b-P5-t32) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z91] (Q-082, Fable's pre-registration research_program 3e) E10d-P5-t32's recipe for the 1.7B student (the 32B thinking teacher offloaded, vLLM 0.4, the optimizer offloaded as PROBE-T32 needed), one GPU; gated by PROBE-T32
   E10e-P5tail) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z91] (Q-075b, research_program 3g) E10b-P5tail's recipe for the 8B student taught by itself (self + tail swap), #gpus 4; gated by PROBE-8B, PROBE-TAIL and PROBE-TAIL-8B
   E12b-P5tail-8k-s43) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z91] (Q-074c, 3g) the method's chain, second seed: the 8K RL arm from E10b-P5tail-s43 s50; above E12b-* (z84b)
