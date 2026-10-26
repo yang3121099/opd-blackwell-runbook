@@ -364,3 +364,18 @@ def test_t9_reap_put_event_never_execute():   # [ops-lead O7] the side-effect su
         assert out.strip() == "${NODE}"
     finally:
         shutil.rmtree(tmp)
+
+
+@pytest.mark.parametrize("var", ["DRYRUN_SB", "DRYRUN_REAL_PY"])
+def test_z88e_entry_points_refuse_inside_a_sandbox(var, tmp_path):   # [v2.5.9z88e] both entries stop at once, writing nothing
+    env = {k: v for k, v in os.environ.items() if not k.startswith("DRYRUN_")}; env[var] = "/sb"
+    env["OPD_ROOT"] = str(tmp_path / "opd"); env["CKPT_ROOT"] = str(tmp_path / "ck")
+    r = subprocess.run(["bash", os.path.join(HERE, "dryrun_json.sh"), "--all"], env=env, capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0 and "CORPUS_RECORD_REFUSED" in r.stdout and not (tmp_path / "opd").exists()
+    r = subprocess.run([sys.executable, os.path.join(HERE, "dryrun_json.py"), "--all"], env=env, capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0 and "CORPUS_RECORD_REFUSED" in r.stdout and not (tmp_path / "ck").exists()
+
+
+def test_z88e_self_names_never_recorded():
+    names, _ = J.all_tasks(RB)
+    assert "CORPUS-RECORD" not in names and "BUILD-RB-IDX1" not in names and set(J.SELF) >= {"CORPUS-RECORD", "BUILD-RB-IDX1"}

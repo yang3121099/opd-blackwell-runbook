@@ -136,7 +136,9 @@ def all_tasks(runbook):
     """task.sh's literal names, every task of the queue's stage lines; and the family globs no listed name covers."""
     case = main_case_names(os.path.join(runbook, "scripts", "task.sh"))
     lit = [a for _, alts in case for a in alts if not re.search(r"[*?\[]", a)]
-    names = sorted(set(lit) | set(queue_tasks(os.path.join(runbook, "tasks", "queue.txt"))) - set(SELF))
+    # [v2.5.9z88e] the parentheses: `-` binds tighter than `|`, so SELF used to leave the queue's names only, never task.sh's
+    # literals - CORPUS-RECORD, a task.sh literal, was recorded and its sandbox ran a real nested recording (10-26 06:48Z)
+    names = sorted((set(lit) | set(queue_tasks(os.path.join(runbook, "tasks", "queue.txt")))) - set(SELF))
     globs = [a for _, alts in case for a in alts if re.search(r"[*?\[]", a) and a != "*"]
     uncovered = [g for g in globs if not any(fnmatch.fnmatchcase(n, g) for n in names)]
     return names, uncovered
@@ -147,7 +149,8 @@ def all_tasks(runbook):
 # matches the real GPU indices. So the sandbox calls task.sh with GPU indices from SANDBOX_GPU0 (no node has a GPU 90) and a
 # trailing SANDBOX_MARK argument (task.sh reads $1 / $2 only): none of those scans can match a sandboxed process.
 SANDBOX_GPU0 = 90
-SELF = ("CORPUS-RECORD",)   # never recorded by itself (it would start a nested recording)
+SELF = ("CORPUS-RECORD", "BUILD-RB-IDX1")   # never recorded: the recorder itself (a nested recording), and [v2.5.9z88e] a task
+# that would signal the node's own loops
 SANDBOX_MARK = "--dryrun-sandbox"
 
 
@@ -543,6 +546,9 @@ def runbook_state(runbook):
 
 
 def main(argv=None):
+    if os.environ.get("DRYRUN_SB") or os.environ.get("DRYRUN_REAL_PY"):   # [v2.5.9z88e] never inside a sandbox (no nested recording)
+        print("CORPUS_RECORD_REFUSED inside a sandbox: no nested recording")
+        return 0
     ap = argparse.ArgumentParser()
     ap.add_argument("tasks", nargs="*")
     ap.add_argument("--all", action="store_true")

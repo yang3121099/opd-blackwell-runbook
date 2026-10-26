@@ -5,6 +5,9 @@
 # of the index, the findings and the tarball to the private repository. CPU lane, nice 19, 60 s a task, 2 h in all.
 # Usage: bash dryrun_json.sh --all | <task>...  [--profile clean|node|both] [--no-upload]   (dryrun_json.py --help)
 set -uo pipefail
+# [v2.5.9z88e] (10-26 06:48Z: a sandbox ran the recorder again and the nesting grew) never inside a sandbox: every nested level
+# re-reads this file from the real checkout, so from this push on a new level stops here at once
+if [ -n "${DRYRUN_SB:-}${DRYRUN_REAL_PY:-}" ]; then echo "CORPUS_RECORD_REFUSED inside a sandbox: no nested recording"; exit 0; fi
 source "$(dirname "$0")/env.sh"
 D=$OPD_ROOT/runs/CORPUS-RECORD
 TD=(); [ "${1:-}" = --all ] && { mkdir -p $D; [ -f $D/.done ] && { echo "TASK_ALREADY_DONE CORPUS-RECORD"; exit 0; }; TD=(--task-dir $D); }
