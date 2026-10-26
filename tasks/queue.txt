@@ -3107,8 +3107,8 @@ fill18   open   EVAL-ext-4Bp5tail:E10d-P5tail EVAL-gm-4Bp5tail:E10d-P5tail EVAL-
 #pair EVAL-ext32k-8Bp5tail ext32k8B_E10eP5tail_s50_aime24_T0.6 EVAL-ext32k-8Bp5self/ext32k8B_E10eP5self_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-8Bthink-aime/ext32k8B_think_aime24_T0.6_aime24_think_t0.6.jsonl
 #eval EVAL-ext32k-8Bp5tail ext32k8B_E10eP5tail_s50_aime25_T0.6 result:runs/E10e-P5tail/global_step_50/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-8Bp5tail ext32k8B_E10eP5tail_s50_aime25_T0.6 EVAL-ext32k-8Bp5self/ext32k8B_E10eP5self_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-8Bthink-aime/ext32k8B_think_aime25_T0.6_aime25_think_t0.6.jsonl
-# [held until E10e-P5tail has s50] term PROBE-TERM4 8B_P5tail result:runs/E10e-P5tail/global_step_50/actor/huggingface EVAL-e10e-P5tail/e10e_P5tail_s50_math500_T0.6_math500_no_think_t0.6.jsonl
-# [held until E10e-P5tail has s50; restored together with the term row above] after EVAL-e10e-P5tail rerun PROBE-TERM4
+#term PROBE-TERM4 8B_P5tail result:runs/E10e-P5tail/global_step_50/actor/huggingface EVAL-e10e-P5tail/e10e_P5tail_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-e10e-P5tail rerun PROBE-TERM4
 # Q-082 E10b-P5-t32 (1.7B <- the 32B thinking teacher): E10d-P5-t32's recipe for the 1.7B student (the 32B offloaded, vLLM 0.4, the
 # optimizer offloaded as PROBE-T32 needed), 50 steps, s25 / s50 up, one GPU (about 6-8 h); gated by PROBE-T32 (reused). Readings
 # (teacher_variant_family, p5_ref = P5 s150): MATH-500 16K paired with the base, P5 s150 and P5self s50; the 32K budget curves vs the base
