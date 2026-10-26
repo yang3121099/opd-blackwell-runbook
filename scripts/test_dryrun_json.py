@@ -396,6 +396,11 @@ def test_z88c_named_self_tasks_are_skipped(tmp_path):
     assert "skips CORPUS-RECORD PROBE-NET2" in r.stdout and not list((out / "corpus" / "clean").glob("*.json"))
 
 
+def test_z88c_empty_values_match_nothing(tmp_path):   # ops-lead S1: a finally before RUN_ID is set must not match every process
+    proc = tmp_path / "proc"; (proc / "7").mkdir(parents=True); (proc / "7" / "environ").write_bytes(b"DRYRUN_RUN_ID=\0PATH=/bin\0")
+    assert J.env_pids("DRYRUN_RUN_ID", "", str(proc)) == [] and J.reap_env("DRYRUN_RUN_ID", "", str(proc)) == 0
+
+
 def test_z88c_child_env_carries_the_run_id():
     old = J.RUN_ID
     try:

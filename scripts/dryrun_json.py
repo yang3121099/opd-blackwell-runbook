@@ -277,7 +277,9 @@ def env_pids(key, value, proc="/proc"):
 
 def reap_env(key, value, proc="/proc"):
     """[v2.5.9z88c c] SIGKILL every process carrying key=value, again until none is left (a nested run opens new sessions, so a
-    process-group kill misses them). The number killed."""
+    process-group kill misses them). The number killed; an empty value (no run id yet) matches nothing."""
+    if not value:
+        return 0
     n = 0
     for _ in range(10):
         pids = env_pids(key, value, proc)
