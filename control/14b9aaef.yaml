@@ -639,3 +639,4 @@ commands:
   - {"seq": 637, "cmd": "du ckpt E10e-P5self/ckpt", "reason": "Q-081: start E10e-P5self s50 local on idx1", "utc": "2026-10-26T10:55:57Z"}
   - {"seq": 638, "cmd": "du ckpt ", "reason": "fill18: which runs keep local checkpoints (rows only; read-only)", "utc": "2026-10-26T11:28:18Z"}
   - {"seq": 639, "cmd": "setenv GPUS_HOLD_MIN=1440", "reason": "z91 09a47ff pushed: strict holds for the 4-GPU chain Q-081 -> Q-075b -> Q-074d -> Q-074e over the offline window (ops-lead A1 inbox 11:30 / 11:35Z; scheduler v130)", "utc": "2026-10-26T11:35:55Z"}
+  - {"seq": 640, "cmd": "setenv GPUS_SOON_MIN=1440", "reason": "z91 09a47ff pushed: strict holds for the 4-GPU chain over the offline window (ops-lead A1 inbox 11:30 / 11:35Z; scheduler v130)", "utc": "2026-10-26T11:36:01Z"}
