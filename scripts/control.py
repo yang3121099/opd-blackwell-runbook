@@ -1625,6 +1625,38 @@ def do_publish(seq, t):
     event(t, "published" if ok else "publish_failed", f"{len(done)} files {nbytes / 1e9:.2f} GB")
 
 
+def v_pend_weight(a, seq, flags=None, entry=None):
+    """pend-weight <task> <step> ([v2.5.9z88b], rules 2.5.96; storage review 10-26 §3 P1, ops-lead / Fable): one finished step's
+    local bf16 weights go into the weights queue (remote.py defer_weight: held under $CKPT_ROOT/weights_pending, one line in
+    control/weights_pending.txt), so weights_replay.py sends them to the public repository as
+    runs/<task>/global_step_<step>/actor/huggingface (the standard layout). Sources, the first with weights:
+    ckpt/global_step_<step>/actor/huggingface_bf16, then final_bf16/ when final_step is <step> (an SFT's final bf16 copy, SFT-P1).
+    Refused while the task runs, without a bf16 source, or over the upload cap; fp32 saves and resume states are never queued."""
+    t, step = a[0], a[1]
+    d = os.path.join(ROOT, "runs", t)
+    if not os.path.isdir(d):
+        return "rejected", f"no runs/{t} on this node", {}
+    if running_pids(t):
+        return "rejected", f"{t} is running", {}
+    srcs = [os.path.join(d, "ckpt", f"global_step_{step}", "actor", "huggingface_bf16")]
+    if (_read(os.path.join(d, "final_step")) or "").strip() == step:
+        srcs.append(os.path.join(d, "final_bf16"))
+    src = next((x for x in srcs if os.path.isdir(x) and any(f.endswith(".safetensors") for f in os.listdir(x))), None)
+    if not src:
+        return "rejected", f"{t}: no bf16 weights of step {step} on this node", {}
+    size = sum(os.path.getsize(os.path.join(r, f)) for r, _, fs in os.walk(src) for f in fs)
+    if size > R.MAX_UPLOAD_BYTES:
+        return "rejected", f"{t} s{step}: {size / 2**30:.1f} GB > 20 GB cap", {}
+    sys.path.insert(0, os.path.join(RUNBOOK, "scripts"))
+    import remote
+    dst = f"runs/{t}/global_step_{step}/actor/huggingface"
+    try:
+        remote.defer_weight(src, dst)
+    except Exception as e:
+        return "failed", f"{t} s{step}: not queued ({type(e).__name__})", {}
+    return "ok", f"{t} s{step}: {size / 1e9:.2f} GB queued for the public repository as {dst} (weights_replay sends it)", {"bytes": size}
+
+
 def v_leakscan(a, seq, flags=None, entry=None):
     """leakscan (v2.5.6j): scan the current public repository's non-weight files on this node (nothing is downloaded
     anywhere else) for this machine's user / host / path tokens, private or own IPv4 addresses (not in generation outputs)
@@ -3043,7 +3075,7 @@ def _v24(fn):
 VERBS = {"pause": _v24(v_pause), "resume": _v24(v_resume), "kill": _v24(v_kill), "prio": _v24(v_prio),
          "restore": _v24(v_restore), "rerun_verify": _v24(v_rerun_verify), "setenv": v_set, "set": v_set,
          "snapshot": lambda a, seq, flags=None, entry=None: v_snapshot0(seq) if not a else v_snapshot(a, seq),
-         "ps": v_ps, "logs": v_logs, "run": v_run, "rerun": v_rerun, "republish": v_republish, "publish": v_publish, "leakscan": v_leakscan, "fa-build": v_fa_build, "scrubdiff": v_scrubdiff, "du": v_du, "inventory": v_inventory, "rm-ours": v_rm_ours, "dr-keep": v_dr_keep, "persist-env": v_persist_env, "rebuild-drill": v_rebuild_drill, "eval": v_eval, "update": v_update, "upload": v_upload,
+         "ps": v_ps, "logs": v_logs, "run": v_run, "rerun": v_rerun, "republish": v_republish, "publish": v_publish, "pend-weight": v_pend_weight, "leakscan": v_leakscan, "fa-build": v_fa_build, "scrubdiff": v_scrubdiff, "du": v_du, "inventory": v_inventory, "rm-ours": v_rm_ours, "dr-keep": v_dr_keep, "persist-env": v_persist_env, "rebuild-drill": v_rebuild_drill, "eval": v_eval, "update": v_update, "upload": v_upload,
          "signal": v_signal, "kill-pgid": v_killpgid, "cancel": v_cancel, "heartbeat": v_heartbeat, "move-ckpt": v_move_ckpt, "reap": v_reap}
 assert set(VERBS) == set(R.VERBS), set(VERBS) ^ set(R.VERBS)
 TASK_VERBS = R.TASK_VERBS

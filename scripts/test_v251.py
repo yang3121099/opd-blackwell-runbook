@@ -1519,3 +1519,33 @@ def test_ifeval_rules_and_rows_v259z16(env):   # [v2.5.9z16] (rules 2.5.92) benc
     rt, ts = open(os.path.join(HERE, "run_tasks.sh")).read(), open(os.path.join(HERE, "task.sh")).read()
     assert "|BUILD-VENV-IFEVAL) return 0;;" in rt and "  BUILD-VENV-IFEVAL) bash $RUNBOOK/scripts/build_venv_ifeval.sh;;" in ts
     assert '"BUILD-VENV-IFEVAL"' in open(os.path.join(HERE, "heartbeat.sh")).read()
+
+
+@pytest.mark.parametrize("cmd,ok", [("pend-weight SFT-P1 283", True), ("pend-weight E10b-P2 150", True), ("pend-weight SFT-P1", False),
+                                    ("pend-weight SFT-P1 x", False), ("pend-weight a/b 1", False), ("pend-weight SFT-P1 0", False)])
+def test_rules_pend_weight(cmd, ok):   # [v2.5.9z88b] rules 2.5.96
+    if ok:
+        R.parse({"cmd": cmd, "reason": "t"})
+    else:
+        with pytest.raises(R.Reject):
+            R.parse({"cmd": cmd, "reason": "t"})
+
+
+def test_v_pend_weight_sources_and_refusals(env, monkeypatch):   # [v2.5.9z88b] SFT-P1's final_bf16, an arm's bf16 copy, never fp32
+    c = env.c; got = []
+    monkeypatch.setitem(sys.modules, "remote", types.SimpleNamespace(defer_weight=lambda src, dst: got.append((src, dst)) or 7))
+    monkeypatch.setattr(c, "running_pids", lambda t: [])
+    sft = os.path.join(c.ROOT, "runs", "SFT-P1"); os.makedirs(os.path.join(sft, "final_bf16"))
+    open(os.path.join(sft, "final_step"), "w").write("283\n")
+    open(os.path.join(sft, "final_bf16", "model.safetensors"), "w").write("w" * 10)
+    st, msg, extra = c.v_pend_weight(["SFT-P1", "283"], 90)
+    assert st == "ok" and got[-1] == (os.path.join(sft, "final_bf16"), "runs/SFT-P1/global_step_283/actor/huggingface") and extra["bytes"] == 10
+    assert c.v_pend_weight(["SFT-P1", "100"], 91)[0] == "rejected"                    # not the final step: no bf16 source
+    arm = os.path.join(c.ROOT, "runs", "E10b-P9"); fp32 = os.path.join(arm, "ckpt", "global_step_50", "actor", "huggingface")
+    os.makedirs(fp32); open(os.path.join(fp32, "model.safetensors"), "w").write("w")
+    assert c.v_pend_weight(["E10b-P9", "50"], 92)[0] == "rejected"                    # fp32 only: never queued
+    bf = fp32 + "_bf16"; os.makedirs(bf); open(os.path.join(bf, "model.safetensors"), "w").write("ww")
+    assert c.v_pend_weight(["E10b-P9", "50"], 93)[0] == "ok" and got[-1] == (bf, "runs/E10b-P9/global_step_50/actor/huggingface")
+    monkeypatch.setattr(c, "running_pids", lambda t: [123])
+    assert c.v_pend_weight(["E10b-P9", "50"], 94)[0] == "rejected" and len(got) == 2  # running: refused
+    assert c.v_pend_weight(["E10b-X", "50"], 95)[0] == "rejected"                     # no run dir

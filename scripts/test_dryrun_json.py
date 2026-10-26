@@ -39,20 +39,30 @@ def _git(*a):
     return r.returncode, r.stdout.decode()
 
 
-def test_t1_footprint_new_files_and_one_line_names():
+def _s0_range():
+    """[v2.5.9z88b] the diff T1 checks: the commit that added dryrun_json.py against its parent once it is committed (S0 on main
+    since 15d3b94: later diffs on other branches are not S0's footprint), else the working tree against its merge base."""
+    _, added = _git("log", "--diff-filter=A", "--format=%H", "--", "scripts/dryrun_json.py")
+    if added.split():
+        c = added.split()[-1]
+        return [f"{c}~1", c], False
     rc, base = _git("merge-base", "HEAD", "origin/main")
-    if rc != 0 or not base.strip():
+    return ([base.strip()] if rc == 0 and base.strip() else None), True
+
+
+def test_t1_footprint_new_files_and_one_line_names():
+    rng, worktree = _s0_range()
+    if not rng:
         pytest.skip("no origin/main to compare with")
-    base = base.strip()
-    _, st = _git("diff", "--name-status", base)
-    _, untracked = _git("ls-files", "--others", "--exclude-standard")
+    _, st = _git("diff", "--name-status", *rng)
+    _, untracked = _git("ls-files", "--others", "--exclude-standard") if worktree else (0, "")
     changes = [l.split("\t") for l in st.strip().split("\n") if l] + [["A", f] for f in untracked.split() if f]
     for kind, f in changes:
         if kind.startswith("A"):
             assert f in NEW_FILES, f"a new file outside the footprint: {f}"
         else:
             assert kind == "M" and (f in ONE_LINE or f in ADD_ONLY), f"an existing file changed: {kind} {f}"
-            _, d = _git("diff", "-U0", base, "--", f)
+            _, d = _git("diff", "-U0", *rng, "--", f)
             body = [l for l in d.split("\n") if l[:1] in ("+", "-") and not l.startswith(("+++", "---"))]
             if f == "tasks/queue.txt":   # rows added; the #pad line gains the stage b26c and nothing else
                 rm = [l[1:] for l in body if l.startswith("-")]
