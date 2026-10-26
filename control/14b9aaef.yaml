@@ -664,3 +664,4 @@ commands:
   - {"seq": 662, "cmd": "ps", "reason": "executor :43 watch: procs.json fresh for ops-lead's :51 read", "utc": "2026-10-26T21:47:54Z"}
   - {"seq": 663, "cmd": "ps", "reason": "z94 8ef905c pushed: confirm the pull before idx0 fills (ops-lead A1 22:08Z)", "utc": "2026-10-26T22:10:36Z"}
   - {"seq": 664, "cmd": "ps", "reason": "executor :13 watch: procs.json fresh for ops-lead's :21 read", "utc": "2026-10-26T22:19:00Z"}
+  - {"seq": 665, "cmd": "setenv WEIGHTS_REPLAY_COOL_S=60", "reason": "ops-lead 22:2xZ: retry the 4 results under z94; back to 1800 once struck", "utc": "2026-10-26T22:19:33Z"}
