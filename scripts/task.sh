@@ -81,6 +81,7 @@ case $T in
   BUILD-VENV-VL) bash $RUNBOOK/scripts/build_venv_vl.sh;;   # [v2.5.9y1] (Q-051) venv-vl for the Qwen3-VL arms (the CPU lane)
   BUILD-VENV-IFEVAL) bash $RUNBOOK/scripts/build_venv_ifeval.sh;;   # [v2.5.9z16] venv-ifeval: Google's IFEval checker, grading only (the CPU lane)
   CORPUS-RECORD) bash $RUNBOOK/scripts/dryrun_json.sh --all;;   # [v2.6 S0] (Fable F7, ops-lead O7: the only structural exception during the v2.6 migration) the golden corpus of 2.5.9's behaviour, CPU lane
+  HEARTBEAT-UNSTICK) bash $RUNBOOK/scripts/heartbeat_unstick.sh;;   # [v2.5.9z88f] (Fable / ops-lead 10-26) the watchdog's gave_up marker removed once no sandbox process is left, CPU lane
   READINGS-EXTRA) bash $RUNBOOK/scripts/readings_extra.sh;;   # [v2.5.9x1] MATH-500 splits and the frontier fill (the CPU lane)
   PROBE-VLLM-VL) bash $RUNBOOK/scripts/probe_vllm_vl.sh $G;;   # [v2.5.9y1] venv-vl's GPU gate: vLLM 0.11.0 + Qwen3-VL-2B on one Geometry3K image
   PROBE-ROLLOUT-U60|PROBE-ROLLOUT-U75|PROBE-ROLLOUT-U85) bash $RUNBOOK/scripts/probe_rollout.sh $G ${T#PROBE-ROLLOUT-};;   # [v2.5.9i] vLLM memory vs E12b step time (one GPU each)

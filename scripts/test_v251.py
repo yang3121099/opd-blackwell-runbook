@@ -7,6 +7,7 @@ import os
 import re
 import time
 import socket
+import subprocess
 import sys
 import types
 
@@ -1549,3 +1550,29 @@ def test_v_pend_weight_sources_and_refusals(env, monkeypatch):   # [v2.5.9z88b] 
     monkeypatch.setattr(c, "running_pids", lambda t: [123])
     assert c.v_pend_weight(["E10b-P9", "50"], 94)[0] == "rejected" and len(got) == 2  # running: refused
     assert c.v_pend_weight(["E10b-X", "50"], 95)[0] == "rejected"                     # no run dir
+
+
+def test_run_and_rerun_accept_v259z88f(env):   # [v2.5.9z88f] HEARTBEAT-UNSTICK (rules 2.5.97): run, rerun after done; the CPU lane
+    st, msg, _ = env.c.v_run(["HEARTBEAT-UNSTICK"], 260)
+    assert st == "accepted", msg
+    R.parse({"cmd": "rerun HEARTBEAT-UNSTICK", "reason": "t"})
+    assert env.c.v_run(["HEARTBEAT-UNSTICKS"], 261)[0] == "rejected"
+    assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 97)
+    assert " HEARTBEAT-UNSTICK) return 0;;" in open(os.path.join(os.path.dirname(__file__), "run_tasks.sh")).read()
+
+
+@pytest.mark.parametrize("sandboxed,marker,want", [(True, True, "WAIT"), (False, True, "PASS"), (False, False, "PASS")])
+def test_heartbeat_unstick(tmp_path, sandboxed, marker, want):   # [v2.5.9z88f] a fake /proc: the marker goes only once no sandbox is left
+    rb = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    opd = tmp_path / "opd"; (opd / "control").mkdir(parents=True); proc = tmp_path / "proc"
+    for pid, env in (("11", b"PATH=/bin\0HOME=/h\0"), ("12", b"DRYRUN_SB=/sb\0PATH=/bin\0" if sandboxed else b"PATH=/bin\0")):
+        (proc / pid).mkdir(parents=True); (proc / pid / "environ").write_bytes(env)
+    if marker:
+        (opd / "control" / "watchdog_heartbeat.gave_up").write_text("x")
+    (opd / "control" / "loop_heartbeat").write_text("0")
+    e = {k: v for k, v in os.environ.items() if not k.startswith("DRYRUN_")}
+    e.update(OPD_ROOT=str(opd), PROC_ROOT=str(proc), CKPT_ROOT=str(tmp_path / "ck"), HOME=str(tmp_path))
+    r = subprocess.run(["bash", os.path.join(rb, "scripts", "heartbeat_unstick.sh")], env=e, capture_output=True, text=True, timeout=60)
+    rep = json.load(open(opd / "runs" / "HEARTBEAT-UNSTICK" / "report.json"))
+    assert rep["result"] == want and (opd / "runs" / "HEARTBEAT-UNSTICK" / ".done").exists(), (r.stdout, r.stderr)
+    assert (opd / "control" / "watchdog_heartbeat.gave_up").exists() == (marker and sandboxed)
