@@ -109,6 +109,57 @@ def test_second_pass_with_stand_ins():
     assert m["tail/rows_box"] == 1.0 and m["tail/swapped"] == 1.0 and m["tail/violations"] == 0.0
 
 
+def test_second_pass_vlm_suffix_and_finished_only():   # [v2.5.9z89] (Q-080b) the VLM teacher's second suffix; unfinished rows masked
+    try:
+        import torch
+    except ImportError:
+        return
+    seen = {}
+
+    def prepare(batch, ref_tokenizer, apply_chat_template_kwargs):
+        seen["suffix"] = os.environ.get("OPD_VLM_REF_SUFFIX"); seen["think"] = os.environ.get("OPD_REF_THINK")
+        batch.batch["ref_input_ids"] = torch.full((2, 4), 7); return batch
+    mod = types.ModuleType("verl.trainer.ppo.ref_input_utils"); mod.prepare_ref_model_inputs = prepare
+    for name in ("verl", "verl.trainer", "verl.trainer.ppo"):
+        sys.modules.setdefault(name, types.ModuleType(name))
+    sys.modules["verl.trainer.ppo.ref_input_utils"] = mod
+
+    class Tok:
+        V = {1: "x", 2: "\\boxed{", 3: "4", 4: "}", 5: " ok", 9: "<|im_end|>"}
+        eos_token_id = 9
+        def batch_decode(self, rows):
+            return [self.V[r[0]] for r in rows]
+        def convert_tokens_to_ids(self, t):
+            return {"<|im_end|>": 9}.get(t, -1)
+
+    class Out:
+        def __init__(self, t): self.batch = {"ref_log_prob": t}
+
+    class WG:
+        def compute_ref_log_prob(self, b):
+            return Out(torch.full((2, 5), -0.25))
+
+    class B:
+        def __init__(self): self.batch = {}
+
+    b = B()   # row 0: box closes at 3, ends with the end token (finished); row 1: no box, cut at the limit (unfinished)
+    b.batch.update(responses=torch.tensor([[1, 2, 3, 4, 9], [1, 5, 5, 5, 5]]), response_mask=torch.ones(2, 5, dtype=torch.long),
+                   ref_log_prob=torch.full((2, 5), -2.0), ref_input_ids=torch.full((2, 4), 3),
+                   ref_attention_mask=torch.ones(2, 4, dtype=torch.long), ref_position_ids=torch.arange(4).repeat(2, 1))
+    tr = types.SimpleNamespace(ref_tokenizer=Tok(), tokenizer=Tok(), ref_in_actor=False, ref_policy_wg=WG(), actor_rollout_wg=None)
+    os.environ.update(OPD_REF_THINK="1", OPD_VLM_REF="1", OPD_VLM_REF_SUFFIX="<think>\n", OPD_FINISHED_ONLY="1")
+    try:
+        b, m = S.second_pass(tr, b, {})
+        assert seen["suffix"] == "<think>\n\n</think>\n\n" and seen["think"] == "0"            # the non-thinking suffix for the second pass
+        assert os.environ["OPD_VLM_REF_SUFFIX"] == "<think>\n" and os.environ["OPD_REF_THINK"] == "1"   # both put back
+    finally:
+        for k in ("OPD_REF_THINK", "OPD_VLM_REF", "OPD_VLM_REF_SUFFIX", "OPD_FINISHED_ONLY"):
+            os.environ.pop(k, None)
+    assert b.batch["ref_log_prob"][0].tolist() == [-2.0, -2.0, -2.0, -2.0, -0.25]   # the first token after the box, included
+    assert b.batch["response_mask"].tolist() == [[1] * 5, [0] * 5]                     # the unfinished row masked
+    assert m["vlm/unfinished_frac"] == 0.5 and m["tail/swapped"] == 1.0 and m["tail/violations"] == 0.0
+
+
 def _bud_case(xp):   # [v2.5.9z73] (Q-061) six positions; rows: box at 1, no box, box at 4 (after the budget), padding
     th = xp.asarray([[-1.0] * 6, [-2.0] * 6, [-3.0] * 6, [-4.0] * 6])
     pl = xp.asarray([[-0.5] * 6, [-0.7] * 6, [-0.9] * 6, [-0.1] * 6])

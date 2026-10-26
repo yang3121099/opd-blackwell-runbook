@@ -1623,6 +1623,26 @@ def test_run_and_rerun_accept_v259z92(env):   # [v2.5.9z92] (Q-074d / Q-075c / Q
     assert items[:len(arms)] == arms   # readings after every arm
 
 
+def test_run_and_rerun_accept_v259z89(env):   # [v2.5.9z89] (Q-080) the VLM retry arms, their gates and the CPU-lane diagnostic (rules 2.5.99)
+    names = ("E15-VLM-P2lo", "E15-VLM-P5tail-lo", "PROBE-VLM-COMPLETE", "PROBE-VLM-TAIL", "DIAG-VLM-TRUNC")
+    for i, t in enumerate(names):
+        st, msg, _ = env.c.v_run([t], 310 + i)
+        assert st == "accepted", (t, msg)
+        R.parse({"cmd": f"rerun {t}", "reason": "t"})
+    assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 99)
+    here = os.path.dirname(os.path.abspath(__file__))
+    ts = open(os.path.join(here, "task.sh")).read()
+    assert "  E15-VLM-P2lo|E15-VLM-P5tail-lo) bash $RUNBOOK/scripts/run_vlm.sh $G $T;;" in ts
+    assert "PTL_PROBE=PROBE-VLM-TAIL PTL_ARM=E15-VLM-P5tail-lo PTL_RUNNER=run_vlm.sh" in ts and "PTL_FINISHED=1 bash" in ts
+    assert "DIAG-VLM-TRUNC) return 0;;" in open(os.path.join(here, "run_tasks.sh")).read()           # the CPU lane
+    q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
+    st = [l.split()[0] for l in q.split("\n") if l.startswith(("b259z92 ", "b259z93 ", "b259z89 ", "b259z92b "))]
+    assert st == ["b259z92", "b259z93", "b259z89", "b259z92b"]                                         # the scheduler 23:3x UTC: after z93, before z92b
+    items = next(l for l in q.split("\n") if l.startswith("b259z89 ")).split()[2:]
+    arms = [x for x in items if not x.startswith("EVAL-")]
+    assert items[:len(arms)] == arms                                                                   # readings after the arms
+
+
 def test_run_and_rerun_accept_v259z93(env):   # [v2.5.9z93] (Q-074g) the third start's tail arm and its 8K arm, rules unchanged
     for i, t in enumerate(("E10b-P5tail-s44", "E12b-P5tail-8k-s44")):
         st, msg, _ = env.c.v_run([t], 300 + i)

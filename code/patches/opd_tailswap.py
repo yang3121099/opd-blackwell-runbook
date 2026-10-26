@@ -21,6 +21,12 @@ the same per step as JSON lines in OPD_TAILSWAP_LOG (optional).
 reference log-prob is w * the thinking reading + (1 - w) * the non-thinking one (the unnormalized geometric mean of the two teachers:
 per position its normalizer only shifts every sampled token's advantage by a constant, unbiased in expectation; a known approximation);
 logged: the mean (non-thinking - thinking), whether the merge lies between the two readings and is finite on every valid token.
+[v2.5.9z89] (Q-080b E15-VLM-P5tail-lo, Fable's design ruling 10-26) the VLM teacher (OPD_VLM_REF=1, opd_vlmref.py): the second
+pass reads the student's own image-expanded ids + the non-thinking suffix OPD_VLM_TAIL_SUFFIX (default the empty think block
+'<think>\n\n</think>\n\n') + the response instead of re-tokenizing text (which would drop the image); both passes score the
+response's last R positions, so the two readings line up by response index whatever the suffix lengths. The switch is the
+same: the first token after the first complete \boxed{} (included), rows without a box read thinking throughout.
+[v2.5.9z89] OPD_FINISHED_ONLY=1: after the merge, opd_finished.apply sets the unfinished rows' response_mask to 0 (vlm/* metrics).
 """
 import json
 import os
@@ -114,11 +120,15 @@ def second_pass(trainer, batch, apply_chat_template_kwargs):
     box = None if w else torch.tensor(_sm.box_ends(responses, valid, trainer.ref_tokenizer), dtype=torch.long)
     lp_think = batch.batch["ref_log_prob"].clone()
     keep = {k: batch.batch[k].clone() for k in ("ref_input_ids", "ref_attention_mask", "ref_position_ids") if k in batch.batch.keys()}
-    old = os.environ.get("OPD_REF_THINK"); os.environ["OPD_REF_THINK"] = "0"   # P2's prompt for this call only
+    env = {"OPD_REF_THINK": "0"}   # P2's prompt for this call only
+    if os.environ.get("OPD_VLM_REF") == "1":   # [v2.5.9z89] the VLM teacher: the non-thinking suffix on the student's own ids
+        env["OPD_VLM_REF_SUFFIX"] = os.environ.get("OPD_VLM_TAIL_SUFFIX", "<think>\n\n</think>\n\n")
+    old = {k: os.environ.get(k) for k in env}; os.environ.update(env)
     try:
         batch = prepare_ref_model_inputs(batch=batch, ref_tokenizer=trainer.ref_tokenizer, apply_chat_template_kwargs=apply_chat_template_kwargs)
     finally:
-        os.environ.pop("OPD_REF_THINK") if old is None else os.environ.__setitem__("OPD_REF_THINK", old)
+        for k, v in old.items():
+            os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
     wg = trainer.actor_rollout_wg if trainer.ref_in_actor else trainer.ref_policy_wg
     lp_plain = wg.compute_ref_log_prob(batch).batch["ref_log_prob"].to(lp_think.device, lp_think.dtype)
     for k, t in keep.items():   # P5's reference inputs back (nothing later reads them, but the batch stays as P5 leaves it)
@@ -128,8 +138,12 @@ def second_pass(trainer, batch, apply_chat_template_kwargs):
     else:
         merged, stats = swap(lp_think, lp_plain, box, valid, torch, budget=budget())   # [v2.5.9z73] 0 unless OPD_TAILSWAP_BUDGET
     batch.batch["ref_log_prob"] = merged   # assigned, not union-ed (union asserts equal values on a shared key)
+    import opd_finished as _fo   # [v2.5.9z89] (Q-080b) only finished rollouts count
+    if _fo.active():
+        batch, fm = _fo.apply(trainer, batch)
+        stats.update({k.split("/", 1)[1]: v for k, v in fm.items()})
     p = os.environ.get("OPD_TAILSWAP_LOG")
     if p:
         with open(p, "a") as f:
             f.write(json.dumps(stats) + "\n")
-    return batch, {f"tail/{k}": float(v) for k, v in stats.items()}
+    return batch, {(f"vlm/{k}" if k in ("unfinished", "unfinished_frac", "all_unfinished", "empty_mb_frac") else f"tail/{k}"): float(v) for k, v in stats.items()}

@@ -18,6 +18,10 @@
 # [v2.5.9z83] (Q-073) PTL_PROBE=PROBE-SOFTMIX PTL_ARM=E10b-P5softmix50 PTL_SOFTMIX=<w>: the gate of the soft mix: the same unit tests and
 # hook check; the smoke's config must name the soft mix at w, and each step's tail/* must show softmix_w = w, both readings and the merge
 # finite on every valid token, the merge between the two readings (no swap, so the box / swap / violation checks do not apply).
+# [v2.5.9z89] (Q-080b, Fable 10-26 23:0x UTC) PTL_PROBE=PROBE-VLM-TAIL PTL_ARM=E15-VLM-P5tail-lo PTL_RUNNER=run_vlm.sh PTL_PY=<venv-vl python>
+# PTL_UNIT_MODULES='test_opd_tailswap test_opd_finished' PTL_FINISHED=1: the VLM arm's gate: the same unit tests plus opd_finished's (on
+# the node also verl's token-mean: a masked row's loss = the loss without it; the actor reads response_mask), the smoke through
+# run_vlm.sh, and each step's vlm/unfinished_frac logged and below 1; the config naming the finished-only loss.
 # Usage: bash probe_tail.sh <gpu>
 set -uo pipefail
 G=$1; T=${PTL_PROBE:-PROBE-TAIL}; source "$(dirname "$0")/env.sh"
@@ -56,14 +60,16 @@ step "start gpu=$G unit tests with $PY"
 import importlib, inspect, sys, traceback
 sys.path.insert(0, ".")
 n = fails = 0
-mod = importlib.import_module("test_opd_tailswap")
-for name, f in inspect.getmembers(mod, inspect.isfunction):
-    if name.startswith("test_") and f.__module__ == "test_opd_tailswap":
-        n += 1
-        try:
-            f()
-        except Exception:
-            fails += 1; print("FAILED", name); traceback.print_exc()
+import os
+for mname in os.environ.get("PTL_UNIT_MODULES", "test_opd_tailswap").split():   # [v2.5.9z89] PTL_UNIT_MODULES
+    mod = importlib.import_module(mname)
+    for name, f in inspect.getmembers(mod, inspect.isfunction):
+        if name.startswith("test_") and f.__module__ == mname:
+            n += 1
+            try:
+                f()
+            except Exception:
+                fails += 1; print("FAILED", mname, name); traceback.print_exc()
 try:
     import torch  # noqa: F401  (the torch tests return early without it: on the node they must run)
 except ImportError:
@@ -82,7 +88,7 @@ done
 ( while true; do echo "$(date -u +%s),$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $G | tr -d ' ' | sort -n | tail -1)" >> $D/mem.csv; sleep 5; done ) &   # [v2.5.9z91] the fullest GPU
 MP=$!; trap 'kill $MP 2> /dev/null' EXIT
 rm -rf $OPD_ROOT/runs/$T-smoke
-SMOKE=1 SMOKE_STEPS=${PTL_STEPS:-3} PROBE_TASK=$T-smoke bash $RUNBOOK/scripts/run_arm.sh $G ${PTL_ARM:-E10b-P5tail} > $D/smoke.out 2>&1; rc=$?
+SMOKE=1 SMOKE_STEPS=${PTL_STEPS:-3} PROBE_TASK=$T-smoke bash $RUNBOOK/scripts/${PTL_RUNNER:-run_arm.sh} $G ${PTL_ARM:-E10b-P5tail} > $D/smoke.out 2>&1; rc=$?   # [v2.5.9z89] PTL_RUNNER
 kill $MP 2> /dev/null
 mkdir -p $D/smoke; cp $OPD_ROOT/runs/$T-smoke/train.log $OPD_ROOT/runs/$T-smoke/config.yaml $OPD_ROOT/runs/$T-smoke/tailswap.jsonl $D/smoke/ 2> /dev/null
 for g in $(echo $G | tr , ' '); do python3 $RUNBOOK/scripts/control.py reap $g $T > /dev/null 2>&1 || true; done   # [v2.5.9z91] each GPU of a #gpus list
@@ -103,7 +109,7 @@ elif "tail-swapped: the non-thinking reading after the first box" not in rd(os.p
     why.append("the smoke's config does not name the tail swap")
 steps = {}
 for st, body in re.findall(r"(?:^|[ )\]])step:(\d+) - (.*)", rd(os.path.join(sm, "train.log"))):
-    steps[int(st)] = {k: float(v) for k, v in re.findall(r"((?:tail/[a-z_0-9]+|critic/score/mean)):([-0-9.e]+)", body)}
+    steps[int(st)] = {k: float(v) for k, v in re.findall(r"((?:tail/[a-z_0-9]+|vlm/[a-z_0-9]+|critic/score/mean)):([-0-9.e]+)", body)}   # [v2.5.9z89] vlm/
 if sorted(steps) != list(range(1, nsteps + 1)):
     why.append(f"train.log steps {sorted(steps)}, expected 1..{nsteps}")
 for st, m in sorted(steps.items()):
@@ -122,6 +128,17 @@ if not smx and sum(m.get("tail/rows_box", 0) for m in steps.values()) == 0:
     why.append("no response with a complete box was found")
 if not smx and sum(m.get("tail/swapped", 0) for m in steps.values()) == 0:
     why.append("no position was swapped")
+fin = os.environ.get("PTL_FINISHED") == "1"   # [v2.5.9z89] (Q-080b) only finished rollouts count
+if fin:
+    if "only finished rollouts count" not in rd(os.path.join(sm, "config.yaml")):
+        why.append("the smoke's config does not name the finished-only loss")
+    for st, m in sorted(steps.items()):
+        u = m.get("vlm/unfinished_frac")
+        if u is None or not 0.0 <= u < 1.0:
+            why.append(f"step {st}: vlm/unfinished_frac {u} (expected logged and below 1)")
+        e = m.get("vlm/empty_mb_frac")   # [Fable 10-26 23:2x UTC] logged from verl's partition
+        if e is None or not 0.0 <= e <= 1.0:
+            why.append(f"step {st}: vlm/empty_mb_frac {e} (expected logged from verl's partition, in [0, 1])")
 rows = [json.loads(x) for x in rd(os.path.join(sm, "tailswap.jsonl")).splitlines() if x.strip()]
 if len(rows) < nsteps:
     why.append(f"tailswap.jsonl has {len(rows)} lines, expected {nsteps}")
@@ -153,10 +170,13 @@ summ = {"rows": tot("tail/rows"), "rows_box_share": round(tot("tail/rows_box") /
 if smx:   # [v2.5.9z83] the mean (non-thinking - thinking) over every valid token
     summ = {"rows": tot("tail/rows"), "softmix_w": smx, "valid": tot("tail/valid"),
             "delta_mean": round(sum(m.get("tail/delta_mean", 0) * m.get("tail/valid", 0) for m in steps.values()) / max(tot("tail/valid"), 1), 4)}
+if fin:   # [v2.5.9z89]
+    summ["unfinished_frac_mean"] = round(sum(m.get("vlm/unfinished_frac", 0) for m in steps.values()) / max(len(steps), 1), 4)
+    summ["empty_mb_frac_mean"] = round(sum(m.get("vlm/empty_mb_frac", 0) for m in steps.values()) / max(len(steps), 1), 4)
 json.dump({"steps": steps, "tail": summ, "hooks": hooks, "jsonl_lines": len(rows), "budget": budsum}, open(os.path.join(d, "checks.json"), "w"), indent=1)
 print("; ".join(why))
 PY
 )
 [ -z "$why" ] || finish FAIL "$why"
 [ -n "${PTL_SOFTMIX:-}" ] && finish PASS "unit tests ok; ${PTL_STEPS:-3}-step smoke ok, peak ${peak} MiB; $(python3 -c "import json, sys; s = json.load(open(sys.argv[1]))['tail']; print(f\"soft mix w {s['softmix_w']}: the merge between the two readings and finite on every step, mean (non-thinking - thinking) {s['delta_mean']} over {s['valid']} tokens\")" $D/checks.json)"   # [v2.5.9z83]
-finish PASS "unit tests ok; ${PTL_STEPS:-3}-step smoke ok, peak ${peak} MiB; $(python3 -c "import json, sys; s = json.load(open(sys.argv[1]))['tail']; print(f\"{s['rows_box_share']:.0%} of responses with a box, {s['swapped_frac_mean']:.1%} of tokens swapped, mean change of the teacher's log-prob there {s['delta_mean']}\")" $D/checks.json)"
+finish PASS "unit tests ok; ${PTL_STEPS:-3}-step smoke ok, peak ${peak} MiB; $(python3 -c "import json, sys; s = json.load(open(sys.argv[1]))['tail']; print(f\"{s['rows_box_share']:.0%} of responses with a box, {s['swapped_frac_mean']:.1%} of tokens swapped, mean change of the teacher's log-prob there {s['delta_mean']}\")" $D/checks.json)$([ "${PTL_FINISHED:-0}" = 1 ] && python3 -c "import json, sys; s = json.load(open(sys.argv[1]))['tail']; print(f\"; unfinished rollouts masked {s['unfinished_frac_mean']:.1%} per step, empty micro-batches {s['empty_mb_frac_mean']:.1%}\")" $D/checks.json)"

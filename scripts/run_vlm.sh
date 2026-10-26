@@ -9,20 +9,30 @@
 # rows of MMK12 test (data/mmk12_val.parquet); a smoke (SMOKE=1) stays on Geometry3K (geo3k_train, prep_geo3k.py); 128 prompts x 1 rollout a step, 4096-token responses, prompts up to
 # 2048 tokens (the image's tokens included), the maths reward (the last \boxed{} under Math-Verify). 50 steps, s25 / s50 uploaded.
 # Starts only after PROBE-VLM passed (the smoke itself is exempt). SMOKE=1 SMOKE_STEPS=n PROBE_TASK=<name>: n steps in runs/<name>,
-# no checkpoint, upload or validation. Usage: bash run_vlm.sh <gpu> E15-VLM-P5
+# no checkpoint, upload or validation. Usage: bash run_vlm.sh <gpu> E15-VLM-P5 | E15-VLM-P2lo | E15-VLM-P5tail-lo
+# [v2.5.9z89] (Q-080, Fable's pre-registration research_program 3f and design ruling 10-26 23:0x UTC) two retry arms, the rest as E15-VLM-P5:
+#   E15-VLM-P2lo: the teacher Qwen3-VL-4B-Instruct on its own (non-thinking) template: the student's image-expanded prompt ids
+#     with NO suffix + the response; lr 1e-6, responses 1536; every rollout counts; gated by PROBE-VLM and PROBE-VLM-COMPLETE.
+#   E15-VLM-P5tail-lo: the teacher Qwen3-VL-4B-Thinking read thinking ('<think>\n') up to the first complete box and non-thinking
+#     (the empty think block) from the first token after it (opd_tailswap.py's VLM path), only finished rollouts count
+#     (opd_finished.py); lr 1e-6, responses 4096; gated by PROBE-VLM and PROBE-VLM-TAIL.
 set -euo pipefail
 source "$(dirname "$0")/env.sh"; G=$1; TASK=$2
-[ "$TASK" = E15-VLM-P5 ] || { echo "unknown task $TASK"; exit 2; }
+case $TASK in E15-VLM-P5|E15-VLM-P2lo|E15-VLM-P5tail-lo) ;; *) echo "unknown task $TASK"; exit 2;; esac   # [v2.5.9z89]
 if [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
   grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-VLM/report.json 2> /dev/null || { echo "PROBE-VLM has not passed: $TASK not started"; exit 3; }
+  case $TASK in E15-VLM-P2lo) PG=PROBE-VLM-COMPLETE;; E15-VLM-P5tail-lo) PG=PROBE-VLM-TAIL;; *) PG=;; esac   # [v2.5.9z89] each retry arm's own gate
+  [ -z "$PG" ] || grep -q '"result": "PASS"' $OPD_ROOT/runs/$PG/report.json 2> /dev/null || { echo "$PG has not passed: $TASK not started"; exit 3; }
 fi
 NAME=$TASK; [ "${SMOKE:-0}" = 1 ] && NAME=${PROBE_TASK:-smoke-$TASK}
 OUT=$OPD_ROOT/runs/$NAME; mkdir -p $OUT
 [ -f $OUT/.done ] && { echo "TASK_ALREADY_DONE $NAME"; exit 0; }
 STUDENT=${VL_STUDENT:-$OPD_ROOT/models/Qwen3-VL-2B-Instruct}; TEACHER=${VL_TEACHER:-$OPD_ROOT/models/Qwen3-VL-4B-Thinking}   # [v2.5.9z28]
+[ $TASK = E15-VLM-P2lo ] && TEACHER=${VL_TEACHER_INSTRUCT:-$OPD_ROOT/models/Qwen3-VL-4B-Instruct}   # [v2.5.9z89] (Q-080a) the non-thinking teacher
 V=${VENV_VL:-$OPD_ROOT/venv-vl}; TRAIN=$OPD_ROOT/data/mmk12_train.parquet; VAL=$OPD_ROOT/data/mmk12_val.parquet   # [v2.5.9z33] MMK12
 [ "${SMOKE:-0}" = 1 ] && { TRAIN=$OPD_ROOT/data/geo3k_train.parquet; VAL=$OPD_ROOT/data/geo3k_validation.parquet; }   # [v2.5.9z33] the smoke on Geometry3K
-NSTEPS=${VLM_STEPS:-50}; TBS=${VLM_TBS:-128}; MAXP=2048; MAXR=4096; SAVE=25; UW=25,$NSTEPS; VALB=True; TESTF=25
+NSTEPS=${VLM_STEPS:-50}; TBS=${VLM_TBS:-128}; MAXP=2048; MAXR=4096; SAVE=25; UW=25,$NSTEPS; VALB=True; TESTF=25; LR=3e-6
+case $TASK in E15-VLM-P2lo) LR=1e-6; MAXR=1536;; E15-VLM-P5tail-lo) LR=1e-6;; esac   # [v2.5.9z89] (Q-080) the low learning rate; P2lo's 1536 limit
 [ "${SMOKE:-0}" = 1 ] && { NSTEPS=${SMOKE_STEPS:-1}; SAVE=-1; VALB=False; TESTF=-1; }
 # [v2.5.9z63] (PROBE-VLM 10-22 16:44 UTC: the smoke's 8 DataLoader workers died of a bus error, "No space left on device" writing
 # torch tensors to /dev/shm, which had ~5.3 GB free on the busy node) the images are loaded in the main process: VLM_DL_WORKERS (0)
@@ -30,7 +40,16 @@ NSTEPS=${VLM_STEPS:-50}; TBS=${VLM_TBS:-128}; MAXP=2048; MAXR=4096; SAVE=25; UW=
 # the thinking-only teacher's non-thinking reading); '<think>\n' when the check is not there yet (the probe's own smoke before b)
 SUF=$(python3 -c "import json, sys; print(json.load(open(sys.argv[1])).get('suffix') or 'think')" $OPD_ROOT/runs/PROBE-VLM/check_b.json 2> /dev/null || echo think)
 case $SUF in empty) SUFTXT=$'<think>\n\n</think>\n\n'; VARIANT=P5e;; *) SUFTXT=$'<think>\n'; VARIANT=P5;; esac
-export OPD_VLM_REF=1 OPD_VLM_REF_SUFFIX=${OPD_VLM_REF_SUFFIX:-$SUFTXT} OPD_VARIANT=P5 OPD_REF_THINK=0 OPD_SEED=${OPD_SEED:-1234}
+unset OPD_TAILSWAP OPD_TAILSWAP_LOG OPD_VLM_TAIL_SUFFIX OPD_FINISHED_ONLY OPD_FINISHED_MB_TOKENS
+case $TASK in   # [v2.5.9z89] (Q-080) the retry arms' teacher readings, fixed whatever PROBE-VLM's check chose for E15-VLM-P5
+  E15-VLM-P2lo) SUFTXT=""; VARIANT=P2lo; OPD_VLM_REF_SUFFIX=;;   # the Instruct teacher's own template: no suffix
+  E15-VLM-P5tail-lo) SUFTXT=$'<think>\n'; VARIANT=P5tail-lo; OPD_VLM_REF_SUFFIX=
+    export OPD_TAILSWAP=1 OPD_TAILSWAP_LOG=$OUT/tailswap.jsonl OPD_VLM_TAIL_SUFFIX=$'<think>\n\n</think>\n\n' OPD_FINISHED_ONLY=1
+    export OPD_FINISHED_MB_TOKENS=${VLM_TOK:-16384};;   # [Fable 10-26 23:2x UTC] the actor's micro-batch budget, for vlm/empty_mb_frac
+esac
+if [ $TASK = E15-VLM-P5 ]; then export OPD_VLM_REF_SUFFIX=${OPD_VLM_REF_SUFFIX:-$SUFTXT}; else export OPD_VLM_REF_SUFFIX="$SUFTXT"; fi   # P2lo: empty on purpose
+export OPD_VLM_REF=1 OPD_VARIANT=P5 OPD_REF_THINK=0 OPD_SEED=${OPD_SEED:-1234} OPD_TASK=$NAME
+[ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN_Z89 lr=$LR maxr=$MAXR teacher=$(basename $TEACHER) variant=$VARIANT suffix=$(printf %q "$OPD_VLM_REF_SUFFIX") tailswap=${OPD_TAILSWAP:-0} tail_suffix=$(printf %q "${OPD_VLM_TAIL_SUFFIX:-}") finished_only=${OPD_FINISHED_ONLY:-0} log=$(basename ${OPD_TAILSWAP_LOG:-none})"; }   # [v2.5.9z89] tests (before the line that exits)
 [ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $NAME student=$(basename $STUDENT) teacher=$(basename $TEACHER) venv=$(basename $V) train=$(basename $TRAIN) steps=$NSTEPS tbs=$TBS maxp=$MAXP maxr=$MAXR save=$SAVE upload=$UW vlmref=$OPD_VLM_REF variant=$VARIANT suffix=$(printf %q "$OPD_VLM_REF_SUFFIX")"; exit 0; }   # tests
 for f in $STUDENT $TEACHER; do [ -f $f/.fetch_ok ] || { echo "MODEL_MISSING $(basename $f)"; exit 2; }; done
 [ -x $V/bin/python ] || { echo "no venv-vl"; exit 2; }
@@ -41,13 +60,14 @@ if [ ! -f $TRAIN ]; then case $TRAIN in
 esac; fi
 case $TRAIN in */geo3k_train.parquet) [ -f $VAL ] || VAL=$OPD_ROOT/data/geo3k_test.parquet;; esac
 python $RUNBOOK/code/patches/vlmref_patch.py || { echo "VLMREF_PATCH_FAILED $TASK"; exit 1; }   # idempotent
+[ "${OPD_TAILSWAP:-0}" = 1 ] && { python $RUNBOOK/code/patches/tailswap_patch.py || { echo "TAILSWAP_PATCH_FAILED $TASK"; exit 1; }; }   # [v2.5.9z89] idempotent (the hook is shared with the text tail arms)
 if python -c "import flash_attn" 2>/dev/null; then RMPAD=True; ATTN=flash_attention_2; else RMPAD=False; ATTN=sdpa; fi
 [ -f $OUT/config.yaml ] && echo "resumed: $(date -u +%FT%TZ)" >> $OUT/config.yaml || cat > $OUT/config.yaml <<CFG
 task: $TASK
 student: $STUDENT (Qwen3-VL-2B-Instruct, its own template)
-teacher: $TEACHER (ref; Qwen3-VL-4B-Thinking ([v2.5.9z28], was 8B) on its thinking template: the student's image-expanded prompt ids + the prefix '<think>\n' + the response, opd_vlmref.py)
+teacher: $TEACHER (ref; the student's image-expanded prompt ids + the suffix $(printf %q "$OPD_VLM_REF_SUFFIX") + the response, opd_vlmref.py$([ "${OPD_TAILSWAP:-0}" = 1 ] && echo "; tail-swapped: the non-thinking reading after the first box (the first token after it, included: the suffix $(printf %q "$OPD_VLM_TAIL_SUFFIX"))"))
 variant: $VARIANT (teacher suffix $(printf %q "$OPD_VLM_REF_SUFFIX"), from PROBE-VLM's check)
-algo: OPD (reverse-KL advantages, P5's recipe), ${TBS}x1, prompts <= $MAXP tokens, responses $MAXR, lr 3e-6, $NSTEPS steps
+algo: OPD (reverse-KL advantages, P5's recipe), ${TBS}x1, prompts <= $MAXP tokens, responses $MAXR, lr $LR, $NSTEPS steps$([ "${OPD_FINISHED_ONLY:-0}" = 1 ] && echo '; only finished rollouts count (opd_finished.py)')
 data: train $(basename $TRAIN), validation $(basename $VAL) ([v2.5.9z33] MMK12; a smoke on Geometry3K)
 venv: $(basename $V); attention: $ATTN (remove-padding $RMPAD)
 started: $(date -u +%FT%TZ)
@@ -66,7 +86,7 @@ python3 -m verl.trainer.main_ppo \
   data.dataloader_num_workers=${VLM_DL_WORKERS:-0} \
   actor_rollout_ref.model.path=$STUDENT +actor_rollout_ref.ref.model.path=$TEACHER \
   +actor_rollout_ref.model.override_config.attn_implementation=$ATTN actor_rollout_ref.model.use_remove_padding=$RMPAD \
-  actor_rollout_ref.actor.optim.lr=3e-6 actor_rollout_ref.actor.optim.lr_warmup_steps_ratio=0.0 \
+  actor_rollout_ref.actor.optim.lr=$LR actor_rollout_ref.actor.optim.lr_warmup_steps_ratio=0.0 \
   actor_rollout_ref.actor.policy_loss.only_reverse_kl_advantages=True actor_rollout_ref.actor.policy_loss.lambda_vals=1.0 \
   actor_rollout_ref.actor.ppo_mini_batch_size=$TBS actor_rollout_ref.actor.use_dynamic_bsz=True actor_rollout_ref.actor.ppo_max_token_len_per_gpu=${VLM_TOK:-16384} \
   actor_rollout_ref.actor.use_kl_loss=True actor_rollout_ref.actor.kl_loss_coef=0 actor_rollout_ref.actor.kl_loss_type=low_var_kl \
