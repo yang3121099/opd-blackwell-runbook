@@ -379,3 +379,68 @@ def test_z88e_entry_points_refuse_inside_a_sandbox(var, tmp_path):   # [v2.5.9z8
 def test_z88e_self_names_never_recorded():
     names, _ = J.all_tasks(RB)
     assert "CORPUS-RECORD" not in names and "BUILD-RB-IDX1" not in names and set(J.SELF) >= {"CORPUS-RECORD", "BUILD-RB-IDX1"}
+
+
+# ------------------------------------------------------------------------------------------------ [v2.5.9z88c] b / c / d, canary
+def test_z88c_never_recorded_names():
+    assert {"CORPUS-RECORD", "BUILD-RB-IDX1", "HEARTBEAT-UNSTICK", "PROBE-NET2"} <= set(J.SELF)
+    names, _ = J.all_tasks(RB)
+    assert not set(names) & set(J.SELF)
+
+
+def test_z88c_named_self_tasks_are_skipped(tmp_path):
+    env = {k: v for k, v in os.environ.items() if k not in ("OPD_ROOT", "CKPT_ROOT") and not k.startswith("DRYRUN_")}
+    out = tmp_path / "a" / "dryrun_json.out"
+    r = subprocess.run([sys.executable, os.path.join(HERE, "dryrun_json.py"), "--runbook", RB, "--base", str(tmp_path / "dryrun_json.tmp"),
+                        "--out", str(out), "--profile", "clean", "PROBE-NET2", "CORPUS-RECORD"], env=env, capture_output=True, text=True, timeout=120)
+    assert "skips CORPUS-RECORD PROBE-NET2" in r.stdout and not list((out / "corpus" / "clean").glob("*.json"))
+
+
+def test_z88c_child_env_carries_the_run_id():
+    old = J.RUN_ID
+    try:
+        J.RUN_ID = "R-1"
+        assert J.child_env("/sb", RB, sys.executable, "x")["DRYRUN_RUN_ID"] == "R-1"
+        J.RUN_ID = ""
+        assert "DRYRUN_RUN_ID" not in J.child_env("/sb", RB, sys.executable, "x")
+    finally:
+        J.RUN_ID = old
+
+
+def test_z88d_recording_the_recorder_refuses_at_once(tmp_path):   # d: a sandboxed CORPUS-RECORD stops at its first line
+    base = tmp_path / "dryrun_json.tmp"; base.mkdir()
+    rec = J.record_task("CORPUS-RECORD", "clean", "cpu", str(base), RB, J.Real("", ""), "", sys.executable,
+                        ",".join(f"{k}:{v}" for k, v in J.CLEAN_FA.items()), 60, "h", "r")
+    assert rec["result"] == "ok" and rec["dispatch"]["first_line"].startswith("CORPUS_RECORD_REFUSED"), rec["dispatch"]
+    assert not [c for c in rec.get("calls", []) if "dryrun_json" in " ".join(c.get("argv", []))]   # no nested recording
+
+
+def test_z88c_canary_decisions(tmp_path, monkeypatch):
+    proc = tmp_path / "proc"; (proc / "self").mkdir(parents=True)
+    rec = lambda t: {"result": "ok", "task": t}
+    monkeypatch.setattr(J, "heartbeat_rounds", lambda opd, n=2, limit=600: True)
+    monkeypatch.setattr(J, "env_pids", lambda k, v, p="/proc": [])
+    st, why = J.canary(RB, str(tmp_path), ["EVAL-gm-06base", "E10b-P5"], rec, str(proc))
+    assert st == "ok" and "EVAL-gm-06base" in why                         # the refusal is the real dryrun_json.sh's
+    monkeypatch.setattr(J, "env_pids", lambda k, v, p="/proc": [123])
+    monkeypatch.setattr(J, "reap_env", lambda k, v, p="/proc": 1)
+    assert J.canary(RB, str(tmp_path), ["EVAL-gm-06base"], rec, str(proc))[0] == "fail"   # a leftover
+    monkeypatch.setattr(J, "env_pids", lambda k, v, p="/proc": [])
+    monkeypatch.setattr(J, "heartbeat_rounds", lambda opd, n=2, limit=600: False)
+    assert J.canary(RB, str(tmp_path), ["EVAL-gm-06base"], rec, str(proc))[0] == "fail"   # the heartbeat stalled
+    assert J.canary(RB, str(tmp_path), ["EVAL-gm-06base"], rec, str(tmp_path / "noproc"))[0] == "skipped"
+
+
+@node_only
+def test_z88c_reap_env_kills_a_new_session_child():
+    tmp = tempfile.mkdtemp()
+    try:
+        sh = os.path.join(tmp, "two.sh")
+        open(sh, "w").write("setsid sleep 60 &\nsleep 60\n")   # a child that leaves the group, as a nested run does
+        p = subprocess.Popen(["bash", sh], start_new_session=True, env=dict(os.environ, DRYRUN_SB=tmp))
+        time.sleep(1)
+        assert len(J.env_pids("DRYRUN_SB", tmp)) >= 2
+        assert J.reap_env("DRYRUN_SB", tmp) >= 2 and J.env_pids("DRYRUN_SB", tmp) == []
+        p.wait(timeout=10)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)

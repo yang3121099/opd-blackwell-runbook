@@ -149,8 +149,12 @@ def all_tasks(runbook):
 # matches the real GPU indices. So the sandbox calls task.sh with GPU indices from SANDBOX_GPU0 (no node has a GPU 90) and a
 # trailing SANDBOX_MARK argument (task.sh reads $1 / $2 only): none of those scans can match a sandboxed process.
 SANDBOX_GPU0 = 90
-SELF = ("CORPUS-RECORD", "BUILD-RB-IDX1")   # never recorded: the recorder itself (a nested recording), and [v2.5.9z88e] a task
-# that would signal the node's own loops
+# [v2.5.9z88c b] never recorded (ops-lead 10-26: a sandbox runs bash scripts and python heredocs for real, and /proc and os.kill are
+# real): the recorder itself (a nested recording, 10-26 06:48Z), and every task whose dispatched script signals or edits processes or
+# state it did not start - BUILD-RB-IDX1 (stops the node's loops), HEARTBEAT-UNSTICK (removes the watchdog's marker), PROBE-NET2
+# (kill -STOP / -CONT of node-wide slow pulls). The rest only `kill $MP` their own sampler or call control.py reap, which the shim
+# records and never runs (the full table: lab notes z88c_signal_paths).
+SELF = ("CORPUS-RECORD", "BUILD-RB-IDX1", "HEARTBEAT-UNSTICK", "PROBE-NET2")
 SANDBOX_MARK = "--dryrun-sandbox"
 
 
@@ -253,6 +257,41 @@ def make_sandbox(sb, base, profile, runbook, plants, real, control_env):
     return opd, ck
 
 
+RUN_ID = ""   # [v2.5.9z88c c] one per recording (main): every sandbox process carries it as DRYRUN_RUN_ID
+
+
+def env_pids(key, value, proc="/proc"):
+    """[v2.5.9z88c c] the processes whose environment holds key=value exactly (Linux /proc; none elsewhere), never this one"""
+    want, out = f"{key}={value}".encode(), []
+    if not value or not os.path.isdir(proc):
+        return out
+    for p in os.listdir(proc):
+        if p.isdigit() and int(p) != os.getpid():
+            try:
+                if want in open(os.path.join(proc, p, "environ"), "rb").read().split(b"\0"):
+                    out.append(int(p))
+            except OSError:
+                pass
+    return out
+
+
+def reap_env(key, value, proc="/proc"):
+    """[v2.5.9z88c c] SIGKILL every process carrying key=value, again until none is left (a nested run opens new sessions, so a
+    process-group kill misses them). The number killed."""
+    n = 0
+    for _ in range(10):
+        pids = env_pids(key, value, proc)
+        if not pids:
+            break
+        for p in pids:
+            try:
+                os.kill(p, signal.SIGKILL); n += 1
+            except OSError:
+                pass
+        time.sleep(0.5)
+    return n
+
+
 def child_env(sb, runbook, real_py, fa):
     e = {"PATH": f"{os.path.join(runbook, 'scripts', 'dryrun_shims')}:/usr/bin:/bin", "HOME": os.path.join(sb, "hm"),
          "OPD_ROOT": os.path.join(sb, "opd"), "CKPT_ROOT": os.path.join(sb, "ckpt"), "CKPT_ROOT_FROM": "paths.env",
@@ -260,6 +299,8 @@ def child_env(sb, runbook, real_py, fa):
          "TZ": "UTC", "LC_ALL": "C", "HF_HUB_OFFLINE": "1", "PYTHONDONTWRITEBYTECODE": "1", "RUNBOOK": runbook, "PS4": "+TASKSH ",
          "DRYRUN_REC": os.path.join(sb, "rec.jsonl"), "DRYRUN_SB": sb, "DRYRUN_REAL_PY": real_py,
          "DRYRUN_SHIM_PY": os.path.join(runbook, "scripts", "dryrun_shim.py"), "DRYRUN_FA": fa, "DRYRUN_T0": str(T0)}
+    if RUN_ID:
+        e["DRYRUN_RUN_ID"] = RUN_ID
     return e
 
 
@@ -277,6 +318,7 @@ def run_once(sb, runbook, task, g, env, sec):
             os.killpg(p.pid, signal.SIGKILL)
         except OSError:
             pass
+        reap_env("DRYRUN_SB", env.get("DRYRUN_SB", ""))   # [v2.5.9z88c c] and whatever of it left the process group
         out, err = p.communicate()
         rc = "timeout"
     return rc, out.decode(errors="replace"), err.decode(errors="replace")
@@ -545,6 +587,44 @@ def runbook_state(runbook):
     return st, newest
 
 
+CANARY = "EVAL-gm-06base"   # [v2.5.9z88c] a plain EVAL reading (an mmlupro1k row of the 0.6B base): no script-name scan touches it
+
+
+def heartbeat_rounds(real_opd, n=2, limit=600):
+    """[v2.5.9z88c canary] the node's heartbeat liveness file (control/loop_heartbeat) rewritten n times within limit s"""
+    f = os.path.join(real_opd, "control", "loop_heartbeat")
+    last, seen, t_end = (os.path.getmtime(f) if os.path.exists(f) else 0), 0, time.time() + limit
+    while time.time() < t_end and seen < n:
+        time.sleep(15)
+        m = os.path.getmtime(f) if os.path.exists(f) else 0
+        if m > last:
+            seen, last = seen + 1, m
+    return seen >= n
+
+
+def canary(runbook, real_opd, names, record, proc="/proc"):
+    """[v2.5.9z88c] (Fable 10-26: a single harmless task before --all) one EVAL reading recorded alone (record(task) -> its record);
+    then none of this recording's sandbox processes may be left (DRYRUN_RUN_ID), the heartbeat must complete 2 rounds, and the
+    recorder must refuse inside a sandbox. ("ok" | "fail" | "skipped", why)."""
+    if not os.path.isdir(os.path.join(proc, "self")):
+        return "skipped", "no /proc"
+    t = CANARY if CANARY in names else next((n for n in names if n.startswith("EVAL-")), None)
+    if not t:
+        return "fail", "no EVAL name to try"
+    rec = record(t)
+    left = env_pids("DRYRUN_RUN_ID", RUN_ID, proc)
+    if left:
+        reap_env("DRYRUN_RUN_ID", RUN_ID, proc)
+        return "fail", f"{t}: {len(left)} sandbox processes left after it"
+    if real_opd and not heartbeat_rounds(real_opd):
+        return "fail", "the heartbeat did not complete 2 rounds within 10 min"
+    r = subprocess.run(["bash", os.path.join(runbook, "scripts", "dryrun_json.sh"), "--all"], env=dict(os.environ, DRYRUN_SB="canary"),
+                       capture_output=True, text=True, timeout=60)
+    if "CORPUS_RECORD_REFUSED" not in r.stdout:
+        return "fail", "the recorder did not refuse inside a sandbox"
+    return "ok", f"{t} recorded alone ({(rec or {}).get('result')}); nothing left behind; heartbeat 2 rounds; refusal seen"
+
+
 SELFCHECK_TASK = "CORPUS-SELFCHECK"
 
 
@@ -609,6 +689,15 @@ def main(argv=None):
     ap.add_argument("--task-dir", default=None)
     ap.add_argument("--no-upload", action="store_true")
     a = ap.parse_args(argv)
+    global RUN_ID
+    RUN_ID = f"{int(time.time())}-{os.getpid()}"   # [v2.5.9z88c c]
+    try:
+        return _run(a)
+    finally:
+        reap_env("DRYRUN_RUN_ID", RUN_ID)   # nothing of this recording outlives it
+
+
+def _run(a):
     runbook = os.path.realpath(a.runbook)
     real_opd = os.environ.get("OPD_ROOT", "")
     ck = os.environ.get("CKPT_ROOT", "")
@@ -639,6 +728,9 @@ def main(argv=None):
         shutil.rmtree(_guard(base, base), ignore_errors=True)
         return 1
     names, uncovered = all_tasks(runbook) if a.all else (a.tasks, [])
+    if set(names) & set(SELF):   # [v2.5.9z88c b] never recorded, even when named
+        print("CORPUS_RECORD skips " + " ".join(sorted(set(names) & set(SELF))) + " (never recorded)")
+        names = [n for n in names if n not in SELF]
     cpu = cpu_tasks(os.path.join(runbook, "scripts", "run_tasks.sh"))
     gpus = queue_gpus(os.path.join(runbook, "tasks", "queue.txt"))
     head = git(runbook, "rev-parse", "--short", "HEAD") or "unknown"
@@ -655,6 +747,17 @@ def main(argv=None):
     st0 = runbook_state(runbook)
     t_start = time.time()
     index, findings = {}, [{"kind": "glob_uncovered", "glob": gl} for gl in uncovered]
+    can = ("not run", "")
+    if a.all and a.task_dir:   # [v2.5.9z88c] (Fable 10-26) one harmless EVAL alone first; --all only once it is clean
+        can = canary(runbook, real_opd, names, lambda t: record_task(t, "clean", gpu_arg(t, cpu, gpus), base, runbook, real, control_env,
+                                                                  real_py, fa_clean, a.per_task_sec, head, rules))
+        if can[0] == "fail":
+            os.makedirs(a.task_dir, exist_ok=True)
+            json.dump({"result": "FAIL", "reason": "canary: " + can[1]}, open(os.path.join(a.task_dir, "report.json"), "w"), indent=1)
+            open(os.path.join(a.task_dir, ".done"), "w").close()
+            print("CORPUS_RECORD FAIL canary: " + can[1])
+            shutil.rmtree(_guard(base, base), ignore_errors=True)
+            return 1
     for prof in profiles:
         os.makedirs(os.path.join(out, "corpus", prof), exist_ok=True)
         fa = fa_node if prof == "node" else fa_clean
@@ -689,7 +792,7 @@ def main(argv=None):
             hits += [{"kind": "leak", "file": os.path.relpath(os.path.join(d, f), out), "what": w, "match": "<redacted>"}
                      for w, _ in N.leak_hits(open(os.path.join(d, f)).read(), lits)]
     findings += hits
-    meta = {"schema": 1, "runbook_head": head, "rules_version": rules, "profiles": profiles, "tasks": len(names), "scanner_selfcheck": sc,
+    meta = {"schema": 1, "runbook_head": head, "rules_version": rules, "profiles": profiles, "tasks": len(names), "scanner_selfcheck": sc, "canary": list(can),
             "seconds": round(time.time() - t_start, 1)}
     open(os.path.join(out, "index.json"), "w").write(N.dumps({"meta": meta, "tasks": index}))
     open(os.path.join(out, "findings.json"), "w").write(N.dumps(findings))
