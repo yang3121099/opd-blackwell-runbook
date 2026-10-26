@@ -1576,3 +1576,11 @@ def test_heartbeat_unstick(tmp_path, sandboxed, marker, want):   # [v2.5.9z88f] 
     rep = json.load(open(opd / "runs" / "HEARTBEAT-UNSTICK" / "report.json"))
     assert rep["result"] == want and (opd / "runs" / "HEARTBEAT-UNSTICK" / ".done").exists(), (r.stdout, r.stderr)
     assert (opd / "control" / "watchdog_heartbeat.gave_up").exists() == (marker and sandboxed)
+
+
+def test_run_and_rerun_accept_v259z90(env):   # [v2.5.9z90] (Q-074b) E12d-P5tail-8k: run, rerun when failed; task.sh above E12d-*
+    st, msg, _ = env.c.v_run(["E12d-P5tail-8k"], 270)
+    assert st == "accepted", msg
+    R.parse({"cmd": "rerun E12d-P5tail-8k", "reason": "t"})
+    ts = open(os.path.join(os.path.dirname(__file__), "task.sh")).read()
+    assert ts.index("  E12d-P5tail-8k) ") < ts.index("  E12d-*) ")

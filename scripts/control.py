@@ -1411,6 +1411,7 @@ def v_run(a, seq, flags=None, entry=None):
                         'case $T in E10b-P5selfroute|E10c-P5tail-c50|PROBE-SELFROUTE) exit 0;; esac; '   # [v2.5.9z82] (Q-072 / Q-055b)
                         'case $T in E10b-P5softmix50|PROBE-SOFTMIX) exit 0;; esac; '   # [v2.5.9z83] (Q-073)
                         'case $T in E12b-P5tail-8k|E10d-P5tail|PROBE-TAIL-4B) exit 0;; esac; '   # [v2.5.9z84a] (Q-074 / Q-075)
+                        'case $T in E12d-P5tail-8k) exit 0;; esac; '   # [v2.5.9z90] (Q-074b)
                         'case $T in E12b-P5-16k-s44|E12d-P5-16k-s43) exit 0;; esac; '   # [v2.5.9z84] (Q-076)
                         'case $T in E10b-P5-akl2|E10b-P5-fkl|E10b-P5-dense-k256|E10b-P5-akl-mu03|E10b-P5-akl-mu07|E10b-P5self-akl|E10b-P5selfroute-c100|E10d-P5-akl|E12c-P5-8k|E12c-P5-16k|PROBE-DENSE-4B|PROBE-E12C-8K|PROBE-E12C-16K) exit 0;; esac; '   # [v2.5.9z85] (Q-079 / Q-072b / Q-077)
                         'case $T in CORPUS-RECORD) exit 0;; esac; '   # [v2.6 S0] (Fable F7 / ops-lead O7) the corpus recorder
