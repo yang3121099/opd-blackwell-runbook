@@ -252,9 +252,10 @@ def test_result_timeout_at_a_single_connection_rate(priv):   # [v2.5.9z64a] 268 
     with open(os.path.join(h, "x_math500_no_think_t0.6.jsonl"), "r+b") as f:
         f.truncate(268 * 10 ** 6)
     W.once()
-    assert n.calls[0]["files"] == ["x_math500_no_think_t0.6.jsonl"]                        # [v2.5.9z65] over 100 MB: the big file alone
-    assert n.calls[0]["timeout"] == int(min(21600, 268e6 / 1e6 / 0.08 * 1.5 + 600))
-    assert n.calls[0]["timeout"] > 268 / 0.13 * 1.2                                        # the observed 0.09-0.13 MB/s fits
+    assert n.calls[0]["files"] == ["gen_eval.log.tail.gz", "sub", "x.metrics.json"]           # [v2.5.9z94] the small files first
+    assert n.calls[1]["files"] == ["x_math500_no_think_t0.6.jsonl"]                        # [v2.5.9z65] then the big file alone
+    assert n.calls[1]["timeout"] == int(min(21600, 268e6 / 1e6 / 0.08 * 1.5 + 600))
+    assert n.calls[1]["timeout"] > 268 / 0.13 * 1.2                                        # the observed 0.09-0.13 MB/s fits
 
 
 # ---- [v2.5.9z65] the results queue: a task's own directory, file by file, the marker, the 2 h event ----------------------------
@@ -286,9 +287,10 @@ def test_split_file_by_file_largest_first_skipping_present(priv):
     n.remote["runs/EVAL-s/r1_math500_no_think_t0.6.jsonl"] = 60 * 10 ** 6                # already up from an earlier try
     r = W.once()
     assert r.startswith("REPLAY_OK runs/EVAL-s (result)"), r
-    assert [c["files"] for c in n.calls] == [["r0_math500_no_think_t0.6.jsonl"], ["gen_eval.log", "r0.metrics.json"]]
-    assert n.calls[0]["cmd"][2] == "runs/EVAL-s/r0_math500_no_think_t0.6.jsonl"          # its own commit at its path
-    assert n.calls[0]["timeout"] == int(150 / 0.08 * 1.5 + 600)
+    assert [c["files"] for c in n.calls] == [["gen_eval.log", "r0.metrics.json"], ["r0_math500_no_think_t0.6.jsonl"]]   # [v2.5.9z94] small first
+    assert n.calls[1]["cmd"][2] == "runs/EVAL-s/r0_math500_no_think_t0.6.jsonl"          # its own commit at its path
+    assert n.calls[1]["timeout"] == int(150 / 0.08 * 1.5 + 600)
+    assert not os.path.exists(os.path.join(d, "big_local.json"))                          # [v2.5.9z94] nothing kept back
     assert lines(n) == [] and not os.path.exists(os.path.join(d, ".upload_pending"))      # struck, the marker gone
     assert os.path.getsize(os.path.join(d, "r0_math500_no_think_t0.6.jsonl")) == 150 * 10 ** 6   # the local files untouched
     assert not any(k.endswith(".upload_pending") for k in n.remote)                       # the marker never goes up
@@ -296,18 +298,64 @@ def test_split_file_by_file_largest_first_skipping_present(priv):
     assert os.listdir(os.path.join(n.root, "control", "stage")) == []                                # staged in control/stage, then removed
 
 
-def test_a_failed_part_keeps_the_parts_before_it(priv, monkeypatch):
+def test_a_failed_big_file_stays_local_and_does_not_hold_the_item(priv, monkeypatch):   # [v2.5.9z94] was z65's "a failed part"
+    import hashlib
     monkeypatch.setenv("WEIGHTS_REPLAY_COOL_S", "0")
     n = priv; d = task_dir(n, "EVAL-t"); RM.pend_result(d, "runs/EVAL-t")
+    st = {"items": 0, "bytes": 0, "fails": {"result:runs/EVAL-t": {"n": 2, "last": 0, "why": "earlier"}}}
+    json.dump(st, open(os.path.join(n.root, "control", "weights_replay.json"), "w"))
     n.failing.add("r1_math500_no_think_t0.6.jsonl")
     r = W.once()
-    assert r.startswith("REPLAY_FAIL result:runs/EVAL-t r1_math500_no_think_t0.6.jsonl:"), r
-    assert "runs/EVAL-t/r0_math500_no_think_t0.6.jsonl" in n.remote and len(lines(n)) == 1   # the 150 MB part stays up
-    assert os.path.exists(os.path.join(d, ".upload_pending"))
-    n.failing.clear(); n.calls.clear()
-    assert W.once().startswith("REPLAY_OK runs/EVAL-t")
-    assert [c["files"] for c in n.calls][0] == ["r1_math500_no_think_t0.6.jsonl"]          # the next try sends only what is missing
+    assert r.startswith("REPLAY_OK runs/EVAL-t (result)") and "1 large file(s), 60 MB, kept on the node" in r, r
+    assert [c["files"] for c in n.calls] == [["gen_eval.log", "r0.metrics.json"], ["r0_math500_no_think_t0.6.jsonl"], ["r1_math500_no_think_t0.6.jsonl"]]
+    assert "runs/EVAL-t/r0.metrics.json" in n.remote and "runs/EVAL-t/r0_math500_no_think_t0.6.jsonl" in n.remote
+    assert "runs/EVAL-t/r1_math500_no_think_t0.6.jsonl" not in n.remote
+    assert lines(n) == [] and not os.path.exists(os.path.join(d, ".upload_pending"))      # struck, the marker gone
+    assert "result:runs/EVAL-t" not in json.load(open(os.path.join(n.root, "control", "weights_replay.json")))["fails"]   # its fails cleared
+    bl = json.load(open(os.path.join(d, "big_local.json")))
+    f = os.path.join(d, "r1_math500_no_think_t0.6.jsonl")
+    assert bl["dst"] == "runs/EVAL-t" and [(x["path"], x["bytes"]) for x in bl["files"]] == [("r1_math500_no_think_t0.6.jsonl", 60 * 10 ** 6)]
+    assert bl["files"][0]["sha256"] == hashlib.sha256(open(f, "rb").read()).hexdigest()   # the sha matches the file left on the node
+    assert os.path.getsize(f) == 60 * 10 ** 6                                              # the file stays
+    assert "big_local.json" not in [k.split("/")[-1] for k in n.remote]
+    assert os.listdir(os.path.join(n.root, "control", "stage")) == []                     # stage and its .big side removed
+    assert any("kept on the node" in e for e in n.events)
 
+
+def test_every_big_put_failing_still_commits_the_small_files(priv, monkeypatch):   # [v2.5.9z94] ops-lead's test
+    monkeypatch.setenv("WEIGHTS_REPLAY_COOL_S", "0")
+    n = priv; h = held_result(n, "runs/EVAL-u")
+    for name, mb in (("big_a_math500_no_think_t0.6.jsonl", 30), ("big_b_aime24_no_think_t0.6.jsonl", 12)):
+        with open(os.path.join(h, name), "wb") as f:
+            f.truncate(mb * 10 ** 6)
+        n.failing.add(name)
+    r = W.once()
+    assert r.startswith("REPLAY_OK runs/EVAL-u (result)") and "2 large file(s), 42 MB, kept on the node" in r, r
+    assert n.calls[0]["files"] == ["gen_eval.log.tail.gz", "sub", "x.metrics.json", "x_math500_no_think_t0.6.jsonl"]   # under 9 MB, one commit
+    assert [c["files"] for c in n.calls[1:]] == [["big_a_math500_no_think_t0.6.jsonl"], ["big_b_aime24_no_think_t0.6.jsonl"]]   # largest first
+    assert "runs/EVAL-u/sub/pair.json" in n.remote and lines(n) == []
+    bl = json.load(open(os.path.join(n.root, "runs", "EVAL-u", "big_local.json")))
+    assert [x["path"] for x in bl["files"]] == ["big_a_math500_no_think_t0.6.jsonl", "big_b_aime24_no_think_t0.6.jsonl"]
+
+
+def test_a_failed_small_commit_fails_the_item(priv, monkeypatch):   # [v2.5.9z94] the readings' numbers must go up
+    monkeypatch.setenv("WEIGHTS_REPLAY_COOL_S", "0")
+    n = priv; d = task_dir(n, "EVAL-v"); RM.pend_result(d, "runs/EVAL-v"); n.set("fail")
+    r = W.once()
+    assert r.startswith("REPLAY_FAIL result:runs/EVAL-v small files:"), r
+    assert len(lines(n)) == 1 and os.path.exists(os.path.join(d, ".upload_pending")) and not os.path.exists(os.path.join(d, "big_local.json"))
+    assert len(n.calls) == 1                                                               # the big files are not tried then
+
+
+def test_fail_detail_status_and_scrubbed_server_message():   # [v2.5.9z94] remote.py's reason: the code and 200 characters, no secrets
+    tok = "hf" + "_" + "abcdefghij"   # built at run time: no token-like literal in the public runbook
+    e = Exception("hidden: Authorization: Bearer " + tok)
+    e.response = types.SimpleNamespace(status_code=413)
+    e.server_message = f"Payload Too Large: file exceeds the limit for {tok} at /srv/x/y/z.jsonl, Bearer qq " + "x" * 400
+    d = RM.fail_detail(e)
+    assert d.startswith(" status=413 msg=Payload Too Large") and len(d.split(" msg=", 1)[1]) <= 200
+    assert tok not in d and "/srv/x" not in d and "qq" not in d and "hidden" not in d
+    assert RM.fail_detail(ValueError("x")) == ""                                            # nothing to add: unchanged message
 
 def test_a_small_result_goes_in_one_commit_and_a_subdir_hold_is_accepted(priv):
     n = priv; d = task_dir(n, "PROBE-TERMX", big=(), small=True); up = os.path.join(d, "up"); os.makedirs(up)

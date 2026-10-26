@@ -24,6 +24,13 @@ heartbeat, not the control plane's outbox).
   survives a dropped connection: one connection drops after 30-63 min, a 323 MB commit needs 41-62 min), then the rest (metrics,
   pairs, the log tails) in one last commit; each part's timeout from its size. Struck when every file is verified, then
   runs/<task>/.upload_pending is removed; one result_upload_waiting event when an item has waited RESULT_WAIT_EVENT_S (2 h).
+- [v2.5.9z94] (ops-lead 10-26 21:4x UTC: three 32K readings stuck for hours, their large generation files failing every try) a result
+  goes small files first: every file under RESULT_SMALL_MB (9; the pairs, summaries, metrics, budget curves, log tails, no LFS)
+  in one commit, which holds every reading's numbers; then each file of at least RESULT_SMALL_MB alone, largest first, skipping
+  those the private repository has at that size. A big file whose put fails does not hold the item back: it is listed in
+  runs/<task>/big_local.json (relative path, bytes, sha256) and stays on the node. The item is struck once the small commit and
+  the big files that went up are verified (.upload_pending removed, its fails count cleared). A failed put's reason carries the
+  HTTP status code and the first 200 characters of the server's message (remote.py fail_detail).
 Usage: python weights_replay.py once -> REPLAY_IDLE | REPLAY_OFF | REPLAY_WAIT <why> | REPLAY_OK <dst> | REPLAY_FAIL <dst> <why>"""
 import calendar
 import fcntl
@@ -169,7 +176,7 @@ def cooling(st, dst, now):
 
 
 def failed(dst, why):
-    st = state(); f = st["fails"].get(dst, {"n": 0}); f = {"n": int(f["n"]) + 1, "last": time.time(), "why": why[:200]}
+    st = state(); f = st["fails"].get(dst, {"n": 0}); f = {"n": int(f["n"]) + 1, "last": time.time(), "why": why[:320]}   # [v2.5.9z94] the status code and the server message fit
     st["fails"][dst] = f; save(st)
     if f["n"] == 3:
         event("weights_replay_stuck", f"{dst}: 3 failed tries in a row, the last: {why[:200]}")
@@ -192,7 +199,7 @@ def batch_event(done_now, left, dst=None):
 WEIGHT_DST = re.compile(r"runs/[A-Za-z0-9._-]+/global_step_\d+/actor/huggingface")
 RESULT_DST = re.compile(r"runs/[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*")
 LOG_TAIL = 5 * 10 ** 6
-RESULT_SPLIT = 100 * 10 ** 6   # [v2.5.9z65] a staged result over this goes file by file
+RESULT_SPLIT = 100 * 10 ** 6   # [v2.5.9z65] a staged result over this goes file by file ([v2.5.9z94] superseded: RESULT_SMALL_MB)
 RESULT_PART = 20 * 10 ** 6     # files of at least this size get a commit of their own
 RESULT_MBPS = 0.08   # [v2.5.9z64a] was 0.4: one connection gets 0.09-0.13 MB/s through the proxy (10-22: 268 MB at 129 kB/s)
 
@@ -243,7 +250,7 @@ def _put(src, dst, nbytes):
     try:
         r = subprocess.run([sys.executable, os.path.join(HERE, "remote.py"), "put", src, dst], capture_output=True, text=True,
                            timeout=to, env=dict(os.environ, HF_HUB_ENABLE_HF_TRANSFER="0"))
-        return r.returncode, (r.stderr.strip().splitlines() or [""])[-1][:160]
+        return r.returncode, (r.stderr.strip().splitlines() or [""])[-1][:320]   # [v2.5.9z94] room for status= and msg= (200)
     except subprocess.TimeoutExpired:
         return 1, f"timed out after {to} s"
 
@@ -257,27 +264,59 @@ def private_sizes(dst, rels):
     return info
 
 
+def sha256_of(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for b in iter(lambda: f.read(1 << 22), b""):
+            h.update(b)
+    return h.hexdigest()
+
+
 def put_result(stage, dst, staged):
-    """[v2.5.9z65] the staged directory to the private repository: in one commit, or over RESULT_SPLIT file by file (see the
-    docstring). (rc, why); a part that failed leaves the parts before it in the repository."""
-    nbytes = sum(b for _, b in staged)
-    if nbytes <= float(cfg("RESULT_SPLIT_MB", "100")) * 1e6:
-        return _put(stage, dst, nbytes)
-    big = sorted(((rel, b) for rel, b in staged if b >= float(cfg("RESULT_PART_MB", "20")) * 1e6), key=lambda x: -x[1])
+    """[v2.5.9z94] the staged directory to the private repository: the files under RESULT_SMALL_MB (9) in one commit first, then
+    each larger file alone, largest first, skipping those the repository has at that size (see the docstring). (rc, why, local):
+    rc / why for the small commit, local = [{"path", "bytes", "sha256"}] for the large files whose put failed (left on the node)."""
+    small_lim = float(cfg("RESULT_SMALL_MB", "9")) * 1e6
+    big = sorted(((rel, b) for rel, b in staged if b >= small_lim), key=lambda x: -x[1])
+    side = stage.rstrip("/") + ".big"; shutil.rmtree(side, ignore_errors=True)
+    for rel, _ in big:   # the big files' hard links aside, so the small commit carries only the small files
+        t = os.path.join(side, rel); os.makedirs(os.path.dirname(t), exist_ok=True); os.rename(os.path.join(stage, rel), t)
     try:
-        have = private_sizes(dst, [rel for rel, _ in big]) if big else {}
-    except Exception:
-        have = {}
-    for rel, b in big:
-        if have.get(rel) != b:
-            rc, why = _put(os.path.join(stage, rel), f"{dst}/{rel}", b)
+        if any(fs for _, _, fs in os.walk(stage)):
+            rc, why = _put(stage, dst, sum(b for _, b in staged) - sum(b for _, b in big))
             if rc:
-                return rc, f"{rel}: {why}"
-        os.unlink(os.path.join(stage, rel))   # the stage's hard link only: the last commit carries the small files
-    rest = sum(b for _, b in staged) - sum(b for _, b in big)
-    if any(fs for _, _, fs in os.walk(stage)):
-        return _put(stage, dst, rest)
-    return 0, ""
+                return rc, f"small files: {why}", []
+        try:
+            have = private_sizes(dst, [rel for rel, _ in big]) if big else {}
+        except Exception:
+            have = {}
+        local = []
+        for rel, b in big:
+            if have.get(rel) == b:
+                continue
+            src = os.path.join(side, rel)
+            rc, why = _put(src, f"{dst}/{rel}", b)
+            if rc:   # stays on the node: listed, it does not hold the item back
+                local.append({"path": rel, "bytes": b, "sha256": sha256_of(src), "why": why[:320]})
+        return 0, "", local
+    finally:
+        shutil.rmtree(side, ignore_errors=True)
+
+
+def write_big_local(dst, local):
+    """[v2.5.9z94] runs/<task>/big_local.json: the large files of a struck result that stayed on the node (none: the file removed)."""
+    m = re.fullmatch(r"runs/([A-Za-z0-9._-]+)(?:/.*)?", dst)
+    if not m:
+        return
+    d = os.path.join(os.environ.get("OPD_ROOT", ""), "runs", m.group(1)); p = os.path.join(d, "big_local.json")
+    if not local:
+        if os.path.exists(p):
+            os.remove(p)
+        return
+    os.makedirs(d, exist_ok=True)
+    tmp = f"{p}.{os.getpid()}.tmp"
+    json.dump({"dst": dst, "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "files": local}, open(tmp, "w"), indent=1)
+    os.replace(tmp, p)
 
 
 def waiting_events(items, now=None):
@@ -339,12 +378,13 @@ def results_once(items):
         staged = stage_result(hold, stage)
         nbytes = sum(b for _, b in staged)
         t0 = time.time()
-        rc, why = put_result(stage, dst, staged)   # [v2.5.9z65] file by file over RESULT_SPLIT
+        rc, why, local = put_result(stage, dst, staged)   # [v2.5.9z94] small files first, then the large ones alone
         secs = round(time.time() - t0, 1)
         if rc:
             return failed("result:" + dst, why)
+        kept = {x["path"] for x in local}
         try:
-            ok, why = verify_private(dst, staged)
+            ok, why = verify_private(dst, [(rel, b) for rel, b in staged if rel not in kept])   # what went up
         except Exception as e:
             ok, why = False, f"verify: {type(e).__name__}"
         if not ok:
@@ -352,6 +392,7 @@ def results_once(items):
     finally:
         shutil.rmtree(stage, ignore_errors=True)
     strike(dst, nbytes, secs)
+    write_big_local(dst, local)   # [v2.5.9z94] the large files that stayed on the node
     m = re.fullmatch(r"runs/([A-Za-z0-9._-]+)", dst)   # [v2.5.9z65] the task's marker, now that every file is verified
     if m:
         try:
@@ -359,8 +400,10 @@ def results_once(items):
         except OSError:
             pass
     st = state(); st["fails"].pop("result:" + dst, None); st["fails"].pop(dst, None); save(st)
-    event("results_replayed", f"{dst}: {len(staged)} file(s), {nbytes / 1e6:.0f} MB to the private repository in {secs} s")
-    return f"REPLAY_OK {dst} (result) {nbytes / 1e6:.0f} MB in {secs} s"
+    up = nbytes - sum(x["bytes"] for x in local)
+    kept_txt = f"; {len(local)} large file(s), {sum(x['bytes'] for x in local) / 1e6:.0f} MB, kept on the node (big_local.json)" if local else ""
+    event("results_replayed", f"{dst}: {len(staged) - len(local)} file(s), {up / 1e6:.0f} MB to the private repository in {secs} s{kept_txt}")
+    return f"REPLAY_OK {dst} (result) {up / 1e6:.0f} MB in {secs} s{kept_txt}"
 
 
 def once():

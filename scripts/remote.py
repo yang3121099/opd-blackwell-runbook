@@ -583,6 +583,16 @@ def pend_result(src, dst):
     return size
 
 
+def fail_detail(e):
+    """[v2.5.9z94] (ops-lead 10-26) a failed request's HTTP status code and the first 200 characters of the server's own message
+    (HfHubHTTPError.server_message, the response body's error, not the exception text, which can carry request headers); token-,
+    bearer- and path-like strings scrubbed. '' when there is neither."""
+    code = getattr(getattr(e, "response", None), "status_code", None)
+    msg = " ".join(str(getattr(e, "server_message", None) or "").split())
+    msg = re.sub(r"hf_[A-Za-z0-9]{6,}|[Bb]earer\s+\S+|(?<![A-Za-z0-9_.-])/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+", "<scrubbed>", msg)[:200]
+    return (f" status={code}" if code else "") + (f" msg={msg}" if msg else "")
+
+
 if __name__ == "__main__":
     try:
         {"check": lambda: check(), "done": lambda: done(sys.argv[2]),
@@ -590,4 +600,4 @@ if __name__ == "__main__":
          "repo": lambda: print(fetch_repos() if sys.argv[2] == "public" else repos()[1]), "putmany": lambda: put_many(sys.argv[2]),
          "backoff": lambda: print(int(backoff_left()))}.get(sys.argv[1], lambda: put(sys.argv[2], sys.argv[3], (sys.argv[4:] or [None])[0]))()   # [v2.5.9z50] repo public: the fetch order
     except Exception as e:   # never echo the exception text verbatim: it can contain request headers
-        print(f"{BACKEND} {sys.argv[1]} failed: {type(e).__name__}", file=sys.stderr); sys.exit(1)
+        print(f"{BACKEND} {sys.argv[1]} failed: {type(e).__name__}{fail_detail(e)}", file=sys.stderr); sys.exit(1)
