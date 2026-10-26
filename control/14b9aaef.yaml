@@ -610,3 +610,4 @@ commands:
   - {"seq": 608, "cmd": "update", "reason": "queue: restore 4 held TERM4 / TERM4-4B rows (s50 done)", "utc": "2026-10-26T06:51:50Z"}
   - {"seq": 609, "cmd": "du opd_root runs/SFT-P1", "reason": "storage review P1: where SFT-P1's weights are (to publish them)", "utc": "2026-10-26T06:57:52Z"}
   - {"seq": 610, "cmd": "du ckpt SFT-P1", "reason": "storage review P1: where SFT-P1's weights are (to publish them)", "utc": "2026-10-26T06:58:31Z"}
+  - {"seq": 611, "cmd": "update", "reason": "z88a (test-only): test_dense_patch reads the kept .orig (ops-lead A1 06:58Z)", "utc": "2026-10-26T07:01:20Z"}
