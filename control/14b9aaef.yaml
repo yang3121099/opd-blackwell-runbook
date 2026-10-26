@@ -621,3 +621,4 @@ commands:
   - {"seq": 619, "cmd": "ps", "reason": "ops-lead 07:5xZ: keep procs.json fresh for the sandbox watch (every 30 min near :15 / :45)", "utc": "2026-10-26T07:53:26Z"}
   - {"seq": 620, "cmd": "update", "reason": "z88e: the recorder refuses inside a sandbox + all_tasks set-precedence fix (Fable approved, ops-lead A1 08:11Z)", "utc": "2026-10-26T08:16:45Z"}
   - {"seq": 621, "cmd": "ps", "reason": "sandbox watch: keep procs.json fresh (:13 / :43)", "utc": "2026-10-26T08:24:42Z"}
+  - {"seq": 622, "cmd": "update", "reason": "z88f: HEARTBEAT-UNSTICK code (rules 2.5.97; ops-lead A1 08:28Z), no queue row; run_tasks restarts", "utc": "2026-10-26T08:32:06Z"}
