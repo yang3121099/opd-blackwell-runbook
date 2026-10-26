@@ -457,6 +457,10 @@ def runner_of(err, runbook):
 def collect(task, profile, g, sb, runbook, rc, out, err, iters, gates, plants, finding, head, rules):
     recs = read_rec(os.path.join(sb, "rec.jsonl"))
     calls = [r for r in recs if r.get("cls") != "clock"]
+    # [v2.5.9z88c] (the flaky T3 determinism check, 10-26) a background launch (`setsid nohup ... &`) is recorded by a shim that runs
+    # alongside the next command, so its line lands in rec.jsonl in timing order: kept after the foreground calls (each group in its
+    # own order), a recording is byte-identical run to run; every field derived below filters by class
+    calls = [r for r in calls if r["cls"] != "bg"] + [r for r in calls if r["cls"] == "bg"]
     trains = [r for r in calls if r["cls"] == "train_cmd"]
     cfg_p = os.path.join(sb, "opd", "runs", task, "config.yaml")
     cfg = open(cfg_p).read() if os.path.isfile(cfg_p) else None
