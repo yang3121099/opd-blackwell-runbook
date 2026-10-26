@@ -622,3 +622,4 @@ commands:
   - {"seq": 620, "cmd": "update", "reason": "z88e: the recorder refuses inside a sandbox + all_tasks set-precedence fix (Fable approved, ops-lead A1 08:11Z)", "utc": "2026-10-26T08:16:45Z"}
   - {"seq": 621, "cmd": "ps", "reason": "sandbox watch: keep procs.json fresh (:13 / :43)", "utc": "2026-10-26T08:24:42Z"}
   - {"seq": 622, "cmd": "update", "reason": "z88f: HEARTBEAT-UNSTICK code (rules 2.5.97; ops-lead A1 08:28Z), no queue row; run_tasks restarts", "utc": "2026-10-26T08:32:06Z"}
+  - {"seq": 623, "cmd": "du ckpt E12d-P5-16k-s43/ckpt", "reason": "ops-lead: s25 local on idx1 for EVAL-ext32k-4Bp5l16k-s43-s25 (LOCAL_FIRST)", "utc": "2026-10-26T08:35:21Z"}
