@@ -634,3 +634,4 @@ commands:
   - {"seq": 632, "cmd": "du ckpt E10d-P5tail/ckpt", "reason": "Q-074b: start E10d-P5tail s50 local on idx1", "utc": "2026-10-26T10:24:48Z"}
   - {"seq": 633, "cmd": "ps", "reason": "executor: confirm the node pulled z90 2204a59 + z88g aef11b0 before the canary-only CORPUS-RECORD rerun (ops-lead A1 inbox 10:35Z); procs.json fresh for ops-lead", "utc": "2026-10-26T10:42:21Z"}
   - {"seq": 634, "cmd": "ps", "reason": "x", "utc": "2026-10-26T10:43:08Z"}
+  - {"seq": 635, "cmd": "rerun CORPUS-RECORD", "reason": "z88g aef11b0 on the node (head b642cc8): the first --all records the canary EVAL-gm-06base only and writes canary_ok.<code hash>; ops-lead A1 inbox 10:35Z; the --all rerun waits for ops-lead's 放行", "utc": "2026-10-26T10:45:56Z"}
