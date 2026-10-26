@@ -611,3 +611,4 @@ commands:
   - {"seq": 609, "cmd": "du opd_root runs/SFT-P1", "reason": "storage review P1: where SFT-P1's weights are (to publish them)", "utc": "2026-10-26T06:57:52Z"}
   - {"seq": 610, "cmd": "du ckpt SFT-P1", "reason": "storage review P1: where SFT-P1's weights are (to publish them)", "utc": "2026-10-26T06:58:31Z"}
   - {"seq": 611, "cmd": "update", "reason": "z88a (test-only): test_dense_patch reads the kept .orig (ops-lead A1 06:58Z)", "utc": "2026-10-26T07:01:20Z"}
+  - {"seq": 612, "cmd": "rerun PROBE-DENSE-4B", "reason": "z88a live: rerun the gate (needs 11 passed, 0 failed); a PASS releases E10d-P5-akl", "utc": "2026-10-26T07:03:18Z"}
