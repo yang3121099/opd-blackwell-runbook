@@ -101,7 +101,7 @@ SMERGE=0; [ $TASK = E10b-P5stopmerge ] && { SMERGE=1; BASE=E10b-P5; }
 # opd_tailswap.py, OPD_TAILSWAP=1): up to the first complete \boxed{} of a response the teacher's log-probs are P5's (thinking
 # reading); after it they come from a second reference pass of the same 8B on the non-thinking template (P2's reading). 50 steps;
 # train.log tail/* and runs/<task>/tailswap.jsonl per step. Gated by PROBE-TAIL.
-TAIL=0; [[ $TASK == E10b-P5tail || $TASK == E10b-P5tail-s43 ]] && { TAIL=1; BASE=E10b-P5; }   # [v2.5.9z41] -s43: data.seed 43 (the seed parse above)
+TAIL=0; [[ $TASK == E10b-P5tail || $TASK == E10b-P5tail-s43 || $TASK == E10b-P5tail-s44 ]] && { TAIL=1; BASE=E10b-P5; }   # [v2.5.9z41] -s43: data.seed 43 (the seed parse above)   [v2.5.9z93] (Q-074g) -s44: data.seed 44, from the base (Fable 10-26)
 # [v2.5.9z70] (Q-055, research_program 3c; Fable 10-23 17:2x UTC: its condition met, the 1.7B tail s50 p_stop_last 0.786 and 32K -0.30
 # vs P5 s150) E10c-P5tail = the tail-swapped 8B teacher (its thinking reading up to the first box, the non-thinking one after it, as
 # E10b-P5tail) for the 0.6B P5 student from E10c-P5-fix4 s150 (as E10c-P5-polish), 20 steps, fix4, the venv in use, s20 up; PROBE-TAIL
@@ -401,7 +401,7 @@ UW=$NSTEPS; [ $TASK = E10c-P5-fix4 ] && UW=100,$NSTEPS; [ -n "$XARM" ] && UW=25,
 [ $W8K = 1 ] && SAVE=${SAVE:-25}   # [v2.5.9z66] (Q-059) s25 and s50 saved; s50 uploaded (UW), s25 kept on the node
 [ $BUD -gt 0 ] && SAVE=${SAVE:-25}   # [v2.5.9z73] (Q-061) s25 and s50 saved; s50 uploaded (UW), s25 kept on the node
 [ -n "$SOFTMIX" ] && SAVE=${SAVE:-25}   # [v2.5.9z83] (Q-073) s25 and s50 saved; s50 uploaded (UW), s25 kept on the node
-[[ $TASK =~ ^E10d-P5tail(-s43)?$ ]] && SAVE=${SAVE:-25}   # [v2.5.9z92] -s43 too;   # [v2.5.9z84a] (Q-075) s25 and s50 saved; s50 uploaded (UW), s25 kept on the node
+[[ $TASK =~ ^E10d-P5tail(-s43)?$ ]] && SAVE=${SAVE:-25}   # [v2.5.9z84a] (Q-075) s25 and s50 saved; s50 uploaded (UW), s25 kept on the node; [v2.5.9z92] -s43 too
 [ -n "$DENSE" ] && SAVE=${SAVE:-25}   # [v2.5.9z76] (Q-065) s25 and s50 saved; s50 uploaded (UW), s25 kept on the node
 [ -n "$ROUTE_SELF" ] && SAVE=${SAVE:-25}   # [v2.5.9z82] (Q-072) s25 and s50 saved; s50 uploaded (UW), s25 kept on the node
 # [v2.5.9z40] (ops-lead 10-22, PROBE-T32's first run: vLLM found 127.6 of 267.7 GiB free at start-up, below 0.5 x total) the 32B arm and

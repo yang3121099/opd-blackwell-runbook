@@ -1621,3 +1621,16 @@ def test_run_and_rerun_accept_v259z92(env):   # [v2.5.9z92] (Q-074d / Q-075c / Q
     items = st[1].split()[2:]
     arms = [x for x in items if not x.startswith("EVAL-")]
     assert items[:len(arms)] == arms   # readings after every arm
+
+
+def test_run_and_rerun_accept_v259z93(env):   # [v2.5.9z93] (Q-074g) the third start's tail arm and its 8K arm, rules unchanged
+    for i, t in enumerate(("E10b-P5tail-s44", "E12b-P5tail-8k-s44")):
+        st, msg, _ = env.c.v_run([t], 300 + i)
+        assert st == "accepted", (t, msg)
+        R.parse({"cmd": f"rerun {t}", "reason": "t"})
+    here = os.path.dirname(os.path.abspath(__file__))
+    ts = open(os.path.join(here, "task.sh")).read()
+    assert ts.index("  E10b-P5tail-s44) ") < ts.index("  E10b-*) ") and ts.index("  E12b-P5tail-8k-s44) ") < ts.index("  E12b-*) ")
+    q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
+    st = [l.split()[0] for l in q.split("\n") if l.startswith(("b259z92 ", "b259z93 ", "b259z92b ", "b259z85 "))]
+    assert st == ["b259z92", "b259z93", "b259z92b", "b259z85"]   # Fable's order: Q-074g before the 32K rows

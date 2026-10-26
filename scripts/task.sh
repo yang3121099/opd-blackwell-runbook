@@ -27,6 +27,8 @@ case $T in
   E12e-P5self-8k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z91] (Q-081, 3e) the 8B window arm: the 8K RL recipe from E10e-P5self s50, #gpus 4; gated by PROBE-E12B-8K and PROBE-E12E-8K
   PROBE-E12E-8K) PEV_LADDER=E12e bash $RUNBOOK/scripts/probe_e12var.sh $G 8k;;   # [v2.5.9z91] (Q-081): the gate of E12e-P5self-8k, a 4-GPU 3-step smoke (#gpus 4)
   PROBE-TAIL-8B) PTL_PROBE=PROBE-TAIL-8B PTL_ARM=E10e-P5tail bash $RUNBOOK/scripts/probe_tail.sh $G;;   # [v2.5.9z91] (Q-075b): the 8B tail arm's smoke, four GPUs (#gpus 4)
+  E10b-P5tail-s44) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z93] (Q-074g, Fable's pre-registration research_program 3g) tail-swap from the base, data.seed 44 (the third start), one GPU; gated by PROBE-TAIL
+  E12b-P5tail-8k-s44) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z93] (Q-074g) the 8K RL arm from E10b-P5tail-s44 s50, one GPU; above E12b-*
   E10b-P5tail-s43) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z41] (padding ruling 10-22) tail-swap, data.seed 43
   E10b-P5route-inv) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z45] (Q-063) route reversed: easy -> thinking teacher
   E10b-P5selfroute) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z82] (Q-072) route with the probe's out-of-fold labels
