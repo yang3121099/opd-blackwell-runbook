@@ -615,3 +615,4 @@ commands:
   - {"seq": 613, "cmd": "logs heartbeat 120", "reason": "heartbeat stale 650 s twice since 06:49Z (watchdog restarts 07:02 / 07:13), right after CORPUS-RECORD started 06:48: read its log", "utc": "2026-10-26T07:14:52Z"}
   - {"seq": 614, "cmd": "kill CORPUS-RECORD", "reason": "Runming approved 10-26 15:2x Beijing: CORPUS-RECORD's sandboxed task.sh processes are counted as live tasks by heartbeat.sh live_tasks(), heartbeat hangs since 06:49Z (status stale, watchdog restarts 07:02 / 07:13); its own tree only, no GPU", "utc": "2026-10-26T07:19:55Z"}
   - {"seq": 615, "cmd": "logs heartbeat 40", "reason": "after kill CORPUS-RECORD: status still stuck at 07:20:53Z; heartbeat log tail", "utc": "2026-10-26T07:31:32Z"}
+  - {"seq": 616, "cmd": "ps", "reason": "is CORPUS-RECORD running again (status 07:23 shows it running after the kill)", "utc": "2026-10-26T07:36:22Z"}
