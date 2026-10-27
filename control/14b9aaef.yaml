@@ -685,3 +685,4 @@ commands:
   - {"seq": 683, "cmd": "ps", "reason": "executor :13 watch ps (standing duty)", "utc": "2026-10-27T06:18:01Z"}
   - {"seq": 684, "cmd": "ps", "reason": "executor :43 watch ps (standing duty)", "utc": "2026-10-27T06:48:11Z"}
   - {"seq": 685, "cmd": "ps", "reason": "executor :13 watch ps; step 0 check (are the loops on the new checkout)", "utc": "2026-10-27T07:18:22Z"}
+  - {"seq": 686, "cmd": "setenv DR=1", "reason": "idx0 free 7774.4 GB > 5000 (ops-lead standing rule 10-22): DR back on", "utc": "2026-10-27T08:28:12Z"}
