@@ -168,6 +168,8 @@ bash scripts/verify.sh > $OPD_ROOT/logs/verify.log 2>&1
 if grep -q "G2 PASS" $OPD_ROOT/logs/verify.log && grep -q "VLLM PASS" $OPD_ROOT/logs/verify.log && grep -q "SMOKE PASS" $OPD_ROOT/logs/verify.log; then step 7 "verify PASS ($(grep -oE '(G2|VLLM|SMOKE|UPLOAD_CHECK)[A-Z _]*(PASS|FAIL)' $OPD_ROOT/logs/verify.log | tr '\n' ' '))"; else fail 7 "verify (see logs/verify.log: $(grep -oE '(G2|VLLM|SMOKE)[A-Z _]*(PASS|FAIL)' $OPD_ROOT/logs/verify.log | tr '\n' ' '))"; fi
 if [ -z "${HF_TOKEN:-}" ] || [ -z "${HF_REPO:-}" ]; then fail 8 "HF_TOKEN / HF_REPO not exported in the launching shell"; fi
 python scripts/remote.py put $OPD_ROOT/logs/verify.log logs/$(hostname)/verify.log >>$LOG 2>&1 && step 8 "verify.log uploaded to $HF_REPO" || step 8 "verify.log upload FAILED (continuing)"
+# [v2.5.9z100] (cold start, requirements v26 §11) OVERNIGHT_NO_LOOPS=1: stop here; cold_start.sh runs its health checks and starts the loops
+[ "${OVERNIGHT_NO_LOOPS:-0}" = 1 ] && { step 9 "loops left to cold_start.sh (OVERNIGHT_NO_LOOPS=1)"; exit 0; }
 # ---------- 9. heartbeat now, tasks once 1.7B is complete ----------
 if pgrep -f "scripts/heartbeat.s[h]" > /dev/null; then step 9 "heartbeat already running (kept)"; else
   setsid nohup bash scripts/heartbeat.sh > $OPD_ROOT/logs/heartbeat.log 2>&1 9>&- &
