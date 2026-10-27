@@ -1786,3 +1786,24 @@ def test_do_publish_redacted_scrubs_checks_and_publishes_v259z96(env, monkeypatc
     sent.clear(); monkeypatch.setattr(c, "leak_counts", lambda *a, **k: 2)
     c.do_publish_redacted(81, "EVAL-a", "x.jsonl")
     assert got["st"] == "failed" and "nothing uploaded" in got["detail"] and sent == [] and "publish_redacted_refused" in got["events"]
+
+
+def test_queue_v259z98():   # [v2.5.9z98] research_program 3j / 3l: the 32K rule, a pad stage, Q-077 at AIME 16K, the new H4
+    here = os.path.dirname(os.path.abspath(__file__))
+    q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read(); L = q.split("\n")
+    for gone in ("EVAL-ext32k-17aklmu07", "EVAL-ext32k-17selfakl", "EVAL-ext32k-06p5self", "EVAL-ext32k-06p5l8k", "EVAL-ext32k-06p5l16k", "budAP5aklmu07_s50_math500_T0.6_32k"):
+        assert gone not in q, gone
+    assert "#eval EVAL-aklmu07 e10b_P5aklmu07_s50_math500_T0.6 " in q and "#eval EVAL-selfakl " in q        # their 16K rows stay
+    stages = [l.split()[0] for l in L if re.match(r"^[a-z0-9]+\s+open\s", l)]
+    assert stages[stages.index("fill18") + 1] == "pad98"
+    pad = next(l for l in L if l.startswith("pad98 ")).split()[2:]
+    assert sorted(t.split(":")[0] for t in pad) == ["EVAL-budA-e12cP5-16k", "EVAL-budA-e12cP5-8k"]
+    assert next(l for l in L if l.startswith("#pad ")).split()[-1] == "pad98"
+    z85 = next(l for l in L if l.startswith("b259z85 ")); z92 = next(l for l in L if l.startswith("b259z92 "))
+    assert "EVAL-budA-e12cP5-8k" not in z85 and "EVAL-ext-06p5rl-aime" in z85 and "EVAL-ext-06p5l16k:E12c-P5-16k" in z85
+    assert " EVAL-budA-e12cP5tail-8k:E12c-P5tail-8k " in f" {z92} " and "EVAL-ext32k-06p5tail8k:E12c-P5tail-8k+EVAL-ext32k-06tail-c50" in z92
+    for t, src in (("EVAL-ext-06p5rl-aime", "E12c-P5/global_step_100"), ("EVAL-ext-06p5l8k", "E12c-P5-8k/global_step_50"), ("EVAL-ext-06p5l16k", "E12c-P5-16k/global_step_50")):
+        for b in ("aime24", "aime25"):
+            assert sum(1 for l in L if l.startswith(f"#eval {t} ") and f"result:runs/{src}/actor/huggingface {b} 16 0.6" == " ".join(l.split()[3:])) == 1
+            assert any(l.startswith(f"#pair {t} ") and f"EVAL-ext-E10c-P5-fix4/ext_E10cP5fix4_{b}_T0.6_{b}_no_think_t0.6.jsonl" in l for l in L)
+    assert q.count("the paired difference's 95% CI contains 0 and |point| <= 5") == 2                     # Q-074i and Q-074g
