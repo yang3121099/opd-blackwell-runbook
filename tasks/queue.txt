@@ -3118,8 +3118,8 @@ fill18   open   EVAL-ext-4Bp5tail:E10d-P5tail EVAL-gm-4Bp5tail:E10d-P5tail EVAL-
 #pair EVAL-ext32k-17p5tail8k-s43 ext32k17_E12bP5tail8ks43_s50_aime24_T0.6 EVAL-ext32k-17p5tail8k/ext32k17_E12bP5tail8k_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17tail-s43/ext32k17_P5tail-s43_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #eval EVAL-ext32k-17p5tail8k-s43 ext32k17_E12bP5tail8ks43_s50_aime25_T0.6 result:runs/E12b-P5tail-8k-s43/global_step_50/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-17p5tail8k-s43 ext32k17_E12bP5tail8ks43_s50_aime25_T0.6 EVAL-ext32k-17p5tail8k/ext32k17_E12bP5tail8k_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17tail-s43/ext32k17_P5tail-s43_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
-# [held until E12b-P5tail-8k-s43 has s50] term PROBE-TERM4 17_P5tail8ks43 result:runs/E12b-P5tail-8k-s43/global_step_50/actor/huggingface EVAL-e12b-P5tail-8k-s43/e12b_P5tail-8k-s43_s50_math500_T0.6_math500_no_think_t0.6.jsonl
-# [held until E12b-P5tail-8k-s43 has s50; restored together with the term row above] after EVAL-e12b-P5tail-8k-s43 rerun PROBE-TERM4
+#term PROBE-TERM4 17_P5tail8ks43 result:runs/E12b-P5tail-8k-s43/global_step_50/actor/huggingface EVAL-e12b-P5tail-8k-s43/e12b_P5tail-8k-s43_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-e12b-P5tail-8k-s43 rerun PROBE-TERM4
 # Q-081 E12e-P5self-8k (the 8B window arm): the 8K RL recipe from E10e-P5self s50, #gpus 4 (8B: always 2-4 GPUs), s25 / s50 up; gated
 # by PROBE-E12B-8K and PROBE-E12E-8K (a 3-step smoke on its four GPUs). Readings (rl_family): MATH-500 16K s25 / s50 paired with the start
 # and the 8B base; the 32K budget curves vs the base and the start; AIME24 / 25 32K avg@16 paired with the start (H3); TERM4 held until s50
