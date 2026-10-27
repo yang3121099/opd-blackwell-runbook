@@ -675,3 +675,4 @@ commands:
   - {"seq": 673, "cmd": "ps", "reason": "executor :43 watch: procs.json fresh for ops-lead's :51 read", "utc": "2026-10-27T00:48:47Z"}
   - {"seq": 674, "cmd": "ps", "reason": "executor :13 watch: procs.json fresh for ops-lead's :21 read", "utc": "2026-10-27T01:18:17Z"}
   - {"seq": 675, "cmd": "rerun PROBE-TERM4", "reason": "8B_P5tail (Q-075b H2) not measured: EVAL-e10e-P5tail landed 00:24Z while PROBE-TERM4 ran 22:29-01:32Z, so its #after is stale (executor's held-rows rule: explicit rerun)", "utc": "2026-10-27T01:48:24Z"}
+  - {"seq": 676, "cmd": "ps", "reason": "executor :43 watch: procs.json fresh for ops-lead's :51 read", "utc": "2026-10-27T01:49:56Z"}
