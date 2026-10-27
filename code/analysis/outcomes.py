@@ -2,10 +2,11 @@
 file, no text, from which accuracies, truncation rates, lengths and the problem-level paired bootstraps can be recomputed when the
 raw generations are gone.
 
-  reading   a gen_eval jsonl -> one line per sample: {"id", "s", "ok", "n", "trunc", "box"} (problem id, sample, correct, tokens,
-            ended at the length limit, holds a complete \\boxed{})
+  reading   a gen_eval jsonl -> one line per sample: {"id", "s", "ok", "n", "trunc", "box", "answer_norm"} (problem id, sample,
+            correct, tokens, ended at the length limit, holds a complete \\boxed{}, the final answer - answer_norm below)
   rollouts  a verl rollout dump (<run>/rollouts/<step>.jsonl: input, output, score, step) -> one line per response: {"step", "key",
-            "score", "chars", "box", "n"} (key = diff_labels.key: sha1 of the last user message; n = tokens, with --tokenizer)
+            "score", "chars", "box", "n", "answer_norm"} (key = diff_labels.key: sha1 of the last user message; n = tokens, with
+            --tokenizer)
   backfill  for each listed object of the private repository (the cleanup CSV: tier, task, filename, ...): download it, write its
             outcomes under <outdir>/<task>/, delete the download (a small disk); resumable (an existing output is kept)
 
@@ -27,6 +28,27 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from vlm_trunc_classify import box_end  # noqa: E402
 
 USER = re.compile(r"<\|im_start\|>user\n(.*?)<\|im_end\|>", re.S)
+WRAP = re.compile(r"\\(?:text|textbf|mathrm|mbox)\{([^{}]*)\}")
+DROP = re.compile(r"\\left|\\right|\\[!,;:]|\$|\^\{?\\circ\}?|\s+")
+ANSWER_MAX = 120
+
+
+def answer_norm(text):
+    """[Fable 10-27 11:4x UTC] The final answer as a short string, no reasoning text: the content of the last complete \\boxed{...}
+    (gen_eval grades the last box), with \\text{} / \\mathrm{} unwrapped, \\dfrac / \\tfrac as \\frac, no \\left / \\right / spacing
+    commands / $ / degree marks / whitespace / trailing period, cut at ANSWER_MAX characters; None without a complete box."""
+    text = text or ""
+    i = text.rfind("\\boxed{")
+    while i >= 0:
+        j, depth = i + len("\\boxed{"), 1
+        while j < len(text) and depth:
+            depth += {"{": 1, "}": -1}.get(text[j], 0); j += 1
+        if depth == 0:
+            a = text[i + len("\\boxed{"):j - 1]
+            a = WRAP.sub(r"\1", a).replace("\\dfrac", "\\frac").replace("\\tfrac", "\\frac")
+            return DROP.sub("", a).rstrip(".")[:ANSWER_MAX]
+        i = text.rfind("\\boxed{", 0, i)
+    return None
 
 
 def rows(path):
@@ -46,7 +68,8 @@ def reading(src, out):
     with open(out + ".tmp", "w") as f:
         for r in rows(src):
             f.write(json.dumps({"id": r.get("pid"), "s": r.get("sample"), "ok": r.get("correct"), "n": r.get("n_tokens"),
-                                "trunc": r.get("finish_reason") == "length", "box": box_end(r.get("text") or "") >= 0}) + "\n"); n += 1
+                                "trunc": r.get("finish_reason") == "length", "box": box_end(r.get("text") or "") >= 0,
+                                "answer_norm": answer_norm(r.get("text"))}) + "\n"); n += 1
     os.replace(out + ".tmp", out); return n
 
 
@@ -57,7 +80,7 @@ def rollouts(src, out, count=None):
         for r, k in zip(recs, ns):
             o = r.get("output") or ""
             f.write(json.dumps({"step": r.get("step"), "key": key(r.get("input")), "score": r.get("score"), "chars": len(o),
-                                "box": box_end(o) >= 0, "n": k}) + "\n")
+                                "box": box_end(o) >= 0, "n": k, "answer_norm": answer_norm(o)}) + "\n")
     os.replace(out + ".tmp", out); return len(recs)
 
 

@@ -26,9 +26,9 @@ def test_reading_outcomes_keep_no_text(tmp_path):
                                        {"pid": "math500-0", "sample": 1, "correct": False, "n_tokens": 16384, "finish_reason": "length", "text": "still going"}])
     out = str(tmp_path / "r.outcomes.jsonl")
     assert O.reading(src, out) == 2
-    assert lines(out) == [{"id": "math500-0", "s": 0, "ok": True, "n": 120, "trunc": False, "box": True},
-                          {"id": "math500-0", "s": 1, "ok": False, "n": 16384, "trunc": True, "box": False}]
-    assert "boxed" not in open(out).read() and "still going" not in open(out).read()
+    assert lines(out) == [{"id": "math500-0", "s": 0, "ok": True, "n": 120, "trunc": False, "box": True, "answer_norm": "4"},
+                          {"id": "math500-0", "s": 1, "ok": False, "n": 16384, "trunc": True, "box": False, "answer_norm": None}]
+    assert "boxed" not in open(out).read() and "still going" not in open(out).read() and "so " not in open(out).read()
 
 
 def test_rollout_outcomes_with_key_and_tokens(tmp_path):
@@ -37,9 +37,19 @@ def test_rollout_outcomes_with_key_and_tokens(tmp_path):
     out = str(tmp_path / "7.outcomes.jsonl")
     assert O.rollouts(src, out, lambda texts: [len(t.split()) for t in texts]) == 1
     (r,) = lines(out)
-    assert r == {"step": 7, "key": O.key(inp), "score": 1.0, "chars": 14, "box": True, "n": 2}
+    assert r == {"step": 7, "key": O.key(inp), "score": 1.0, "chars": 14, "box": True, "n": 2, "answer_norm": "4"}
     import hashlib
     assert r["key"] == hashlib.sha1(b"What is 2+2?").hexdigest()[:16]                    # diff_labels.key's identity
+
+
+def test_answer_norm_is_the_last_complete_box_normalised():
+    assert O.answer_norm("first \\boxed{3} then \\boxed{\\dfrac{4}{9}}.") == "\\frac{4}{9}"           # the last box, as gen_eval grades
+    assert O.answer_norm("$\\boxed{ \\left( 2, 12 \\right) \\cup (12,\\, 102) }$") == "(2,12)\\cup(12,102)"
+    assert O.answer_norm("\\boxed{90^\\circ} and \\boxed{\\text{(B)}}") == "(B)"
+    assert O.answer_norm("\\boxed{30^{\\circ}.}") == "30"
+    assert O.answer_norm("ok \\boxed{7} then cut \\boxed{\\frac{1}{") == "7"                           # a box cut by the limit is skipped
+    assert O.answer_norm("no box at all") is None and O.answer_norm(None) is None
+    assert len(O.answer_norm("\\boxed{" + "x" * 500 + "}")) == O.ANSWER_MAX                              # never a long text
 
 
 def test_backfill_downloads_writes_deletes_and_resumes(tmp_path):
@@ -82,5 +92,5 @@ def test_run_queue_eval_writes_outcomes_for_finished_readings(tmp_path):   # the
     r = subprocess.run(["bash", "-c", block], env=dict(os.environ, OUT=str(out), RUNBOOK=rb), capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
     assert sorted(p.name for p in out.glob("*.outcomes.jsonl")) == ["a_math500_no_think_t0.6.outcomes.jsonl"]
-    assert lines(out / "a_math500_no_think_t0.6.outcomes.jsonl") == [{"id": "math500-0", "s": 0, "ok": True, "n": 9, "trunc": False, "box": True}]
+    assert lines(out / "a_math500_no_think_t0.6.outcomes.jsonl") == [{"id": "math500-0", "s": 0, "ok": True, "n": 9, "trunc": False, "box": True, "answer_norm": "1"}]
     assert sh.count("grep -Ev '\\.(forced|outcomes)\\.jsonl$'") == 3                # the readers never pick an outcomes file (ERE: BSD grep too)
