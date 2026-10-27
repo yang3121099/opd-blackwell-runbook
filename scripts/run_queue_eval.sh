@@ -56,7 +56,7 @@ resolve_model() {   # $1 = a model as on an #eval line -> M (fetched if needed);
 run_rel() { [[ $1 =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+\.jsonl$ ]] && [[ /$1/ != */../* && /$1/ != */./* ]]; }   # [v2.5.8] <task>/<file>.jsonl, never ".." / "."
 ref_path() {   # a reading: a tag of this task -> its jsonl, or <task dir>/<file>.jsonl under $OPD_ROOT/runs; "" if refused
   if run_rel "$1"; then echo "$OPD_ROOT/runs/$1"   # [v2.5.8] run_rel
-  elif [[ $1 =~ ^[A-Za-z0-9._-]+$ ]]; then F=$(ls $OUT/${1}_*.jsonl 2>/dev/null | grep -v '\.forced\.jsonl$' | head -1); echo "${F:-$OUT/$1.missing.jsonl}"; fi
+  elif [[ $1 =~ ^[A-Za-z0-9._-]+$ ]]; then F=$(ls $OUT/${1}_*.jsonl 2>/dev/null | grep -Ev '\.(forced|outcomes)\.jsonl$' | head -1); echo "${F:-$OUT/$1.missing.jsonl}"; fi
 }
 if [ "$G" = prefetch ]; then
   pok=1
@@ -107,7 +107,7 @@ read -r TWR_TAG TWR_JUDGE TWR_REF <<< "$(awk -v t="$T" '$1 == "#twr" && $2 == t 
 # its 4B reading was judged by the 1.7B base and the alpha step failed on the hidden size)
 [ "$(awk -v t="$T" '$1 == "#twr" && $2 == t' "$Q" | wc -l | tr -d ' ')" -gt 1 ] && { echo "TWR_REFUSED $T has several #twr lines: keep one"; TWR_TAG=""; }
 if [ -n "$TWR_TAG" ] && [ ! -f $OUT/twr.json ]; then
-  REF=$(ls $OPD_ROOT/runs/E11b-P0/e11b_P0_math500_T0.6_*.jsonl 2>/dev/null | head -1); SC=$(ls $OUT/${TWR_TAG}_*.jsonl 2>/dev/null | grep -v '\.forced\.jsonl$' | head -1)
+  REF=$(ls $OPD_ROOT/runs/E11b-P0/e11b_P0_math500_T0.6_*.jsonl 2>/dev/null | head -1); SC=$(ls $OUT/${TWR_TAG}_*.jsonl 2>/dev/null | grep -Ev '\.(forced|outcomes)\.jsonl$' | head -1)
   JUDGE=$STUDENT_17B
   case ${TWR_JUDGE:-} in ''|Qwen/Qwen3-1.7B) ;; Qwen/Qwen3-4B) JUDGE=$STUDENT_4B;; Qwen/Qwen3-0.6B) JUDGE=$STUDENT_06B;; Qwen/Qwen3-8B) JUDGE=$TEACHER;; *) echo "TWR_REFUSED judge $TWR_JUDGE"; JUDGE="";; esac   # [v2.5.9z68] the 8B base judges the 8B student (Q-068)
   if [ -n "${TWR_REF:-}" ]; then
@@ -162,13 +162,23 @@ while read -r TAG MODEL BENCH N TEMP MAXT MODE; do
     --metrics $MJ --out $S.ifeval.json >> $OUT/ifeval.log 2>&1 && echo "IFEVAL_DONE $TAG: $(grep '^IFEVAL ' $OUT/ifeval.log | tail -1 | cut -d' ' -f3-)" \
     || { echo "IFEVAL_FAIL $TAG (see ifeval.log)"; ok=0; }
 done <<< "$SPECS"
+# [v2.5.9z101] (Fable's ruling on requirements v26 §11, 10-27 (2): HF keeps no generated text) every finished reading also writes
+# <stem>.outcomes.jsonl, one line per sample and no text (id, sample, correct, tokens, truncated, box; code/analysis/outcomes.py),
+# so accuracies, truncation and the paired CIs can be recomputed once the raw generations are gone; a few KB, it goes up with the
+# readings (z96's private rule takes it). A failure is listed (OUTCOMES_FAIL), the readings are not affected.
+for J in $OUT/*.jsonl; do
+  case $J in *.outcomes.jsonl|*.forced.jsonl) continue;; esac
+  [ -f ${J%.jsonl}.metrics.json ] || continue   # a finished reading only
+  [ -f ${J%.jsonl}.outcomes.jsonl ] || python3 $RUNBOOK/code/analysis/outcomes.py reading $J ${J%.jsonl}.outcomes.jsonl > /dev/null 2>> $OUT/outcomes.log \
+    || echo "OUTCOMES_FAIL $(basename $J) (see outcomes.log)"
+done
 # v2.5.6r (reviewer A1 06:3x UTC): "#pair EVAL-<name> <tag> <ref> [<ref> ...]" = problem-level paired bootstrap of that
 # reading against each reference (code/analysis/paired_bootstrap.py, the lab's method: per-problem accuracy, 10000
 # resamples, seed 0, 95% percentile CI, wins / losses); a ref is <task dir>/<file>.jsonl under $OPD_ROOT/runs; the result
 # is <tag>.paired.json next to the reading; CPU only; a missing reference is listed, the readings are not affected
 while read -r PTAG PREFS; do
   [ -n "$PTAG" ] || continue
-  SC=$(ls $OUT/${PTAG}_*.jsonl 2>/dev/null | grep -v '\.forced\.jsonl$' | head -1)   # v2.5.7h: never a forced-answer file
+  SC=$(ls $OUT/${PTAG}_*.jsonl 2>/dev/null | grep -Ev '\.(forced|outcomes)\.jsonl$' | head -1)   # v2.5.7h: never a forced-answer file
   [ -n "$SC" ] || { echo "PAIR_SKIPPED $PTAG (no reading)"; continue; }
   RP=(); for R in $PREFS; do
     if run_rel "$R"; then RP+=("$OPD_ROOT/runs/$R")   # [v2.5.8] run_rel
