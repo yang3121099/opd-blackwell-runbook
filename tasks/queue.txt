@@ -3183,8 +3183,8 @@ fill18   open   EVAL-ext-4Bp5tail:E10d-P5tail EVAL-gm-4Bp5tail:E10d-P5tail EVAL-
 #pair EVAL-ext32k-17p5tail16k ext32k17_E12bP5tail16k_s50_aime24_T0.6 EVAL-ext32k-17p5l16k/ext32k17_E12bP5l16k_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17tail/ext32k17_P5tail_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-17p5tail8k/ext32k17_E12bP5tail8k_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #eval EVAL-ext32k-17p5tail16k ext32k17_E12bP5tail16k_s50_aime25_T0.6 result:runs/E12b-P5tail-16k/global_step_50/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-17p5tail16k ext32k17_E12bP5tail16k_s50_aime25_T0.6 EVAL-ext32k-17p5l16k/ext32k17_E12bP5l16k_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17tail/ext32k17_P5tail_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-17p5tail8k/ext32k17_E12bP5tail8k_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
-# [held until E12b-P5tail-16k has s50] term PROBE-TERM4 17_P5tail16k result:runs/E12b-P5tail-16k/global_step_50/actor/huggingface EVAL-e12b-P5tail-16k/e12b_P5tail-16k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
-# [held until E12b-P5tail-16k has s50; restored together with the term row above] after EVAL-e12b-P5tail-16k rerun PROBE-TERM4
+#term PROBE-TERM4 17_P5tail16k result:runs/E12b-P5tail-16k/global_step_50/actor/huggingface EVAL-e12b-P5tail-16k/e12b_P5tail-16k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-e12b-P5tail-16k rerun PROBE-TERM4
 # Q-075c E10d-P5tail-s43 (the 4B tail swap, data.seed 43): E10d-P5tail's recipe, 50 steps, s25 kept, s50 up, one GPU (flash-attn as
 # every -s43). Readings (opd_family): MATH-500 16K paired with E10d-P5tail s50, P5-s43 s150 and the base; the 32K budget curves vs the
 # base, the first seed and P5-s43; STRICT-C1 vs the first seed; AIME24 / 25 32K paired with the first seed and P5-s43; TERM4-4B held
