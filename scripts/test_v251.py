@@ -1649,7 +1649,7 @@ def test_run_and_rerun_accept_v259z97(env):   # [v2.5.9z97] (Q-074i / Q-074j; re
         st, msg, _ = env.c.v_run([t], 330 + i)
         assert st == "accepted", msg
         R.parse({"cmd": f"rerun {t}", "reason": "t"})
-    assert R.RULES_VERSION == "2.5.101"
+    assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 101)   # [v2.5.9z96] later rules keep it
     here = os.path.dirname(os.path.abspath(__file__))
     ts = open(os.path.join(here, "task.sh")).read()
     assert ts.index("  E12d-P5tail-8k-s43) ") < ts.index("  E12d-*) ")
@@ -1705,3 +1705,84 @@ def test_run_and_rerun_accept_v259z93(env):   # [v2.5.9z93] (Q-074g) the third s
     q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
     st = [l.split()[0] for l in q.split("\n") if l.startswith(("b259z92 ", "b259z93 ", "b259z92b ", "b259z85 "))]
     assert st == ["b259z92", "b259z93", "b259z92b", "b259z85"]   # Fable's order: Q-074g before the 32K rows
+
+
+# ---- [v2.5.9z96] the private repository is the control plane only; publish-redacted ---------------------------------------
+def test_private_keep_rule_v259z96(rem):
+    k = rem.r.private_keep
+    for p in ("runs/EVAL-a/x.metrics.json", "runs/EVAL-a/tailswap.jsonl", "runs/EVAL-a/tails_math500.json", "runs/EVAL-a/gen_eval.log.tail.gz",
+              "runs/EVAL-a/.done", "runs/E12b-x/config.yaml", "runs/E12b-x/train.log", "runs/E12b-x/len_by_step.csv"):
+        assert k(p, 100) == (True, ""), p                                                  # readings and derived files (tails) go up
+    for p in ("runs/EVAL-a/x_math500_no_think_t0.6.jsonl", "runs/EVAL-a/x_aime24_think_t1.0.jsonl", "runs/E12b-x/rollouts/3.jsonl",
+              "runs/PROBE-TERM4/samples.jsonl", "runs/EVAL-a/y.jsonl.part", "nodes/abcd1234/runs/E11b-P0/z_math500_no_think_t0.6.jsonl"):
+        assert k(p, 100) == (False, "generated"), p                                        # generated text by its name, any size
+    assert k("runs/EVAL-a/x.parquet", 100) == (False, "ext") and k("runs/EVAL-a/w.safetensors", 100) == (False, "ext")
+    assert k("runs/EVAL-a/x.metrics.json", 9 * 10 ** 6) == (False, "size") and k("logs/abcd1234/big.log", 9 * 10 ** 6) == (False, "size")
+    assert k("status/abcd1234.json", 10 ** 6) == (True, "") and k("logs/abcd1234/snap.tar", 100) == (True, "")   # elsewhere: the size only
+
+
+def test_private_put_filters_and_lists_v259z96(rem, monkeypatch):
+    monkeypatch.setenv("PUBLIC_UPLOADS", "0"); got = []
+    monkeypatch.setattr(FakeApi, "upload_folder", lambda self, repo_id, folder_path, path_in_repo, **k: got.append(("dir", path_in_repo, k.get("allow_patterns"))))
+    monkeypatch.setattr(FakeApi, "upload_file", lambda self, repo_id, path_or_fileobj, path_in_repo, **k: got.append(("file", path_in_repo, None)))
+    d = rem.root / "runs" / "EVAL-a"; (d / "rollouts").mkdir(parents=True)
+    for rel in ("x.metrics.json", "x_math500_no_think_t0.6.jsonl", "rollouts/1.jsonl", "tailswap.jsonl"):
+        (d / rel).write_text("{}")
+    rem.r.put(str(d), "runs/EVAL-a")
+    assert len(got) == 1 and got[0][:2] == ("dir", "runs/EVAL-a") and sorted(got[0][2]) == ["local_only.json", "tailswap.jsonl", "x.metrics.json"]
+    lo = json.load(open(d / "local_only.json"))
+    assert [(f["path"], f["why"]) for f in lo["files"]] == [("runs/EVAL-a/rollouts/1.jsonl", "generated"), ("runs/EVAL-a/x_math500_no_think_t0.6.jsonl", "generated")]
+    e = rem.root / "runs" / "EVAL-b"; e.mkdir(); (e / "a.json").write_text("{}"); got.clear()
+    rem.r.put(str(e), "runs/EVAL-b")
+    assert got == [("dir", "runs/EVAL-b", None)] and not (e / "local_only.json").exists()   # nothing kept: the directory as before
+    g = rem.root / "g.jsonl"; g.write_text("{}"); got.clear()
+    rem.r.put(str(g), "runs/EVAL-b/g_aime24_no_think_t0.6.jsonl")
+    assert got == [] and json.load(open(e / "local_only.json"))["files"][0]["why"] == "generated"   # a single file: listed, not sent
+    stage = rem.root / "stage"; stage.mkdir(); (stage / "s_math500_no_think_t1.0.jsonl").write_text("{}"); (stage / "s.json").write_text("{}"); got.clear()
+    rem.r.put(str(stage), "runs/EVAL-b")                                                # a stage elsewhere: the list in its own commit
+    assert [x[:2] for x in got] == [("dir", "runs/EVAL-b"), ("file", "runs/EVAL-b/local_only.json")] and got[0][2] == ["s.json"]
+    big = {"dst": "runs/EVAL-b", "files": [{"path": "old.jsonl", "bytes": 3, "sha256": "ab"}]}
+    json.dump(big, open(e / "big_local.json", "w")); rem.r.note_local_only("runs/EVAL-b", [])
+    assert not (e / "big_local.json").exists() and "runs/EVAL-b/old.jsonl" in [f["path"] for f in json.load(open(e / "local_only.json"))["files"]]
+
+
+def test_publish_redacted_rules_and_refusals_v259z96(env, monkeypatch):
+    c = env.c; d = os.path.join(c.ROOT, "runs", "EVAL-a"); os.makedirs(d)
+    assert R.RULES_VERSION == "2.5.102"
+    R.parse({"cmd": "publish-redacted EVAL-a sub/x.jsonl", "reason": "t"})
+    for bad in ("publish-redacted EVAL-a ../x", "publish-redacted EVAL-a sub/../../x", "publish-redacted EVAL-a /x", "publish-redacted EVAL-a", "publish-redacted EVAL-a a b"):
+        with pytest.raises(R.Reject):
+            R.parse({"cmd": bad, "reason": "t"})
+    open(os.path.join(d, "w.safetensors"), "wb").write(b"\0" * 10)
+    open(os.path.join(d, "img.jsonl"), "w").write('{"q": "data:image/png;base64,AAAA"}\n')
+    open(os.path.join(d, "b64.jsonl"), "w").write('{"x": "' + "A" * 5000 + '"}\n')
+    vd = os.path.join(c.ROOT, "runs", "EVAL-vlm32-x"); os.makedirs(vd); open(os.path.join(vd, "a.jsonl"), "w").write("{}\n")
+    ed = os.path.join(c.ROOT, "runs", "EVAL-e15-base"); os.makedirs(ed); open(os.path.join(ed, "a.jsonl"), "w").write("{}\n")   # [ops-lead A1 2]
+    out = os.path.join(c.ROOT, "elsewhere.jsonl"); open(out, "w").write("{}\n"); os.symlink(out, os.path.join(d, "link.jsonl"))   # [ops-lead A1 3]
+    for t, f, why in (("EVAL-a", "none.jsonl", "no runs/"), ("EVAL-a", "w.safetensors", "not a text file"), ("EVAL-a", "img.jsonl", "never public"),
+                      ("EVAL-a", "b64.jsonl", "never public"), ("EVAL-vlm32-x", "a.jsonl", "never public"),
+                      ("EVAL-e15-base", "a.jsonl", "never public"), ("EVAL-a", "link.jsonl", "outside its task")):
+        st, msg, _ = c.v_publish_redacted([t, f], 70)
+        assert st == "rejected" and why in msg, (f, msg)
+    started = []; monkeypatch.setattr(c.subprocess, "Popen", lambda *a, **k: started.append(a[0]))
+    open(os.path.join(d, "x.jsonl"), "w").write('{"r": "ok"}\n')
+    assert c.v_publish_redacted(["EVAL-a", "x.jsonl"], 75)[0] == "accepted" and started[0][-3:] == ["75", "EVAL-a", "x.jsonl"]
+
+
+def test_do_publish_redacted_scrubs_checks_and_publishes_v259z96(env, monkeypatch):
+    c = env.c; d = os.path.join(c.ROOT, "runs", "EVAL-a"); os.makedirs(d)
+    sys.path.insert(0, HERE)
+    import remote
+    open(os.path.join(d, "x.jsonl"), "w").write(json.dumps({"r": f"read {c.ROOT}/runs/EVAL-a/x by zz" + "secretuser"}) + "\n")
+    monkeypatch.setattr(c, "_forbidden_tokens", lambda: {"zzsecretuser"})
+    sent, got = [], {}
+    monkeypatch.setattr(remote, "put_public_unchanged", lambda pairs, msg: sent.extend((open(l).read(), dst) for l, dst in pairs))
+    monkeypatch.setattr(c, "receipt", lambda seq, e, st, detail, **k: got.update(st=st, detail=detail, **k))
+    monkeypatch.setattr(c, "event", lambda *a, **k: got.setdefault("events", []).append(a[1]))
+    c.do_publish_redacted(80, "EVAL-a", "x.jsonl")
+    assert got["st"] == "ok" and len(sent) == 1 and sent[0][1] == "runs/EVAL-a/redacted/x.jsonl"
+    assert c.ROOT not in sent[0][0] and "zzsecretuser" not in sent[0][0] and "<redacted>" in sent[0][0] and got["replacements"] >= 2
+    assert open(os.path.join(d, "x.jsonl")).read().count("zzsecretuser") == 1                       # the node's original untouched
+    sent.clear(); monkeypatch.setattr(c, "leak_counts", lambda *a, **k: 2)
+    c.do_publish_redacted(81, "EVAL-a", "x.jsonl")
+    assert got["st"] == "failed" and "nothing uploaded" in got["detail"] and sent == [] and "publish_redacted_refused" in got["events"]

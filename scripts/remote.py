@@ -366,6 +366,70 @@ def is_text(name, size):
     return n.endswith(TEXT_EXT) or (size < (1 << 20) and "." not in n.lstrip("."))
 
 
+# [v2.5.9z96] (Runming 10-27 10:3x Beijing via Fable: HF is not a backup, the private repository holds the control plane only;
+# private_repo_cleanup_20261027 6.2; Fable 04:5x UTC: generated text by its name only, small derived files such as tails go up)
+# a private upload under runs/ (or nodes/<node>/runs/) takes a file only when it is under PRIV_MAX_MB (9), has a reading's
+# extension and is not generated text by its name; every other private upload only under PRIV_MAX_MB. What stays is listed in
+# runs/<task>/local_only.json (path in the repository, bytes, why): the node's copy is the original.
+PRIV_EXT = (".json", ".jsonl", ".txt", ".log", ".md", ".csv", ".tsv", ".yaml", ".yml", ".log.tail.gz")
+GENERATED = re.compile(r"(?:^|/)rollouts/|(?:^|/)samples[.]jsonl$|_(?:no_)?think_t[0-9.]+[.]jsonl$|[.]part$")
+RUNS_PATH = re.compile(r"(?:nodes/[^/]+/)?runs/[A-Za-z0-9._-]+/")
+
+
+def private_keep(path, size):
+    """(True, "") when the private repository takes the file at repository path `path` of `size` bytes, else (False, why),
+    why = size / generated / ext."""
+    if size >= float(_cfg("PRIV_MAX_MB", "9")) * 1e6:
+        return False, "size"
+    if not RUNS_PATH.match(path.lstrip("/")):
+        return True, ""
+    if GENERATED.search(path):
+        return False, "generated"
+    name = os.path.basename(path).lower()
+    if not (name.endswith(PRIV_EXT) or (size < (1 << 20) and "." not in name.lstrip("."))):
+        return False, "ext"
+    return True, ""
+
+
+def note_local_only(dst, kept, sent=()):
+    """[v2.5.9z96] merge into runs/<task>/local_only.json: kept = [{"path" (in the repository), "bytes", "why"}] stay on the node, a
+    path in `sent` went up this time and leaves the list; z94's big_local.json is folded in once (why "z94: put failed") and
+    removed (it was this code's own list). Returns the file's path when it exists afterwards, else None (also for other paths)."""
+    m = re.match(r"runs/([A-Za-z0-9._-]+)(?:/|$)", rename(dst).lstrip("/"))
+    root = os.environ.get("OPD_ROOT", "")
+    if not m or not root:
+        return None
+    d = os.path.join(root, "runs", m.group(1)); p = os.path.join(d, "local_only.json")
+    try:
+        files = {f["path"]: f for f in json.load(open(p)).get("files", [])}
+    except (OSError, ValueError, AttributeError):
+        files = {}
+    old = os.path.join(d, "big_local.json")
+    try:
+        b = json.load(open(old))
+        for f in b.get("files", []):
+            k = f"{b.get('dst', 'runs/' + m.group(1)).rstrip('/')}/{f['path']}"
+            files.setdefault(k, {"path": k, "bytes": f.get("bytes"), "why": "z94: put failed"})
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        b = None
+    for k in sent:
+        files.pop(k, None)
+    for f in kept:
+        files[f["path"]] = f
+    if b is not None or kept or files or os.path.exists(p):
+        if files:
+            os.makedirs(d, exist_ok=True); tmp = f"{p}.{os.getpid()}.tmp"
+            json.dump({"task": m.group(1), "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                       "rule": "private: under PRIV_MAX_MB, a reading's extension, no generated text by name (z96)",
+                       "files": sorted(files.values(), key=lambda f: f["path"])}, open(tmp, "w"), indent=1)
+            os.replace(tmp, p)
+        elif os.path.exists(p):
+            os.remove(p)
+        if b is not None:
+            os.remove(old)
+    return p if os.path.exists(p) else None
+
+
 def scrub_roots():
     """(absolute path, placeholder) pairs, longest first: OPD_ROOT, CKPT_ROOT, RUNBOOK, ARCHIVE_ROOT, HOME and their real
     paths, and the directory the venv really lives in (LINK_VENV / FROM_OPD_ROOT: another disk)."""
@@ -525,16 +589,48 @@ def _put(src, dst, force=None):
             raise PermissionError("private-class file refused: the private repository is public")
         if kind == "public":
             return _put_public(api, repo, src, dst)
-        if os.path.isdir(src):
-            api.upload_folder(repo_id=repo, folder_path=src, path_in_repo=dst, repo_type="model", commit_message=dst)
-        else:
-            api.upload_file(repo_id=repo, path_or_fileobj=src, path_in_repo=dst, repo_type="model", commit_message=dst)
+        return _put_private(api, repo, src, dst)   # [v2.5.9z96] only what the private repository takes
     else:
         api, repo = ms()
         if os.path.isdir(src):
             api.upload_folder(repo_id=repo, folder_path=src, path_in_repo=dst, commit_message=dst)
         else:
             api.upload_file(path_or_fileobj=src, path_in_repo=dst, repo_id=repo, commit_message=dst)
+
+
+def _put_private(api, repo, src, dst):
+    """[v2.5.9z96] a private upload through private_keep: a directory in one commit of the files it takes (upload_folder with
+    allow_patterns; none: no commit), the others listed in runs/<task>/local_only.json, which goes up with the commit when it lies
+    in src, else in a small commit of its own; a single file it does not take is listed and not uploaded."""
+    import glob
+    if not os.path.isdir(src):
+        ok, why = private_keep(dst, os.path.getsize(src))
+        if ok:
+            api.upload_file(repo_id=repo, path_or_fileobj=src, path_in_repo=dst, repo_type="model", commit_message=dst)
+            note_local_only(dst, [], [dst])
+        else:
+            note_local_only(dst, [{"path": dst, "bytes": os.path.getsize(src), "why": why}])
+            print(f"PRIVATE_KEPT {dst}: {why} (stays on the node)", file=sys.stderr)
+        return
+    take, kept = [], []
+    for r, _, fs in os.walk(src):
+        for f in fs:
+            lp = os.path.join(r, f); rel = os.path.relpath(lp, src).replace(os.sep, "/"); pin = f"{dst.rstrip('/')}/{rel}"
+            if rel == "local_only.json":
+                continue
+            ok, why = private_keep(pin, os.path.getsize(lp))
+            (take.append(rel) if ok else kept.append({"path": pin, "bytes": os.path.getsize(lp), "why": why}))
+    lo = note_local_only(dst, kept, [f"{dst.rstrip('/')}/{x}" for x in take])
+    inside = bool(lo) and os.path.realpath(os.path.dirname(lo)) == os.path.realpath(src)
+    if inside:
+        take.append("local_only.json")
+    if take:
+        allow = None if not kept else [glob.escape(x) for x in take]   # nothing kept: the whole directory, as before
+        api.upload_folder(repo_id=repo, folder_path=src, path_in_repo=dst, repo_type="model", commit_message=dst, allow_patterns=allow)
+    m = re.match(r"(runs/[A-Za-z0-9._-]+)", dst.lstrip("/"))
+    if lo and not inside and m and kept:
+        api.upload_file(repo_id=repo, path_or_fileobj=lo, path_in_repo=f"{m.group(1)}/local_only.json", repo_type="model",
+                        commit_message=f"{m.group(1)}/local_only.json")
 
 
 def done(task):

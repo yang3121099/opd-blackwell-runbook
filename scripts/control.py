@@ -1661,6 +1661,67 @@ def do_publish(seq, t):
     event(t, "published" if ok else "publish_failed", f"{len(done)} files {nbytes / 1e9:.2f} GB")
 
 
+VLM_IMAGE = re.compile(r"data:image/|[A-Za-z0-9+/]{4000}")   # [v2.5.9z96] an embedded image (base64) in a file's first MB
+VLM_TASK = re.compile(r"(?i)vlm|(?:^|-)e15(?:-|$)")   # [v2.5.9z96, ops-lead A1] the E15 family's readings are VLM answers too (EVAL-e15-base)
+
+
+def v_publish_redacted(a, seq, flags=None, entry=None):
+    """publish-redacted <task> <file> ([v2.5.9z96], rules 2.5.102; Runming 10-27 via Fable, private_repo_cleanup_20261027 6.2:
+    raw generations go public only on demand, scrubbed): one text file of runs/<task>/ goes to the PUBLIC repository as
+    runs/<task>/redacted/<file> - this machine's paths, user and host names scrubbed (remote.scrub_text; a jsonl / .part as
+    generation output, no address scrub), then no forbidden token, HF token or address may remain (leak_counts 0), else nothing
+    goes up. Refused at once: not on this node, not a text file, over PUB_REDACT_MAX_MB (200), and VLM / image content (a vlm task,
+    or data:image / a 4,000-character base64 run in the first MB): never public; a file whose real path leaves runs/<task>/ (the
+    task directory itself may be a link to idx1). The receipt carries counts, never content."""
+    t, f = a
+    src = os.path.join(ROOT, "runs", t, f)
+    if not os.path.isfile(src):
+        return "rejected", f"no runs/{t}/{f} on this node", {}
+    if not os.path.realpath(src).startswith(os.path.realpath(os.path.join(ROOT, "runs", t)) + os.sep):   # [ops-lead A1] a link out of the task's directory
+        return "rejected", f"runs/{t}/{f} points outside its task's directory", {}
+    sys.path.insert(0, os.path.join(RUNBOOK, "scripts"))
+    import remote
+    size = os.path.getsize(src)
+    if not remote.is_text(os.path.basename(f), size):
+        return "rejected", f"runs/{t}/{f} is not a text file", {}
+    if size > float(_cfg("PUB_REDACT_MAX_MB", "200")) * 1e6:
+        return "rejected", f"runs/{t}/{f}: {size / 1e6:.0f} MB > PUB_REDACT_MAX_MB", {}
+    with open(src, "rb") as fh:
+        head = fh.read(1 << 20).decode("utf-8", "replace")
+    if VLM_TASK.search(t) or VLM_IMAGE.search(head):
+        return "rejected", f"runs/{t}/{f}: VLM / image content is never public", {}
+    subprocess.Popen(["setsid", sys.executable, os.path.abspath(__file__), "do_publish_redacted", str(seq), t, f],
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return "accepted", f"runs/{t}/{f}: scrubbing, checking and publishing as runs/{t}/redacted/{f}", {}
+
+
+def do_publish_redacted(seq, t, f):
+    sys.path.insert(0, os.path.join(RUNBOOK, "scripts"))
+    import remote
+    src = os.path.join(ROOT, "runs", t, f); gen = f.lower().endswith((".jsonl", ".part"))
+    roots, toks, ips = remote.scrub_roots(), _forbidden_tokens(), remote.own_ips()
+    data = open(src, "rb").read().decode("utf-8", "replace")
+    out = remote.scrub_text(data, roots, toks, None if gen else ips, gen=gen)
+    marks = ("<redacted>", "<path>", "<ip>", "$OPD_ROOT/", "$CKPT_ROOT/", "$RUNBOOK/", "$ARCHIVE_ROOT/", "~/")
+    changed = sum(out.count(m) - data.count(m) for m in marks)
+    hits = leak_counts(out, toks, ips, gen)
+    dst = f"runs/{t}/redacted/{f}"
+    if hits:
+        receipt(seq, None, "failed", f"runs/{t}/{f}: {hits} hit(s) left after the scrub - nothing uploaded"); event(t, "publish_redacted_refused", f"{hits} hits")
+        return
+    stage = _p(f"req_{seq}"); shutil.rmtree(stage, ignore_errors=True); os.makedirs(stage)
+    tmp = os.path.join(stage, os.path.basename(f)); open(tmp, "w", encoding="utf-8").write(out)
+    try:
+        remote.put_public_unchanged([(tmp, dst)], f"publish-redacted {t} {f}"); ok = True
+    except Exception as e:
+        ok = False; why = type(e).__name__ + remote.fail_detail(e)
+    shutil.rmtree(stage, ignore_errors=True)
+    n = len(out.encode("utf-8"))
+    receipt(seq, None, "ok" if ok else "failed", f"{dst}: {n} bytes, {out.count(chr(10))} lines, {changed} replacement(s)" + ("" if ok else f"; not uploaded: {why}"),
+            bytes=n, replacements=changed)
+    event(t, "published_redacted" if ok else "publish_redacted_failed", f"{dst} {n} bytes")
+
+
 def v_pend_weight(a, seq, flags=None, entry=None):
     """pend-weight <task> <step> ([v2.5.9z88b], rules 2.5.96; storage review 10-26 §3 P1, ops-lead / Fable): one finished step's
     local bf16 weights go into the weights queue (remote.py defer_weight: held under $CKPT_ROOT/weights_pending, one line in
@@ -3111,7 +3172,7 @@ def _v24(fn):
 VERBS = {"pause": _v24(v_pause), "resume": _v24(v_resume), "kill": _v24(v_kill), "prio": _v24(v_prio),
          "restore": _v24(v_restore), "rerun_verify": _v24(v_rerun_verify), "setenv": v_set, "set": v_set,
          "snapshot": lambda a, seq, flags=None, entry=None: v_snapshot0(seq) if not a else v_snapshot(a, seq),
-         "ps": v_ps, "logs": v_logs, "run": v_run, "rerun": v_rerun, "republish": v_republish, "publish": v_publish, "pend-weight": v_pend_weight, "leakscan": v_leakscan, "fa-build": v_fa_build, "scrubdiff": v_scrubdiff, "du": v_du, "inventory": v_inventory, "rm-ours": v_rm_ours, "dr-keep": v_dr_keep, "persist-env": v_persist_env, "rebuild-drill": v_rebuild_drill, "eval": v_eval, "update": v_update, "upload": v_upload,
+         "ps": v_ps, "logs": v_logs, "run": v_run, "rerun": v_rerun, "republish": v_republish, "publish": v_publish, "publish-redacted": v_publish_redacted, "pend-weight": v_pend_weight, "leakscan": v_leakscan, "fa-build": v_fa_build, "scrubdiff": v_scrubdiff, "du": v_du, "inventory": v_inventory, "rm-ours": v_rm_ours, "dr-keep": v_dr_keep, "persist-env": v_persist_env, "rebuild-drill": v_rebuild_drill, "eval": v_eval, "update": v_update, "upload": v_upload,
          "signal": v_signal, "kill-pgid": v_killpgid, "cancel": v_cancel, "heartbeat": v_heartbeat, "move-ckpt": v_move_ckpt, "reap": v_reap}
 assert set(VERBS) == set(R.VERBS), set(VERBS) ^ set(R.VERBS)
 TASK_VERBS = R.TASK_VERBS
@@ -3517,6 +3578,8 @@ if __name__ == "__main__":
         do_upload(int(sys.argv[2]), sys.argv[3], sys.argv[4])
     elif cmd == "do_publish":
         do_publish(int(sys.argv[2]), sys.argv[3])
+    elif cmd == "do_publish_redacted":   # [v2.5.9z96]
+        do_publish_redacted(int(sys.argv[2]), sys.argv[3], sys.argv[4])
     elif cmd == "do_leakscan":
         do_leakscan(int(sys.argv[2]))
     elif cmd == "do_fa_build":

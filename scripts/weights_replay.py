@@ -31,6 +31,10 @@ heartbeat, not the control plane's outbox).
   runs/<task>/big_local.json (relative path, bytes, sha256) and stays on the node. The item is struck once the small commit and
   the big files that went up are verified (.upload_pending removed, its fails count cleared). A failed put's reason carries the
   HTTP status code and the first 200 characters of the server's message (remote.py fail_detail).
+- [v2.5.9z96] (Runming 10-27: the private repository is the control plane only) a result goes up in ONE commit of what the
+  private repository takes (remote.private_keep: under PRIV_MAX_MB 9, a reading's extension, no generated text by name - the
+  gen_eval outputs, rollouts/, samples.jsonl, .part); the others stay on the node by rule, listed in runs/<task>/local_only.json
+  (which goes up in that commit; z94's big_local.json is folded in). Verification and striking as before, over what went up.
 Usage: python weights_replay.py once -> REPLAY_IDLE | REPLAY_OFF | REPLAY_WAIT <why> | REPLAY_OK <dst> | REPLAY_FAIL <dst> <why>"""
 import calendar
 import fcntl
@@ -272,51 +276,34 @@ def sha256_of(path):
     return h.hexdigest()
 
 
+OWN_LISTS = ("big_local.json", "local_only.json")   # [v2.5.9z96] z94's (folded) and z96's lists of what stays on the node
+
+
 def put_result(stage, dst, staged):
-    """[v2.5.9z94] the staged directory to the private repository: the files under RESULT_SMALL_MB (9) in one commit first, then
-    each larger file alone, largest first, skipping those the repository has at that size (see the docstring). (rc, why, local):
-    rc / why for the small commit, local = [{"path", "bytes", "sha256"}] for the large files whose put failed (left on the node)."""
-    small_lim = float(cfg("RESULT_SMALL_MB", "9")) * 1e6
-    big = sorted(((rel, b) for rel, b in staged if b >= small_lim), key=lambda x: -x[1])
-    side = stage.rstrip("/") + ".big"; shutil.rmtree(side, ignore_errors=True)
-    for rel, _ in big:   # the big files' hard links aside, so the small commit carries only the small files
-        t = os.path.join(side, rel); os.makedirs(os.path.dirname(t), exist_ok=True); os.rename(os.path.join(stage, rel), t)
-    try:
-        if any(fs for _, _, fs in os.walk(stage)):
-            rc, why = _put(stage, dst, sum(b for _, b in staged) - sum(b for _, b in big))
-            if rc:
-                return rc, f"small files: {why}", []
-        try:
-            have = private_sizes(dst, [rel for rel, _ in big]) if big else {}
-        except Exception:
-            have = {}
-        local = []
-        for rel, b in big:
-            if have.get(rel) == b:
-                continue
-            src = os.path.join(side, rel)
-            rc, why = _put(src, f"{dst}/{rel}", b)
-            if rc:   # stays on the node: listed, it does not hold the item back
-                local.append({"path": rel, "bytes": b, "sha256": sha256_of(src), "why": why[:320]})
-        return 0, "", local
-    finally:
-        shutil.rmtree(side, ignore_errors=True)
-
-
-def write_big_local(dst, local):
-    """[v2.5.9z94] runs/<task>/big_local.json: the large files of a struck result that stayed on the node (none: the file removed)."""
-    m = re.fullmatch(r"runs/([A-Za-z0-9._-]+)(?:/.*)?", dst)
-    if not m:
-        return
-    d = os.path.join(os.environ.get("OPD_ROOT", ""), "runs", m.group(1)); p = os.path.join(d, "big_local.json")
-    if not local:
-        if os.path.exists(p):
-            os.remove(p)
-        return
-    os.makedirs(d, exist_ok=True)
-    tmp = f"{p}.{os.getpid()}.tmp"
-    json.dump({"dst": dst, "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "files": local}, open(tmp, "w"), indent=1)
-    os.replace(tmp, p)
+    """[v2.5.9z96] the staged directory to the private repository in ONE commit of what it takes (remote.private_keep: under
+    PRIV_MAX_MB, a reading's extension, no generated text by name; z94's large files one by one are gone: by the rule they never
+    go up). (rc, why, local): rc / why for the commit, local = [{"path", "bytes", "why"}] (paths relative to dst) for the files
+    that stay on the node, listed in runs/<task>/local_only.json, which goes up in the same commit."""
+    for name in OWN_LISTS:   # this code's own lists: the stage's hard links out first (ops-lead A1: a staged old list made the
+        if os.path.lexists(os.path.join(stage, name)):   # verification fail on every try); local_only.json is rewritten below
+            os.remove(os.path.join(stage, name))
+    staged = [(rel, b) for rel, b in staged if rel not in OWN_LISTS]
+    local = []
+    for rel, b in staged:
+        ok, why = RM.private_keep(f"{dst}/{rel}", b)
+        if not ok:   # the stage's own hard link only; the original stays where it is
+            os.remove(os.path.join(stage, rel)); local.append({"path": rel, "bytes": b, "why": why})
+    for r, ds, fs in os.walk(stage, topdown=False):   # directories the rule emptied (rollouts/)
+        if r != stage and not os.listdir(r):
+            os.rmdir(r)
+    kept = {x["path"] for x in local}
+    lo = RM.note_local_only(dst, [dict(x, path=f"{dst}/{x['path']}") for x in local], [f"{dst}/{rel}" for rel, _ in staged if rel not in kept])
+    if lo and re.fullmatch(r"runs/[A-Za-z0-9._-]+", dst):
+        shutil.copy2(lo, os.path.join(stage, "local_only.json"))
+    if not any(fs for _, _, fs in os.walk(stage)):
+        return 0, "", local   # nothing for the private repository
+    rc, why = _put(stage, dst, sum(b for rel, b in staged if rel not in kept))
+    return (rc, f"put: {why}", local) if rc else (0, "", local)
 
 
 def waiting_events(items, now=None):
@@ -378,11 +365,14 @@ def results_once(items):
         staged = stage_result(hold, stage)
         nbytes = sum(b for _, b in staged)
         t0 = time.time()
-        rc, why, local = put_result(stage, dst, staged)   # [v2.5.9z94] small files first, then the large ones alone
+        try:
+            rc, why, local = put_result(stage, dst, staged)   # [v2.5.9z96] one commit of what the private repository takes
+        except Exception as e:   # [v2.5.9z96, ops-lead A1] one item's error fails that item, never the loop behind it
+            return failed("result:" + dst, f"put: {type(e).__name__}")
         secs = round(time.time() - t0, 1)
         if rc:
             return failed("result:" + dst, why)
-        kept = {x["path"] for x in local}
+        kept = {x["path"] for x in local} | set(OWN_LISTS)   # [v2.5.9z96] the lists are rewritten, not the staged copies: not verified
         try:
             ok, why = verify_private(dst, [(rel, b) for rel, b in staged if rel not in kept])   # what went up
         except Exception as e:
@@ -392,7 +382,6 @@ def results_once(items):
     finally:
         shutil.rmtree(stage, ignore_errors=True)
     strike(dst, nbytes, secs)
-    write_big_local(dst, local)   # [v2.5.9z94] the large files that stayed on the node
     m = re.fullmatch(r"runs/([A-Za-z0-9._-]+)", dst)   # [v2.5.9z65] the task's marker, now that every file is verified
     if m:
         try:
@@ -401,7 +390,7 @@ def results_once(items):
             pass
     st = state(); st["fails"].pop("result:" + dst, None); st["fails"].pop(dst, None); save(st)
     up = nbytes - sum(x["bytes"] for x in local)
-    kept_txt = f"; {len(local)} large file(s), {sum(x['bytes'] for x in local) / 1e6:.0f} MB, kept on the node (big_local.json)" if local else ""
+    kept_txt = f"; {len(local)} file(s), {sum(x['bytes'] for x in local) / 1e6:.0f} MB, kept on the node by rule (local_only.json)" if local else ""   # [v2.5.9z96]
     event("results_replayed", f"{dst}: {len(staged) - len(local)} file(s), {up / 1e6:.0f} MB to the private repository in {secs} s{kept_txt}")
     return f"REPLAY_OK {dst} (result) {up / 1e6:.0f} MB in {secs} s{kept_txt}"
 

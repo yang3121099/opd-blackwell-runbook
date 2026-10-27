@@ -225,7 +225,9 @@ def test_held_results_go_private_first_and_while_paused(priv, monkeypatch):   # 
     assert r.startswith("REPLAY_OK runs/EVAL-budA-P5mix90 (result)")                     # ... the result still goes
     c = n.calls[0]
     assert c["cmd"][2:] == ["runs/EVAL-budA-P5mix90"]                                     # no "public": the private repository
-    assert sorted(c["files"]) == ["gen_eval.log.tail.gz", "sub", "x.metrics.json", "x_math500_no_think_t0.6.jsonl"]
+    assert sorted(c["files"]) == ["gen_eval.log.tail.gz", "local_only.json", "sub", "x.metrics.json"]   # [v2.5.9z96] the generation stays local
+    lo = json.load(open(os.path.join(n.root, "runs", "EVAL-budA-P5mix90", "local_only.json")))
+    assert [(f["path"], f["why"]) for f in lo["files"]] == [("runs/EVAL-budA-P5mix90/x_math500_no_think_t0.6.jsonl", "generated")]
     assert [l.split("\t")[1] for l in lines(n)] == [DST]                                  # struck; the weight stays
     assert any("results_replayed" in e or "runs/EVAL-budA-P5mix90" in e for e in n.events)
     assert os.path.getsize(os.path.join(h, "gen_eval.log")) == 6 * 10 ** 6                # the held copy untouched
@@ -252,10 +254,10 @@ def test_result_timeout_at_a_single_connection_rate(priv):   # [v2.5.9z64a] 268 
     with open(os.path.join(h, "x_math500_no_think_t0.6.jsonl"), "r+b") as f:
         f.truncate(268 * 10 ** 6)
     W.once()
-    assert n.calls[0]["files"] == ["gen_eval.log.tail.gz", "sub", "x.metrics.json"]           # [v2.5.9z94] the small files first
-    assert n.calls[1]["files"] == ["x_math500_no_think_t0.6.jsonl"]                        # [v2.5.9z65] then the big file alone
-    assert n.calls[1]["timeout"] == int(min(21600, 268e6 / 1e6 / 0.08 * 1.5 + 600))
-    assert n.calls[1]["timeout"] > 268 / 0.13 * 1.2                                        # the observed 0.09-0.13 MB/s fits
+    assert [c["files"] for c in n.calls] == [["gen_eval.log.tail.gz", "local_only.json", "sub", "x.metrics.json"]]   # [v2.5.9z96] one commit
+    assert n.calls[0]["timeout"] < 21600                                                  # the timeout from what goes up
+    lo = json.load(open(os.path.join(n.root, "runs", "EVAL-z", "local_only.json")))
+    assert [(f["path"], f["bytes"], f["why"]) for f in lo["files"]] == [("runs/EVAL-z/x_math500_no_think_t0.6.jsonl", 268 * 10 ** 6, "size")]
 
 
 # ---- [v2.5.9z65] the results queue: a task's own directory, file by file, the marker, the 2 h event ----------------------------
@@ -282,15 +284,14 @@ def test_pend_lists_the_task_dir_and_marks_it(priv):
             RM.pend_result(src, dst)                                                      # only runs/<task> from its own directory
 
 
-def test_split_file_by_file_largest_first_skipping_present(priv):
+def test_one_commit_the_generations_stay_on_the_node(priv):   # [v2.5.9z96] was z65 / z94's file by file
     n = priv; d = task_dir(n, "EVAL-s"); RM.pend_result(d, "runs/EVAL-s")
-    n.remote["runs/EVAL-s/r1_math500_no_think_t0.6.jsonl"] = 60 * 10 ** 6                # already up from an earlier try
     r = W.once()
-    assert r.startswith("REPLAY_OK runs/EVAL-s (result)"), r
-    assert [c["files"] for c in n.calls] == [["gen_eval.log", "r0.metrics.json"], ["r0_math500_no_think_t0.6.jsonl"]]   # [v2.5.9z94] small first
-    assert n.calls[1]["cmd"][2] == "runs/EVAL-s/r0_math500_no_think_t0.6.jsonl"          # its own commit at its path
-    assert n.calls[1]["timeout"] == int(150 / 0.08 * 1.5 + 600)
-    assert not os.path.exists(os.path.join(d, "big_local.json"))                          # [v2.5.9z94] nothing kept back
+    assert r.startswith("REPLAY_OK runs/EVAL-s (result)") and "2 file(s), 210 MB, kept on the node by rule (local_only.json)" in r, r
+    assert [c["files"] for c in n.calls] == [["gen_eval.log", "local_only.json", "r0.metrics.json"]]   # one commit, no large file
+    lo = json.load(open(os.path.join(d, "local_only.json")))
+    assert [(f["path"], f["why"]) for f in lo["files"]] == [("runs/EVAL-s/r0_math500_no_think_t0.6.jsonl", "size"), ("runs/EVAL-s/r1_math500_no_think_t0.6.jsonl", "size")]
+    assert "runs/EVAL-s/local_only.json" in n.remote and not any(k.endswith("_t0.6.jsonl") for k in n.remote)
     assert lines(n) == [] and not os.path.exists(os.path.join(d, ".upload_pending"))      # struck, the marker gone
     assert os.path.getsize(os.path.join(d, "r0_math500_no_think_t0.6.jsonl")) == 150 * 10 ** 6   # the local files untouched
     assert not any(k.endswith(".upload_pending") for k in n.remote)                       # the marker never goes up
@@ -298,53 +299,68 @@ def test_split_file_by_file_largest_first_skipping_present(priv):
     assert os.listdir(os.path.join(n.root, "control", "stage")) == []                                # staged in control/stage, then removed
 
 
-def test_a_failed_big_file_stays_local_and_does_not_hold_the_item(priv, monkeypatch):   # [v2.5.9z94] was z65's "a failed part"
-    import hashlib
-    monkeypatch.setenv("WEIGHTS_REPLAY_COOL_S", "0")
-    n = priv; d = task_dir(n, "EVAL-t"); RM.pend_result(d, "runs/EVAL-t")
-    st = {"items": 0, "bytes": 0, "fails": {"result:runs/EVAL-t": {"n": 2, "last": 0, "why": "earlier"}}}
-    json.dump(st, open(os.path.join(n.root, "control", "weights_replay.json"), "w"))
-    n.failing.add("r1_math500_no_think_t0.6.jsonl")
-    r = W.once()
-    assert r.startswith("REPLAY_OK runs/EVAL-t (result)") and "1 large file(s), 60 MB, kept on the node" in r, r
-    assert [c["files"] for c in n.calls] == [["gen_eval.log", "r0.metrics.json"], ["r0_math500_no_think_t0.6.jsonl"], ["r1_math500_no_think_t0.6.jsonl"]]
-    assert "runs/EVAL-t/r0.metrics.json" in n.remote and "runs/EVAL-t/r0_math500_no_think_t0.6.jsonl" in n.remote
-    assert "runs/EVAL-t/r1_math500_no_think_t0.6.jsonl" not in n.remote
-    assert lines(n) == [] and not os.path.exists(os.path.join(d, ".upload_pending"))      # struck, the marker gone
-    assert "result:runs/EVAL-t" not in json.load(open(os.path.join(n.root, "control", "weights_replay.json")))["fails"]   # its fails cleared
-    bl = json.load(open(os.path.join(d, "big_local.json")))
-    f = os.path.join(d, "r1_math500_no_think_t0.6.jsonl")
-    assert bl["dst"] == "runs/EVAL-t" and [(x["path"], x["bytes"]) for x in bl["files"]] == [("r1_math500_no_think_t0.6.jsonl", 60 * 10 ** 6)]
-    assert bl["files"][0]["sha256"] == hashlib.sha256(open(f, "rb").read()).hexdigest()   # the sha matches the file left on the node
-    assert os.path.getsize(f) == 60 * 10 ** 6                                              # the file stays
-    assert "big_local.json" not in [k.split("/")[-1] for k in n.remote]
-    assert os.listdir(os.path.join(n.root, "control", "stage")) == []                     # stage and its .big side removed
-    assert any("kept on the node" in e for e in n.events)
+def test_rule_by_name_tails_go_up_and_big_local_folded(priv):   # [v2.5.9z96] Fable 04:5x UTC: names only; tails up; z94's list folded
+    n = priv; d = task_dir(n, "EVAL-t", big=())
+    os.makedirs(os.path.join(d, "rollouts"), exist_ok=True)
+    for rel, body in (("a_aime24_no_think_t0.6.jsonl", "{}\n"), ("tailswap.jsonl", "{}\n"), ("tails_math500.json", "{}"), ("rollouts/3.jsonl", "{}\n"),
+                      ("samples.jsonl", "{}\n"), ("x.parquet", "PAR1"), ("part_aime25_no_think_t1.0.jsonl.part", "{}")):
+        open(os.path.join(d, rel), "w").write(body)
+    json.dump({"dst": "runs/EVAL-t", "files": [{"path": "old_math500_no_think_t0.6.jsonl", "bytes": 5, "sha256": "ab"}]}, open(os.path.join(d, "big_local.json"), "w"))
+    RM.pend_result(d, "runs/EVAL-t")
+    assert W.once().startswith("REPLAY_OK runs/EVAL-t (result)")
+    sent = n.calls[0]["files"]
+    assert {"tailswap.jsonl", "tails_math500.json", "r0.metrics.json", "gen_eval.log", "local_only.json"} <= set(sent)   # derived files go up
+    assert not {"a_aime24_no_think_t0.6.jsonl", "samples.jsonl", "x.parquet", "rollouts"} & set(sent)
+    why = {f["path"].split("/", 2)[2]: f["why"] for f in json.load(open(os.path.join(d, "local_only.json")))["files"]}
+    assert why == {"a_aime24_no_think_t0.6.jsonl": "generated", "rollouts/3.jsonl": "generated", "samples.jsonl": "generated",
+                   "x.parquet": "ext", "part_aime25_no_think_t1.0.jsonl.part": "generated", "old_math500_no_think_t0.6.jsonl": "z94: put failed"}
+    assert not os.path.exists(os.path.join(d, "big_local.json")) and "big_local.json" not in sent   # folded once, removed
+    assert os.path.exists(os.path.join(d, "a_aime24_no_think_t0.6.jsonl")) and os.path.exists(os.path.join(d, "rollouts", "3.jsonl"))   # originals stay
 
 
-def test_every_big_put_failing_still_commits_the_small_files(priv, monkeypatch):   # [v2.5.9z94] ops-lead's test
+def test_a_failed_first_commit_then_ok_with_the_list_in_the_task_dir(priv, monkeypatch):   # [v2.5.9z96, ops-lead A1 1]
     monkeypatch.setenv("WEIGHTS_REPLAY_COOL_S", "0")
-    n = priv; h = held_result(n, "runs/EVAL-u")
-    for name, mb in (("big_a_math500_no_think_t0.6.jsonl", 30), ("big_b_aime24_no_think_t0.6.jsonl", 12)):
-        with open(os.path.join(h, name), "wb") as f:
-            f.truncate(mb * 10 ** 6)
-        n.failing.add(name)
+    n = priv; d = task_dir(n, "EVAL-f", big=(1,)); RM.pend_result(d, "runs/EVAL-f"); n.set("fail")
+    assert W.once().startswith("REPLAY_FAIL result:runs/EVAL-f put:")
+    assert os.path.exists(os.path.join(d, "local_only.json"))                             # the first try wrote the list in the hold
+    n.set("ok"); r = W.once()
+    assert r.startswith("REPLAY_OK runs/EVAL-f (result)"), r                               # its hard link in the stage: no SameFileError
+    assert [f["path"] for f in json.load(open(os.path.join(d, "local_only.json")))["files"]] == ["runs/EVAL-f/r0_math500_no_think_t0.6.jsonl"]
+    assert "runs/EVAL-f/local_only.json" in n.remote and lines(n) == []
+
+
+def test_a_list_already_in_the_hold_replays_ok_and_keeps_the_node_list(priv):   # [v2.5.9z96, ops-lead A1 1]
+    n = priv; h = held_result(n, "runs/EVAL-g")
+    open(os.path.join(h, "local_only.json"), "w").write('{"files": [{"path": "runs/EVAL-g/stale.jsonl", "bytes": 1, "why": "size"}]}')
+    t = os.path.join(n.root, "runs", "EVAL-g"); os.makedirs(t)
+    json.dump({"files": [{"path": "runs/EVAL-g/old_math500_no_think_t0.6.jsonl", "bytes": 5, "why": "generated"}]}, open(os.path.join(t, "local_only.json"), "w"))
     r = W.once()
-    assert r.startswith("REPLAY_OK runs/EVAL-u (result)") and "2 large file(s), 42 MB, kept on the node" in r, r
-    assert n.calls[0]["files"] == ["gen_eval.log.tail.gz", "sub", "x.metrics.json", "x_math500_no_think_t0.6.jsonl"]   # under 9 MB, one commit
-    assert [c["files"] for c in n.calls[1:]] == [["big_a_math500_no_think_t0.6.jsonl"], ["big_b_aime24_no_think_t0.6.jsonl"]]   # largest first
-    assert "runs/EVAL-u/sub/pair.json" in n.remote and lines(n) == []
-    bl = json.load(open(os.path.join(n.root, "runs", "EVAL-u", "big_local.json")))
-    assert [x["path"] for x in bl["files"]] == ["big_a_math500_no_think_t0.6.jsonl", "big_b_aime24_no_think_t0.6.jsonl"]
+    assert r.startswith("REPLAY_OK runs/EVAL-g (result)"), r
+    paths = [f["path"] for f in json.load(open(os.path.join(t, "local_only.json")))["files"]]
+    assert paths == ["runs/EVAL-g/old_math500_no_think_t0.6.jsonl", "runs/EVAL-g/x_math500_no_think_t0.6.jsonl"]   # the node's list kept, merged
+
+
+def test_an_item_error_fails_that_item_only(priv, monkeypatch):   # [v2.5.9z96, ops-lead A1 1] the loop goes on
+    n = priv; held_result(n, "runs/EVAL-h")
+    monkeypatch.setattr(W, "put_result", lambda *a: (_ for _ in ()).throw(OSError("boom")))
+    r = W.once()
+    assert r.startswith("REPLAY_FAIL result:runs/EVAL-h put: OSError"), r
+
+
+def test_generations_only_commit_just_the_list(priv):   # [v2.5.9z96] a result of generations only: the Mac still sees what stayed
+    n = priv; d = task_dir(n, "EVAL-w", big=(12,), small=False); RM.pend_result(d, "runs/EVAL-w")
+    r = W.once()
+    assert r.startswith("REPLAY_OK runs/EVAL-w (result)") and [c["files"] for c in n.calls] == [["local_only.json"]], r
+    assert json.load(open(os.path.join(d, "local_only.json")))["files"][0]["why"] == "size" and lines(n) == []
 
 
 def test_a_failed_small_commit_fails_the_item(priv, monkeypatch):   # [v2.5.9z94] the readings' numbers must go up
     monkeypatch.setenv("WEIGHTS_REPLAY_COOL_S", "0")
     n = priv; d = task_dir(n, "EVAL-v"); RM.pend_result(d, "runs/EVAL-v"); n.set("fail")
     r = W.once()
-    assert r.startswith("REPLAY_FAIL result:runs/EVAL-v small files:"), r
+    assert r.startswith("REPLAY_FAIL result:runs/EVAL-v put:"), r   # [v2.5.9z96] the one commit
     assert len(lines(n)) == 1 and os.path.exists(os.path.join(d, ".upload_pending")) and not os.path.exists(os.path.join(d, "big_local.json"))
-    assert len(n.calls) == 1                                                               # the big files are not tried then
+    assert len(n.calls) == 1                                                               # one commit, no retry of parts
 
 
 def test_fail_detail_status_and_scrubbed_server_message():   # [v2.5.9z94] remote.py's reason: the code and 200 characters, no secrets
