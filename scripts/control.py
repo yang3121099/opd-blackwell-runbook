@@ -1415,7 +1415,8 @@ def v_run(a, seq, flags=None, entry=None):
                         'case $T in E10b-P5-t32|E10e-P5tail|E12b-P5tail-8k-s43|E12e-P5self-8k|PROBE-E12E-8K|PROBE-TAIL-8B) exit 0;; esac; '   # [v2.5.9z91] (Q-082 / Q-075b / Q-074c / Q-081)
                         'case $T in E12b-P5tail-16k|E10d-P5tail-s43|E12c-P5tail-8k|E12e-P5tail-8k) exit 0;; esac; '   # [v2.5.9z92] (Q-074d / Q-075c / Q-074f / Q-074e)
                         'case $T in E12b-P5tail-8k-s44) exit 0;; esac; '   # [v2.5.9z93] (Q-074g; E10b-P5tail-s44 by the E10b line above)
-                        'case $T in E15-VLM-P2lo|E15-VLM-P5tail-lo|PROBE-VLM-COMPLETE|PROBE-VLM-TAIL|DIAG-VLM-TRUNC) exit 0;; esac; '   # [v2.5.9z89] (Q-080)
+                        'case $T in E15-VLM-P2lo|E15-VLM-P5tail-lo|PROBE-VLM-COMPLETE|PROBE-VLM-TAIL|DIAG-VLM-TRUNC) exit 0;; esac; '
+                        'case $T in DIAG-T32-TAILS|DIAG-PROBE-GATE|DIAG-WALL-BIMODAL|DIAG-VERIFY-ONSET|DIAG-VLM-LOOP2) exit 0;; esac; '   # [v2.5.9z99] the zero-GPU diagnostics   # [v2.5.9z89] (Q-080)
                         'case $T in E12d-P5tail-16k) exit 0;; esac; '   # [v2.5.9z95] (Q-074h)
                         'case $T in E12d-P5tail-8k-s43|E12e-P5tail-16k|PROBE-E12E-16K) exit 0;; esac; '   # [v2.5.9z97] (Q-074i / Q-074j)
                         'case $T in VERIFY-PRIV-LFS) exit 0;; esac; '   # [v2.5.9z96a]

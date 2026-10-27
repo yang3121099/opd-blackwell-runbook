@@ -1748,7 +1748,7 @@ def test_private_put_filters_and_lists_v259z96(rem, monkeypatch):
 
 def test_publish_redacted_rules_and_refusals_v259z96(env, monkeypatch):
     c = env.c; d = os.path.join(c.ROOT, "runs", "EVAL-a"); os.makedirs(d)
-    assert R.RULES_VERSION == "2.5.102"
+    assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 102)   # [v2.5.9z99] later rules keep it
     R.parse({"cmd": "publish-redacted EVAL-a sub/x.jsonl", "reason": "t"})
     for bad in ("publish-redacted EVAL-a ../x", "publish-redacted EVAL-a sub/../../x", "publish-redacted EVAL-a /x", "publish-redacted EVAL-a", "publish-redacted EVAL-a a b"):
         with pytest.raises(R.Reject):
@@ -1806,3 +1806,20 @@ def test_queue_v259z98():   # [v2.5.9z98] research_program 3j / 3l: the 32K rule
             assert sum(1 for l in L if l.startswith(f"#eval {t} ") and f"result:runs/{src}/actor/huggingface {b} 16 0.6" == " ".join(l.split()[3:])) == 1
             assert any(l.startswith(f"#pair {t} ") and f"EVAL-ext-E10c-P5-fix4/ext_E10cP5fix4_{b}_T0.6_{b}_no_think_t0.6.jsonl" in l for l in L)
     assert q.count("the paired difference's 95% CI contains 0 and |point| <= 5") == 2                     # Q-074i and Q-074g
+
+
+def test_run_and_rerun_accept_v259z99(env):   # [v2.5.9z99] the zero-GPU diagnostics: the CPU lane, rules 2.5.103
+    names = ("DIAG-T32-TAILS", "DIAG-PROBE-GATE", "DIAG-WALL-BIMODAL", "DIAG-VERIFY-ONSET", "DIAG-VLM-LOOP2")
+    for i, t in enumerate(names):
+        st, msg, _ = env.c.v_run([t], 340 + i)
+        assert st == "accepted", msg
+        R.parse({"cmd": f"rerun {t}", "reason": "t"})
+    assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 103)
+    here = os.path.dirname(os.path.abspath(__file__))
+    rt = open(os.path.join(here, "run_tasks.sh")).read(); ts = open(os.path.join(here, "task.sh")).read()
+    lane = re.search(r"cpu_task\(\) \{ case \$1 in ([^)]*)\)", rt).group(1).split("|")
+    assert all(t in lane for t in names) and "  " + "|".join(names) + ") bash $RUNBOOK/scripts/diag_cpu.sh $T;;" in ts
+    q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read().split("\n")
+    i = next(k for k, l in enumerate(q) if l.startswith("b259z96a "))
+    assert q[i + 1].startswith("b259z99  open   DIAG-T32-TAILS:EVAL-e10b-P5t32 DIAG-PROBE-GATE:")
+    assert [t.split(":")[0] for t in q[i + 1].split()[2:]] == list(names)            # Fable's order
