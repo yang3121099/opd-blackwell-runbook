@@ -83,7 +83,7 @@ def test_verifyonset_gate(tmp_path):
     r = Z.verifyonset([("good", a)], n=10)
     g = r["readings"]["good"]
     assert g["first_before_box_share"] == 1.0 and 0.40 <= g["median_rel_len"] <= 0.85 and g["gate"] is True and r["gate"] is True
-    assert g["candidates"]["let_me_verify"]["present"] == 1.0 and g["candidates"]["wait"]["present"] == 0.0
+    assert g["candidates"]["verify_kw"]["present"] == 1.0 and g["candidates"]["wait"]["present"] == 0.0
     assert Z.verifyonset([("early", b)], n=10)["readings"]["early"]["gate"] is False                    # median ~0
     assert Z.verifyonset([("good", a), ("none", c)], n=10)["gate"] is False                              # every reading must pass
 

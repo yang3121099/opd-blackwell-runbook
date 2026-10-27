@@ -197,13 +197,15 @@ def wallbimodal(run_dirs, count_tokens, easy, thresh=3686.0):
 
 
 # ---- verifyonset -------------------------------------------------------------------------------------------------------------
-MARKERS = {   # candidates, case-insensitive; REGISTERED is the set the gate reads (the executor fixes it from the samples)
-    "let_me_verify": r"\blet me (?:verify|double[- ]check|check)\b", "lets_verify": r"\blet'?s (?:verify|double[- ]check|check)\b",
-    "to_verify": r"\bto (?:verify|double[- ]check)\b", "verification": r"\bverification\b", "double_check": r"\bdouble[- ]check",
-    "verify_that": r"\bverify (?:that|this|the|our|my)\b", "check_that": r"\bcheck (?:that|this|the|if|whether|our|my)\b",
-    "wait": r"\bwait\b", "confirm": r"\bconfirm", "sanity": r"\bsanity check", "plug_back": r"\b(?:plug|substitut)\w* (?:\w+ )?back\b",
+MARKERS = {   # case-insensitive; registered by the executor 10-27 10:39Z from a non-gate reading (tail-s43 s50, 100 samples), not changed after
+    "verify_kw": r"\b(?:let me|let'?s|to|i(?:'ll| will)|now) verify\b", "verification": r"\bverification\b", "double_check": r"\bdouble[- ]check",
+    "check_again": r"\bcheck (?:again|once more)\b|\b(?:let me|let'?s) (?:re-?check|recheck)\b",
+    "check_answer": r"\b(?:let me|let'?s|to) check (?:my|the|this|our) (?:answer|result|solution|work|calculations?)\b",
+    "check_if_correct": r"\bcheck (?:if|whether) (?:this|that|it|the answer|my answer) (?:is|makes sense|works|holds|satisf)",
+    "plug_back": r"\b(?:plug|substitut)\w* (?:\w+ )?(?:\w+ )?back\b", "sanity": r"\bsanity[- ]check", "confirm_kw": r"\b(?:let me|let'?s|to) confirm\b",
+    "check_bare": r"\b(?:let me|let'?s) check\b", "wait": r"\bwait\b",   # reported, not registered: 100 % present, median 13 % / 7 % (mid-course)
 }
-REGISTERED = ("let_me_verify", "lets_verify", "to_verify", "verification", "double_check", "verify_that")
+REGISTERED = ("verify_kw", "verification", "double_check", "check_again", "check_answer", "check_if_correct", "plug_back", "sanity", "confirm_kw")
 
 
 def onset(text, names):
