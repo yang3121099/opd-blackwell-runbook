@@ -1494,7 +1494,8 @@ def test_ifeval_rules_and_rows_v259z16(env):   # [v2.5.9z16] (rules 2.5.92) benc
     tasks = L[i].split()[2:]
     j = next(k for k, l in enumerate(L) if l.startswith("b259z16  open "))   # [10-25] ops-lead's condition 2: after b259z83, before fill17
     z83 = next(k for k, l in enumerate(L) if l.startswith("b259z83 "))   # [v2.5.9z84a] later formal stages may sit between: after b259z83, right before fill17
-    assert len(tasks) == 18 and L[j] == "b259z16  open   BUILD-VENV-IFEVAL" and z83 < j and L[j + 1].startswith("fill17 ")
+    assert len(tasks) == 16   # [v2.5.9z97] 18 -> 16: EVAL-gm-4BX4 / -4Bi2507 dropped (research_program 3h 6)
+    assert L[j] == "b259z16  open   BUILD-VENV-IFEVAL" and z83 < j and L[j + 1].startswith("fill17 ")
     assert " b259z16 b259z15" in next(l for l in L if l.startswith("#pad "))   # [10-25] Fable's A1: padding
     rows = [(k, l.split()) for k, l in enumerate(L) if l.startswith("#eval EVAL-gm-")]
     for t in tasks:
@@ -1596,7 +1597,7 @@ def test_run_and_rerun_accept_v259z91(env):   # [v2.5.9z91] (Q-082 / Q-075b / Q-
     here = os.path.dirname(os.path.abspath(__file__))
     ts = open(os.path.join(here, "task.sh")).read()
     assert ts.index("  E12b-P5tail-8k-s43) ") < ts.index("  E12b-*) ") and ts.index("  E10b-P5-t32) ") < ts.index("  E10b-*) ")
-    assert "|E12[bcde]-|PROBE-2GPU$|PROBE-8B$|PROBE-E12E-8K$|PROBE-TAIL-8B$)" in ts      # the four-GPU tasks take a GPU list
+    assert "|E12[bcde]-|PROBE-2GPU$|PROBE-8B$|PROBE-E12E-8K$|PROBE-E12E-16K$|PROBE-TAIL-8B$)" in ts   # [v2.5.9z97] PROBE-E12E-16K too      # the four-GPU tasks take a GPU list
     rt = open(os.path.join(here, "run_tasks.sh")).read()
     assert "training_task() { case $1 in E10[bcde]-*|E12[bcde]-*|" in rt                 # trained alike: disk guard, restart
     assert "case $TASK in E12[bcde]-*) stats 0;; esac" in open(os.path.join(here, "upload_sync.sh")).read()
@@ -1641,6 +1642,33 @@ def test_run_and_rerun_accept_v259z89(env):   # [v2.5.9z89] (Q-080) the VLM retr
     items = next(l for l in q.split("\n") if l.startswith("b259z89 ")).split()[2:]
     arms = [x for x in items if not x.startswith("EVAL-")]
     assert items[:len(arms)] == arms                                                                   # readings after the arms
+
+
+def test_run_and_rerun_accept_v259z97(env):   # [v2.5.9z97] (Q-074i / Q-074j; research_program 3h) two chain arms, a 16K gate, rows dropped
+    for i, t in enumerate(("E12d-P5tail-8k-s43", "E12e-P5tail-16k", "PROBE-E12E-16K")):
+        st, msg, _ = env.c.v_run([t], 330 + i)
+        assert st == "accepted", msg
+        R.parse({"cmd": f"rerun {t}", "reason": "t"})
+    assert R.RULES_VERSION == "2.5.101"
+    here = os.path.dirname(os.path.abspath(__file__))
+    ts = open(os.path.join(here, "task.sh")).read()
+    assert ts.index("  E12d-P5tail-8k-s43) ") < ts.index("  E12d-*) ")
+    assert "PROBE-E12E-16K$" in ts.split("\n")[9]                                                   # a #gpus list is allowed
+    pe = open(os.path.join(here, "probe_e12var.sh")).read()
+    assert "E12e:16k) ;;" in pe and "[ $L:$VAR = E12e:16k ] && ARM=E12e-P5tail-16k" in pe
+    q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
+    for g in ("#gpus E12d-P5tail-8k-s43 2", "#gpus E12e-P5tail-16k 4", "#gpus PROBE-E12E-16K 4"):
+        assert f"\n{g}\n" in q
+    lines = q.split("\n")
+    i = next(k for k, l in enumerate(lines) if l.startswith("b259z93 "))   # the scheduler v135: after b259z93, before b259z89
+    assert lines[i + 3].startswith("b259z89 ")
+    assert lines[i + 1].startswith("b259z97  open   E12d-P5tail-8k-s43:PROBE-E12B-8K+E10d-P5tail-s43 ")
+    assert lines[i + 2].startswith("# [held until Q-074d H1 holds") and " b259z97j open   PROBE-E12E-16K:" in lines[i + 2]
+    assert not any(l.startswith("b259z97j") for l in lines)                                            # Q-074j stays held
+    assert "E12e-P5tail-16k:PROBE-E12E-16K+PROBE-E12B-16K+E10e-P5tail" in lines[i + 2]
+    assert "vlm32-p2lo" not in q and "vlm32-p5tail" not in q                                           # the VLM 32K rows (3h 4)
+    assert "EVAL-gm-4BX4" not in q and "EVAL-gm-4Bi2507" not in q                                      # fill: X arms out (3h 6)
+    assert "EVAL-vlm32-s50-mathverse" in q and "EVAL-gm-4BP5self" in q                                 # Q-051's 32K and the kept gm rows stay
 
 
 def test_run_and_rerun_accept_v259z95(env):   # [v2.5.9z95] (Q-074h) the 4B 16K chain arm: its own stage right after b259z92 (the scheduler)

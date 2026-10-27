@@ -56,7 +56,7 @@ SS=150; case $A in P5self|P5self-s43) SS=50;; esac       # [v2.5.8a] E10b-P5self
 [ "$A" = P5tail-s43 ] && SS=50   # [v2.5.9z91] (Q-074c) its seed 43 too
 [ "$A" = P5tail-s44 ] && SS=50   # [v2.5.9z93] (Q-074g) and 44
 [ $T = E12c-P5tail-8k ] && { SRUN=E10c-P5tail-c50; SS=30; }   # [v2.5.9z92] (Q-074f) the 0.6B tail arm's s50 = E10c-P5tail-c50's global_step_30 (20 + 30 steps)
-if [ $T = E12e-P5tail-8k ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then   # [v2.5.9z92] (Q-074e) its gates as Q-081 (PROBE-E12B-8K / PROBE-E12E-8K, ops-lead 12:06Z: the 8B 4-GPU fit), and E10e-P5tail's s50 uploaded (upload_sync's marker), else WAIT_INPUTS; no wait for Q-075b's readings (Fable)
+if { [ $T = E12e-P5tail-8k ] || [ $T = E12e-P5tail-16k ]; } && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then   # [v2.5.9z97] (Q-074j) E12e-P5tail-16k from the same s50   # [v2.5.9z92] (Q-074e) its gates as Q-081 (PROBE-E12B-8K / PROBE-E12E-8K, ops-lead 12:06Z: the 8B 4-GPU fit), and E10e-P5tail's s50 uploaded (upload_sync's marker), else WAIT_INPUTS; no wait for Q-075b's readings (Fable)
   U=$OPD_ROOT/runs/E10e-P5tail/ckpt/global_step_50
   [ -f $U/.uploaded ] && [ ! -f $U/.not_uploaded ] || { echo "WAIT_INPUTS $T: runs/E10e-P5tail/ckpt/global_step_50/.uploaded not on this node"; exit 1; }   # waiting, no attempt (s50 not uploaded yet)
 fi
@@ -173,6 +173,7 @@ UW=$STEPS; case $T in E12b-P5-s44|E12d-P5) UW=25,50,75,$STEPS;; E12b-P5-8k|E12b-
 [ $T = E12b-P5tail-8k ] && UW=25,$STEPS   # [v2.5.9z84a] (Q-074) as the 8K arm: s25 and s50 up
 case $T in E12b-P5tail-8k-s43|E12b-P5tail-8k-s44|E12e-P5self-8k) UW=25,$STEPS;; esac   # [v2.5.9z91] (Q-074c / Q-081) s25 and s50 up (z86: saved every 25 steps); [v2.5.9z93] s44
 case $T in E12b-P5tail-16k|E12c-P5tail-8k|E12e-P5tail-8k) UW=25,$STEPS;; esac   # [v2.5.9z92] (Q-074d / f / e) s25 and s50 up
+case $T in E12d-P5tail-8k-s43|E12e-P5tail-16k) UW=25,$STEPS;; esac   # [v2.5.9z97] (Q-074i / Q-074j) s25 and s50 up (the parses P5tail-8k-s43 / P5tail-16k are z91's / z92's)
 [ $T = E12d-P5tail-16k ] && UW=25,$STEPS   # [v2.5.9z95] (Q-074h) s25 and s50 up (the 16K parse P5tail-16k is z92's; E12d-* runs on venv-fa, vLLM 0.5)
 [ $T = E12d-P5tail-8k ] && UW=25,$STEPS   # [v2.5.9z90] (Q-074b) as E12d-P5-8k: s25 and s50 up (z86: saved every 25 steps)
 case $T in E12b-P5-16k-s44|E12d-P5-16k-s43) UW=25,$STEPS;; esac   # [v2.5.9z84] (Q-076) as the 16K arms: s25 and s50 up

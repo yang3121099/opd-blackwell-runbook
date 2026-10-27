@@ -28,7 +28,7 @@ set -uo pipefail
 G=$1; VAR=$2; source "$(dirname "$0")/env.sh"
 case $VAR in kl|stop|stop2|8k|16k|r3) ;; *) echo "unknown variant $VAR"; exit 2;; esac   # [v2.5.8c] stop; [v2.5.8h] 8k / 16k; [v2.5.9f] stop2
 # [v2.5.9z85] (Q-077) PEV_LADDER=E12c: PROBE-E12C-8K / -16K, the same smoke of the 0.6B window arm E12c-P5-<8k|16k> (the 1.7B one by default)
-L=${PEV_LADDER:-E12b}; case $L:$VAR in E12b:*|E12c:8k|E12c:16k|E12e:8k) ;; *) echo "unknown ladder / variant $L $VAR"; exit 2;; esac
+L=${PEV_LADDER:-E12b}; case $L:$VAR in E12b:*|E12c:8k|E12c:16k|E12e:8k|E12e:16k) ;; *) echo "unknown ladder / variant $L $VAR"; exit 2;; esac   # [v2.5.9z97] E12e:16k (Q-074j)
 T=PROBE-$(echo $L | tr a-z A-Z)-$(echo $VAR | tr a-z A-Z); D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; mkdir -p $D
 [ -f $D/.done ] && { echo "TASK_ALREADY_DONE $T"; exit 0; }
 rm -f $D/mem.csv   # [v2.5.9z11] this run's memory samples only (a rerun keeps the directory: PROBE-STOPMERGE's 4th peak was the 2nd run's)
@@ -87,6 +87,7 @@ step "start gpu=$G variant=$VAR FIXED_MICRO_BSZ=${FIXED_MICRO_BSZ:-} VENV=${VENV
 MP=$!
 rm -rf $OPD_ROOT/runs/$T-smoke
 ARM=$L-P5-$VAR; [ $L = E12e ] && ARM=$L-P5self-$VAR   # [v2.5.9z91] (Q-081) PEV_LADDER=E12e: PROBE-E12E-8K smokes E12e-P5self-8k on its four GPUs (#gpus 4)
+[ $L:$VAR = E12e:16k ] && ARM=E12e-P5tail-16k   # [v2.5.9z97] (Q-074j) PROBE-E12E-16K smokes the arm itself (there is no 8B P5self 16K arm), from E10e-P5tail s50 on four GPUs
 SMOKE=1 SMOKE_STEPS=${PEV_STEPS:-3} PROBE_TASK=$T-smoke bash $RUNBOOK/scripts/run_e12.sh $G $ARM > $D/smoke.out 2>&1; rc=$?   # [v2.5.9z85] $L
 kill $MP 2> /dev/null
 mkdir -p $D/smoke; cp $OPD_ROOT/runs/$T-smoke/train.log $OPD_ROOT/runs/$T-smoke/config.yaml $D/smoke/ 2> /dev/null

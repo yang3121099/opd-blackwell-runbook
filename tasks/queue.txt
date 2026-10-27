@@ -152,7 +152,7 @@ b259z77  open   E10d-P5self-s43:PROBE-P5SELF-4B EVAL-e10d-P5self-s43:E10d-P5self
 b259z41o open   EVAL-ood32k-17base EVAL-ood32k-4Bbase EVAL-ood32k-17p5self:EVAL-ood32k-17base EVAL-ood32k-17p5l8k:EVAL-ood32k-17base EVAL-ood32k-4Bp5:EVAL-ood32k-4Bbase EVAL-ood32k-4Bp5self:EVAL-ood32k-4Bbase EVAL-ood32k-4Bx4:EVAL-ood32k-4Bbase
 diff4b   open   PROBE-DIFF17-4B:PROBE-DIFF17
 b259q028 open   EVAL-ext32k-17p5l8k-s25
-b259z15  open   EVAL-gm-17base EVAL-gm-17think EVAL-gm-17P5 EVAL-gm-17P5self EVAL-gm-17P5rl EVAL-gm-17P5kl EVAL-gm-17P5l8k EVAL-gm-4Bbase EVAL-gm-4Bthink EVAL-gm-4BP5 EVAL-gm-4BP5self EVAL-gm-4BP5rl EVAL-gm-4BX4 EVAL-gm-4Bi2507 EVAL-gm-06base EVAL-gm-06think EVAL-gm-06P5 EVAL-gm-06P5rl
+b259z15  open   EVAL-gm-17base EVAL-gm-17think EVAL-gm-17P5 EVAL-gm-17P5self EVAL-gm-17P5rl EVAL-gm-17P5kl EVAL-gm-17P5l8k EVAL-gm-4Bbase EVAL-gm-4Bthink EVAL-gm-4BP5 EVAL-gm-4BP5self EVAL-gm-4BP5rl EVAL-gm-06base EVAL-gm-06think EVAL-gm-06P5 EVAL-gm-06P5rl
 # [10-23 Fable 04:4x UTC] MMLU-Pro-1K at 16K, greedy, for the thinking-template students (their 4K rows clip 28-62%); the thinking modes already run at 16K, the bases and non-thinking references are not rerun
 b259gm16 open   EVAL-gm16-17P5 EVAL-gm16-17P5self EVAL-gm16-17P5kl EVAL-gm16-17P5l8k EVAL-gm16-17P5rl EVAL-gm16-4BP5 EVAL-gm16-4BP5self EVAL-gm16-4BP5rl EVAL-gm16-4BX4
 # [v2.5.9z32] (Runming 10-22 14:3x Beijing via ops-lead: every re-rank is an update; the needed work loses its padding tag and moves up)
@@ -186,7 +186,9 @@ b259z92  open   E12b-P5tail-16k:PROBE-E12B-16K+E10b-P5tail E10d-P5tail-s43:PROBE
 b259z95  open   E12d-P5tail-16k:PROBE-E12B-16K+E10d-P5tail EVAL-e12d-P5tail-16k:E12d-P5tail-16k+EVAL-e12d-P5-16k+EVAL-e10d-P5tail EVAL-budA-e12dP5tail-16k:E12d-P5tail-16k+EVAL-budA-4B+EVAL-budA-e10dP5tail+EVAL-budA-e12dP5-16k EVAL-ext32k-4Bp5tail16k:E12d-P5tail-16k+EVAL-ext32k-4Bp5l16k+EVAL-ext32k-4Bp5tail
 b259z96a open   VERIFY-PRIV-LFS
 b259z93  open   E10b-P5tail-s44:PROBE-TAIL E12b-P5tail-8k-s44:PROBE-E12B-8K+E10b-P5tail-s44 EVAL-tail-s44:E10b-P5tail-s44+EVAL-tail+EVAL-tail-s43 EVAL-ext32k-17tail-s44:E10b-P5tail-s44+EVAL-ext32k-17tail+EVAL-ext32k-17tail-s43 EVAL-e12b-P5tail-8k-s44:E12b-P5tail-8k-s44+EVAL-e12b-P5tail-8k+EVAL-tail-s44 EVAL-budA-e12bP5tail-8k-s44:E12b-P5tail-8k-s44+EVAL-budA-e12bP5tail-8k+EVAL-tail-s44 EVAL-ext32k-17p5tail8k-s44:E12b-P5tail-8k-s44+EVAL-ext32k-17p5tail8k+EVAL-ext32k-17tail-s44
-b259z89  open   DIAG-VLM-TRUNC:EVAL-e15-base+EVAL-e15-base2+EVAL-e15-vlm-s50 PROBE-VLM-COMPLETE:PROBE-VLM E15-VLM-P2lo:PROBE-VLM-COMPLETE+PROBE-VLM PROBE-VLM-TAIL:PROBE-VLM+PROBE-TAIL E15-VLM-P5tail-lo:PROBE-VLM-TAIL+PROBE-VLM EVAL-e15-p2lo-s25:E15-VLM-P2lo+EVAL-e15-base+EVAL-e15-base2+EVAL-e15-vlm-s25 EVAL-e15-p2lo-s50:E15-VLM-P2lo+EVAL-e15-base+EVAL-e15-base2+EVAL-e15-vlm-s50 EVAL-vlm32-p2lo-mathvista:E15-VLM-P2lo+EVAL-vlm32-base-mathvista+EVAL-vlm32-s50-mathvista EVAL-vlm32-p2lo-mathvision:E15-VLM-P2lo+EVAL-vlm32-base-mathvision+EVAL-vlm32-s50-mathvision EVAL-vlm32-p2lo-mathverse:E15-VLM-P2lo+EVAL-vlm32-base-mathverse+EVAL-vlm32-s50-mathverse EVAL-e15-p5tail-s25:E15-VLM-P5tail-lo+EVAL-e15-base+EVAL-e15-base2+EVAL-e15-vlm-s25 EVAL-e15-p5tail-s50:E15-VLM-P5tail-lo+EVAL-e15-base+EVAL-e15-base2+EVAL-e15-vlm-s50 EVAL-vlm32-p5tail-mathvista:E15-VLM-P5tail-lo+EVAL-vlm32-base-mathvista+EVAL-vlm32-s50-mathvista EVAL-vlm32-p5tail-mathvision:E15-VLM-P5tail-lo+EVAL-vlm32-base-mathvision+EVAL-vlm32-s50-mathvision EVAL-vlm32-p5tail-mathverse:E15-VLM-P5tail-lo+EVAL-vlm32-base-mathverse+EVAL-vlm32-s50-mathverse
+b259z97  open   E12d-P5tail-8k-s43:PROBE-E12B-8K+E10d-P5tail-s43 EVAL-e12d-P5tail-8k-s43:E12d-P5tail-8k-s43+EVAL-e12d-P5tail-8k+EVAL-e10d-P5tail-s43 EVAL-budA-e12dP5tail-8k-s43:E12d-P5tail-8k-s43+EVAL-budA-4B+EVAL-budA-e10dP5tail-s43+EVAL-budA-e12dP5tail-8k EVAL-ext32k-4Bp5tail8k-s43:E12d-P5tail-8k-s43+EVAL-ext32k-4Bp5tail8k+EVAL-ext32k-4Bp5tail-s43
+# [held until Q-074d H1 holds: E12b-P5tail-16k s50 AIME24 / 25 32K each >= -2 vs E10b-P5tail s50 (EVAL-ext32k-17p5tail16k), ruled by ops-lead / Fable; else the scheduler fills #pad] b259z97j open   PROBE-E12E-16K:PROBE-E12E-8K+E10e-P5tail E12e-P5tail-16k:PROBE-E12E-16K+PROBE-E12B-16K+E10e-P5tail EVAL-e12e-P5tail-16k:E12e-P5tail-16k+EVAL-e12e-P5self-8k+EVAL-e10e-P5tail EVAL-budA-e12eP5tail-16k:E12e-P5tail-16k+EVAL-budA-e12eP5self-8k+EVAL-budA-e10eP5tail EVAL-ext32k-8Bp5tail16k:E12e-P5tail-16k+EVAL-ext32k-8Bp5self8k+EVAL-ext32k-8Bp5tail
+b259z89  open   DIAG-VLM-TRUNC:EVAL-e15-base+EVAL-e15-base2+EVAL-e15-vlm-s50 PROBE-VLM-COMPLETE:PROBE-VLM E15-VLM-P2lo:PROBE-VLM-COMPLETE+PROBE-VLM PROBE-VLM-TAIL:PROBE-VLM+PROBE-TAIL E15-VLM-P5tail-lo:PROBE-VLM-TAIL+PROBE-VLM EVAL-e15-p2lo-s25:E15-VLM-P2lo+EVAL-e15-base+EVAL-e15-base2+EVAL-e15-vlm-s25 EVAL-e15-p2lo-s50:E15-VLM-P2lo+EVAL-e15-base+EVAL-e15-base2+EVAL-e15-vlm-s50 EVAL-e15-p5tail-s25:E15-VLM-P5tail-lo+EVAL-e15-base+EVAL-e15-base2+EVAL-e15-vlm-s25 EVAL-e15-p5tail-s50:E15-VLM-P5tail-lo+EVAL-e15-base+EVAL-e15-base2+EVAL-e15-vlm-s50
 b259z92b open   EVAL-ext32k-06p5self:E10c-P5self+EVAL-ext32k-06+EVAL-ext32k-06think EVAL-ext32k-06tail-c50-a24:E10c-P5tail-c50+EVAL-ext32k-06tail+EVAL-ext32k-06
 # [v2.5.9z85] (Fable 10-25 10:1x / 10:5x Beijing, research_program 3d; paper_core 4: the dense-KL mechanism, then completeness) Q-079 the AKL series, Q-072b, Q-077 the 0.6B window arms; gates first
 b259z85  open   PROBE-E12C-8K PROBE-E12C-16K PROBE-DENSE-4B:PROBE-DENSE E10b-P5-akl-mu03:PROBE-DENSE E10b-P5-akl-mu07:PROBE-DENSE E10d-P5-akl:PROBE-DENSE+PROBE-DENSE-4B E10b-P5self-akl:PROBE-DENSE+PROBE-P5SELF E12c-P5-8k:PROBE-E12C-8K+PROBE-E12B-8K+PROBE-E12C E12c-P5-16k:PROBE-E12C-16K+PROBE-E12B-16K+PROBE-E12C EVAL-akl2:E10b-P5-akl2+EVAL-budA17a+EVAL-budA17b+EVAL-akl+EVAL-ext32k-17akl EVAL-ext32k-17akl2:E10b-P5-akl2+EVAL-ext32k-17+EVAL-akl+EVAL-ext32k-17akl EVAL-fkl:E10b-P5-fkl+EVAL-budA17a+EVAL-budA17b+EVAL-akl+EVAL-ext32k-17akl EVAL-ext32k-17fkl:E10b-P5-fkl+EVAL-ext32k-17+EVAL-akl+EVAL-ext32k-17akl EVAL-densek256:E10b-P5-dense-k256+EVAL-budA17a+EVAL-budA17b+EVAL-dense+EVAL-ext32k-17dense EVAL-ext32k-17densek256:E10b-P5-dense-k256+EVAL-ext32k-17+EVAL-dense+EVAL-ext32k-17dense EVAL-aklmu03:E10b-P5-akl-mu03+EVAL-budA17a+EVAL-budA17b+EVAL-akl+EVAL-ext32k-17akl EVAL-ext32k-17aklmu03:E10b-P5-akl-mu03+EVAL-ext32k-17+EVAL-akl+EVAL-ext32k-17akl EVAL-aklmu07:E10b-P5-akl-mu07+EVAL-budA17a+EVAL-budA17b+EVAL-akl+EVAL-ext32k-17akl EVAL-ext32k-17aklmu07:E10b-P5-akl-mu07+EVAL-ext32k-17+EVAL-akl+EVAL-ext32k-17akl EVAL-selfakl:E10b-P5self-akl+EVAL-budA17a+EVAL-budA17b+EVAL-budA-P5self+EVAL-e10b-P5self+EVAL-ext32k-17p5self EVAL-ext32k-17selfakl:E10b-P5self-akl+EVAL-ext32k-17+EVAL-budA-P5self+EVAL-e10b-P5self+EVAL-ext32k-17p5self EVAL-e10d-P5akl:E10d-P5-akl+EVAL-e10d-P5+EVAL-budA-4B EVAL-ext32k-4Bakl:E10d-P5-akl+EVAL-ext32k-4B EVAL-e12c-P5-8k:E12c-P5-8k+EVAL-e10c-P5-fix4+EVAL-e12c-P5 EVAL-budA-e12cP5-8k:E12c-P5-8k+EVAL-budA06+EVAL-budA06p5+EVAL-budA-e12c EVAL-ext32k-06p5l8k:E12c-P5-8k+EVAL-ext32k-06+EVAL-ext32k-06rlp5 EVAL-e12c-P5-16k:E12c-P5-16k+EVAL-e10c-P5-fix4+EVAL-e12c-P5 EVAL-budA-e12cP5-16k:E12c-P5-16k+EVAL-budA06+EVAL-budA06p5+EVAL-budA-e12c EVAL-ext32k-06p5l16k:E12c-P5-16k+EVAL-ext32k-06+EVAL-ext32k-06rlp5
@@ -2182,13 +2184,6 @@ fill18   open   EVAL-ext-4Bp5tail:E10d-P5tail EVAL-gm-4Bp5tail:E10d-P5tail EVAL-
 #eval EVAL-gm-4BP5rl gm_4BP5rl_gpqa_T0.6_16k result:runs/E12d-P5/global_step_100/actor/huggingface gpqa 4 0.6 16384 no_think
 #eval EVAL-gm-4BP5rl gm_4BP5rl_ifeval_T0_4k result:runs/E12d-P5/global_step_100/actor/huggingface ifeval 1 0 4096 no_think
 #eval EVAL-gm-4BP5rl gm_4BP5rl_ifeval_T0_16k result:runs/E12d-P5/global_step_100/actor/huggingface ifeval 1 0 16384 no_think
-#eval EVAL-gm-4BX4 gm_4BX4_mmlupro1k_T0_4k result:runs/E10d-X4/global_step_50/actor/huggingface mmlupro1k 1 0 4096 no_think
-#eval EVAL-gm-4BX4 gm_4BX4_gpqa_T0.6_16k result:runs/E10d-X4/global_step_50/actor/huggingface gpqa 4 0.6 16384 no_think
-#eval EVAL-gm-4BX4 gm_4BX4_ifeval_T0_4k result:runs/E10d-X4/global_step_50/actor/huggingface ifeval 1 0 4096 no_think
-#eval EVAL-gm-4BX4 gm_4BX4_ifeval_T0_16k result:runs/E10d-X4/global_step_50/actor/huggingface ifeval 1 0 16384 no_think
-#eval EVAL-gm-4Bi2507 gm_4Bi2507_mmlupro1k_T0_4k Qwen/Qwen3-4B-Instruct-2507 mmlupro1k 1 0 4096 no_think
-#eval EVAL-gm-4Bi2507 gm_4Bi2507_gpqa_T0.6_16k Qwen/Qwen3-4B-Instruct-2507 gpqa 4 0.6 16384 no_think
-#eval EVAL-gm-4Bi2507 gm_4Bi2507_ifeval_T0_4k Qwen/Qwen3-4B-Instruct-2507 ifeval 1 0 4096 no_think
 #eval EVAL-gm-06base gm_06base_mmlupro1k_T0_4k Qwen/Qwen3-0.6B mmlupro1k 1 0 4096 no_think
 #eval EVAL-gm-06base gm_06base_gpqa_T0.6_16k Qwen/Qwen3-0.6B gpqa 4 0.6 16384 no_think
 #eval EVAL-gm-06base gm_06base_ifeval_T0_4k Qwen/Qwen3-0.6B ifeval 1 0 4096 no_think
@@ -2217,8 +2212,6 @@ fill18   open   EVAL-ext-4Bp5tail:E10d-P5tail EVAL-gm-4Bp5tail:E10d-P5tail EVAL-
 #after BUILD-VENV-IFEVAL rerun EVAL-gm-4BP5
 #after BUILD-VENV-IFEVAL rerun EVAL-gm-4BP5self
 #after BUILD-VENV-IFEVAL rerun EVAL-gm-4BP5rl
-#after BUILD-VENV-IFEVAL rerun EVAL-gm-4BX4
-#after BUILD-VENV-IFEVAL rerun EVAL-gm-4Bi2507
 #after BUILD-VENV-IFEVAL rerun EVAL-gm-06base
 #after BUILD-VENV-IFEVAL rerun EVAL-gm-06think
 #after BUILD-VENV-IFEVAL rerun EVAL-gm-06P5
@@ -2867,7 +2860,8 @@ fill18   open   EVAL-ext-4Bp5tail:E10d-P5tail EVAL-gm-4Bp5tail:E10d-P5tail EVAL-
 # gated by PROBE-VLM-COMPLETE (the teacher's completion rate >= 0.9). Q-080b E15-VLM-P5tail-lo: the thinking teacher tail-swapped after
 # the first box, only finished rollouts count, lr 1e-6, 4096 tokens, gated by PROBE-VLM-TAIL. Both 1 GPU, MMK12, 50 steps, s25 / s50 up.
 # Readings (vlm_family): MathVista testmini (avg@4 T0.6) / MathVision / MathVerse (greedy) 16K at s25 / s50 paired with the base and
-# Q-051 (E15-VLM-P5) at the same step; the three at 32K (avg@4 T0.6) at s50 paired with the base and Q-051 s50, with TAILS loop rows.
+# Q-051 (E15-VLM-P5) at the same step, with TAILS loop rows; [v2.5.9z97] (research_program 3h 4) the three 32K rows at s50 dropped: Q-051's 32K
+# answers were 77% truncated, 99-100% of them loops (32K measured the loops); Q-080a / b's H are judged at 16K.
 # DIAG-VLM-TRUNC (CPU lane): the base's and Q-051 s50's truncated 16K answers in three classes (loop / unfinished / box then more).
 #eval EVAL-e15-p2lo-s25 e15_P2lo_s25_mathvista_T0.6 result:runs/E15-VLM-P2lo/global_step_25/actor/huggingface mathvista 4 0.6
 #pair EVAL-e15-p2lo-s25 e15_P2lo_s25_mathvista_T0.6 EVAL-e15-base/e15_base2B_mathvista_T0.6_mathvista_no_think_t0.6.jsonl EVAL-e15-vlm-s25/e15_P5_s25_mathvista_T0.6_mathvista_no_think_t0.6.jsonl
@@ -2881,18 +2875,6 @@ fill18   open   EVAL-ext-4Bp5tail:E10d-P5tail EVAL-gm-4Bp5tail:E10d-P5tail EVAL-
 #pair EVAL-e15-p2lo-s50 e15_P2lo_s50_mathvision_T0 EVAL-e15-base2/e15_base2B_mathvision_T0_mathvision_no_think_t0.0.jsonl EVAL-e15-vlm-s50/e15_P5_s50_mathvision_T0_mathvision_no_think_t0.0.jsonl
 #eval EVAL-e15-p2lo-s50 e15_P2lo_s50_mathverse_T0 result:runs/E15-VLM-P2lo/global_step_50/actor/huggingface mathverse 1 0 16384
 #pair EVAL-e15-p2lo-s50 e15_P2lo_s50_mathverse_T0 EVAL-e15-base2/e15_base2B_mathverse_T0_mathverse_no_think_t0.0.jsonl EVAL-e15-vlm-s50/e15_P5_s50_mathverse_T0_mathverse_no_think_t0.0.jsonl
-#eval EVAL-vlm32-p2lo-mathvista vlm32_P2lo_s50_mathvista_T0.6_32k result:runs/E15-VLM-P2lo/global_step_50/actor/huggingface mathvista 4 0.6 32768
-#pair EVAL-vlm32-p2lo-mathvista vlm32_P2lo_s50_mathvista_T0.6_32k EVAL-vlm32-base-mathvista/vlm32_base2B_mathvista_T0.6_32k_mathvista_no_think_t0.6.jsonl EVAL-vlm32-s50-mathvista/vlm32_P5_s50_mathvista_T0.6_32k_mathvista_no_think_t0.6.jsonl
-#tails READINGS-EXTRA vlm32_p2lo_s50_mathvista EVAL-vlm32-p2lo-mathvista/vlm32_P2lo_s50_mathvista_T0.6_32k_mathvista_no_think_t0.6.jsonl 20 20261027 500
-#after EVAL-vlm32-p2lo-mathvista rerun READINGS-EXTRA
-#eval EVAL-vlm32-p2lo-mathvision vlm32_P2lo_s50_mathvision_T0.6_32k result:runs/E15-VLM-P2lo/global_step_50/actor/huggingface mathvision 4 0.6 32768
-#pair EVAL-vlm32-p2lo-mathvision vlm32_P2lo_s50_mathvision_T0.6_32k EVAL-vlm32-base-mathvision/vlm32_base2B_mathvision_T0.6_32k_mathvision_no_think_t0.6.jsonl EVAL-vlm32-s50-mathvision/vlm32_P5_s50_mathvision_T0.6_32k_mathvision_no_think_t0.6.jsonl
-#tails READINGS-EXTRA vlm32_p2lo_s50_mathvision EVAL-vlm32-p2lo-mathvision/vlm32_P2lo_s50_mathvision_T0.6_32k_mathvision_no_think_t0.6.jsonl 20 20261027 500
-#after EVAL-vlm32-p2lo-mathvision rerun READINGS-EXTRA
-#eval EVAL-vlm32-p2lo-mathverse vlm32_P2lo_s50_mathverse_T0.6_32k result:runs/E15-VLM-P2lo/global_step_50/actor/huggingface mathverse 4 0.6 32768
-#pair EVAL-vlm32-p2lo-mathverse vlm32_P2lo_s50_mathverse_T0.6_32k EVAL-vlm32-base-mathverse/vlm32_base2B_mathverse_T0.6_32k_mathverse_no_think_t0.6.jsonl EVAL-vlm32-s50-mathverse/vlm32_P5_s50_mathverse_T0.6_32k_mathverse_no_think_t0.6.jsonl
-#tails READINGS-EXTRA vlm32_p2lo_s50_mathverse EVAL-vlm32-p2lo-mathverse/vlm32_P2lo_s50_mathverse_T0.6_32k_mathverse_no_think_t0.6.jsonl 20 20261027 500
-#after EVAL-vlm32-p2lo-mathverse rerun READINGS-EXTRA
 #eval EVAL-e15-p5tail-s25 e15_P5taillo_s25_mathvista_T0.6 result:runs/E15-VLM-P5tail-lo/global_step_25/actor/huggingface mathvista 4 0.6
 #pair EVAL-e15-p5tail-s25 e15_P5taillo_s25_mathvista_T0.6 EVAL-e15-base/e15_base2B_mathvista_T0.6_mathvista_no_think_t0.6.jsonl EVAL-e15-vlm-s25/e15_P5_s25_mathvista_T0.6_mathvista_no_think_t0.6.jsonl
 #eval EVAL-e15-p5tail-s25 e15_P5taillo_s25_mathvision_T0 result:runs/E15-VLM-P5tail-lo/global_step_25/actor/huggingface mathvision 1 0 16384
@@ -2905,18 +2887,6 @@ fill18   open   EVAL-ext-4Bp5tail:E10d-P5tail EVAL-gm-4Bp5tail:E10d-P5tail EVAL-
 #pair EVAL-e15-p5tail-s50 e15_P5taillo_s50_mathvision_T0 EVAL-e15-base2/e15_base2B_mathvision_T0_mathvision_no_think_t0.0.jsonl EVAL-e15-vlm-s50/e15_P5_s50_mathvision_T0_mathvision_no_think_t0.0.jsonl
 #eval EVAL-e15-p5tail-s50 e15_P5taillo_s50_mathverse_T0 result:runs/E15-VLM-P5tail-lo/global_step_50/actor/huggingface mathverse 1 0 16384
 #pair EVAL-e15-p5tail-s50 e15_P5taillo_s50_mathverse_T0 EVAL-e15-base2/e15_base2B_mathverse_T0_mathverse_no_think_t0.0.jsonl EVAL-e15-vlm-s50/e15_P5_s50_mathverse_T0_mathverse_no_think_t0.0.jsonl
-#eval EVAL-vlm32-p5tail-mathvista vlm32_P5taillo_s50_mathvista_T0.6_32k result:runs/E15-VLM-P5tail-lo/global_step_50/actor/huggingface mathvista 4 0.6 32768
-#pair EVAL-vlm32-p5tail-mathvista vlm32_P5taillo_s50_mathvista_T0.6_32k EVAL-vlm32-base-mathvista/vlm32_base2B_mathvista_T0.6_32k_mathvista_no_think_t0.6.jsonl EVAL-vlm32-s50-mathvista/vlm32_P5_s50_mathvista_T0.6_32k_mathvista_no_think_t0.6.jsonl
-#tails READINGS-EXTRA vlm32_p5tail_s50_mathvista EVAL-vlm32-p5tail-mathvista/vlm32_P5taillo_s50_mathvista_T0.6_32k_mathvista_no_think_t0.6.jsonl 20 20261027 500
-#after EVAL-vlm32-p5tail-mathvista rerun READINGS-EXTRA
-#eval EVAL-vlm32-p5tail-mathvision vlm32_P5taillo_s50_mathvision_T0.6_32k result:runs/E15-VLM-P5tail-lo/global_step_50/actor/huggingface mathvision 4 0.6 32768
-#pair EVAL-vlm32-p5tail-mathvision vlm32_P5taillo_s50_mathvision_T0.6_32k EVAL-vlm32-base-mathvision/vlm32_base2B_mathvision_T0.6_32k_mathvision_no_think_t0.6.jsonl EVAL-vlm32-s50-mathvision/vlm32_P5_s50_mathvision_T0.6_32k_mathvision_no_think_t0.6.jsonl
-#tails READINGS-EXTRA vlm32_p5tail_s50_mathvision EVAL-vlm32-p5tail-mathvision/vlm32_P5taillo_s50_mathvision_T0.6_32k_mathvision_no_think_t0.6.jsonl 20 20261027 500
-#after EVAL-vlm32-p5tail-mathvision rerun READINGS-EXTRA
-#eval EVAL-vlm32-p5tail-mathverse vlm32_P5taillo_s50_mathverse_T0.6_32k result:runs/E15-VLM-P5tail-lo/global_step_50/actor/huggingface mathverse 4 0.6 32768
-#pair EVAL-vlm32-p5tail-mathverse vlm32_P5taillo_s50_mathverse_T0.6_32k EVAL-vlm32-base-mathverse/vlm32_base2B_mathverse_T0.6_32k_mathverse_no_think_t0.6.jsonl EVAL-vlm32-s50-mathverse/vlm32_P5_s50_mathverse_T0.6_32k_mathverse_no_think_t0.6.jsonl
-#tails READINGS-EXTRA vlm32_p5tail_s50_mathverse EVAL-vlm32-p5tail-mathverse/vlm32_P5taillo_s50_mathverse_T0.6_32k_mathverse_no_think_t0.6.jsonl 20 20261027 500
-#after EVAL-vlm32-p5tail-mathverse rerun READINGS-EXTRA
 #after EVAL-vlm32-s50-mathvista rerun READINGS-EXTRA
 #after EVAL-vlm32-s50-mathvision rerun READINGS-EXTRA
 #after EVAL-vlm32-s50-mathverse rerun READINGS-EXTRA
@@ -3304,6 +3274,61 @@ fill18   open   EVAL-ext-4Bp5tail:E10d-P5tail EVAL-gm-4Bp5tail:E10d-P5tail EVAL-
 #pair EVAL-ext32k-4Bp5tail16k ext32k4B_E12dP5tail16k_s50_aime25_T0.6 EVAL-ext32k-4Bp5l16k/ext32k4B_E12dP5l16k_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Bp5tail/ext32k4B_E10dP5tail_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
 # [held until E12d-P5tail-16k has s50] term PROBE-TERM4-4B 4B_P5tail16k result:runs/E12d-P5tail-16k/global_step_50/actor/huggingface EVAL-e12d-P5tail-16k/e12d_P5tail-16k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 # [held until E12d-P5tail-16k has s50; restored together with the term row above] after EVAL-e12d-P5tail-16k rerun PROBE-TERM4-4B
+
+# [v2.5.9z97] (Q-074i, Fable's research_program 3h, science A1 in advance; ops-lead names / queue) E12d-P5tail-8k-s43: the 4B method
+# chain's second seed - E12d-P5tail-8k's recipe (GRPO, 8K, venv-fa, vLLM 0.5, 50 steps, s25 / s50 up, saved every 25) from E10d-P5tail-s43
+# s50 (Q-075c), #gpus 2 (about 15 h on one GPU, about 8 h on two). Readings (rl_family): MATH-500 16K T0.6 (s25 / s50) and T1.0 (s50)
+# paired with the first seed E12d-P5tail-8k at the same step (H1 +-1) and the start; the 32K budget curves vs the base, the start (H2,
+# compression >= 1.5x) and the first seed; STRICT-C1 vs the start; AIME24 / 25 32K avg@16 vs the first seed (H4 +-3) and the start; its
+# TERM4-4B row held until s50 (H3, p_stop_last >= 0.6)
+#gpus E12d-P5tail-8k-s43 2
+#eval EVAL-e12d-P5tail-8k-s43 e12d_P5tail-8k-s43_s25_math500_T0.6 result:runs/E12d-P5tail-8k-s43/global_step_25/actor/huggingface math500 4 0.6
+#pair EVAL-e12d-P5tail-8k-s43 e12d_P5tail-8k-s43_s25_math500_T0.6 EVAL-e10d-P5tail-s43/e10d_P5tail-s43_s50_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e12d-P5tail-8k/e12d_P5tail-8k_s25_math500_T0.6_math500_no_think_t0.6.jsonl
+#eval EVAL-e12d-P5tail-8k-s43 e12d_P5tail-8k-s43_s50_math500_T0.6 result:runs/E12d-P5tail-8k-s43/global_step_50/actor/huggingface math500 4 0.6
+#pair EVAL-e12d-P5tail-8k-s43 e12d_P5tail-8k-s43_s50_math500_T0.6 EVAL-e12d-P5tail-8k/e12d_P5tail-8k_s50_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e10d-P5tail-s43/e10d_P5tail-s43_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#eval EVAL-e12d-P5tail-8k-s43 e12d_P5tail-8k-s43_s50_math500_T1.0 result:runs/E12d-P5tail-8k-s43/global_step_50/actor/huggingface math500 4 1.0
+#pair EVAL-e12d-P5tail-8k-s43 e12d_P5tail-8k-s43_s50_math500_T1.0 EVAL-e12d-P5tail-8k/e12d_P5tail-8k_s50_math500_T1.0_math500_no_think_t1.0.jsonl EVAL-e10d-P5tail-s43/e10d_P5tail-s43_s50_math500_T1.0_math500_no_think_t1.0.jsonl
+#eval EVAL-budA-e12dP5tail-8k-s43 budAe12dP5tail-8ks43_s50_math500_T0.6_32k result:runs/E12d-P5tail-8k-s43/global_step_50/actor/huggingface math500 4 0.6 32768
+#budget EVAL-budA-e12dP5tail-8k-s43 budget_curve EVAL-budA-4B/budA4B_base4B_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12dP5tail-8ks43_s50_math500_T0.6_32k
+#budget EVAL-budA-e12dP5tail-8k-s43 budget_curve_vsStart EVAL-budA-e10dP5tail-s43/budA4B_E10dP5tails43_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12dP5tail-8ks43_s50_math500_T0.6_32k
+#budget EVAL-budA-e12dP5tail-8k-s43 budget_curve_vsSeed42 EVAL-budA-e12dP5tail-8k/budAe12dP5tail-8k_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12dP5tail-8ks43_s50_math500_T0.6_32k
+#strict STRICT-C1 EVAL-budA-e12dP5tail-8k-s43/budAe12dP5tail-8ks43_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-e10dP5tail-s43/budA4B_E10dP5tails43_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#after EVAL-budA-e12dP5tail-8k-s43 rerun STRICT-C1
+#eval EVAL-ext32k-4Bp5tail8k-s43 ext32k4B_E12dP5tail8ks43_s50_aime24_T0.6 result:runs/E12d-P5tail-8k-s43/global_step_50/actor/huggingface aime24 16 0.6 32768
+#pair EVAL-ext32k-4Bp5tail8k-s43 ext32k4B_E12dP5tail8ks43_s50_aime24_T0.6 EVAL-ext32k-4Bp5tail8k/ext32k4B_E12dP5tail8k_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4Bp5tail-s43/ext32k4B_E10dP5tails43_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#eval EVAL-ext32k-4Bp5tail8k-s43 ext32k4B_E12dP5tail8ks43_s50_aime25_T0.6 result:runs/E12d-P5tail-8k-s43/global_step_50/actor/huggingface aime25 16 0.6 32768
+#pair EVAL-ext32k-4Bp5tail8k-s43 ext32k4B_E12dP5tail8ks43_s50_aime25_T0.6 EVAL-ext32k-4Bp5tail8k/ext32k4B_E12dP5tail8k_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Bp5tail-s43/ext32k4B_E10dP5tails43_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
+# [held until E12d-P5tail-8k-s43 has s50] term PROBE-TERM4-4B 4B_P5tail8ks43 result:runs/E12d-P5tail-8k-s43/global_step_50/actor/huggingface EVAL-e12d-P5tail-8k-s43/e12d_P5tail-8k-s43_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+# [held until E12d-P5tail-8k-s43 has s50; restored together with the term row above] after EVAL-e12d-P5tail-8k-s43 rerun PROBE-TERM4-4B
+
+# [v2.5.9z97] (Q-074j, Fable's research_program 3h, science A1 in advance; ops-lead names / queue) E12e-P5tail-16k: the 8B method chain at
+# the 16K window, a CONDITIONAL arm - its stage b259z97j stays held until Q-074d's H1 holds (E12b-P5tail-16k s50 AIME24 / 25 32K each
+# >= -2 vs the start), restored then by the executor on ops-lead's / Fable's ruling; if H1 fails it is never restored and the scheduler
+# fills #pad. The 16K RL recipe for the 8B student (GRPO, 16K, venv-fa, vLLM 0.5, 50 steps, s25 / s50 up, saved every 25) from E10e-P5tail
+# s50 (Q-075b), #gpus 4 (about 10 h), after Q-074h; gated by PROBE-E12B-16K and PROBE-E12E-16K (the 8B 16K 3-step smoke of this arm on four
+# GPUs), then it starts once E10e-P5tail's s50 is uploaded. Readings (rl_family): MATH-500 16K paired with E12e-P5self-8k and the start (H1
+# >= 0 vs the start); the 32K budget curves vs the 8B base, the start (H2, compression >= 1.2x) and E12e-P5self-8k; STRICT-C1 vs the start;
+# AIME24 / 25 32K vs E12e-P5self-8k and the start (H4 each >= -3); its TERM4 row held until s50 (H3, p_stop_last >= 0.6, or >= the start's)
+#gpus PROBE-E12E-16K 4
+#gpus E12e-P5tail-16k 4
+#eval EVAL-e12e-P5tail-16k e12e_P5tail-16k_s25_math500_T0.6 result:runs/E12e-P5tail-16k/global_step_25/actor/huggingface math500 4 0.6
+#pair EVAL-e12e-P5tail-16k e12e_P5tail-16k_s25_math500_T0.6 EVAL-e10e-P5tail/e10e_P5tail_s50_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e12e-P5self-8k/e12e_P5self-8k_s25_math500_T0.6_math500_no_think_t0.6.jsonl
+#eval EVAL-e12e-P5tail-16k e12e_P5tail-16k_s50_math500_T0.6 result:runs/E12e-P5tail-16k/global_step_50/actor/huggingface math500 4 0.6
+#pair EVAL-e12e-P5tail-16k e12e_P5tail-16k_s50_math500_T0.6 EVAL-e10e-P5tail/e10e_P5tail_s50_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e12e-P5self-8k/e12e_P5self-8k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#eval EVAL-e12e-P5tail-16k e12e_P5tail-16k_s50_math500_T1.0 result:runs/E12e-P5tail-16k/global_step_50/actor/huggingface math500 4 1.0
+#pair EVAL-e12e-P5tail-16k e12e_P5tail-16k_s50_math500_T1.0 EVAL-e10e-P5tail/e10e_P5tail_s50_math500_T1.0_math500_no_think_t1.0.jsonl EVAL-e12e-P5self-8k/e12e_P5self-8k_s50_math500_T1.0_math500_no_think_t1.0.jsonl
+#eval EVAL-budA-e12eP5tail-16k budAe12eP5tail-16k_s50_math500_T0.6_32k result:runs/E12e-P5tail-16k/global_step_50/actor/huggingface math500 4 0.6 32768
+#budget EVAL-budA-e12eP5tail-16k budget_curve EVAL-8B-base/budA8B_base_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12eP5tail-16k_s50_math500_T0.6_32k
+#budget EVAL-budA-e12eP5tail-16k budget_curve_vsStart EVAL-budA-e10eP5tail/budAe10eP5tail_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12eP5tail-16k_s50_math500_T0.6_32k
+#budget EVAL-budA-e12eP5tail-16k budget_curve_vsSelf8k EVAL-budA-e12eP5self-8k/budAe12eP5self-8k_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12eP5tail-16k_s50_math500_T0.6_32k
+#strict STRICT-C1 EVAL-budA-e12eP5tail-16k/budAe12eP5tail-16k_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-e10eP5tail/budAe10eP5tail_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl
+#after EVAL-budA-e12eP5tail-16k rerun STRICT-C1
+#eval EVAL-ext32k-8Bp5tail16k ext32k8B_E12eP5tail16k_s50_aime24_T0.6 result:runs/E12e-P5tail-16k/global_step_50/actor/huggingface aime24 16 0.6 32768
+#pair EVAL-ext32k-8Bp5tail16k ext32k8B_E12eP5tail16k_s50_aime24_T0.6 EVAL-ext32k-8Bp5tail/ext32k8B_E10eP5tail_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-8Bp5self8k/ext32k8B_E12eP5self8k_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl
+#eval EVAL-ext32k-8Bp5tail16k ext32k8B_E12eP5tail16k_s50_aime25_T0.6 result:runs/E12e-P5tail-16k/global_step_50/actor/huggingface aime25 16 0.6 32768
+#pair EVAL-ext32k-8Bp5tail16k ext32k8B_E12eP5tail16k_s50_aime25_T0.6 EVAL-ext32k-8Bp5tail/ext32k8B_E10eP5tail_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-8Bp5self8k/ext32k8B_E12eP5self8k_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
+# [held until E12e-P5tail-16k has s50] term PROBE-TERM4 8B_P5tail16k result:runs/E12e-P5tail-16k/global_step_50/actor/huggingface EVAL-e12e-P5tail-16k/e12e_P5tail-16k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+# [held until E12e-P5tail-16k has s50; restored together with the term row above] after EVAL-e12e-P5tail-16k rerun PROBE-TERM4
 
 # [v2.5.9z92b] (Fable 10-26, research_program 3g: the method-core arms' missing 32K readings, rows only) a scan of the self-distillation,
 # tail-swap and window arms' final steps found two gaps, both at 0.6B: E10c-P5self s50 had no AIME24 / 25 32K, E10c-P5tail-c50 s50
