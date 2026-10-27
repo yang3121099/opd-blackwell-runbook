@@ -681,3 +681,4 @@ commands:
   - {"seq": 679, "cmd": "ps", "reason": "executor :43 watch ps (standing duty); idx0 167->135 GB in 20 min", "utc": "2026-10-27T03:47:54Z"}
   - {"seq": 680, "cmd": "du opd_root", "reason": "ops-lead 03:49Z: one read-only du of our idx0 share (was 308.7 GB at 23:55Z); idx0 99.9 GB free", "utc": "2026-10-27T04:18:35Z"}
   - {"seq": 681, "cmd": "du ckpt E10e-P5tail/ckpt", "reason": "z97 A1 item 1: Q-074j's start E10e-P5tail s50 local on idx1 (read-only)", "utc": "2026-10-27T04:58:05Z"}
+  - {"seq": 682, "cmd": "ps", "reason": "executor :43 watch ps (standing duty); before step 0", "utc": "2026-10-27T05:48:59Z"}
