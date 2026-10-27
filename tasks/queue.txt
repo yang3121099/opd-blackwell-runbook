@@ -3204,8 +3204,8 @@ fill18   open   EVAL-ext-4Bp5tail:E10d-P5tail EVAL-gm-4Bp5tail:E10d-P5tail EVAL-
 #pair EVAL-ext32k-4Bp5tail-s43 ext32k4B_E10dP5tails43_s50_aime24_T0.6 EVAL-ext32k-4Bp5tail/ext32k4B_E10dP5tail_s50_aime24_T0.6_aime24_no_think_t0.6.jsonl EVAL-ext32k-4Bs43/ext32k4B_E10dP5s43_s150_aime24_T0.6_aime24_no_think_t0.6.jsonl
 #eval EVAL-ext32k-4Bp5tail-s43 ext32k4B_E10dP5tails43_s50_aime25_T0.6 result:runs/E10d-P5tail-s43/global_step_50/actor/huggingface aime25 16 0.6 32768
 #pair EVAL-ext32k-4Bp5tail-s43 ext32k4B_E10dP5tails43_s50_aime25_T0.6 EVAL-ext32k-4Bp5tail/ext32k4B_E10dP5tail_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl EVAL-ext32k-4Bs43/ext32k4B_E10dP5s43_s150_aime25_T0.6_aime25_no_think_t0.6.jsonl
-# [held until E10d-P5tail-s43 has s50] term PROBE-TERM4-4B 4B_P5tails43 result:runs/E10d-P5tail-s43/global_step_50/actor/huggingface EVAL-e10d-P5tail-s43/e10d_P5tail-s43_s50_math500_T0.6_math500_no_think_t0.6.jsonl
-# [held until E10d-P5tail-s43 has s50; restored together with the term row above] after EVAL-e10d-P5tail-s43 rerun PROBE-TERM4-4B
+#term PROBE-TERM4-4B 4B_P5tails43 result:runs/E10d-P5tail-s43/global_step_50/actor/huggingface EVAL-e10d-P5tail-s43/e10d_P5tail-s43_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#after EVAL-e10d-P5tail-s43 rerun PROBE-TERM4-4B
 # Q-074f E12c-P5tail-8k (the method's chain at 0.6B): E12c-P5-8k's recipe from E10c-P5tail-c50 s50 (its global_step_30), 50 steps,
 # s25 / s50 up, one GPU. Readings (rl_family): MATH-500 16K paired with E12c-P5-8k and the start; the 32K budget curves; STRICT-C1 vs
 # the start; AIME24 / 25 32K paired with E12c-P5-8k and the start; TERM4-06B held
