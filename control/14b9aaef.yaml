@@ -678,3 +678,4 @@ commands:
   - {"seq": 676, "cmd": "ps", "reason": "executor :43 watch: procs.json fresh for ops-lead's :51 read", "utc": "2026-10-27T01:49:56Z"}
   - {"seq": 677, "cmd": "ps", "reason": "executor :13 watch: procs.json fresh for ops-lead's :21 read", "utc": "2026-10-27T02:20:45Z"}
   - {"seq": 678, "cmd": "ps", "reason": "executor :43 watch: procs.json fresh for ops-lead's :51 read", "utc": "2026-10-27T02:47:50Z"}
+  - {"seq": 679, "cmd": "ps", "reason": "executor :43 watch ps (standing duty); idx0 167->135 GB in 20 min", "utc": "2026-10-27T03:47:54Z"}
