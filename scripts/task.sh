@@ -130,7 +130,8 @@ case $T in
   E15-VLM-P2lo|E15-VLM-P5tail-lo) bash $RUNBOOK/scripts/run_vlm.sh $G $T;;   # [v2.5.9z89] (Q-080a / b, Fable's research_program 3f) the VLM retry arms (run_vlm.sh)
   PROBE-VLM-COMPLETE) bash $RUNBOOK/scripts/probe_vlm_complete.sh $G;;   # [v2.5.9z89] (Q-080a) the gate of E15-VLM-P2lo: the Instruct teacher's completion rate
   PROBE-VLM-TAIL) PTL_PROBE=PROBE-VLM-TAIL PTL_ARM=E15-VLM-P5tail-lo PTL_RUNNER=run_vlm.sh PTL_PY=$OPD_ROOT/venv-vl/bin/python PTL_UNIT_MODULES='test_opd_tailswap test_opd_finished' PTL_FINISHED=1 bash $RUNBOOK/scripts/probe_tail.sh $G;;   # [v2.5.9z89] (Q-080b) the gate of E15-VLM-P5tail-lo
-  DIAG-VLM-TRUNC) bash $RUNBOOK/scripts/diag_vlm_trunc.sh;;   # [v2.5.9z89] (Q-080's diagnostic) the CPU lane: the truncated VLM answers' classes
+  DIAG-VLM-TRUNC) bash $RUNBOOK/scripts/diag_vlm_trunc.sh;;
+  VERIFY-PRIV-LFS) bash $RUNBOOK/scripts/verify_priv_lfs.sh;;   # [v2.5.9z96a] (Fable 10-27 02:5x UTC) the CPU lane, read-only: the private repository's 759 raw jsonl checked on the node   # [v2.5.9z89] (Q-080's diagnostic) the CPU lane: the truncated VLM answers' classes
   E15-VLM-P5) bash $RUNBOOK/scripts/run_vlm.sh $G $T;;   # [v2.5.9z] (Q-051) P5's OPD for Qwen3-VL-2B-Instruct from Qwen3-VL-4B-Thinking ([v2.5.9z28], was 8B), venv-vl
   PROBE-X2507-X1|PROBE-X2507-X2|PROBE-X2507-X4) bash $RUNBOOK/scripts/probe_x2507.sh $G ${T#PROBE-X2507-};;   # [v2.5.8i] (Q-029): the gates of E10d-X1 / X2
   PROBE-P5SELF) bash $RUNBOOK/scripts/probe_p5self.sh $G;;   # v2.5.7v (Q-017): the self-teacher's gate   # v2.5.7o: C1 strict-contract rejudge of the MATH500 readings, CPU only   # v2.5.7g: termination-quality probe, forward passes only (#term lines)

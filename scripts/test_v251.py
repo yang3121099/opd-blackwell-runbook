@@ -1656,6 +1656,16 @@ def test_run_and_rerun_accept_v259z95(env):   # [v2.5.9z95] (Q-074h) the 4B 16K 
     assert st == ["b259z92", "b259z95", "b259z93"]
 
 
+def test_run_and_rerun_accept_v259z96a(env):   # [v2.5.9z96a] VERIFY-PRIV-LFS: the CPU lane, read-only (rules 2.5.100)
+    st, msg, _ = env.c.v_run(["VERIFY-PRIV-LFS"], 330)
+    assert st == "accepted", msg
+    R.parse({"cmd": "rerun VERIFY-PRIV-LFS", "reason": "t"})
+    assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 100)
+    here = os.path.dirname(os.path.abspath(__file__))
+    assert "VERIFY-PRIV-LFS) return 0;;" in open(os.path.join(here, "run_tasks.sh")).read()
+    assert "  VERIFY-PRIV-LFS) bash $RUNBOOK/scripts/verify_priv_lfs.sh;;" in open(os.path.join(here, "task.sh")).read()
+
+
 def test_run_and_rerun_accept_v259z93(env):   # [v2.5.9z93] (Q-074g) the third start's tail arm and its 8K arm, rules unchanged
     for i, t in enumerate(("E10b-P5tail-s44", "E12b-P5tail-8k-s44")):
         st, msg, _ = env.c.v_run([t], 300 + i)
