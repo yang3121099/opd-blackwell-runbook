@@ -1821,3 +1821,12 @@ def test_run_and_rerun_accept_v259z99(env):   # [v2.5.9z99] the zero-GPU diagnos
     assert all(t in lane for t in names) and "  " + "|".join(names) + ") bash $RUNBOOK/scripts/diag_cpu.sh $T;;" in ts
     q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
     assert "b259z99" not in q and not any(t in q for t in names)                     # 10-28 01:5x UTC: code only, run on the A100
+
+
+def test_run_and_rerun_accept_v259z102(env):   # [v2.5.9z102] (Q-087) the position-weighted arm and its gate, rules 2.5.104
+    for i, t in enumerate(("E10b-P5-eosw", "PROBE-EOSW")):
+        st, msg, _ = env.c.v_run([t], 360 + i)
+        assert st == "accepted", msg
+        R.parse({"cmd": f"rerun {t}", "reason": "t"})
+    assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 104)
+

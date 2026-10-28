@@ -137,3 +137,10 @@ print("patched", root / "verl/trainer/ppo/ray_trainer.py", "(r3 group drop)")
 from route_patch import patch_file as _rt_patch  # noqa: E402
 _rt_patch(str(root / "verl/trainer/ppo/ref_input_utils.py"), keep_orig=False)   # the pristine file is in git
 print("patched", root / "verl/trainer/ppo/ref_input_utils.py", "(per-prompt teacher template)")
+
+# 9. [v2.5.9z102] (Q-087) position-weighted OPD (eosw_patch.py; a no-op unless OPD_EOSW=1): each response's weights in
+#    prepare_ref_model_inputs (after the stop-merge and route hooks), the key into update_policy, the advantage weighted there
+from eosw_patch import patch_file as _ew_patch, patch_ref_text as _ew_ref, patch_actor_text as _ew_actor  # noqa: E402
+_ew_patch(str(root / "verl/trainer/ppo/ref_input_utils.py"), _ew_ref, keep_orig=False)   # the pristine files are in git
+_ew_patch(str(root / "verl/workers/actor/dp_actor.py"), _ew_actor, keep_orig=False)
+print("patched", root / "verl/trainer/ppo/ref_input_utils.py", "and", root / "verl/workers/actor/dp_actor.py", "(position-weighted OPD)")
