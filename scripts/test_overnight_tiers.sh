@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# [v2.5.9z104] overnight.sh's vLLM tier block (step 6) on stubs: OVERNIGHT_TIER_A_ONLY=1 (a Hopper node) fails at a failed tier A without
+# [v2.5.9z104] overnight.sh's vLLM tier block (step 6) and its move path (step 0) on stubs: OVERNIGHT_TIER_A_ONLY=1 (a Hopper node) fails at a failed tier A without
 # trying B / C (no ptxas wheel installed, no CUDA 13 build); unset, a failed A goes on to B as before; a passing A is A either way.
 set -u
 SRC=$(cd "$(dirname "$0")/.." && pwd); fails=0; n=0
@@ -26,5 +26,23 @@ run 0; rc=$?
 ok "A fails, flag unset: the ptxas wheel and tier B as before" 'grep -q "^uv pip install -q nvidia-cuda-nvcc-cu12==12.9.86" $T/calls'
 run 1 OVERNIGHT_TIER_A_ONLY=1; rc=$?
 ok "A passes: tier A, nothing installed" '[ $rc = 0 ] && grep -q "^STEP 6 vLLM OK via tier A: cu128 as is" $T/calls && ! grep -qE "^uv |^pip " $T/calls'
+# the move path (step 0, FROM_OPD_ROOT + LINK_VENV): the old tier read unless A only; the venv linked, parquet copied, the old root unchanged
+python3 - "$SRC/scripts/overnight.sh" "$T/move.sh" <<'PY'
+import sys
+s = open(sys.argv[1]).read()
+i = s.index('OLD_TIER=""\nif [ -n "${FROM_OPD_ROOT:-}" ]')
+j = s.index("\ntier_rank(){", i) + 1
+open(sys.argv[2], "w").write(s[i:j])
+PY
+F=$T/old; mkdir -p $F/venv/bin $F/G-OPD $F/data; : > $F/venv/bin/activate; : > $F/data/train.parquet
+echo "# written by overnight.sh, tier B, 2026-10-20T00:00:00Z; sourced by env.sh. Delete it to undo." > $F/triton.env
+before=$(cd $F && find . | sort | md5sum 2> /dev/null || find . | sort | md5)
+domove() { ( export OPD_ROOT=$T/new FROM_OPD_ROOT=$F LINK_VENV=1 "$@" 2> /dev/null; step() { echo "STEP $1 $2" >> $T/mv; }; source $T/move.sh; echo "OLD_TIER=$OLD_TIER" >> $T/mv ); }
+rm -rf $T/new; : > $T/mv; domove OVERNIGHT_TIER_A_ONLY=1
+ok "move, A only: the old tier B not read, the probe starts at A" 'grep -q "^OLD_TIER=$" $T/mv && grep -q "probe starts at tier A$" $T/mv'
+ok "move: venv and G-OPD linked, parquet copied, triton.env not copied" '[ -L $T/new/venv ] && [ -L $T/new/G-OPD ] && [ -f $T/new/data/train.parquet ] && [ ! -e $T/new/triton.env ]'
+ok "move: the old OPD_ROOT unchanged" '[ "$(cd $F && find . | sort | md5sum 2> /dev/null || find . | sort | md5)" = "$before" ]'
+rm -rf $T/new; : > $T/mv; domove OVERNIGHT_TIER_A_ONLY=0
+ok "move, flag unset: the old tier B read as before" 'grep -q "^OLD_TIER=B$" $T/mv'
 rm -rf $T
 [ $fails = 0 ] && echo "OVERNIGHT_TIERS_TEST PASS ($n checks)" || echo "OVERNIGHT_TIERS_TEST FAIL ($fails of $n)"

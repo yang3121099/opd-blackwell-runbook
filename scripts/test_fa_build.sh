@@ -65,6 +65,13 @@ ok "CUDA_HOME layout from the archives" '[ -x $D/cuda/bin/nvcc ] && [ -L $D/cuda
 ok "test kernel for sm_100 first" 'grep -q "^nvcc -arch=sm_100 -I$D/cuda/include -L$D/cuda/lib64 -lcudart -o $D/t $D/t.cu" $CALLS'
 ok "a failing test kernel stops before the build" '[ "$(res result)" = FAIL ] && [[ "$(res reason)" == *"cannot compile a test kernel"* ]] && ! grep -q "^build " $CALLS'
 rm -rf $T
+setup   # [v2.5.9z104] a Hopper node: FA_CUDA_ARCHS=90, the test kernel for sm_90; a malformed value stops before anything
+D=$T/root/tmp/fa_build; mkfake $T/srv
+NVCC_RC=1 FA_CUDA_ARCHS=90 FA_REDIST_MANIFEST=$T/man FA_REDIST_URL=file://$T/srv FA_CUDA_CANDIDATES="$T/cuda124" bash $T/rb/scripts/fa_build.sh > /dev/null 2>&1
+ok "FA_CUDA_ARCHS=90: test kernel for sm_90" 'grep -q "^nvcc -arch=sm_90 -I$D/cuda/include" $CALLS && [[ "$(res reason)" == *"test kernel for sm_90"* ]]'
+out=$(FA_CUDA_ARCHS="90 x" bash $T/rb/scripts/fa_build.sh 2>&1); rc=$?
+ok "a malformed FA_CUDA_ARCHS: exit 2" '[ $rc = 2 ] && [[ "$out" == *"is not <n>"* ]]'
+rm -rf $T
 setup
 D=$T/root/tmp/fa_build; mkfake $T/srv; mkdir -p $D/src; echo junk > $D/src/flash_attn-2.8.3.post2.tar.gz
 FA_REDIST_MANIFEST=$T/man FA_REDIST_URL=file://$T/srv FA_CUDA_CANDIDATES="$T/cuda124" bash $T/rb/scripts/fa_build.sh > /dev/null 2>&1

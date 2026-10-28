@@ -103,7 +103,8 @@ if [ -n "${FROM_OPD_ROOT:-}" ] && [ "$FROM_OPD_ROOT" != "$OPD_ROOT" ] && [ -d "$
   [ -f $FROM_OPD_ROOT/paths.env ] && [ ! -s $OPD_ROOT/paths.env ] && cp $FROM_OPD_ROOT/paths.env $OPD_ROOT/paths.env
   if [ "${LINK_VENV:-0}" = 1 ] && [ -f $FROM_OPD_ROOT/venv/bin/activate ] && [ ! -e $OPD_ROOT/venv ]; then
     ln -s $FROM_OPD_ROOT/venv $OPD_ROOT/venv; [ -d $FROM_OPD_ROOT/G-OPD ] && [ ! -e $OPD_ROOT/G-OPD ] && ln -s $FROM_OPD_ROOT/G-OPD $OPD_ROOT/G-OPD; fi
-  OLD_TIER=$(sed -n 's/^# written by overnight.sh, tier \([A-Z0-9]*\),.*/\1/p' $FROM_OPD_ROOT/triton.env 2>/dev/null | head -1)
+  # [v2.5.9z104] OVERNIGHT_TIER_A_ONLY=1 (a Hopper node moving from a Blackwell OPD_ROOT): the old tier is not read, the probe is A
+  [ "${OVERNIGHT_TIER_A_ONLY:-0}" = 1 ] || OLD_TIER=$(sed -n 's/^# written by overnight.sh, tier \([A-Z0-9]*\),.*/\1/p' $FROM_OPD_ROOT/triton.env 2>/dev/null | head -1)
   step 0 "moving from $FROM_OPD_ROOT: $(ls $OPD_ROOT/data/*.parquet 2>/dev/null | wc -l) parquet copied, venv $([ -L $OPD_ROOT/venv ] && echo linked || echo 'installed fresh'), probe starts at tier ${OLD_TIER:-A}"
 fi
 tier_rank(){ case $1 in A) echo 0;; B) echo 1;; B2) echo 2;; B3) echo 3;; C) echo 4;; *) echo 0;; esac; }

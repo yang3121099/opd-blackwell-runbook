@@ -15,10 +15,13 @@
 #   6. result.json + build.log tail to logs/<node>/fa_build/ in the private repository, an event fa_build_pass / _fail
 # Afterwards `rerun FA-PROBE` runs the probe again: its install step is skipped once the import works, so only the
 # varlen and 3-step smoke steps run (on a GPU, in queue order).
+# [v2.5.9z104] (Fable 10-28, an H800 / Hopper node) FA_CUDA_ARCHS=<n>[;<n>...] (default 100): the architectures built and the test
+# kernel's (the first); a Hopper node sets 90 (the B300's sm_100 build has no sm_90 code)
 # Usage: bash fa_build.sh   (FA_BUILD_DIR, FA_MAX_JOBS, FA_NVCC_THREADS, FA_CUDA_CANDIDATES for tests)
 set -uo pipefail
 source "$(dirname "$0")/env.sh"
 D=${FA_BUILD_DIR:-$OPD_ROOT/tmp/fa_build}; VF=$OPD_ROOT/venv-fa; LOG=$D/build.log; mkdir -p $D
+ARCHS=${FA_CUDA_ARCHS:-100}; [[ $ARCHS =~ ^[0-9]+(;[0-9]+)*$ ]] || { echo "FA_BUILD FA_CUDA_ARCHS '$ARCHS' is not <n>[;<n>...]"; exit 2; }; ARCH1=${ARCHS%%;*}
 SDIST=flash_attn-2.8.3.post2.tar.gz
 URL=https://files.pythonhosted.org/packages/6c/b1/b77625e3d11260d2bd6a4fc249a4be9a3da97ff848e2222e810c4f0e0211/$SDIST
 SHA=d0f9f0b08a986cdeadbffcf5ec8b3a8f514366c68ad1853d3ab061bc83cc340b
@@ -104,7 +107,7 @@ PY
   v=$(echo "$VOUT" | sed -n 's/.*release \([0-9]*\)\.\([0-9]*\).*/\1.\2/p' | head -1)
   [ "$v" = 12.8 ] || finish FAIL "redistributable nvcc does not run or is not 12.8 (got '${v}'; mode $(stat -c %A $C/bin/nvcc 2> /dev/null); $(echo "$VOUT" | tail -c 300 | tr '\n' ' '))"
   printf '#include <cuda_runtime.h>\n#include <cuda_bf16.h>\n#include <cuda/std/cstdint>\n__global__ void k(__nv_bfloat16 *x, cuda::std::int32_t n) { if (threadIdx.x < n) x[threadIdx.x] = __float2bfloat16(1.0f); }\nint main() { return 0; }\n' > $D/t.cu
-  $C/bin/nvcc -arch=sm_100 -I$C/include -L$C/lib64 -lcudart -o $D/t $D/t.cu >> $LOG 2>&1 || finish FAIL "CUDA 12.8 cannot compile a test kernel for sm_100: $(tail -c 300 $LOG | tr '\n' ' ')"
+  $C/bin/nvcc -arch=sm_$ARCH1 -I$C/include -L$C/lib64 -lcudart -o $D/t $D/t.cu >> $LOG 2>&1 || finish FAIL "CUDA 12.8 cannot compile a test kernel for sm_$ARCH1: $(tail -c 300 $LOG | tr '\n' ' ')"
   CH=$C; put cuda_from redist
 fi
 [ -n "$CH" ] || finish FAIL "no nvcc >= 12.8 found (CUDA_HOME, /usr/local/cuda-12.9, -12.8, /usr/local/cuda, PATH):${SEEN:- none}"
@@ -126,8 +129,8 @@ GOT=$(sha256sum $S/$SDIST | cut -c1-64)
 [ "$GOT" = "$SHA" ] || { rm -f $S/$SDIST; finish FAIL "sha256 mismatch for $SDIST (PyPI $SHA, got $GOT)"; }
 put sha256_ok true
 rm -rf $S/flash_attn-2.8.3.post2 $D/dist; tar -xzf $S/$SDIST -C $S || finish FAIL "unpack failed"
-step "building (MAX_JOBS=${FA_MAX_JOBS:-8}, NVCC_THREADS=${FA_NVCC_THREADS:-2}, sm_100)"; T0=$(date +%s)
-( cd $S/flash_attn-2.8.3.post2 && env CUDA_HOME=$CH PATH=$CH/bin:$VF/bin:$PATH FLASH_ATTENTION_FORCE_BUILD=TRUE FLASH_ATTN_CUDA_ARCHS=100 \
+step "building (MAX_JOBS=${FA_MAX_JOBS:-8}, NVCC_THREADS=${FA_NVCC_THREADS:-2}, sm_${ARCHS//;/ sm_})"; T0=$(date +%s)
+( cd $S/flash_attn-2.8.3.post2 && env CUDA_HOME=$CH PATH=$CH/bin:$VF/bin:$PATH FLASH_ATTENTION_FORCE_BUILD=TRUE FLASH_ATTN_CUDA_ARCHS="$ARCHS" \
     TORCH_CUDA_ARCH_LIST=10.0 MAX_JOBS=${FA_MAX_JOBS:-8} NVCC_THREADS=${FA_NVCC_THREADS:-2} \
     nice -n 19 $VF/bin/python setup.py bdist_wheel -d $D/dist ) >> $LOG 2>&1 || finish FAIL "build failed after $(( $(date +%s) - T0 )) s: $(tail -c 300 $LOG | tr '\n' ' ')"
 W=$(ls $D/dist/flash_attn-*.whl 2> /dev/null | head -1)

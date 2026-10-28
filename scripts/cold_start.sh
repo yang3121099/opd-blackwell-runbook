@@ -130,7 +130,7 @@ H=$OPD/logs/coldstart_health.txt; : > $H; bad=0
 chk() { if eval "$2" > /dev/null 2>&1; then echo "PASS $1" >> $H; else echo "FAIL $1" >> $H; bad=1; fi; }
 skp() { echo "SKIP $1 (--only $ONLY)" >> $H; }
 chk "gpus: $NGPU visible" "[ \$(nvidia-smi -L | wc -l) -eq $NGPU ]"
-chk "CKPT_ROOT >= $CKMIN GB free" "[ \$(df -Pk $CK | awk 'NR==2{print \$4}') -ge $((CKMIN * 1000000)) ]"
+chk "CKPT_ROOT >= $([ $CKMIN = 1000 ] && echo '1 TB' || echo "$CKMIN GB") free" "[ \$(df -Pk $CK | awk 'NR==2{print \$4}') -ge $((CKMIN * 1000000)) ]"   # the default's wording as before
 chk "Hugging Face: both repositories answer" "$PY $RB/scripts/coldstart_hf.py reach $PUB $PRIV"
 chk "Hugging Face: the token writes to the private repository (a probe under status/$NODE/)" "$PY $RB/scripts/coldstart_hf.py write $PRIV $NODE"
 chk "control plane on one local disk (runbook, control/, logs/; not a network filesystem)" "python3 $RB/scripts/coldstart_check.py localdisk $RB $OPD/control $OPD/logs"
