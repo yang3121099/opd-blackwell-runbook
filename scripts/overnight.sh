@@ -140,7 +140,10 @@ step 5 "checkpoints in CKPT_ROOT=$CKPT_ROOT ($(df -h $CKPT_ROOT | awk 'NR==2{pri
 #   C  CUDA 13 environment (install_cu130.sh), only when an nvcc >= 13 is there
 rm -f $OPD_ROOT/triton.env; for v in $TIER_VARS; do unset $v; done   # every run starts clean (a rerun re-probes)
 TIER=""
-if ! before_old A && try_tier A; then TIER="A: cu128 as is"; else
+if ! before_old A && try_tier A; then TIER="A: cu128 as is"
+elif [ "${OVERNIGHT_TIER_A_ONLY:-0}" = 1 ]; then   # [v2.5.9z104] (Fable 10-28) a Hopper node (9.0): only A applies; B / C are Blackwell's
+  fail 6 "tier A vLLM probe FAILED and OVERNIGHT_TIER_A_ONLY=1: tiers B / C not tried (send logs/vllm_probe_A.log)"
+else
   uv pip install -q "nvidia-cuda-nvcc-cu12==12.9.86" >>$LOG 2>&1 || pip install -q "nvidia-cuda-nvcc-cu12==12.9.86" >>$LOG 2>&1
   PTX=$(find $OPD_ROOT/venv/ -path '*cuda_nvcc/bin/ptxas' 2>/dev/null | head -1)
   if [ -n "$PTX" ]; then

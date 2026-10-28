@@ -8,10 +8,13 @@ none prints a token. COLDSTART_FAKE=<repo.json> replaces the Hub with a JSON fil
   models <manifest> <done.txt> <models dir>       download what the open, unfinished tasks need (the four base models always)
   labels <manifest> <private> <opd_root>          the probe labels from the private repository, checked against the Hub's hash
   weights <manifest> <done.txt> <public> <private> <out.json>   which weights unfinished tasks need are on the Hub, and where
+  only <manifest> <task>[,<task>...] <out.json>   [v2.5.9z104] the manifest cut to those tasks (cold_start.sh --only)
 """
+import fnmatch
 import hashlib
 import json
 import os
+import re
 import sys
 
 
@@ -165,10 +168,31 @@ def cmd_weights(manifest, done_txt, pub, priv, out):
     return 0
 
 
+def cmd_only(manifest, tasks, out):
+    """[v2.5.9z104] (Fable 10-28: a temporary H800 to adapt, one canary task) the manifest cut to <tasks>: the always-models and the
+    models those tasks use; the labels whose used_by names one of them (a name or a glob such as E10b-P5route*); every other list
+    of entries with "tasks" (weights, starts, pairs) keeps the entries of those tasks. Stdlib only, nothing fetched."""
+    want = [t for t in tasks.split(",") if t]
+    if not want or not all(re.fullmatch(r"[A-Za-z0-9._-]+", t) for t in want):
+        print(f"ONLY bad task list {tasks!r}"); return 2
+    m = json.load(open(manifest))
+    uses = lambda x: bool(set(want) & set(x.get("tasks") or []))
+    users = lambda a: [p.strip().split()[0] for p in str(a.get("used_by", "")).split(",") if p.strip()]
+    r = dict(m, only=want)
+    for k, v in m.items():
+        if isinstance(v, list) and v and all(isinstance(x, dict) and "tasks" in x for x in v):
+            r[k] = [x for x in v if (k == "models" and x.get("always")) or uses(x)]
+    r["artifacts"] = [a for a in m.get("artifacts", []) if any(fnmatch.fnmatchcase(t, u) for t in want for u in users(a))]
+    json.dump(r, open(out, "w"), indent=1, sort_keys=True)
+    print(f"ONLY {','.join(want)}: models {', '.join(x['name'] for x in r['models'])}; labels {len(r['artifacts'])}; "
+          f"weights {len(r.get('weights', []))}")
+    return 0
+
+
 def main():
     c, a = sys.argv[1], sys.argv[2:]
     return {"reach": lambda: cmd_reach(*a), "write": lambda: cmd_write(*a), "status": lambda: cmd_status(*a), "models": lambda: cmd_models(*a),
-            "labels": lambda: cmd_labels(*a), "weights": lambda: cmd_weights(*a)}[c]()
+            "labels": lambda: cmd_labels(*a), "weights": lambda: cmd_weights(*a), "only": lambda: cmd_only(*a)}[c]()
 
 
 if __name__ == "__main__":

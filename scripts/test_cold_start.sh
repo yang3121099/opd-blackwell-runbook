@@ -80,5 +80,19 @@ ok "the control plane on a network filesystem: FAIL" '[ $rc = 1 ] && grep -q "FA
 echo "x / ext4 rw 0 0" > $T/mounts; rm -f $O/control/coldstart_done.txt*; fakehub "$T/fake.json" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" 1
 bash $RB/scripts/cold_start.sh $ARGS > /dev/null 2>&1; rc=$?
 ok "a reused node id whose last status is fresh (< 2 h): FAIL" '[ $rc = 1 ] && grep -q "FAIL node abcd1234 reused: its last status is older than 2 h" $O/logs/coldstart_health.txt'
-rm -rf $T
+# [v2.5.9z104] --only / --no-loops / --ckpt-min-gb (a temporary node to adapt: one canary task, the queue never started)
+O2=$T/opd2; mkdir -p $O2/logs; for v in venv venv-fa; do mkdir -p $O2/$v/bin; cp $O/$v/bin/python $O2/$v/bin/python; done; cp $O/logs/verify.log $O2/logs/
+A2="--token-file $tok --opd-root $O2 --ckpt-root $T/ck2 --repos public=me/pub,private=me/ops --node ef567890"
+out=$(bash $RB/scripts/cold_start.sh $A2 --only PROBE-TAIL --no-loops 2>&1); rc=$?
+ok "--only PROBE-TAIL --no-loops: health PASS, no loop or event, step 8 says so; a new node id: applied_seq 0" '[ $rc = 0 ] && [ "$(cat $O2/control/applied_seq)" = 0 ] && grep -q "STEP 7 health checks all PASS" $O2/logs/coldstart.log && grep -q "STEP 8 loops NOT started (--no-loops)" $O2/logs/coldstart.log && ! grep -q "setsid nohup" $O2/logs/coldstart.log && ! grep -q "event node coldstart" $CALLS'
+ok "--only: the always-models only (no VL / 32B), venv-vl / venv-ifeval not built, their checks SKIP" 'grep -q "MODEL Qwen3-4B fetched (fake)" $O2/logs/coldstart.log && ! grep -q "MODEL Qwen3-VL" $O2/logs/coldstart.log && ! grep -q "MODEL Qwen3-32B" $O2/logs/coldstart.log && grep -q "venv-vl, venv-ifeval not built (--only PROBE-TAIL)" $O2/logs/coldstart.log && grep -q "^SKIP venv-vl: vllm, transformers (--only PROBE-TAIL)$" $O2/logs/coldstart_health.txt && grep -q "^SKIP venv-ifeval: langdetect (--only PROBE-TAIL)$" $O2/logs/coldstart_health.txt'
+ok "--only: no labels, no weights for a task that uses none" '! grep -q "^LABELS" $O2/logs/coldstart.log && grep -q "WEIGHTS 0 needed" $O2/logs/coldstart.log'
+out=$(bash $RB/scripts/cold_start.sh $A2 --only PROBE-TAIL --no-loops --ckpt-min-gb 4000 2>&1); rc=$?
+ok "--ckpt-min-gb 4000 with 3000 GB free: FAIL, nothing started" '[ $rc = 1 ] && grep -q "FAIL CKPT_ROOT >= 4000 GB free" $O2/logs/coldstart_health.txt'
+out=$(bash $RB/scripts/cold_start.sh $A2 --only "PROBE-TAIL;x" 2>&1); rc=$?
+ok "--only with a bad name: usage, exit 2" '[ $rc = 2 ] && [[ "$out" == "COLDSTART usage: "* ]]'
+printf '{"models": [{"name": "A", "always": true, "tasks": []}, {"name": "B", "tasks": ["E10b-P5route-x"]}], "artifacts": [{"name": "l1", "used_by": "E10b-P5route*, READINGS-EXTRA splits"}, {"name": "l2", "used_by": "DIAG-PROBE-GATE"}], "weights": [{"path": "w1", "tasks": ["E10b-P5route-x"]}, {"path": "w2", "tasks": ["E12b-P5"]}]}' > $T/m.json
+python3 $RB/scripts/coldstart_hf.py only $T/m.json E10b-P5route-x $T/m2.json > /dev/null
+ok "coldstart_hf.py only: always + used models, labels by a used_by glob, the task's weights" '[ "$(python3 -c "import json; m = json.load(open(\"$T/m2.json\")); print(\" \".join([\",\".join(x[\"name\"] for x in m[\"models\"]), \",\".join(a[\"name\"] for a in m[\"artifacts\"]), \",\".join(w[\"path\"] for w in m[\"weights\"]), \",\".join(m[\"only\"])]))")" = "A,B l1 w1 E10b-P5route-x" ]'
+[ -n "${KEEP_T:-}" ] && echo "kept $T" || rm -rf $T
 [ $fails = 0 ] && echo "COLD_START_TEST PASS ($n checks)" || echo "COLD_START_TEST FAIL ($fails of $n)"
