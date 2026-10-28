@@ -94,3 +94,27 @@ def test_run_queue_eval_writes_outcomes_for_finished_readings(tmp_path):   # the
     assert sorted(p.name for p in out.glob("*.outcomes.jsonl")) == ["a_math500_no_think_t0.6.outcomes.jsonl"]
     assert lines(out / "a_math500_no_think_t0.6.outcomes.jsonl") == [{"id": "math500-0", "s": 0, "ok": True, "n": 9, "trunc": False, "box": True, "answer_norm": "1"}]
     assert sh.count("grep -Ev '\\.(forced|outcomes)\\.jsonl$'") == 3                # the readers never pick an outcomes file (ERE: BSD grep too)
+
+
+def test_e11b_and_adhoc_readings_write_outcomes_too(tmp_path):   # [v2.5.9z103] run_eval.sh / run_adhoc_eval.sh: z101's hook, run as written
+    import subprocess
+    here = os.path.dirname(os.path.abspath(__file__)); rb = os.path.dirname(os.path.dirname(here))
+    rec = {"pid": "math500-3", "sample": 1, "correct": False, "n_tokens": 16384, "finish_reason": "length", "text": "still \\boxed{2"}
+    for script in ("run_eval.sh", "run_adhoc_eval.sh"):
+        sh = open(os.path.join(rb, "scripts", script)).read()
+        assert sh.count("# [v2.5.9z103]") == 1
+        block = sh[sh.index("for J in $OUT/*.jsonl; do"):]; block = block[:block.index("\ndone\n") + 6]
+        out = tmp_path / script; out.mkdir()
+        write(str(out / "e11b_P2_math500_T0.6_math500_no_think_t0.6.jsonl"), [rec])
+        (out / "e11b_P2_math500_T0.6_math500_no_think_t0.6.metrics.json").write_text("{}")
+        write(str(out / "e11b_P2_math500_T1.0_math500_no_think_t1.0.jsonl"), [rec])          # running: no metrics yet
+        r = subprocess.run(["bash", "-c", block], env=dict(os.environ, OUT=str(out), RUNBOOK=rb), capture_output=True, text=True)
+        assert r.returncode == 0, r.stderr
+        assert sorted(p.name for p in out.glob("*.outcomes.jsonl")) == ["e11b_P2_math500_T0.6_math500_no_think_t0.6.outcomes.jsonl"]
+        assert lines(out / "e11b_P2_math500_T0.6_math500_no_think_t0.6.outcomes.jsonl") == [
+            {"id": "math500-3", "s": 1, "ok": False, "n": 16384, "trunc": True, "box": False, "answer_norm": None}]
+        r2 = subprocess.run(["bash", "-c", block], env=dict(os.environ, OUT=str(out), RUNBOOK=rb), capture_output=True, text=True)
+        assert r2.returncode == 0 and len(list(out.glob("*.outcomes.jsonl"))) == 1               # a second pass keeps what it wrote
+    ev = open(os.path.join(rb, "scripts", "run_eval.sh")).read()
+    assert ev.count("grep -Ev '\\.(forced|outcomes)\\.jsonl$'") == 3                         # REF, SC and the pairs' reading
+

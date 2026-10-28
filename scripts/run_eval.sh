@@ -20,9 +20,18 @@ for t in "T0.6 --temperature 0.6 --top_p 0.95 --top_k 0" "T1.0 --temperature 1.0
   python scripts/control.py reap $G $T > /dev/null 2>&1 || true   # v2.5.4b: the finished engine must not hold the GPU for the next one
   gpu_wait_free $G || true   # [v2.5.8] and its memory has fallen before the next engine starts
 done
+# [v2.5.9z103] (Fable 10-28 02:2x UTC: outcomes for every reading is a 2.6.0 acceptance item; as run_queue_eval.sh z101) each
+# finished reading also writes <stem>.outcomes.jsonl (no text; code/analysis/outcomes.py); a failure is listed, the readings are not
+# affected
+for J in $OUT/*.jsonl; do
+  case $J in *.outcomes.jsonl|*.forced.jsonl) continue;; esac
+  [ -f ${J%.jsonl}.metrics.json ] || continue   # a finished reading only
+  [ -f ${J%.jsonl}.outcomes.jsonl ] || python3 $RUNBOOK/code/analysis/outcomes.py reading $J ${J%.jsonl}.outcomes.jsonl > /dev/null 2>> $OUT/outcomes.log \
+    || echo "OUTCOMES_FAIL $(basename $J) (see outcomes.log)"
+done
 if [ $A != P0 ]; then
-  REF=$(ls $OPD_ROOT/runs/E11b-P0/e11b_P0_math500_T0.6_*.jsonl | head -1)
-  SC=$(ls $OUT/e11b_${A}_math500_T0.6_*.jsonl | head -1)
+  REF=$(ls $OPD_ROOT/runs/E11b-P0/e11b_P0_math500_T0.6_*.jsonl | grep -Ev '\.(forced|outcomes)\.jsonl$' | head -1)
+  SC=$(ls $OUT/e11b_${A}_math500_T0.6_*.jsonl | grep -Ev '\.(forced|outcomes)\.jsonl$' | head -1)
   [ -f $OUT/twr.json ] || python code/leakage/twr_alpha.py --judge $STUDENT_17B --bench math500 --ref $REF --score $SC \
                                 --model_k $M --per_problem 4 --out $OUT/twr.json
 fi
@@ -32,7 +41,7 @@ fi
 Q=${QUEUE_FILE:-$RUNBOOK/tasks/queue.txt}
 while read -r PTAG PREFS; do
   [ -n "$PTAG" ] || continue
-  SC=$(ls $OUT/${PTAG}_*.jsonl 2> /dev/null | head -1 || true)
+  SC=$(ls $OUT/${PTAG}_*.jsonl 2> /dev/null | grep -Ev '\.(forced|outcomes)\.jsonl$' | head -1 || true)
   [ -n "$SC" ] || { echo "PAIR_SKIPPED $PTAG (no reading)"; continue; }
   RP=(); for R in $PREFS; do
     if [[ $R =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+\.jsonl$ && /$R/ != */../* && /$R/ != */./* ]]; then RP+=("$OPD_ROOT/runs/$R"); else echo "PAIR_REF_REFUSED $R"; fi

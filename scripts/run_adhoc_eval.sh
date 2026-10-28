@@ -32,5 +32,14 @@ export CUDA_VISIBLE_DEVICES=$G; cd $RUNBOOK
 python code/eval/gen_eval.py --model $M --bench $BENCH --mode no_think --n $N $SAMP --max_tokens 16384 --chunk $K \
   --tag adhoc_${S}_${BENCH} --out $OUT > $OUT/gen_eval.log 2>&1 || { python scripts/control.py reap $G adhoc_eval_$S > /dev/null 2>&1; fin failed "gen_eval failed: $(tail -1 $OUT/gen_eval.log | cut -c1-200)"; }
 python scripts/control.py reap $G adhoc_eval_$S > /dev/null 2>&1 || true   # v2.5.4b: release the GPU (the engine can outlive gen_eval)
+# [v2.5.9z103] (Fable 10-28 02:2x UTC: outcomes for every reading is a 2.6.0 acceptance item; as run_queue_eval.sh z101) each
+# finished reading also writes <stem>.outcomes.jsonl (no text; code/analysis/outcomes.py); a failure is listed, the readings are not
+# affected
+for J in $OUT/*.jsonl; do
+  case $J in *.outcomes.jsonl|*.forced.jsonl) continue;; esac
+  [ -f ${J%.jsonl}.metrics.json ] || continue   # a finished reading only
+  [ -f ${J%.jsonl}.outcomes.jsonl ] || python3 $RUNBOOK/code/analysis/outcomes.py reading $J ${J%.jsonl}.outcomes.jsonl > /dev/null 2>> $OUT/outcomes.log \
+    || echo "OUTCOMES_FAIL $(basename $J) (see outcomes.log)"
+done
 python scripts/remote.py put $OUT runs/adhoc_eval_$S || fin failed "results kept in $OUT; upload failed"
 fin ok "$(python -c "import json,glob; m=json.load(open(glob.glob('$OUT/*.metrics.json')[0])); print(f\"{m['bench']} n={m['n']} avg_acc={m['avg_acc']} mean_tokens={m['mean_tokens']} trunc={m['trunc_rate']}\")") -> runs/adhoc_eval_$S"
