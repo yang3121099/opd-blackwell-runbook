@@ -1819,7 +1819,5 @@ def test_run_and_rerun_accept_v259z99(env):   # [v2.5.9z99] the zero-GPU diagnos
     rt = open(os.path.join(here, "run_tasks.sh")).read(); ts = open(os.path.join(here, "task.sh")).read()
     lane = re.search(r"cpu_task\(\) \{ case \$1 in ([^)]*)\)", rt).group(1).split("|")
     assert all(t in lane for t in names) and "  " + "|".join(names) + ") bash $RUNBOOK/scripts/diag_cpu.sh $T;;" in ts
-    q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read().split("\n")
-    i = next(k for k, l in enumerate(q) if l.startswith("b259z96a "))
-    assert q[i + 1].startswith("b259z99  open   DIAG-T32-TAILS:EVAL-e10b-P5t32 DIAG-PROBE-GATE:")
-    assert [t.split(":")[0] for t in q[i + 1].split()[2:]] == list(names)            # Fable's order
+    q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
+    assert "b259z99" not in q and not any(t in q for t in names)                     # 10-28 01:5x UTC: code only, run on the A100
