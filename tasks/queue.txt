@@ -195,11 +195,10 @@ b259z85  open   PROBE-E12C-8K PROBE-E12C-16K PROBE-DENSE-4B:PROBE-DENSE E10b-P5-
 b259z16  open   BUILD-VENV-IFEVAL
 fill17   open   EVAL-ext-17bud2k:E10b-P5bud2k EVAL-gm-17bud2k:E10b-P5bud2k EVAL-ext-17bud3k:E10b-P5bud3k EVAL-gm-17bud3k:E10b-P5bud3k EVAL-ext-17dense:E10b-P5-dense EVAL-gm-17dense:E10b-P5-dense EVAL-ext-4Bp5selfs43:E10d-P5self-s43 EVAL-gm-4Bp5selfs43:E10d-P5self-s43
 fill18   open   EVAL-ext-4Bp5tail:E10d-P5tail EVAL-gm-4Bp5tail:E10d-P5tail EVAL-ext-4Bp5l16k:E12d-P5-16k EVAL-gm-4Bp5l16k:E12d-P5-16k EVAL-ext-4Bp5l16ks43:E12d-P5-16k-s43 EVAL-gm-4Bp5l16ks43:E12d-P5-16k-s43 EVAL-ext-4Bp5l8ks43:E12d-P5-8k-s43 EVAL-gm-4Bp5l8ks43:E12d-P5-8k-s43 EVAL-ext-4Bt32:E10d-P5-t32 EVAL-gm-4Bt32:E10d-P5-t32 EVAL-ext-4Bakl:E10d-P5-akl EVAL-gm-4Bakl:E10d-P5-akl EVAL-ext-17p5tail:E10b-P5tail EVAL-gm-17p5tail:E10b-P5tail EVAL-ext-17p5tails43:E10b-P5tail-s43 EVAL-gm-17p5tails43:E10b-P5tail-s43 EVAL-ext-17p5tail8k:E12b-P5tail-8k EVAL-gm-17p5tail8k:E12b-P5tail-8k EVAL-ext-17p5l16ks44:E12b-P5-16k-s44 EVAL-gm-17p5l16ks44:E12b-P5-16k-s44 EVAL-ext-17p58k:E10b-P5-8k EVAL-gm-17p58k:E10b-P5-8k EVAL-ext-17smerge8k:E10b-P5smerge-8k EVAL-gm-17smerge8k:E10b-P5smerge-8k EVAL-ext-17akl:E10b-P5-akl EVAL-gm-17akl:E10b-P5-akl EVAL-ext-17akl2:E10b-P5-akl2 EVAL-gm-17akl2:E10b-P5-akl2 EVAL-ext-17fkl:E10b-P5-fkl EVAL-gm-17fkl:E10b-P5-fkl EVAL-ext-17densek256:E10b-P5-dense-k256 EVAL-gm-17densek256:E10b-P5-dense-k256 EVAL-ext-17aklmu03:E10b-P5-akl-mu03 EVAL-gm-17aklmu03:E10b-P5-akl-mu03 EVAL-ext-17aklmu07:E10b-P5-akl-mu07 EVAL-gm-17aklmu07:E10b-P5-akl-mu07 EVAL-ext-17selfakl:E10b-P5self-akl EVAL-gm-17selfakl:E10b-P5self-akl EVAL-ext-17selfroute:E10b-P5selfroute EVAL-gm-17selfroute:E10b-P5selfroute EVAL-ext-17selfroutec100:E10b-P5selfroute-c100 EVAL-gm-17selfroutec100:E10b-P5selfroute-c100 EVAL-ext-17softmix50:E10b-P5softmix50 EVAL-gm-17softmix50:E10b-P5softmix50 EVAL-ext-17stopmerge:E10b-P5stopmerge EVAL-gm-17stopmerge:E10b-P5stopmerge EVAL-ext-17top10:E10b-P5top10 EVAL-gm-17top10:E10b-P5top10 EVAL-gm-17p5l16k:E12b-P5-16k
-pad98    open   EVAL-budA-e12cP5-8k:E12c-P5-8k+EVAL-budA06+EVAL-budA06p5+EVAL-budA-e12c EVAL-budA-e12cP5-16k:E12c-P5-16k+EVAL-budA06+EVAL-budA06p5+EVAL-budA-e12c
 # [v2.5.9m] padding stages (ops-lead, Runming 10-21 21:2x Beijing): dispatched after every other stage, each group in file order;
 # every later fill list gets a #pad line too (a #pad line holds stage names only)
 # [v2.5.9z41] diff4b out of #pad (formal: after Q-058, before Q-059; its stage line now after b259z41s); tails43 in (until TERM4 H2)
-#pad night1 night2 fill14 olpd tails43 fill15 fill16 fill17 b259z16 b259z15 b26c fill18 pad98
+#pad night1 night2 fill14 olpd tails43 fill15 fill16 fill17 b259z16 b259z15 b26c fill18
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T0.6 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 0.6
 #eval EVAL-e10c-fix4 e10c_P4lowlr-fix4_s150_math500_T1.0 local:runs/E10c-P4lowlr-fix4/ckpt/global_step_150/actor/huggingface_bf16 math500 4 1.0
 #eval EVAL-e10c-fix4-s43 e10c_P4lowlr-fix4-s43_s150_math500_T0.6 result:runs/E10c-P4lowlr-fix4-s43/global_step_150/actor/huggingface math500 4 0.6
@@ -3555,7 +3554,7 @@ pad98    open   EVAL-budA-e12cP5-8k:E12c-P5-8k+EVAL-budA06+EVAL-budA06p5+EVAL-bu
 #budget EVAL-budA-e12cP5-16k budget_curve_vsStart EVAL-budA06p5/budA06_E10cP5fix4_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12cP5-16k_s50_math500_T0.6_32k
 #budget EVAL-budA-e12cP5-16k budget_curve_vsRL4k EVAL-budA-e12c/budAe12c_P5_s100_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12cP5-16k_s50_math500_T0.6_32k
 # [v2.5.9z98] (Q-077 re-registered before its data, research_program 3l: H1 / H2 judged at AIME 16K avg@16; the two arms' AIME 32K rows
-# and their 32K budget curves' formal slots dropped - the curves run as #pad, stage pad98) AIME24 / 25 16K avg@16 of the 4K arm (E12c-P5
+# and their 32K budget curves' formal slots dropped - the curves wait for the 3n re-review) AIME24 / 25 16K avg@16 of the 4K arm (E12c-P5
 # s100, H1's first point; its AIME existed at 32K only), the 8K and the 16K window arm at s50, each paired with the start (E10c-P5-fix4 s150)
 # and the shorter windows
 #eval EVAL-ext-06p5rl-aime ext_E12cP5_s100_aime24_T0.6 result:runs/E12c-P5/global_step_100/actor/huggingface aime24 16 0.6
