@@ -10,7 +10,8 @@ set -uo pipefail
 source "$(dirname "$0")/env.sh"; source $OPD_ROOT/venv/bin/activate; cd $OPD_ROOT
 echo "== 1. G2 unit tests"
 (cd $RUNBOOK/code/patches && python -m pytest -q -p no:cacheprovider test_opd_variants.py 2>&1 | tail -2) | tee /tmp/g2.txt
-grep -q "16 passed" /tmp/g2.txt && echo "G2 PASS" || echo "G2 FAIL"
+# [v2.5.9z104a] N passed and no failed / error (was "16 passed": 21 tests since 10-19, so every new node failed G2)
+python3 $RUNBOOK/scripts/g2_check.py /tmp/g2.txt && echo "G2 PASS ($(grep -oE '[0-9]+ passed' /tmp/g2.txt | tail -1))" || echo "G2 FAIL"
 echo "== 2. accept"
 nvidia-smi --query-gpu=index,name,memory.total,driver_version --format=csv,noheader
 echo "driver CUDA: $(nvidia-smi | grep -o 'CUDA Version: [0-9.]*')"

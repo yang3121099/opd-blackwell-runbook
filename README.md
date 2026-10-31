@@ -173,7 +173,7 @@ bash scripts/verify.sh 2>&1 | tee verify.log
 
 | 项 | 通过 | 未通过 |
 |---|---|---|
-| 1. G2 单元测试 | `G2 PASS` | `G2 FAIL` |
+| 1. G2 单元测试 | `G2 PASS (<N> passed)`（pytest 的结尾有 N passed，没有 failed / error；z104a 前写死 16） | `G2 FAIL` |
 | 2. accept / vLLM | `VLLM PASS` | `VLLM FAIL` |
 | 3. 3 步冒烟 | `SMOKE PASS (<秒数>s; 3 steps with a finite loss, no NaN)` | `SMOKE FAIL (...)` |
 | 4. 上传路径 | `UPLOAD_CHECK PASS (<秒数>s)`（`check_upload.py` 返回 0） | `UPLOAD_CHECK FAIL`，后面的 `UPLOAD_CHECK_BAD ...` 行说明哪一项不对 |
