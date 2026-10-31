@@ -5,3 +5,4 @@ commands:
   - {"seq": 3, "cmd": "setenv STATUS_PUT_S=120", "reason": "status every 2 min (ops-lead A1 15:50Z)", "utc": "2026-10-31T17:59:32Z"}
   - {"seq": 4, "cmd": "setenv PULSE_PUBLIC_MIRROR=1", "reason": "public pulse mirror for the monitor page (ops-lead A1)", "utc": "2026-10-31T17:59:39Z"}
   - {"seq": 5, "cmd": "run FA-PROBE", "reason": "build and check venv-fa on sm_90, parallel to the canary (Fable 17:0x; ops-lead pre-A1 17:02Z; no FA-PROBE .done on the public repo)", "utc": "2026-10-31T17:59:47Z"}
+  - {"seq": 6, "cmd": "run EVAL-ext32k-17p5tail16k", "reason": "Q-074d reading (Fable 17:2x ①; ops-lead A1 19:49Z item 3); canary PROBE-TAIL PASS 11-01; not in the B300 done set", "utc": "2026-10-31T21:00:34Z"}
