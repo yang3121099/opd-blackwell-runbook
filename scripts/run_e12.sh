@@ -133,8 +133,11 @@ VBT=$(( MAXR + 1024 > 16384 ? MAXR + 1024 : 16384 ))   # [v2.5.8h] vLLM max_num_
 # v2.5.4a: as run_arm.sh, FIXED_MICRO_BSZ=<n> (setenv, or set by task.sh after an out-of-memory failure) uses n sequences per
 # micro-batch in the update and the log-probs instead of the token budget (without flash-attn every sequence is padded to
 # the full length, so only a fixed count bounds the logits); without flash-attn the entropy is computed in chunks
-if [ -n "${FIXED_MICRO_BSZ:-}" ]; then BATCH="actor_rollout_ref.actor.use_dynamic_bsz=False actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=$FIXED_MICRO_BSZ"; LOGP_MB=$FIXED_MICRO_BSZ
-else BATCH="actor_rollout_ref.actor.use_dynamic_bsz=True actor_rollout_ref.actor.ppo_max_token_len_per_gpu=${MAX_TOK_GPU:-$TOK}"; LOGP_MB=8; fi
+if [ -n "${FIXED_MICRO_BSZ:-}" ]; then BATCH="actor_rollout_ref.actor.use_dynamic_bsz=False actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=$FIXED_MICRO_BSZ"; LOGP_MB=${LOGP_MB:-$FIXED_MICRO_BSZ}
+else BATCH="actor_rollout_ref.actor.use_dynamic_bsz=True actor_rollout_ref.actor.ppo_max_token_len_per_gpu=${MAX_TOK_GPU:-$TOK}"; LOGP_MB=${LOGP_MB:-8}; fi
+# [v2.5.9z106] (ops-lead / Fable 11-01: the H800's 80 GB smoke ran out of memory in compute_log_prob twice) setenv LOGP_MB=<1-16>:
+# the rollout's and the reference's log-prob micro-batch alone; the actor update keeps FIXED_MICRO_BSZ (or the token budget), so the
+# loss partition is the B300's; unset: as before (FIXED_MICRO_BSZ, else 8)
 ENT=""; [ "$RMPAD" = False ] && ENT="actor_rollout_ref.actor.entropy_from_logits_with_chunking=True"
 # v2.5.7: FUSED=1 / GC=0 (setenv) as in run_arm.sh (SPEED-PROBE 2026-10-18: GC=0 bit-exact, -9% step time on an E10b arm).
 # E12b turns gradient checkpointing off only with E12B_GC=1 as well (setenv, after its own 3-step comparison; reviewer

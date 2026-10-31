@@ -370,8 +370,11 @@ else RMPAD=False; ATTN=sdpa; TOK_DEFAULT=6144; fi
 # v2.5.2: FIXED_MICRO_BSZ=<n> (setenv, 1-16) uses n sequences per micro-batch in the actor update and in the rollout and
 # reference log-probs instead of the token budget: the logits are then bounded by n x 5120 x vocab x 4 B (4: 11.6 GiB).
 # Without flash-attn the entropy is computed in chunks (no full-size softmax temporary next to the logits).
-if [ -n "${FIXED_MICRO_BSZ:-}" ]; then BATCH="actor_rollout_ref.actor.use_dynamic_bsz=False actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=$FIXED_MICRO_BSZ"; LOGP_MB=$FIXED_MICRO_BSZ
-else BATCH="actor_rollout_ref.actor.use_dynamic_bsz=True actor_rollout_ref.actor.ppo_max_token_len_per_gpu=${MAX_TOK_GPU:-$TOK_DEFAULT}"; LOGP_MB=8; fi
+if [ -n "${FIXED_MICRO_BSZ:-}" ]; then BATCH="actor_rollout_ref.actor.use_dynamic_bsz=False actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=$FIXED_MICRO_BSZ"; LOGP_MB=${LOGP_MB:-$FIXED_MICRO_BSZ}
+else BATCH="actor_rollout_ref.actor.use_dynamic_bsz=True actor_rollout_ref.actor.ppo_max_token_len_per_gpu=${MAX_TOK_GPU:-$TOK_DEFAULT}"; LOGP_MB=${LOGP_MB:-8}; fi
+# [v2.5.9z106] (ops-lead / Fable 11-01: the H800's 80 GB smoke ran out of memory in compute_log_prob twice) setenv LOGP_MB=<1-16>:
+# the rollout's and the reference's log-prob micro-batch alone; the actor update keeps FIXED_MICRO_BSZ (or the token budget), so the
+# loss partition is the B300's; unset: as before (FIXED_MICRO_BSZ, else 8)
 ENT=""; [ "$RMPAD" = False ] && ENT="actor_rollout_ref.actor.entropy_from_logits_with_chunking=True"
 # v2.5.6o: FUSED=1 (setenv) = verl's fused log-prob / entropy kernels (torch backend, actor and teacher: no full logits);
 # GC=0 (setenv) = no gradient checkpointing in the actor. SPEED-PROBE measures both; unset, the ladder runs as before.

@@ -233,9 +233,15 @@ def test_run_arm_fixed_micro_branch(tmp_path):
     assert a == "actor_rollout_ref.actor.use_dynamic_bsz=False actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=4|4|actor_rollout_ref.actor.entropy_from_logits_with_chunking=True", a
     b = run({"FIXED_MICRO_BSZ": "", "RMPAD": "True", "TOK_DEFAULT": "16384"})
     assert b == "actor_rollout_ref.actor.use_dynamic_bsz=True actor_rollout_ref.actor.ppo_max_token_len_per_gpu=16384|8|", b
+    # [v2.5.9z106] setenv LOGP_MB: the log-prob micro-batch alone; the actor update's batching unchanged
+    c = run({"FIXED_MICRO_BSZ": "4", "LOGP_MB": "1", "RMPAD": "True", "TOK_DEFAULT": "6144"})
+    assert c == "actor_rollout_ref.actor.use_dynamic_bsz=False actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=4|1|", c
+    d = run({"FIXED_MICRO_BSZ": "", "LOGP_MB": "2", "RMPAD": "True", "TOK_DEFAULT": "16384"})
+    assert d == "actor_rollout_ref.actor.use_dynamic_bsz=True actor_rollout_ref.actor.ppo_max_token_len_per_gpu=16384|2|", d
+    assert run({"FIXED_MICRO_BSZ": "4", "LOGP_MB": "", "RMPAD": "True", "TOK_DEFAULT": "6144"}).split("|")[1] == "4"
 
 
-@pytest.mark.parametrize("cmd", ["setenv VENV=fa", "set VENV=fa", "setenv VENV=", "run FA-PROBE"])
+@pytest.mark.parametrize("cmd", ["setenv VENV=fa", "set VENV=fa", "setenv VENV=", "run FA-PROBE", "setenv LOGP_MB=1", "setenv LOGP_MB="])
 def test_rules_accept_v253(cmd):
     R.parse({"cmd": cmd, "reason": "t"})
 
@@ -290,6 +296,8 @@ def test_run_e12_fixed_micro_branch():
     assert run({"FIXED_MICRO_BSZ": "4", "RMPAD": "False", "TOK": "6144"}) == \
         "actor_rollout_ref.actor.use_dynamic_bsz=False actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=4|4|actor_rollout_ref.actor.entropy_from_logits_with_chunking=True"
     assert run({"FIXED_MICRO_BSZ": "", "RMPAD": "False", "TOK": "6144"}).startswith("actor_rollout_ref.actor.use_dynamic_bsz=True actor_rollout_ref.actor.ppo_max_token_len_per_gpu=6144|8|")
+    assert run({"FIXED_MICRO_BSZ": "4", "LOGP_MB": "1", "RMPAD": "True", "TOK": "6144"}).split("|")[:2] == \
+        ["actor_rollout_ref.actor.use_dynamic_bsz=False actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=4", "1"]   # [v2.5.9z106]
     assert "$BATCH $ENT" in src and "log_prob_micro_batch_size_per_gpu=$LOGP_MB" in src and "use_dynamic_bsz=True \\" not in src
 
 
@@ -1830,3 +1838,9 @@ def test_run_and_rerun_accept_v259z102(env):   # [v2.5.9z102] (Q-087) the positi
         R.parse({"cmd": f"rerun {t}", "reason": "t"})
     assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 104)
 
+
+
+@pytest.mark.parametrize("cmd", ["setenv LOGP_MB=0", "setenv LOGP_MB=17", "setenv LOGP_MB=x"])
+def test_rules_refuse_bad_logp_mb(cmd):   # [v2.5.9z106]
+    with pytest.raises(R.Reject):
+        R.parse({"cmd": cmd, "reason": "t"})

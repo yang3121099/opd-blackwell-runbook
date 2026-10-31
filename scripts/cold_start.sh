@@ -23,11 +23,12 @@
 # COLDSTART_DRYRUN=1: nothing is installed, downloaded or started; every such step prints what it would run (the Mac tests).
 set -uo pipefail
 RB=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-TOKF=""; OPD=""; CK=""; REPOS=""; NODE=""; NGPU=8; ONLY=""; NOLOOPS=0; CKMIN=1000
+TOKF=""; OPD=""; CK=""; REPOS=""; NODE=""; NGPU=8; ONLY=""; NOLOOPS=0; CKMIN=1000; STEP=""
 while [ $# -gt 0 ]; do case $1 in
   --token-file) TOKF=$2; shift 2;; --opd-root) OPD=$2; shift 2;; --ckpt-root) CK=$2; shift 2;; --repos) REPOS=$2; shift 2;;
   --node) NODE=$2; shift 2;; --gpus) NGPU=$2; shift 2;; --only) ONLY=$2; shift 2;; --no-loops) NOLOOPS=1; shift;;
-  --ckpt-min-gb) CKMIN=$2; shift 2;; *) echo "COLDSTART usage: unknown argument $1"; exit 2;; esac; done
+  --ckpt-min-gb) CKMIN=$2; shift 2;; --step) STEP=$2; shift 2;; *) echo "COLDSTART usage: unknown argument $1"; exit 2;; esac; done
+[[ -z $STEP || $STEP =~ ^[1-8]$ ]] || { echo "COLDSTART usage: --step takes 1-8"; exit 2; }
 [[ $NGPU =~ ^[0-9]+$ ]] && [[ $CKMIN =~ ^[0-9]+$ ]] && [[ ${VERIFY_GPU:-0} =~ ^[0-9]+$ ]] && [[ -z $ONLY || $ONLY =~ ^[A-Za-z0-9._-]+(,[A-Za-z0-9._-]+)*$ ]] || { echo "COLDSTART usage: --gpus / --ckpt-min-gb / VERIFY_GPU take a number, --only task names (comma separated)"; exit 2; }
 [ -n "$TOKF" ] && [ -n "$OPD" ] && [ -n "$CK" ] && [ -n "$REPOS" ] || { echo "COLDSTART usage: --token-file --opd-root --ckpt-root --repos are required"; exit 2; }
 PUB=$(echo "$REPOS" | tr ',' '\n' | sed -n 's/^public=//p'); PRIV=$(echo "$REPOS" | tr ',' '\n' | sed -n 's/^private=//p')
@@ -38,6 +39,17 @@ LOG=$OPD/logs/coldstart.log
 step() { echo "[$(date -u +%FT%TZ)] STEP $1 $2" | tee -a $LOG; }
 fail() { step $1 "FAILED: $2"; exit 1; }
 run() { if [ $DRY = 1 ]; then echo "DRYRUN would run: $*" | tee -a $LOG; else "$@"; fi; }
+# [v2.5.9z106] (connect-first, Fable 11-01; ops-lead's A1 16:11 UTC) a node set up by bootstrap.sh (control/bootstrap.json): its
+# loops run already (dispatch frozen) and this script is run one step at a time by `setup <step|all>` (setup_runner.sh): --step N
+# runs step 0 (arguments, paths) and step N only. Step 1 is bootstrap.sh's, before its loops start (no old command may run); on
+# such a node it is not run again (it would raise applied_seq over commands not yet applied); step 7 checks the loops instead of
+# "no loop yet"; step 8 starts nothing. Without bootstrap.json: as before (--step 1 only, for bootstrap.sh itself).
+want() { [ -z "$STEP" ] || [ "$STEP" = "$1" ]; }
+BOOT=0; [ -f $OPD/control/bootstrap.json ] && BOOT=1
+if [ $BOOT = 1 ]; then
+  [ -n "$STEP" ] || { echo "COLDSTART usage: this node was set up by bootstrap.sh: its steps run through the control command setup"; exit 2; }
+  [ "$STEP" != 1 ] || { echo "COLDSTART step 1 was bootstrap.sh's, before its loops started: not run again"; exit 0; }
+elif [ -n "$STEP" ] && [ "$STEP" != 1 ]; then echo "COLDSTART usage: --step 2-8 is for a node set up by bootstrap.sh"; exit 2; fi
 PY=python3; [ -x $OPD/venv/bin/python ] && PY=$OPD/venv/bin/python
 
 # ---------- 0. token, node, paths ----------
@@ -50,8 +62,9 @@ export OPD_NODE=$NODE
 printf 'public=%s\nprivate=%s\n' "$PUB" "$PRIV" > $OPD/hf_repos.txt
 step 0 "node $NODE; paths.env and hf_repos.txt written; token from its file (not printed)"
 
+Y=$RB/control/$NODE.yaml   # [v2.5.9z106] outside step 1: step 7 reads it too, and --step 7 skips step 1
+if want 1; then
 # ---------- 1. control bootstrap: no old command may run on this machine ----------
-Y=$RB/control/$NODE.yaml
 read -r MAXSEQ PROPOSED_N < <(python3 - "$Y" "$OPD/control/control.env.proposed" <<'PY'
 import json, re, sys
 y, out = sys.argv[1:3]
@@ -87,19 +100,24 @@ REPLIES0=$(find $OPD/control/replies -type f 2>/dev/null | wc -l | tr -d ' ')
 echo "${CUR:-0} $MAXSEQ" > $OPD/control/coldstart_skipped
 step 1 "applied_seq $(cat $OPD/control/applied_seq) (old commands 1..$MAXSEQ skipped, none run); control.env.proposed: $PROPOSED_N keys, NOT applied - review it:"
 cat $OPD/control/control.env.proposed | tee -a $LOG
+[ "$STEP" = 1 ] && exit 0
+fi
 
 # ---------- 2. overnight.sh without its loops ----------
+if want 2; then
 if [ -f $OPD/logs/verify.log ] && grep -q "SMOKE PASS" $OPD/logs/verify.log; then step 2 "overnight.sh already passed (verify.log SMOKE PASS)"
 else run env OVERNIGHT_NO_LOOPS=1 OPD_ROOT=$OPD bash $RB/scripts/overnight.sh || fail 2 "overnight.sh (see logs/overnight.log)"; step 2 "overnight.sh done"; fi
+fi
 [ -x $OPD/venv/bin/python ] && PY=$OPD/venv/bin/python
 
 # ---------- 3. which tasks are done (the last status) ----------
 DONE=$OPD/control/coldstart_done.txt
-[ -f $DONE ] || $PY $RB/scripts/coldstart_hf.py status "$PRIV" "$NODE" $DONE | tee -a $LOG
+want 3 && { [ -f $DONE ] || $PY $RB/scripts/coldstart_hf.py status "$PRIV" "$NODE" $DONE | tee -a $LOG; }
 M=$RB/tasks/coldstart.json   # the committed first version; regenerated from the queue this machine pulled, when it is there
 if [ -f $RB/tasks/queue.txt ]; then python3 $RB/scripts/coldstart_manifest.py $RB/tasks/queue.txt $OPD/control/coldstart.json | tee -a $LOG && M=$OPD/control/coldstart.json; fi
 if [ -n "$ONLY" ]; then python3 $RB/scripts/coldstart_hf.py only $M "$ONLY" $OPD/control/coldstart_only.json | tee -a $LOG || fail 3 "--only $ONLY"; M=$OPD/control/coldstart_only.json; fi
 
+if want 4; then
 # ---------- 4. models and the other venvs, in parallel ----------
 fa() { [ -x $OPD/venv-fa/bin/python ] && $OPD/venv-fa/bin/python -c "import flash_attn" 2> /dev/null && return 0
        bash $RB/scripts/fa_probe.sh ${VERIFY_GPU:-0} > $OPD/logs/coldstart_fa.log 2>&1
@@ -119,13 +137,15 @@ else
   wait $P1 $P2 $P3 $P4; cat $OPD/logs/coldstart_models.log | tee -a $LOG
 fi
 step 4 "models and venvs finished (health checks below say whether each works)"
+fi
 
 # ---------- 5. labels ----------
-$PY $RB/scripts/coldstart_hf.py labels $M "$PRIV" $OPD | tee -a $LOG; step 5 "labels checked"
+want 5 && { $PY $RB/scripts/coldstart_hf.py labels $M "$PRIV" $OPD | tee -a $LOG; step 5 "labels checked"; }
 
 # ---------- 6. weights the unfinished tasks need ----------
-$PY $RB/scripts/coldstart_hf.py weights $M $DONE "$PUB" "$PRIV" $OPD/control/coldstart_weights.json | tee -a $LOG; step 6 "weights listed (control/coldstart_weights.json)"
+want 6 && { $PY $RB/scripts/coldstart_hf.py weights $M $DONE "$PUB" "$PRIV" $OPD/control/coldstart_weights.json | tee -a $LOG; step 6 "weights listed (control/coldstart_weights.json)"; }
 
+if want 7; then
 # ---------- 7. health checks ----------
 H=$OPD/logs/coldstart_health.txt; : > $H; bad=0
 chk() { if eval "$2" > /dev/null 2>&1; then echo "PASS $1" >> $H; else echo "FAIL $1" >> $H; bad=1; fi; }
@@ -143,18 +163,25 @@ if [ -z "$ONLY" ]; then chk "venv-vl: vllm, transformers" "$OPD/venv-vl/bin/pyth
   chk "venv-ifeval: langdetect" "$OPD/venv-ifeval/bin/python -c 'import langdetect'"
 else skp "venv-vl: vllm, transformers"; skp "venv-ifeval: langdetect"; fi
 chk "verify.sh: G2, VLLM, SMOKE PASS" "grep -q 'G2 PASS' $OPD/logs/verify.log && grep -q 'VLLM PASS' $OPD/logs/verify.log && grep -q 'SMOKE PASS' $OPD/logs/verify.log"
-chk "control: applied_seq == $MAXSEQ (the old history's largest)" "[ \$(cat $OPD/control/applied_seq) -eq $MAXSEQ ]"
-chk "control: no command ran during the bootstrap" "[ \$(find $OPD/control/replies -type f 2>/dev/null | wc -l) -eq $REPLIES0 ]"
-chk "control: outbox empty" "[ \$(find $OPD/control/outbox -type f 2>/dev/null | wc -l) -eq 0 ]"
-chk "no loop running yet" "! pgrep -f 'scripts/(run_tasks|heartbeat)[.]sh'"
+if [ $BOOT = 1 ]; then   # [v2.5.9z106] the loops run already: exactly one heartbeat and one run_tasks (loops.sh), dispatch frozen
+  chk "loops: one heartbeat, one run_tasks (loops.sh status)" "[ \"\$(bash $RB/scripts/loops.sh status | awk '\$1 == \"LOOPS\" {print \$3}' | paste -sd, -)\" = 1,1 ]"
+  chk "dispatch frozen until \`dispatch on\`" "[ -f $OPD/control/dispatch_frozen ]"
+else
+  chk "control: applied_seq == $MAXSEQ (the old history's largest)" "[ \$(cat $OPD/control/applied_seq) -eq $MAXSEQ ]"
+  chk "control: no command ran during the bootstrap" "[ \$(find $OPD/control/replies -type f 2>/dev/null | wc -l) -eq $REPLIES0 ]"
+  chk "control: outbox empty" "[ \$(find $OPD/control/outbox -type f 2>/dev/null | wc -l) -eq 0 ]"
+  chk "no loop running yet" "! pgrep -f 'scripts/(run_tasks|heartbeat)[.]sh'"
+fi
 cat $H | tee -a $LOG
 [ $bad = 0 ] || fail 7 "health checks (logs/coldstart_health.txt); nothing started"
 step 7 "health checks all PASS"
+fi
 
 # ---------- 8. the loops ----------
+want 8 || exit 0
+[ $BOOT = 1 ] && { step 8 "loops already running (bootstrap.sh; $(bash $RB/scripts/loops.sh status | tr '\n' ' ')): nothing started; dispatch stays frozen until \`dispatch on\`"; exit 0; }
 [ $NOLOOPS = 1 ] && { step 8 "loops NOT started (--no-loops): nothing runs until a task is started by hand (bash scripts/task.sh <gpu> <task>)"; exit 0; }
 cd $RB
-run setsid nohup bash scripts/heartbeat.sh > $OPD/logs/heartbeat.log 2>&1 9>&- &
-run setsid nohup bash scripts/run_tasks.sh > $OPD/logs/run_tasks.log 2>&1 9>&- &
+run bash scripts/loops.sh start   # [v2.5.9z106] (ops-lead's C3) through loops.sh: one lock, adopted, never a second set
 run python3 scripts/control.py event node coldstart "skipped seq $(cut -d' ' -f1 $OPD/control/coldstart_skipped)+1..$MAXSEQ (none run); control.env proposed, not applied; health all PASS"
-step 8 "loops started (heartbeat, run_tasks; run_tasks keeps uploader / watchdog / gh_heartbeat / weights_replay); event coldstart sent"
+step 8 "loops started (heartbeat, run_tasks through loops.sh; run_tasks keeps uploader / watchdog / gh_heartbeat / weights_replay); event coldstart sent"

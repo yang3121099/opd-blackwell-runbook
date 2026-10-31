@@ -8,6 +8,8 @@
 # watchdog run in sessions of their own and are never signalled. At most WD_MAX (3) restarts of one loop in WD_WINDOW_MIN (30) minutes: beyond that, one event
 # watchdog_gave_up and no automatic restart of that loop until the file control/watchdog_<loop>.gave_up is removed.
 # One watchdog only (flock on control/watchdog.lock; without flock, [v2.5.8] control/watchdog.pid). run_tasks starts it when it is missing.
+# [v2.5.9z106] (connect-first, ops-lead's C3) run_tasks and the heartbeat are restarted through loops.sh (its lock, its adoption);
+# the uploader as before.
 # Usage: setsid nohup bash scripts/watchdog.sh >> $OPD_ROOT/logs/watchdog.log 2>&1 &
 set -uo pipefail
 source "$(dirname "$0")/env.sh"
@@ -67,8 +69,13 @@ while true; do
       echo "WATCHDOG $(date -u +%T) $L stale ${age}s: $recent restarts in ${WIN}s, giving up"; ev watchdog_gave_up "$L stale ${age}s"; continue
     fi
     echo "WATCHDOG $(date -u +%T) $L stale ${age}s: restart"
-    if ! stop_loop $L; then echo "WATCHDOG $(date -u +%T) $L still running after KILL"; ev watchdog_stuck "$L"; continue; fi
-    start_loop $L; echo $now >> $CDIR/watchdog_$L.times; date -u +%s > $f   # the new loop gets a full window
+    if [ $L = uploader ]; then
+      if ! stop_loop $L; then echo "WATCHDOG $(date -u +%T) $L still running after KILL"; ev watchdog_stuck "$L"; continue; fi
+      start_loop $L
+    elif ! LOOPS_TERM_WAIT=${WD_TERM_WAIT:-30} bash $RUNBOOK/scripts/loops.sh restart $L >> $OPD_ROOT/logs/loops.log 2>&1; then   # [v2.5.9z106] (C3) one lock, never doubled
+      echo "WATCHDOG $(date -u +%T) $L: loops.sh restart failed (logs/loops.log)"; ev watchdog_stuck "$L"; continue
+    fi
+    echo $now >> $CDIR/watchdog_$L.times; date -u +%s > $f   # the new loop gets a full window
     ev watchdog_restart "$L stale ${age}s"
   done
   sleep ${WD_POLL:-60}

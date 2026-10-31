@@ -252,6 +252,7 @@ def v_rerun_verify(a, seq):
         return "rejected", "tasks are running (pause/kill them first)", {}
     log = os.path.join(ROOT, "logs", f"verify_{seq}.log"); flag = _p("verify.running")
     sh = (f"echo $$ > {flag}; bash {RUNBOOK}/scripts/verify.sh > {log} 2>&1; "
+          f"python3 {RUNBOOK}/scripts/control.py verify_state {log} {seq}; "   # [v2.5.9z106] the result into the status
           f"python {RUNBOOK}/scripts/remote.py put {log} logs/{node_id()}/requests/{seq}/verify.log; rm -f {flag}")
     subprocess.Popen(["setsid", "bash", "-c", sh], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return "ok", f"verify started (log {log}); run_tasks starts nothing while it runs", {}
@@ -1374,6 +1375,12 @@ def pulse(status_path, upload=True):
     except Exception:
         p["source_policy"] = None
     p["public_mirror_utc"] = _read(_p("public_mirror_utc"), "").strip() or None
+    # [v2.5.9z106] connect-first: online, setup's step and state, dispatch frozen (numbers and fixed words only; no lines, no paths)
+    su = _jread("setup_state.json", None) or {}
+    p["online"] = True
+    p["setup"] = {"step": str(su.get("step"))[:8] if su.get("step") is not None else None,
+                  "state": su.get("state") if su.get("state") in ("running", "done", "STOP") else None}
+    p["dispatch_frozen"] = os.path.exists(_p("dispatch_frozen"))
     bad = leak_check(p)
     if bad:
         event("control", "pulse_refused", f"{len(bad)} string(s) failed the leak check")
@@ -3167,6 +3174,145 @@ def do_move(seq, t, src, dst):
     receipt(seq, None, "ok", f"{t}: {a / 1e9:.1f} GB moved to {dst}; runs/{t}/ckpt re-pointed (task still paused)",
             bytes=a, seconds=round(time.time() - t0, 1))
 
+# [v2.5.9z106] (connect-first, Fable 11-01; ops-lead's A1 11-01 16:11 UTC, C5 / C6) the commands that let the project see, install,
+# check and repair a new node with nobody at it: env-probe, setup <2-7|all|stop>, verify, tail <log> [n], restart-loops,
+# dispatch on|off. Their state goes into the status (setup_state, env_probe, verify, loops, dispatch_frozen).
+def _alive_cmd(pid_file, needle):
+    """The pid in control/<pid_file> when that process is alive and its command line holds needle, else None."""
+    try:
+        pid = int(_read(_p(pid_file)).strip() or 0)
+        if pid > 0:
+            os.kill(pid, 0)
+            if needle in subprocess.run(["ps", "-o", "args=", "-p", str(pid)], capture_output=True, text=True, timeout=10).stdout:
+                return pid
+    except (ValueError, OSError, subprocess.SubprocessError):
+        pass
+    return None
+
+
+def v_env_probe(a, seq, flags=None, entry=None):
+    try:
+        r = subprocess.run([sys.executable, os.path.join(RUNBOOK, "scripts", "env_probe.py"), _p("env_probe.json")],
+                           capture_output=True, text=True, timeout=180)
+    except subprocess.TimeoutExpired:
+        return "failed", "env_probe.py did not finish in 180 s", {}
+    if r.returncode != 0:
+        return "failed", redact((r.stderr or r.stdout).strip().splitlines()[-1:][0] if (r.stderr or r.stdout).strip() else f"exit {r.returncode}")[:300], {}
+    open(_p("heartbeat_now"), "w").write(f"seq {seq} {utc()}\n")
+    return "ok", redact(r.stdout.strip())[:300] + " (status.env_probe)", {}
+
+
+def v_setup(a, seq, flags=None, entry=None):
+    """setup <2-7|all|stop>: cold_start.sh's steps through setup_runner.sh, in a session of its own (control/setup.pid = its group);
+    one at a time; stop signals that group only (TERM, KILL after 30 s); every step in control/setup_state.json."""
+    if not os.path.exists(_p("bootstrap.json")):
+        return "rejected", "setup is for a node set up by bootstrap.sh (control/bootstrap.json)", {}
+    pid = _alive_cmd("setup.pid", "setup_runner.sh")
+    if a[0] == "stop":
+        if pid is None:
+            return "ok", "no setup running", {}
+        try:
+            os.killpg(pid, signal.SIGTERM)
+            for _ in range(30):
+                time.sleep(1)
+                os.killpg(pid, 0)
+            os.killpg(pid, signal.SIGKILL)
+        except OSError:
+            pass
+        st = _jread("setup_state.json", {}) or {}
+        st.update(state="STOP", stopped_by=f"seq {seq}", utc=utc())
+        json.dump(st, open(_p("setup_state.json"), "w")); open(_p("heartbeat_now"), "w").write(f"seq {seq} {utc()}\n")
+        return "ok", f"setup group {pid} stopped", {}
+    if pid is not None:
+        st = _jread("setup_state.json", {}) or {}
+        return "rejected", f"setup running (step {st.get('step')}): wait, or setup stop", {}
+    if running_pids():
+        return "rejected", "tasks are running (pause / kill them first)", {}
+    log = open(os.path.join(ROOT, "logs", f"setup_{seq}.log"), "a")
+    subprocess.Popen(["bash", os.path.join(RUNBOOK, "scripts", "setup_runner.sh"), a[0], str(seq)], stdin=subprocess.DEVNULL,
+                     stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+    return "accepted", f"setup {a[0]} started (status.setup_state; logs/setup_{seq}.log)", {}
+
+
+def verify_state(log, seq):
+    """[v2.5.9z106] after a remote verify: each check's PASS / FAIL into control/verify_state.json, and the next heartbeat round now."""
+    text = _read(log)
+    res = {k: ("PASS" if re.search(rf"^{k} PASS", text, re.M) else "FAIL" if re.search(rf"^{k} FAIL", text, re.M) else None)
+           for k in ("G2", "VLLM", "SMOKE", "UPLOAD_CHECK", "CONTROL")}
+    json.dump({"seq": seq, "utc": utc(), "result": res, "log": f"logs/{os.path.basename(log)}"}, open(_p("verify_state.json"), "w"))
+    open(_p("heartbeat_now"), "w").write(f"verify {seq} {utc()}\n")
+
+
+_TAIL_MAX = 32 * 1024
+
+
+def _tail_redact(text):
+    """C5: control.redact, then this node's paths, proxy credentials, host names and addresses."""
+    text = redact(text)
+    pairs = [(ROOT, "<opd>"), (RUNBOOK, "<runbook>"), (os.environ.get("CKPT_ROOT", ""), "<ckpt>"), (os.path.expanduser("~"), "<home>")]
+    for path, name in sorted(pairs, key=lambda x: -len(x[0])):   # the longest first: .../opd/runbook before .../opd/run
+        if path and len(path) > 1:
+            text = text.replace(path, name)
+    text = re.sub(r"//[^/@\s:]+:[^/@\s]+@", "//***:***@", text)   # user:password@ in a proxy or repository URL
+    text = re.sub(r"hf_[A-Za-z0-9]{8,}", "hf_***", text)
+    text = re.sub(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", "<ip>", text)
+    text = re.sub(r"\b(?:[0-9a-fA-F]{1,4}:){3,7}[0-9a-fA-F]{1,4}\b", "<ip6>", text)
+    for h in {socket.gethostname(), socket.gethostname().split(".")[0]}:
+        if len(h) > 2:
+            text = re.sub(rf"\b{re.escape(h)}\b", "<host>", text)
+    return text
+
+
+def setup_state_write(step, name, state, log=None):
+    """[v2.5.9z106] setup_runner.sh at each step's start and end: control/setup_state.json (the status; the pulse takes step and
+    state only), last_lines = the step log's last 5 lines, redacted (C5); the next heartbeat round now."""
+    prev = _jread("setup_state.json", {}) or {}
+    st = {"step": step, "name": name, "state": state, "utc": utc(),
+          "started_utc": utc() if state == "running" else prev.get("started_utc"),
+          "last_lines": _tail_redact(_tail_lines(log, 5)).splitlines()[-5:] if log and os.path.isfile(log) else []}
+    json.dump(st, open(_p("setup_state.json.tmp"), "w")); os.replace(_p("setup_state.json.tmp"), _p("setup_state.json"))
+    open(_p("heartbeat_now"), "w").write(f"setup {step} {state} {utc()}\n")
+
+
+def v_tail(a, seq, flags=None, entry=None):
+    """tail <file under logs/> [n]: the last n (default 50, at most 200) lines, redacted (C5), as replies/<seq>/tail.txt."""
+    n = int(a[1]) if len(a) > 1 else 50
+    logs = os.path.realpath(os.path.join(ROOT, "logs"))
+    src = os.path.realpath(os.path.join(logs, a[0]))
+    if not src.startswith(logs + os.sep) or not os.path.isfile(src):
+        return "rejected", "not a file under logs/", {}
+    out = _p(f"req_{seq}"); shutil.rmtree(out, ignore_errors=True); os.makedirs(out)
+    open(os.path.join(out, "tail.txt"), "w").write(_tail_redact(_tail_lines(src, n))[-_TAIL_MAX:])
+    dest = f"status/{node_id()}/replies/{seq}"
+    return ("ok", f"last {n} lines of logs/{a[0]} (redacted)", {"outputs": [f"{dest}/tail.txt"]}) if queue_put(out, dest) else ("failed", "upload failed", {})
+
+
+def v_restart_loops(a, seq, flags=None, entry=None):
+    """restart-loops: loops.sh restart both, once this command's receipt is written and uploaded (applied_seq reaches it, then the
+    apply has exited; at most 60 s + 180 s), from a
+    session of its own: the restart's TERM of run_tasks' tree never reaches it, and task sessions are never signalled (C6)."""
+    log = open(os.path.join(ROOT, "logs", "loops.log"), "a")
+    # [rehearsal 11-01] then until the apply that runs this command has exited: it uploads the receipt after applied_seq, and a
+    # restart 3 s later killed that upload (the receipt waited for the hourly re-upload of replies/)
+    sh = (f"for i in $(seq 60); do [ \"$(cat {_p('applied_seq')} 2> /dev/null || echo 0)\" -ge {seq} ] && break; sleep 1; done; "
+          f"for i in $(seq 180); do pgrep -f 'scripts/control[.]py apply' > /dev/null || break; sleep 1; done; sleep 2; "
+          f"bash {RUNBOOK}/scripts/loops.sh restart both")
+    subprocess.Popen(["bash", "-c", sh], stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+    return "accepted", "restart started: heartbeat and run_tasks through loops.sh once this receipt is out (task sessions untouched)", {}
+
+
+def v_dispatch(a, seq, flags=None, entry=None):
+    f = _p("dispatch_frozen")
+    if a[0] == "off":
+        open(f, "w").write(f"seq {seq} {utc()}\n")
+        return "ok", "dispatch frozen: run_tasks keeps the control plane and explicit run requests only", {}
+    if os.path.isdir(os.path.join(ROOT, "venv-ctl")) and not os.path.exists(_p("venv_ready")):
+        return "rejected", "the main venv is not ready yet (setup); dispatch stays frozen", {}
+    if os.path.exists(f):
+        os.remove(f)
+    return "ok", "dispatch on: the queue's tasks start on free GPUs from the next round", {}
+
+
 def _v24(fn):
     return lambda a, seq, flags=None, entry=None: fn(a, seq)
 
@@ -3175,7 +3321,7 @@ VERBS = {"pause": _v24(v_pause), "resume": _v24(v_resume), "kill": _v24(v_kill),
          "restore": _v24(v_restore), "rerun_verify": _v24(v_rerun_verify), "setenv": v_set, "set": v_set,
          "snapshot": lambda a, seq, flags=None, entry=None: v_snapshot0(seq) if not a else v_snapshot(a, seq),
          "ps": v_ps, "logs": v_logs, "run": v_run, "rerun": v_rerun, "republish": v_republish, "publish": v_publish, "publish-redacted": v_publish_redacted, "pend-weight": v_pend_weight, "leakscan": v_leakscan, "fa-build": v_fa_build, "scrubdiff": v_scrubdiff, "du": v_du, "inventory": v_inventory, "rm-ours": v_rm_ours, "dr-keep": v_dr_keep, "persist-env": v_persist_env, "rebuild-drill": v_rebuild_drill, "eval": v_eval, "update": v_update, "upload": v_upload,
-         "signal": v_signal, "kill-pgid": v_killpgid, "cancel": v_cancel, "heartbeat": v_heartbeat, "move-ckpt": v_move_ckpt, "reap": v_reap}
+         "signal": v_signal, "kill-pgid": v_killpgid, "cancel": v_cancel, "heartbeat": v_heartbeat, "env-probe": v_env_probe, "setup": v_setup, "verify": _v24(v_rerun_verify), "tail": v_tail, "restart-loops": v_restart_loops, "dispatch": v_dispatch, "move-ckpt": v_move_ckpt, "reap": v_reap}
 assert set(VERBS) == set(R.VERBS), set(VERBS) ^ set(R.VERBS)
 TASK_VERBS = R.TASK_VERBS
 
@@ -3556,7 +3702,11 @@ def status():
             "alerts": s.get("alerts", []),
             "control_env": {k: redact(f"{k}={v}").split("=", 1)[1] for k, v in read_env().items()},
             "last_pull": lp, "control_env_suspect": suspects(), "verify_running": os.path.exists(_p("verify.running")),
-            "self_restart_refused": _read(_p("self_restart_refused")).strip() or None}
+            "self_restart_refused": _read(_p("self_restart_refused")).strip() or None,
+            # [v2.5.9z106] connect-first: what setup / env-probe / verify found, the loops, dispatch
+            "setup_state": _jread("setup_state.json", None), "env_probe": _jread("env_probe.json", None),
+            "verify": _jread("verify_state.json", None), "loops": _jread("loops.json", None),
+            "dispatch_frozen": os.path.exists(_p("dispatch_frozen")), "bootstrap": _jread("bootstrap.json", None)}
 
 
 if __name__ == "__main__":
@@ -3572,6 +3722,10 @@ if __name__ == "__main__":
         t = publish_procs(upload="--upload" in sys.argv); print(f"{len(t['rows'])} rows")
     elif cmd == "event":
         event(sys.argv[2], sys.argv[3], " ".join(sys.argv[4:]))
+    elif cmd == "setup_state":   # [v2.5.9z106] setup_runner.sh
+        setup_state_write(sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5] if len(sys.argv) > 5 else None)
+    elif cmd == "verify_state":   # [v2.5.9z106]
+        verify_state(sys.argv[2], int(sys.argv[3]))
     elif cmd == "next_request":
         next_request()
     elif cmd == "check_pull":

@@ -6,7 +6,7 @@ set -u
 SRC=$(cd "$(dirname "$0")/.." && pwd); fails=0; n=0
 ok() { n=$((n + 1)); if eval "$2"; then :; else echo "  FAIL [$1]"; fails=$((fails + 1)); fi; }
 T=$(mktemp -d); RB=$T/rb; mkdir -p $RB/scripts $RB/control $RB/tasks $T/bin
-cp $SRC/scripts/cold_start.sh $SRC/scripts/coldstart_hf.py $SRC/scripts/coldstart_check.py $RB/scripts/
+cp $SRC/scripts/cold_start.sh $SRC/scripts/coldstart_hf.py $SRC/scripts/coldstart_check.py $SRC/scripts/loops.sh $RB/scripts/
 export CALLS=$T/calls; : > $CALLS
 printf 'import sys, os; open(os.environ["CALLS"], "a").write("control " + " ".join(sys.argv[1:]) + "\\n")\n' > $RB/scripts/control.py
 cat > $RB/control/abcd1234.yaml <<'Y'
@@ -59,7 +59,7 @@ ok "a token file not 0600 stops at step 0" '[ $rc = 1 ] && [[ "$out" == *"STEP 0
 out=$(VERIFY_GPU=x bash $RB/scripts/cold_start.sh $ARGS 2>&1); rc=$?
 ok "[z104b] VERIFY_GPU not a card index: usage, exit 2" '[ $rc = 2 ] && [[ "$out" == *"VERIFY_GPU take a number"* ]]'
 out=$(bash $RB/scripts/cold_start.sh $ARGS 2>&1); rc=$?
-ok "the whole DRYRUN passes: health all PASS, loops only printed" '[ $rc = 0 ] && grep -q "STEP 7 health checks all PASS" $O/logs/coldstart.log && grep -q "DRYRUN would run: setsid nohup bash scripts/run_tasks.sh" $O/logs/coldstart.log && ! grep -q "FAIL" $O/logs/coldstart_health.txt'
+ok "the whole DRYRUN passes: health all PASS, loops only printed" '[ $rc = 0 ] && grep -q "STEP 7 health checks all PASS" $O/logs/coldstart.log && grep -q "DRYRUN would run: bash scripts/loops.sh start" $O/logs/coldstart.log && ! grep -q "FAIL" $O/logs/coldstart_health.txt'
 ok "token never printed or written" '! grep -rq "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" $O $T/calls && [[ "$out" != *xxxxxxxxxxxxxxxxxxxx* ]]'
 ok "applied_seq = 5, none of the old commands run, no reply written" '[ "$(cat $O/control/applied_seq)" = 5 ] && [ ! -d $O/control/replies ] && ! grep -q "kill\|rerun" $CALLS'
 ok "control.env only proposed: last values, nothing applied" '[ ! -f $O/control.env ] && grep -q "^DR=1$" $O/control/control.env.proposed && ! grep -q "^DR=0$" $O/control/control.env.proposed && grep -q "^GPUS_HOLD_MIN=1440$" $O/control/control.env.proposed'
@@ -98,5 +98,21 @@ python3 $RB/scripts/coldstart_hf.py only $T/m.json E10b-P5route-x $T/m2.json > /
 ok "coldstart_hf.py only: always + used models, labels by a used_by glob, the task's weights" '[ "$(python3 -c "import json; m = json.load(open(\"$T/m2.json\")); print(\" \".join([\",\".join(x[\"name\"] for x in m[\"models\"]), \",\".join(a[\"name\"] for a in m[\"artifacts\"]), \",\".join(w[\"path\"] for w in m[\"weights\"]), \",\".join(m[\"only\"])]))")" = "A,B l1 w1 E10b-P5route-x" ]'
 out=$(VERIFY_GPU=3 bash $RB/scripts/cold_start.sh $A2 2>&1); rc=$?
 ok "[z104b] VERIFY_GPU=3: FA-PROBE on card 3" 'grep -q "fa_probe.sh 3 / fa_build.sh" $O2/logs/coldstart.log'
+# [z106] a node set up by bootstrap.sh (control/bootstrap.json): --step only; step 1 not run again; step 8 starts nothing
+O3=$T/opd3; mkdir -p $O3/logs $O3/control; cp -r $O/venv $O/venv-fa $O3/ 2> /dev/null; printf 'G2 PASS\nVLLM PASS\nSMOKE PASS\n' > $O3/logs/verify.log
+A3="--token-file $tok --opd-root $O3 --ckpt-root $T/ck3 --repos public=me/pub,private=me/ops --node abcd1234 --only PROBE-TAIL --ckpt-min-gb 200"
+out=$(bash $RB/scripts/cold_start.sh $A3 --step 1 2>&1); rc=$?
+ok "[z106] --step 1 (bootstrap.sh's): applied_seq written, nothing else" '[ $rc = 0 ] && [ "$(cat $O3/control/applied_seq)" = 5 ] && ! grep -q "STEP 2" $O3/logs/coldstart.log'
+echo '{"utc": "x"}' > $O3/control/bootstrap.json; echo 7 > $O3/control/applied_seq
+out=$(bash $RB/scripts/cold_start.sh $A3 2>&1); rc=$?
+ok "[z106] bootstrap node without --step: usage, exit 2" '[ $rc = 2 ] && [[ "$out" == *"through the control command setup"* ]]'
+out=$(bash $RB/scripts/cold_start.sh $A3 --step 1 2>&1); rc=$?
+ok "[z106] bootstrap node: step 1 not run again (applied_seq kept)" '[ $rc = 0 ] && [ "$(cat $O3/control/applied_seq)" = 7 ]'
+out=$(bash $RB/scripts/cold_start.sh $A3 --step 8 2>&1); rc=$?
+ok "[z106] bootstrap node: step 8 starts nothing" '[ $rc = 0 ] && grep -q "STEP 8 loops already running" $O3/logs/coldstart.log && ! grep -q "DRYRUN would run: bash scripts/loops.sh start" $O3/logs/coldstart.log'
+out=$(bash $RB/scripts/cold_start.sh $A3 --step 2 2>&1); rc=$?
+ok "[z106] --step 2 runs step 2 only" '[ $rc = 0 ] && grep -q "STEP 2 overnight.sh already passed" $O3/logs/coldstart.log && ! grep -q "STEP 4" $O3/logs/coldstart.log'
+out=$(bash $RB/scripts/cold_start.sh $ARGS --step 9 2>&1); rc=$?
+ok "[z106] --step 9: usage, exit 2" '[ $rc = 2 ]'
 [ -n "${KEEP_T:-}" ] && echo "kept $T" || rm -rf $T
 [ $fails = 0 ] && echo "COLD_START_TEST PASS ($n checks)" || echo "COLD_START_TEST FAIL ($fails of $n)"

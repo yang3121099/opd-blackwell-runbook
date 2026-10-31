@@ -17,7 +17,10 @@
 #    running tasks are separate sessions and keep running.
 # DRY=1 prints what would start, without starting anything.
 set -uo pipefail
-source "$(dirname "$0")/env.sh"; source $OPD_ROOT/venv/bin/activate
+source "$(dirname "$0")/env.sh"
+# [v2.5.9z106] (connect-first) a node set up by bootstrap.sh has $OPD_ROOT/venv-ctl: this loop takes the main venv only once
+# setup has marked it ready (control/venv_ready; tasks inherit this loop's python), the control venv before (dispatch is frozen then)
+if [ -f $OPD_ROOT/venv-ctl/bin/activate ] && [ ! -f $OPD_ROOT/control/venv_ready ]; then source $OPD_ROOT/venv-ctl/bin/activate; else source $OPD_ROOT/venv/bin/activate; fi
 NGPU=$(nvidia-smi --query-gpu=index --format=csv,noheader 2>/dev/null | wc -l)
 Q=$RUNBOOK/tasks/queue.txt; last_pull=0; CDIR=$OPD_ROOT/control; mkdir -p $CDIR
 SELF_SHA=$(cat "$RUNBOOK/scripts/run_tasks.sh" "$RUNBOOK/scripts/env.sh" | sha1sum | cut -c1-12)
@@ -195,6 +198,8 @@ prefetch_pass() {
     [ "${n:-0}" -ge "${PREFETCH_PAR:-3}" ] && return
     [ -n "$(ours_pgrep -f "run_queue_eval\.sh prefetch $t( |\$)")" ] && continue
     [ -f $OPD_ROOT/runs/$t/.done ] && continue; inputs_ok $t && continue
+    paused $t && continue   # [v2.5.9z106] (Fable / ops-lead 11-01 17:19 UTC) a paused reading's model is not fetched: on a new node the
+    # B300's finished readings are paused, not done, and PREFETCH_PAR > 0 would download all their checkpoints
     [ -n "$(find $OPD_ROOT/runs/$t/.prefetch_fail -mmin -10 2>/dev/null)" ] && continue   # v2.5.6h: retry after 10 min
     _wait=0; for d in $(deps_of $t); do [ -f $OPD_ROOT/runs/$d/.done ] || _wait=1; done; [ $_wait = 1 ] && continue   # v2.5.6h: only once its inputs exist
     mkdir -p $OPD_ROOT/runs/$t
@@ -375,25 +380,53 @@ readings_guard() {
   else python $RUNBOOK/scripts/control.py event node readings_guard_off > /dev/null 2>&1 &
   fi
 }
+serve_requests() {   # v2.5: ad-hoc `run` / `eval` requests (control.py) on the GPUs in FREE; [v2.5.9z106] a function, also for the frozen gate
+  while [ ${#FREE[@]} -gt 0 ]; do
+    r=$(python $RUNBOOK/scripts/control.py next_request 2>/dev/null); [ -n "$r" ] || break
+    set -- $r; g=${FREE[0]}; FREE=("${FREE[@]:1}")
+    if [ "$1" = run ]; then
+      ok=1; for d in $(deps_of $2); do done_ $d || ok=0; done
+      if [ "$(gpus_of $2)" != 1 ]; then   # [v2.5.9a] a #gpus task starts from the queue only (its n GPUs, its checkpoint's world size)
+        python $RUNBOOK/scripts/control.py rcpt $3 rejected "$2 takes $(gpus_of $2) GPUs: it starts from the queue"; FREE=($g "${FREE[@]}")
+      elif [ $ok = 1 ] && ! running $2 && ! done_ $2; then
+        echo "START $(date -u +%T) gpu=$g $2 (control seq $3)"; launch $g $2; python $RUNBOOK/scripts/control.py rcpt $3 accepted "started on gpu $g"; nap 90
+      else python $RUNBOOK/scripts/control.py rcpt $3 rejected "deps not done, already running or done"; FREE=($g "${FREE[@]}"); fi
+    else
+      echo "START $(date -u +%T) gpu=$g adhoc_eval_$2 (control seq $2)"
+      setsid nohup bash $RUNBOOK/scripts/run_adhoc_eval.sh $g $2 > $OPD_ROOT/logs/adhoc_eval_$2.log 2>&1 < /dev/null &
+      python $RUNBOOK/scripts/control.py rcpt $2 accepted "started on gpu $g"; nap 30
+    fi
+  done
+}
+# [v2.5.9z106] (connect-first, Fable 11-01; ops-lead's A1 16:11 UTC) control/dispatch_frozen: the round only keeps the control plane -
+# watchdog / uploader / gh_heartbeat, git pull + apply, the heartbeat through loops.sh - and serves explicit `run` / `eval` requests
+# (the canary first) once the main venv is ready; no queue pass, prefetch, fetch, weights replay or self-heal of uploads. `dispatch on`
+# removes the file. v2.6: this gate stays first in the round, before lanes_refresh / events_pass.
+frozen_round() {
+  ensure_watchdog; ensure_uploader; ensure_loop gh_heartbeat
+  if [ "${PULL:-1}" = 1 ] && [ $(( $(date +%s) - last_pull )) -ge ${PULL_EVERY:-60} ]; then last_pull=$(date +%s); pull_and_control; fi
+  [ "${DRY:-0}" = 1 ] && { echo "FROZEN dispatch frozen: control plane only"; return; }
+  bash $RUNBOOK/scripts/loops.sh ensure heartbeat >> $OPD_ROOT/logs/loops.log 2>&1
+  [ -f $OPD_ROOT/venv-ctl/bin/activate ] && [ ! -f $CDIR/venv_ready ] && return   # no main venv yet: requests wait
+  verify_busy && return
+  FREE=( $(free_gpus) ); serve_requests; }   # (spaced: test_ops_guard finds the full pass's own FREE=($(free_gpus)) line)
+# [v2.5.9z106] (the H800 11-01: a new node has hundreds of tasks without a local .done, each one remote-checked by done_ in the
+# pass, so a pass took ~40 min and commands waited for it - applied_seq 0 for 40 min with 8 idle GPUs) the pull and apply also run
+# between two tasks of a pass, once PULL_EVERY (60 s) has passed
+pull_due() { [ "${PULL:-1}" = 1 ] && [ "${DRY:-0}" != 1 ] && [ $(( $(date +%s) - last_pull )) -ge ${PULL_EVERY:-60} ]; }
 deps_of() { local s=$(grep -v '^#' "$Q" | tr ' ' '\n' | grep -E "^$1(:|\$)" | head -1); [ "$s" != "${s#*:}" ] && echo ${s#*:} | tr '+' ' '; }
 while true; do
   date -u +%s > $CDIR/loop_run_tasks   # v2.5.7zb: liveness for the watchdog (local, every round)
   ctrl_reopen   # [v2.5.9z71]
+  if [ -f $CDIR/dispatch_frozen ]; then frozen_round; [ "${DRY:-0}" = 1 ] && break; nap ${POLL_FROZEN:-20}; continue; fi   # [v2.5.9z106]
   ensure_watchdog; ensure_uploader; ensure_loop gh_heartbeat   # [v2.5.9z54] the GitHub fallback heartbeat
   ensure_loop weights_replay   # [v2.5.9z62] the held weights to the public repository, one at a time
   if [ "${PULL:-1}" = 1 ] && [ $(( $(date +%s) - last_pull )) -ge ${PULL_EVERY:-60} ]; then last_pull=$(date +%s); pull_and_control; fi
   # v2.5 self-heal: the heartbeat loop runs the current heartbeat.sh (restarted when it died or the file changed), and every
   # running E10b/E12b task has its upload_sync (restarted with the settings run_arm.sh / run_e12.sh use); one event each
   if [ "${DRY:-0}" != 1 ]; then
-    hb_sha=$(sha1sum $RUNBOOK/scripts/heartbeat.sh | cut -c1-12); hb_pid=$(pgrep -f "scripts/heartbeat.s[h]" | head -1)
-    if [ -n "$hb_pid" ] && [ "$(cat $CDIR/heartbeat.sha 2>/dev/null)" != "$hb_sha" ]; then
-      for p in $(pgrep -f "scripts/heartbeat.s[h]"); do kill $p 2> /dev/null; done; sleep 2; hb_pid=""   # only our heartbeat loop
-      python $RUNBOOK/scripts/control.py event node heartbeat_upgraded "$hb_sha" > /dev/null 2>&1 &
-    fi
-    if [ -z "$hb_pid" ]; then
-      setsid nohup bash $RUNBOOK/scripts/heartbeat.sh >> $OPD_ROOT/logs/heartbeat.log 2>&1 < /dev/null &
-      python $RUNBOOK/scripts/control.py event node heartbeat_restarted > /dev/null 2>&1 &
-    fi
+    # [v2.5.9z106] (C3) through loops.sh: started when missing, restarted when heartbeat.sh changed, adopted, never a second one
+    bash $RUNBOOK/scripts/loops.sh ensure heartbeat >> $OPD_ROOT/logs/loops.log 2>&1
     for p in $(pgrep -f "task.sh [0-9]+(,[0-9]+)* E1(0[bcde]|2[bcde]|6)-[A-Za-z0-9._-]+\$"); do   # [v2.5.9z68] E10e
       t=$(tr '\0' ' ' < /proc/$p/cmdline | grep -oE "E1(0[bcde]|2[bcde]|6)-[A-Za-z0-9._-]+" | tail -1); [ -n "$t" ] || continue
       pgrep -f "upload_syn[c].sh $OPD_ROOT/runs/$t\$" > /dev/null && continue
@@ -449,6 +482,7 @@ while true; do
     opened=0; [ "$status" = open ] && opened=1; [ "$status" = auto ] && [ $earlier_finished = 1 ] && opened=1
     stage_finished=1
     for spec in $(for s in $rest; do echo "$(prio ${s%%:*}) $s"; done | sort -s -n -k1,1 | cut -d' ' -f2); do
+      pull_due && { last_pull=$(date +%s); pull_and_control; }   # [v2.5.9z106] commands within a pass too (see pull_due)
       t=${spec%%:*}; deps=""; [ "$spec" != "$t" ] && deps=$(echo ${spec#*:} | tr '+' ' ')
       if done_ $t || dead $t || skipped $t; then continue; fi
       bad=""; for d in $deps; do dead $d || skipped $d && bad="$bad $d"; done
@@ -493,24 +527,7 @@ while true; do
       "${READ_LOW:-}" "${RHELD# }" $CDIR/readings_held.json 2> /dev/null || true   # [v2.5.9z69]
   fi
   # v2.5: ad-hoc `run` / `eval` requests (control.py) take only the GPUs this pass left free: the queue goes first
-  if [ "${DRY:-0}" != 1 ] && ! verify_busy && [ -z "$ALL_LOW" ]; then   # [v2.5.9z71] below 300 GB the requests wait
-    while [ ${#FREE[@]} -gt 0 ]; do
-      r=$(python $RUNBOOK/scripts/control.py next_request 2>/dev/null); [ -n "$r" ] || break
-      set -- $r; g=${FREE[0]}; FREE=("${FREE[@]:1}")
-      if [ "$1" = run ]; then
-        ok=1; for d in $(deps_of $2); do done_ $d || ok=0; done
-        if [ "$(gpus_of $2)" != 1 ]; then   # [v2.5.9a] a #gpus task starts from the queue only (its n GPUs, its checkpoint's world size)
-          python $RUNBOOK/scripts/control.py rcpt $3 rejected "$2 takes $(gpus_of $2) GPUs: it starts from the queue"; FREE=($g "${FREE[@]}")
-        elif [ $ok = 1 ] && ! running $2 && ! done_ $2; then
-          echo "START $(date -u +%T) gpu=$g $2 (control seq $3)"; launch $g $2; python $RUNBOOK/scripts/control.py rcpt $3 accepted "started on gpu $g"; nap 90
-        else python $RUNBOOK/scripts/control.py rcpt $3 rejected "deps not done, already running or done"; FREE=($g "${FREE[@]}"); fi
-      else
-        echo "START $(date -u +%T) gpu=$g adhoc_eval_$2 (control seq $2)"
-        setsid nohup bash $RUNBOOK/scripts/run_adhoc_eval.sh $g $2 > $OPD_ROOT/logs/adhoc_eval_$2.log 2>&1 < /dev/null &
-        python $RUNBOOK/scripts/control.py rcpt $2 accepted "started on gpu $g"; nap 30
-      fi
-    done
-  fi
+  if [ "${DRY:-0}" != 1 ] && ! verify_busy && [ -z "$ALL_LOW" ]; then serve_requests; fi   # [v2.5.9z71] below 300 GB the requests wait
   [ "${DRY:-0}" = 1 ] && break
   nap ${POLL:-60}
 done

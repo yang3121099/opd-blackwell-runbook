@@ -175,11 +175,12 @@ python scripts/remote.py put $OPD_ROOT/logs/verify.log logs/$(hostname)/verify.l
 # [v2.5.9z100] (cold start, requirements v26 §11) OVERNIGHT_NO_LOOPS=1: stop here; cold_start.sh runs its health checks and starts the loops
 [ "${OVERNIGHT_NO_LOOPS:-0}" = 1 ] && { step 9 "loops left to cold_start.sh (OVERNIGHT_NO_LOOPS=1)"; exit 0; }
 # ---------- 9. heartbeat now, tasks once 1.7B is complete ----------
-if pgrep -f "scripts/heartbeat.s[h]" > /dev/null; then step 9 "heartbeat already running (kept)"; else
-  setsid nohup bash scripts/heartbeat.sh > $OPD_ROOT/logs/heartbeat.log 2>&1 9>&- &
+# [v2.5.9z106] (ops-lead's C3) both loops through loops.sh: one lock, a running one adopted, never a second one
+if [ -n "$(bash scripts/loops.sh status | awk '$2 == "heartbeat" && $3 > 0')" ]; then step 9 "heartbeat already running (kept)"; else
+  bash scripts/loops.sh start heartbeat >> $OPD_ROOT/logs/loops.log 2>&1
   step 9 "heartbeat started (status/ in $HF_REPO within 10 min)"; fi
 for i in $(seq 1 360); do complete_dir $P17 && break; sleep 60; done
 complete_dir $P17 || fail 10 "Qwen3-1.7B still incomplete after 6 h (see logs/aria2_Qwen3-1.7B.log)"
 if pgrep -f "scripts/run_tasks.s[h]" > /dev/null; then step 10 "run_tasks.sh already running; restart it by hand to pick up the new triton.env"; exit 0; fi
-setsid nohup bash scripts/run_tasks.sh > $OPD_ROOT/logs/run_tasks.log 2>&1 9>&- &
+bash scripts/loops.sh start run_tasks >> $OPD_ROOT/logs/loops.log 2>&1
 step 10 "run_tasks started with STUDENT_17B=$P17 (tier $TIER); first task log appears in $OPD_ROOT/logs/ within 5 min"

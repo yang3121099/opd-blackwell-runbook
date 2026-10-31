@@ -1,0 +1,11 @@
+# [v2.5.9z106] the control venv (bootstrap.sh): the control plane only - status, pulse, receipts, apply; no torch. Versions as
+# in requirements.lock (the main venv), so remote.py behaves the same on both.
+huggingface-hub==0.36.2
+hf-xet==1.7.0
+pyyaml==6.0.3
+requests==2.34.2
+filelock==4.1.0
+fsspec==2025.3.0
+packaging==25.0
+tqdm==4.70.1
+typing-extensions==4.16.0

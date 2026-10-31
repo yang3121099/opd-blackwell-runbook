@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # v2.5.1: status/<node id>.json in the private repository (remote.py splits by destination once hf_repos.txt exists),
-# every HEARTBEAT_SEC seconds (set HEARTBEAT_SEC=<60-3600>, default 600), and every 60 s a path-free pulse/<node id>.json
+# every HEARTBEAT_SEC seconds (set HEARTBEAT_SEC=<60-3600>, default 600; [v2.5.9z106] 120), and every 60 s a path-free pulse/<node id>.json
 # in the public repository (control.py pulse: numbers, task names and states only, refused if any string fails the leak check).
 # Every 10 minutes: write status/<hostname>.json (open stage, each task's state and current step, latest validation,
 # truncation rate, GPU utilisation and memory, free disk, UTC timestamp) and upload it to the result repository.
@@ -10,7 +10,10 @@
 # ETA and the last 20 lines of logs/<task>.log; the control plane (node, applied_seq, recent results, control.env,
 # last git pull, control_env_suspect); runbook commit and run_tasks sha. Log text is redacted (control.redact).
 set -uo pipefail
-source "$(dirname "$0")/env.sh"; source "$(dirname "$0")/dr.sh"; source $OPD_ROOT/venv/bin/activate
+source "$(dirname "$0")/env.sh"; source "$(dirname "$0")/dr.sh"
+# [v2.5.9z106] (connect-first) the control venv when there is one (bootstrap.sh: huggingface_hub and pyyaml, no torch): the status,
+# the pulse and the receipts never depend on the training stack; else the main venv, as before
+if [ -f $OPD_ROOT/venv-ctl/bin/activate ]; then source $OPD_ROOT/venv-ctl/bin/activate; else source $OPD_ROOT/venv/bin/activate; fi
 H=$(hostname -s); F=$OPD_ROOT/logs/status_$H.json
 # v2.5.7za (reviewer A1 12:3x UTC): every upload of this loop is bounded. On 2026-10-19 one HF upload hung at 12:16 UTC and
 # froze the loop: no status, pulse, events or receipts, while run_tasks kept working. A timeout (HB_PUT_TIMEOUT, 180 s) is
@@ -27,7 +30,8 @@ hb_to() {
   fi
   return $rc; }
 # software stack, read once: tells the project which install route this node is on
-python -c "import json, torch, vllm; json.dump({'torch': torch.__version__, 'torch_cuda': torch.version.cuda, 'vllm': vllm.__version__, 'arch_list': torch.cuda.get_arch_list(), 'device_capability': list(torch.cuda.get_device_capability())}, open('$OPD_ROOT/logs/stack.json', 'w'))" 2>/dev/null || echo '{}' > $OPD_ROOT/logs/stack.json
+# [v2.5.9z106] read with the main venv's python (the loop may run on the control venv; no main venv yet: nothing read)
+[ -x $OPD_ROOT/venv/bin/python ] && $OPD_ROOT/venv/bin/python -c "import json, torch, vllm; json.dump({'torch': torch.__version__, 'torch_cuda': torch.version.cuda, 'vllm': vllm.__version__, 'arch_list': torch.cuda.get_arch_list(), 'device_capability': list(torch.cuda.get_device_capability())}, open('$OPD_ROOT/logs/stack.json', 'w'))" 2>/dev/null || echo '{}' > $OPD_ROOT/logs/stack.json
 # v2.5: run_tasks.sh restarts this loop when heartbeat.sh changes (it compares this sha with the current file)
 mkdir -p $OPD_ROOT/control; sha1sum $RUNBOOK/scripts/heartbeat.sh | cut -c1-12 > $OPD_ROOT/control/heartbeat.sha; echo $$ > $OPD_ROOT/control/heartbeat.pid
 # [v2.5.9c] our own usage (du) off the loop's path: our_du.sh in the background when control/our_du.json is older than
@@ -290,8 +294,8 @@ PY
     hb_to python $RUNBOOK/scripts/control.py put_q $OPD_ROOT/logs/compare_$H.json status/compare_$N.json && touch $OPD_ROOT/logs/.compare_uploaded && echo "COMPARE_UPLOADED $(date -u +%T)"
   fi
   # v2.5: `heartbeat` (control.py) asks for the next round now: the flag is checked every 10 s
-  # v2.5.1: the round lasts HEARTBEAT_SEC (control/heartbeat_sec, 60-3600, default 600); the pulse goes every 60 s
-  HB=$(cat $OPD_ROOT/control/heartbeat_sec 2>/dev/null | tr -cd 0-9); HB=${HB:-600}; [ $HB -lt 60 ] && HB=60; [ $HB -gt 3600 ] && HB=3600
+  # v2.5.1: the round lasts HEARTBEAT_SEC (control/heartbeat_sec, 60-3600, default 600; [v2.5.9z106] 120); the pulse goes every 60 s
+  HB=$(cat $OPD_ROOT/control/heartbeat_sec 2>/dev/null | tr -cd 0-9); HB=${HB:-120}; [ $HB -lt 60 ] && HB=60; [ $HB -gt 3600 ] && HB=3600
   for _i in $(seq $((HB / 10))); do
     [ -f $OPD_ROOT/control/heartbeat_now ] && { rm -f $OPD_ROOT/control/heartbeat_now; break; }
     sleep 10; hb_alive

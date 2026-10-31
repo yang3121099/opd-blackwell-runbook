@@ -5,7 +5,7 @@ SRC=$(cd "$(dirname "$0")/.." && pwd); fails=0; n=0
 ok() { n=$((n + 1)); if eval "$2"; then :; else echo "  FAIL [$1]"; fails=$((fails + 1)); fi; }
 setup() {
   T=$(mktemp -d); mkdir -p $T/rb/scripts $T/root/control $T/root/logs $T/bin
-  cp $SRC/scripts/watchdog.sh $T/rb/scripts/
+  cp $SRC/scripts/watchdog.sh $SRC/scripts/loops.sh $T/rb/scripts/   # [v2.5.9z106] the two main loops restart through loops.sh
   echo "export OPD_ROOT=$T/root RUNBOOK=$T/rb" > $T/rb/scripts/env.sh
   for L in run_tasks heartbeat; do printf 'echo $$ >> %s/root/%s.starts\nwhile true; do sleep 1; done\n' $T $L > $T/rb/scripts/$L.sh; done
   # setsid is Linux-only: a stub that really starts a new session (python os.setsid) keeps the process-group logic real
@@ -15,8 +15,13 @@ setup() {
   (setsid bash $T/rb/scripts/heartbeat.sh > /dev/null 2>&1 < /dev/null &)
   sleep 2
 }
-rt_pids() { pgrep -f "bash scripts/run_tasks.s[h]"; }
-cleanup() { pkill -f "$T/rb/scripts/watchdog.s[h]" 2>/dev/null; pkill -f "$T/rb/scripts/heartbeat.s[h]" 2>/dev/null; pkill -f "bash scripts/run_tasks.s[h]" 2>/dev/null; sleep 1; rm -rf $T; }
+# [v2.5.9z106] only this test's loops: a relative command line counts when the process runs in $T (it killed a real run_tasks on a
+# node with loops before: `pkill -f "bash scripts/run_tasks.sh"`)
+in_t() { local c TP; TP=$(cd $T 2> /dev/null && pwd -P); c=$(readlink /proc/$1/cwd 2> /dev/null || lsof -a -p $1 -d cwd -Fn 2> /dev/null | sed -n 's/^n//p')
+  [[ "$c" == $T* || ( -n "$TP" && "$c" == $TP* ) || "$(ps -o args= -p $1)" == *$T* ]]; }   # macOS: /var is /private/var
+mine() { local p; for p in $(pgrep -f "$1"); do in_t $p && echo $p; done; }
+rt_pids() { mine "bash scripts/run_tasks.s[h]"; }
+cleanup() { pkill -f "$T/rb/scripts/watchdog.s[h]" 2>/dev/null; kill $(mine "scripts/heartbeat.s[h]") $(mine "scripts/run_tasks.s[h]") 2>/dev/null; sleep 1; rm -rf $T; }
 run_wd() { (WD_STALE_SEC=100 WD_POLL=1 WD_TERM_WAIT=3 bash $T/rb/scripts/watchdog.sh >> $T/root/logs/watchdog.log 2>&1 < /dev/null &); sleep ${1:-6}; pkill -f "$T/rb/scripts/watchdog.s[h]" 2>/dev/null; sleep 1; }
 # 1. a stale run_tasks is restarted once (its old process gone); a fresh heartbeat is left alone
 setup
@@ -52,8 +57,8 @@ EOF
 (setsid bash $T/rb/scripts/heartbeat.sh > /dev/null 2>&1 < /dev/null &); sleep 2
 now=$(date +%s); echo $now > $T/root/control/loop_run_tasks; echo $((now - 1000)) > $T/root/control/loop_heartbeat
 up=$(cat $T/root/upload.pid); tk=$(pgrep -f "$T/x/scripts/task.s[h] 3 EVAL-x" | head -1); hs=$(grep -c . $T/root/heartbeat.starts)
-run_wd 9
-ok "[v2.5.8] stale heartbeat: its TERM-ignoring upload (own process group) KILLed, the loop restarted" '[ -n "$up" ] && ! kill -0 $up 2>/dev/null && [ "$(grep -c . $T/root/heartbeat.starts)" = $((hs + 1)) ] && grep -q "heartbeat KILL" $T/root/logs/watchdog.log'
+run_wd 16   # [v2.5.9z106] the restart goes through loops.sh (lsof per process on macOS): more time
+ok "[v2.5.8] stale heartbeat: its TERM-ignoring upload (own process group) KILLed, the loop restarted" '[ -n "$up" ] && ! kill -0 $up 2>/dev/null && [ "$(grep -c . $T/root/heartbeat.starts)" = $((hs + 1)) ] && { grep -q "heartbeat KILL" $T/root/logs/watchdog.log || grep -q "KILL heartbeat" $T/root/logs/loops.log; }'
 ok "[v2.5.8] a task session started by the loop survives" '[ -n "$tk" ] && kill -0 $tk 2>/dev/null'
 pkill -f "$T/x/scripts/task.s[h]" 2>/dev/null; pkill -9 -f "time.sleep\(300\)" 2>/dev/null   # the new heartbeat's upload ignores TERM
 cleanup
