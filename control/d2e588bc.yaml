@@ -1,0 +1,3 @@
+node: d2e588bc
+commands:
+  - {"seq": 1, "cmd": "snapshot nvidia-smi", "reason": "H800 first control round trip (Fable / ops-lead A1)", "utc": "2026-10-31T17:59:15Z"}
