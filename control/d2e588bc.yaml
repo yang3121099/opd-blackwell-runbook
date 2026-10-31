@@ -9,3 +9,4 @@ commands:
   - {"seq": 7, "cmd": "run EVAL-e12b-P5tail-16k", "reason": "Q-074d reading (Fable 17:2x ①; ops-lead A1 19:49Z item 3); canary PROBE-TAIL PASS 11-01; not in the B300 done set", "utc": "2026-10-31T21:00:39Z"}
   - {"seq": 8, "cmd": "run EVAL-budA-e12bP5tail-16k", "reason": "Q-074d reading (Fable 17:2x ①; ops-lead A1 19:49Z item 3); canary PROBE-TAIL PASS 11-01; not in the B300 done set", "utc": "2026-10-31T21:00:44Z"}
   - {"seq": 9, "cmd": "fa-build", "reason": "build flash-attn from source into venv-fa (FA-PROBE wheel needs GLIBC_2.32; ops-lead pre-A1 17:02Z item 2, 19:49Z item 4)", "utc": "2026-10-31T21:01:08Z"}
+  - {"seq": 10, "cmd": "run PROBE-EOSW", "reason": "Q-087 gate: single-task smoke of E10b-P5-eosw (ops-lead A1 21:06Z)", "utc": "2026-10-31T21:10:46Z"}
