@@ -7,6 +7,7 @@
 # (coldstart_hf.py only: the always-models, the models / labels / weights they use), venv-vl and venv-ifeval not built and their
 # checks SKIP; --no-loops: stop after the health checks (step 8 not run: no heartbeat, no run_tasks, no event; a canary is started
 # by hand); --ckpt-min-gb: the CKPT_ROOT free-space check's floor in GB (default 1000).
+# [v2.5.9z104b] VERIFY_GPU=<k> (environment, default 0): the card for FA-PROBE here and for verify.sh's vLLM check and smoke.
 # Steps (STEP n lines in $OPD_ROOT/logs/coldstart.log; a rerun skips what is done):
 #   0  arguments; the token from its 0600 file into HF_TOKEN (never printed, never written); paths.env (CKPT_ROOT, OPD_NODE), hf_repos.txt
 #   1  control bootstrap BEFORE any loop: control/applied_seq = the largest seq of control/<node>.yaml, so none of the old commands
@@ -27,7 +28,7 @@ while [ $# -gt 0 ]; do case $1 in
   --token-file) TOKF=$2; shift 2;; --opd-root) OPD=$2; shift 2;; --ckpt-root) CK=$2; shift 2;; --repos) REPOS=$2; shift 2;;
   --node) NODE=$2; shift 2;; --gpus) NGPU=$2; shift 2;; --only) ONLY=$2; shift 2;; --no-loops) NOLOOPS=1; shift;;
   --ckpt-min-gb) CKMIN=$2; shift 2;; *) echo "COLDSTART usage: unknown argument $1"; exit 2;; esac; done
-[[ $NGPU =~ ^[0-9]+$ ]] && [[ $CKMIN =~ ^[0-9]+$ ]] && [[ -z $ONLY || $ONLY =~ ^[A-Za-z0-9._-]+(,[A-Za-z0-9._-]+)*$ ]] || { echo "COLDSTART usage: --gpus / --ckpt-min-gb take a number, --only task names (comma separated)"; exit 2; }
+[[ $NGPU =~ ^[0-9]+$ ]] && [[ $CKMIN =~ ^[0-9]+$ ]] && [[ ${VERIFY_GPU:-0} =~ ^[0-9]+$ ]] && [[ -z $ONLY || $ONLY =~ ^[A-Za-z0-9._-]+(,[A-Za-z0-9._-]+)*$ ]] || { echo "COLDSTART usage: --gpus / --ckpt-min-gb / VERIFY_GPU take a number, --only task names (comma separated)"; exit 2; }
 [ -n "$TOKF" ] && [ -n "$OPD" ] && [ -n "$CK" ] && [ -n "$REPOS" ] || { echo "COLDSTART usage: --token-file --opd-root --ckpt-root --repos are required"; exit 2; }
 PUB=$(echo "$REPOS" | tr ',' '\n' | sed -n 's/^public=//p'); PRIV=$(echo "$REPOS" | tr ',' '\n' | sed -n 's/^private=//p')
 [ -n "$PUB" ] && [ -n "$PRIV" ] || { echo "COLDSTART usage: --repos public=<owner/name>,private=<owner/name>"; exit 2; }
@@ -101,10 +102,10 @@ if [ -n "$ONLY" ]; then python3 $RB/scripts/coldstart_hf.py only $M "$ONLY" $OPD
 
 # ---------- 4. models and the other venvs, in parallel ----------
 fa() { [ -x $OPD/venv-fa/bin/python ] && $OPD/venv-fa/bin/python -c "import flash_attn" 2> /dev/null && return 0
-       bash $RB/scripts/fa_probe.sh 0 > $OPD/logs/coldstart_fa.log 2>&1
-       $OPD/venv-fa/bin/python -c "import flash_attn" 2> /dev/null || { bash $RB/scripts/fa_build.sh >> $OPD/logs/coldstart_fa.log 2>&1 && rm -f $OPD/runs/FA-PROBE/.done && bash $RB/scripts/fa_probe.sh 0 >> $OPD/logs/coldstart_fa.log 2>&1; }; }
+       bash $RB/scripts/fa_probe.sh ${VERIFY_GPU:-0} > $OPD/logs/coldstart_fa.log 2>&1
+       $OPD/venv-fa/bin/python -c "import flash_attn" 2> /dev/null || { bash $RB/scripts/fa_build.sh >> $OPD/logs/coldstart_fa.log 2>&1 && rm -f $OPD/runs/FA-PROBE/.done && bash $RB/scripts/fa_probe.sh ${VERIFY_GPU:-0} >> $OPD/logs/coldstart_fa.log 2>&1; }; }
 if [ $DRY = 1 ]; then
-  echo "DRYRUN would run: coldstart_hf.py models, fa_probe.sh / fa_build.sh$([ -z "$ONLY" ] && echo ', build_venv_vl.sh, build_venv_ifeval.sh') (in parallel)" | tee -a $LOG
+  echo "DRYRUN would run: coldstart_hf.py models, fa_probe.sh ${VERIFY_GPU:-0} / fa_build.sh$([ -z "$ONLY" ] && echo ', build_venv_vl.sh, build_venv_ifeval.sh') (in parallel)" | tee -a $LOG
   [ -n "$ONLY" ] && echo "venv-vl, venv-ifeval not built (--only $ONLY)" | tee -a $LOG
   COLDSTART_FAKE=${COLDSTART_FAKE:-} $PY $RB/scripts/coldstart_hf.py models $M $DONE $OPD/models | tee -a $LOG
 else

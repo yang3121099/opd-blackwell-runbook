@@ -56,6 +56,8 @@ out=$(bash $RB/scripts/cold_start.sh --opd-root $O 2>&1); rc=$?
 ok "missing arguments: usage, exit 2" '[ $rc = 2 ] && [[ "$out" == "COLDSTART usage: "* ]]'
 chmod 644 $tok; out=$(bash $RB/scripts/cold_start.sh $ARGS 2>&1); rc=$?; chmod 600 $tok
 ok "a token file not 0600 stops at step 0" '[ $rc = 1 ] && [[ "$out" == *"STEP 0 FAILED: token file mode 644"* ]] && [ ! -f $O/control/applied_seq ]'
+out=$(VERIFY_GPU=x bash $RB/scripts/cold_start.sh $ARGS 2>&1); rc=$?
+ok "[z104b] VERIFY_GPU not a card index: usage, exit 2" '[ $rc = 2 ] && [[ "$out" == *"VERIFY_GPU take a number"* ]]'
 out=$(bash $RB/scripts/cold_start.sh $ARGS 2>&1); rc=$?
 ok "the whole DRYRUN passes: health all PASS, loops only printed" '[ $rc = 0 ] && grep -q "STEP 7 health checks all PASS" $O/logs/coldstart.log && grep -q "DRYRUN would run: setsid nohup bash scripts/run_tasks.sh" $O/logs/coldstart.log && ! grep -q "FAIL" $O/logs/coldstart_health.txt'
 ok "token never printed or written" '! grep -rq "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" $O $T/calls && [[ "$out" != *xxxxxxxxxxxxxxxxxxxx* ]]'
@@ -94,5 +96,7 @@ ok "--only with a bad name: usage, exit 2" '[ $rc = 2 ] && [[ "$out" == "COLDSTA
 printf '{"models": [{"name": "A", "always": true, "tasks": []}, {"name": "B", "tasks": ["E10b-P5route-x"]}], "artifacts": [{"name": "l1", "used_by": "E10b-P5route*, READINGS-EXTRA splits"}, {"name": "l2", "used_by": "DIAG-PROBE-GATE"}], "weights": [{"path": "w1", "tasks": ["E10b-P5route-x"]}, {"path": "w2", "tasks": ["E12b-P5"]}]}' > $T/m.json
 python3 $RB/scripts/coldstart_hf.py only $T/m.json E10b-P5route-x $T/m2.json > /dev/null
 ok "coldstart_hf.py only: always + used models, labels by a used_by glob, the task's weights" '[ "$(python3 -c "import json; m = json.load(open(\"$T/m2.json\")); print(\" \".join([\",\".join(x[\"name\"] for x in m[\"models\"]), \",\".join(a[\"name\"] for a in m[\"artifacts\"]), \",\".join(w[\"path\"] for w in m[\"weights\"]), \",\".join(m[\"only\"])]))")" = "A,B l1 w1 E10b-P5route-x" ]'
+out=$(VERIFY_GPU=3 bash $RB/scripts/cold_start.sh $A2 2>&1); rc=$?
+ok "[z104b] VERIFY_GPU=3: FA-PROBE on card 3" 'grep -q "fa_probe.sh 3 / fa_build.sh" $O2/logs/coldstart.log'
 [ -n "${KEEP_T:-}" ] && echo "kept $T" || rm -rf $T
 [ $fails = 0 ] && echo "COLD_START_TEST PASS ($n checks)" || echo "COLD_START_TEST FAIL ($fails of $n)"
