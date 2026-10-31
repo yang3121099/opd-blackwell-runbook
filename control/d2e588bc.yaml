@@ -11,3 +11,4 @@ commands:
   - {"seq": 9, "cmd": "fa-build", "reason": "build flash-attn from source into venv-fa (FA-PROBE wheel needs GLIBC_2.32; ops-lead pre-A1 17:02Z item 2, 19:49Z item 4)", "utc": "2026-10-31T21:01:08Z"}
   - {"seq": 10, "cmd": "run PROBE-EOSW", "reason": "Q-087 gate: single-task smoke of E10b-P5-eosw (ops-lead A1 21:06Z)", "utc": "2026-10-31T21:10:46Z"}
   - {"seq": 11, "cmd": "run EVAL-ext32k-17p5tail16k", "reason": "Q-074d / Q-075c reading; reference deps marked done from the B300 last status (private 8e32057; ops-lead A1 21:06Z / 21:09Z); runs unpaired on this node, paired afterwards", "utc": "2026-10-31T21:12:39Z"}
+  - {"seq": 12, "cmd": "run EVAL-e12b-P5tail-16k", "reason": "Q-074d / Q-075c reading; reference deps marked done from the B300 last status (private 8e32057; ops-lead A1 21:06Z / 21:09Z); runs unpaired on this node, paired afterwards", "utc": "2026-10-31T21:12:45Z"}
