@@ -18,3 +18,4 @@ commands:
   - {"seq": 16, "cmd": "run EVAL-ext32k-4Bp5tail-s43", "reason": "Q-074d / Q-075c reading; reference deps marked done from the B300 last status (private 8e32057; ops-lead A1 21:06Z / 21:09Z); runs unpaired on this node, paired afterwards", "utc": "2026-10-31T21:13:05Z"}
   - {"seq": 17, "cmd": "tail loops.log 40", "reason": "z106 post-push check: loops adopted, node.env written (ops-lead A1 18:31Z checklist)", "utc": "2026-10-31T21:29:53Z"}
   - {"seq": 18, "cmd": "tail EVAL-e10d-P5tail-s43.log 60", "reason": "diagnose: the Q-075c reading exited without .done and without a failed attempt", "utc": "2026-10-31T21:50:44Z"}
+  - {"seq": 19, "cmd": "run EVAL-e10d-P5tail-s43", "reason": "Q-075c reading again: the first start exited WAIT_INPUTS in the HF 429 backoff (ops-lead A1 21:06Z, re-push 22:19Z)", "utc": "2026-10-31T22:24:40Z"}
