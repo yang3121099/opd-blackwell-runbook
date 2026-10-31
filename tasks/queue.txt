@@ -3587,6 +3587,13 @@ fill18   open   EVAL-ext-4Bp5tail:E10d-P5tail EVAL-gm-4Bp5tail:E10d-P5tail EVAL-
 # no GPU, no network, one put to the private repository); CPU lane, on the #pad line so formal work goes first; rerun after each rebase
 b26c     open   CORPUS-RECORD
 
+# [z107q] (ops-lead 11-01 23:19 UTC, option 1; Fable 16:3x: FIXED_MICRO_BSZ=4 + LOGP_MB=1 for the formal arms) E10b-P5-eosw (Q-087) on
+# two GPUs: PROBE-EOSW peaked at 75.9 GB of 80 at micro 1 on one H800, and micro 4 adds about 4x the update's logits. FSDP over two
+# ranks, micro 4 per GPU, the same global batch; ~4.5 h on one H800 (B300 1.5 h x 3), so about 2.5 h on two. From the student base, no
+# start checkpoint; gated by PROBE-EOSW (PASS 11-01). A `run` request for it is refused (#gpus > 1): it starts from this line.
+b259z107 open   E10b-P5-eosw:PROBE-EOSW
+#gpus E10b-P5-eosw 2
+
 # [fill18] (sched-preempt draft 10-26 10:4x UTC, v130; Fable 18:4x Beijing: no idle GPU to 10-28 24:00 Beijing; ops-lead A1) the transfer
 # row and the general-ability triple for the registered s50 arms that lack them; a pad stage after every formal arm; rows whose s50 is not
 # on the node wait (no fetch below the work disk's lines, no attempt used)
