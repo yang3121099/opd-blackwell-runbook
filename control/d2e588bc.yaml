@@ -40,3 +40,4 @@ commands:
   - {"seq": 38, "cmd": "tail watchdog.log 10", "reason": "z106b post-push check: no more run_tasks stale restarts (ops-lead 03:08Z)", "utc": "2026-11-01T03:59:24Z"}
   - {"seq": 39, "cmd": "tail PROBE-E12C-8K.log 30", "reason": "diagnose: the 0.6B 8K gate at 58 min with its GPU at 0% and a stalled alert", "utc": "2026-11-01T04:29:12Z"}
   - {"seq": 40, "cmd": "tail PROBE-E12E-8K.log 20", "reason": "diagnose: the 8B gate at 20 min with its four GPUs at 0%", "utc": "2026-11-01T04:29:17Z"}
+  - {"seq": 41, "cmd": "snapshot runs/PROBE-E12C-8K/smoke.out", "reason": "diagnose: the 0.6B 8K gate in fetch_model.py for ~1 h at 0.2% CPU (read only)", "utc": "2026-11-01T04:34:38Z"}
