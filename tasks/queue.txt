@@ -3225,6 +3225,11 @@ fill18   open   EVAL-ext-4Bp5tail:E10d-P5tail EVAL-gm-4Bp5tail:E10d-P5tail EVAL-
 #pair EVAL-e12c-P5tail-8k e12c_P5tail-8k_s50_math500_T0.6 EVAL-e12c-P5-8k/e12c_P5-8k_s50_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e10c-P5tail-c50/e10c_P5tailc50_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 #eval EVAL-e12c-P5tail-8k e12c_P5tail-8k_s50_math500_T1.0 result:runs/E12c-P5tail-8k/global_step_50/actor/huggingface math500 4 1.0
 #pair EVAL-e12c-P5tail-8k e12c_P5tail-8k_s50_math500_T1.0 EVAL-e12c-P5-8k/e12c_P5-8k_s50_math500_T1.0_math500_no_think_t1.0.jsonl EVAL-e10c-P5tail-c50/e10c_P5tailc50_s50_math500_T1.0_math500_no_think_t1.0.jsonl
+# [z120] (Fable 08:3x UTC, research_program 3q: the protection line; Q-074f; its start E10c-P5tail-c50 s50 = its global_step_30, pulled to the node today) AIME25 16K avg@16 of s50 and of
+# its start in this task, paired; pre-registered line >= -2 against the start (point estimate and CI; 30 problems), not at 32K
+#eval EVAL-e12c-P5tail-8k e12c_P5tail-8k_s50_aime25_T0.6 result:runs/E12c-P5tail-8k/global_step_50/actor/huggingface aime25 16 0.6
+#eval EVAL-e12c-P5tail-8k e10c_P5tailc50_s50_aime25_T0.6 result:runs/E10c-P5tail-c50/global_step_30/actor/huggingface aime25 16 0.6
+#pair EVAL-e12c-P5tail-8k e12c_P5tail-8k_s50_aime25_T0.6 EVAL-e12c-P5tail-8k/e10c_P5tailc50_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
 #eval EVAL-budA-e12cP5tail-8k budAe12cP5tail-8k_s50_math500_T0.6_32k result:runs/E12c-P5tail-8k/global_step_50/actor/huggingface math500 4 0.6 32768
 #budget EVAL-budA-e12cP5tail-8k budget_curve EVAL-budA06/budA_base06_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12cP5tail-8k_s50_math500_T0.6_32k
 #budget EVAL-budA-e12cP5tail-8k budget_curve_vsStart EVAL-e10c-P5tail-c50/budA06tailc50_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12cP5tail-8k_s50_math500_T0.6_32k
@@ -3247,6 +3252,11 @@ fill18   open   EVAL-ext-4Bp5tail:E10d-P5tail EVAL-gm-4Bp5tail:E10d-P5tail EVAL-
 #pair EVAL-e12e-P5tail-8k e12e_P5tail-8k_s50_math500_T0.6 EVAL-e12e-P5self-8k/e12e_P5self-8k_s50_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e10e-P5tail/e10e_P5tail_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 #eval EVAL-e12e-P5tail-8k e12e_P5tail-8k_s50_math500_T1.0 result:runs/E12e-P5tail-8k/global_step_50/actor/huggingface math500 4 1.0
 #pair EVAL-e12e-P5tail-8k e12e_P5tail-8k_s50_math500_T1.0 EVAL-e12e-P5self-8k/e12e_P5self-8k_s50_math500_T1.0_math500_no_think_t1.0.jsonl EVAL-e10e-P5tail/e10e_P5tail_s50_math500_T1.0_math500_no_think_t1.0.jsonl
+# [z120] (Fable 08:3x UTC, research_program 3q: the protection line; Q-074e; its start E10e-P5tail s50, pulled to the node today) AIME25 16K avg@16 of s50 and of
+# its start in this task, paired; pre-registered line >= -2 against the start (point estimate and CI; 30 problems), not at 32K
+#eval EVAL-e12e-P5tail-8k e12e_P5tail-8k_s50_aime25_T0.6 result:runs/E12e-P5tail-8k/global_step_50/actor/huggingface aime25 16 0.6
+#eval EVAL-e12e-P5tail-8k e10e_P5tail_s50_aime25_T0.6 result:runs/E10e-P5tail/global_step_50/actor/huggingface aime25 16 0.6
+#pair EVAL-e12e-P5tail-8k e12e_P5tail-8k_s50_aime25_T0.6 EVAL-e12e-P5tail-8k/e10e_P5tail_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
 #eval EVAL-budA-e12eP5tail-8k budAe12eP5tail-8k_s50_math500_T0.6_32k result:runs/E12e-P5tail-8k/global_step_50/actor/huggingface math500 4 0.6 32768
 #budget EVAL-budA-e12eP5tail-8k budget_curve EVAL-8B-base/budA8B_base_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12eP5tail-8k_s50_math500_T0.6_32k
 #budget EVAL-budA-e12eP5tail-8k budget_curve_vsStart EVAL-budA-e10eP5tail/budAe10eP5tail_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12eP5tail-8k_s50_math500_T0.6_32k
@@ -3272,6 +3282,11 @@ fill18   open   EVAL-ext-4Bp5tail:E10d-P5tail EVAL-gm-4Bp5tail:E10d-P5tail EVAL-
 #pair EVAL-e12d-P5tail-16k e12d_P5tail-16k_s50_math500_T0.6 EVAL-e12d-P5-16k/e12d_P5-16k_s50_math500_T0.6_math500_no_think_t0.6.jsonl EVAL-e10d-P5tail/e10d_P5tail_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 #eval EVAL-e12d-P5tail-16k e12d_P5tail-16k_s50_math500_T1.0 result:runs/E12d-P5tail-16k/global_step_50/actor/huggingface math500 4 1.0
 #pair EVAL-e12d-P5tail-16k e12d_P5tail-16k_s50_math500_T1.0 EVAL-e10d-P5tail/e10d_P5tail_s50_math500_T1.0_math500_no_think_t1.0.jsonl
+# [z120] (Fable 08:3x UTC, research_program 3q: the protection line; Q-074h; its start E10d-P5tail s50, pulled to the node today) AIME25 16K avg@16 of s50 and of
+# its start in this task, paired; pre-registered line >= -2 against the start (point estimate and CI; 30 problems), not at 32K
+#eval EVAL-e12d-P5tail-16k e12d_P5tail-16k_s50_aime25_T0.6 result:runs/E12d-P5tail-16k/global_step_50/actor/huggingface aime25 16 0.6
+#eval EVAL-e12d-P5tail-16k e10d_P5tail_s50_aime25_T0.6 result:runs/E10d-P5tail/global_step_50/actor/huggingface aime25 16 0.6
+#pair EVAL-e12d-P5tail-16k e12d_P5tail-16k_s50_aime25_T0.6 EVAL-e12d-P5tail-16k/e10d_P5tail_s50_aime25_T0.6_aime25_no_think_t0.6.jsonl
 #eval EVAL-budA-e12dP5tail-16k budAe12dP5tail-16k_s50_math500_T0.6_32k result:runs/E12d-P5tail-16k/global_step_50/actor/huggingface math500 4 0.6 32768
 #budget EVAL-budA-e12dP5tail-16k budget_curve EVAL-budA-4B/budA4B_base4B_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12dP5tail-16k_s50_math500_T0.6_32k
 #budget EVAL-budA-e12dP5tail-16k budget_curve_vsStart EVAL-budA-e10dP5tail/budA4B_E10dP5tail_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAe12dP5tail-16k_s50_math500_T0.6_32k
