@@ -3631,6 +3631,10 @@ b259z109 open   EVAL-eosw:E10b-P5-eosw PROBE-TERM4-EOSW:EVAL-eosw
 #pair EVAL-eosw e10b_P5eosw_s50_math500_T0.6 archive:runs/e10/e10_P5_1.7B_s50_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl
 #pair EVAL-eosw e10b_P5eosw_s50_math500_T1.0 E11b-P5/e11b_P5_math500_T1.0_math500_no_think_t1.0.jsonl
 #term PROBE-TERM4-EOSW 17_P5eosw result:runs/E10b-P5-eosw/global_step_50/actor/huggingface EVAL-eosw/e10b_P5eosw_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+# [z119] (Fable 08:3x / 08:5x UTC, research_program 3q: P5 s50 had no TERM4 reading - the cited 0.300 is P5 s150's p_stop_last_max16,
+# queue:584) the lab's P5 1.7B s50 and its archived MATH500 T0.6 16K generations (the 'P5 s50' every #pair row reads), measured in
+# the same run as eosw s50 (zero training; the weights 4.1 GB come through term_probe's own fetch_ckpt, 16 connections since z112)
+#term PROBE-TERM4-EOSW 17_P5s50 yang31210999/opd-lab-ckpts/runs/E10-P5-1.7B-lr3e-6-s50/global_step_50/actor/huggingface archive:runs/e10/e10_P5_1.7B_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 # [z109] (scheduler h800-v10; GPU count by projected hours: > 12 h on one GPU -> 2) Q-074f E12c-P5tail-8k ~13.3 h on one H800 (667 B300 min x 1.2)
 # -> 2 GPUs (~7.4 h); Q-074g E12b-P5tail-8k-s44 ~11.7 h -> 2 GPUs (~6.5 h; the tail of the plan ends ~5 h earlier)
 #gpus E12c-P5tail-8k 2
