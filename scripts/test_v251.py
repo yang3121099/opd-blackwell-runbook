@@ -1978,7 +1978,7 @@ def test_beyond_arms_registered_v259z118(env):   # [v2.5.9z118] (research_progra
     rt = open(os.path.join(here, "run_tasks.sh")).read()
     assert "        E10b-P5fret|E10b-P5topd|E10b-P5fret-topd) env UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-50} setsid" in rt   # s50 uploaded
     q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
-    assert re.search(r"^b259z118 +held +PROBE-FRET E10b-P5fret:PROBE-FRET E10b-P5topd:PROBE-FRET E10b-P5fret-topd:PROBE-FRET "
+    assert re.search(r"^b259z118 +(?:held|open) +PROBE-FRET E10b-P5fret:PROBE-FRET E10b-P5topd:PROBE-FRET E10b-P5fret-topd:PROBE-FRET "
                      r"EVAL-e10b-P5fret:E10b-P5fret EVAL-e10b-P5topd:E10b-P5topd EVAL-e10b-P5fret-topd:E10b-P5fret-topd "
                      r"PROBE-TERM4-FRET:EVAL-e10b-P5fret\+EVAL-e10b-P5topd\+EVAL-e10b-P5fret-topd$", q, re.M)
     for arm in ("P5fret", "P5topd", "P5fret-topd"):

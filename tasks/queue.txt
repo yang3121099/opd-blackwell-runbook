@@ -3907,8 +3907,8 @@ b259z110 open   EVAL-ext32k-17tail-h800:E10b-P5tail
 # step time <= 1.2 x P5, finite gradients, topd's reward range). Readings at s50: MATH-500 16K T0.6 n4 paired with P5 s50 (the lab's
 # archived s50, as every P5 s50 pair); TERM4 (p_stop_last, the primary) in PROBE-TERM4-FRET; the wall step, mean length, truncation,
 # the three event columns and grad_norm's step-to-step CV come from the uploaded metrics / outcomes (zero GPU). [held: opened by a
-# one-word diff when the scheduler's slot comes]
-b259z118 held   PROBE-FRET E10b-P5fret:PROBE-FRET E10b-P5topd:PROBE-FRET E10b-P5fret-topd:PROBE-FRET EVAL-e10b-P5fret:E10b-P5fret EVAL-e10b-P5topd:E10b-P5topd EVAL-e10b-P5fret-topd:E10b-P5fret-topd PROBE-TERM4-FRET:EVAL-e10b-P5fret+EVAL-e10b-P5topd+EVAL-e10b-P5fret-topd
+# one-word diff when the scheduler's slot comes] [opened: Runming 11-01 15:5x UTC via Fable rule 3 - A1'd arms open before their gate; ops-lead pre-A1]
+b259z118 open   PROBE-FRET E10b-P5fret:PROBE-FRET E10b-P5topd:PROBE-FRET E10b-P5fret-topd:PROBE-FRET EVAL-e10b-P5fret:E10b-P5fret EVAL-e10b-P5topd:E10b-P5topd EVAL-e10b-P5fret-topd:E10b-P5fret-topd PROBE-TERM4-FRET:EVAL-e10b-P5fret+EVAL-e10b-P5topd+EVAL-e10b-P5fret-topd
 #eval EVAL-e10b-P5fret e10b_P5fret_s50_math500_T0.6 result:runs/E10b-P5fret/global_step_50/actor/huggingface math500 4 0.6
 #pair EVAL-e10b-P5fret e10b_P5fret_s50_math500_T0.6 archive:runs/e10/e10_P5_1.7B_s50_math500_T0.6_math500_no_think_t0.6.jsonl
 #eval EVAL-e10b-P5topd e10b_P5topd_s50_math500_T0.6 result:runs/E10b-P5topd/global_step_50/actor/huggingface math500 4 0.6
