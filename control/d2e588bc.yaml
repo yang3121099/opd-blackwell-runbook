@@ -60,3 +60,4 @@ commands:
   - {"seq": 58, "cmd": "du ckpt adhoc_models/result/runs/E10e-P5tail/global_step_50/actor/huggingface", "reason": "progress of Q-074e's start pull (read only; Fable 07:2xZ ②)", "utc": "2026-11-01T07:19:21Z"}
   - {"seq": 59, "cmd": "run EVAL-ext32k-17tail-h800", "reason": "Q-074d H1 same-machine reference; its model E10b-P5tail s50 is local (#fetch done 07:41:30Z) (ops-lead 05:33Z, Fable 07:5xZ)", "utc": "2026-11-01T08:00:40Z"}
   - {"seq": 60, "cmd": "setenv PUBLIC_UPLOADS=1", "reason": "disaster tolerance (Runming via Fable 08:2x): runs/ to -pub again (the B300 split), per-question generations scrubbed by _put_public; Fable A1 08:4xZ", "utc": "2026-11-01T08:25:47Z"}
+  - {"seq": 61, "cmd": "resume E12e-P5tail-8k", "reason": "Q-074e, #gpus 4: PROBE-E12E-8K PASS on the H800, its start E10e-P5tail s50 local (.fetch_ok 07:28:50Z); Fable pre-A1 07:5xZ", "utc": "2026-11-01T08:30:31Z"}
