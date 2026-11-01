@@ -3612,6 +3612,14 @@ b259z107 open   E10b-P5-eosw:PROBE-EOSW
 b259z108 open   PROBE-MODE E10b-P5mode:PROBE-MODE
 #gpus PROBE-MODE 2
 #gpus E10b-P5mode 2
+# [z108b] (Q-083 D4, Fable 05:2x UTC) its readings: s50, MATH-500 16K T0.6 n4 with each mode token (math500L / math500S: the same 500
+# problems and grader, the token first in the user message); H2 = [long] vs P5 s50, [short] vs P2; H = the two readings' difference
+# (paired here); references missing on this node are paired by S4; no 32K
+b259z108b open   EVAL-e10b-P5mode:E10b-P5mode
+#eval EVAL-e10b-P5mode e10b_P5mode_s50_math500L_T0.6 result:runs/E10b-P5mode/global_step_50/actor/huggingface math500L 4 0.6
+#eval EVAL-e10b-P5mode e10b_P5mode_s50_math500S_T0.6 result:runs/E10b-P5mode/global_step_50/actor/huggingface math500S 4 0.6
+#pair EVAL-e10b-P5mode e10b_P5mode_s50_math500L_T0.6 EVAL-e10b-P5mode/e10b_P5mode_s50_math500S_T0.6_math500S_no_think_t0.6.jsonl archive:runs/e10/e10_P5_1.7B_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#pair EVAL-e10b-P5mode e10b_P5mode_s50_math500S_T0.6 E11b-P2/e11b_P2_math500_T0.6_math500_no_think_t0.6.jsonl
 
 # [z109] (Q-087 E10b-P5-eosw's readings, research_program §3o / scheduler h800-v10 11-01 04:5x UTC; ops-lead A1) H2 / H3: MATH-500 16K
 # at T0.6 / T1.0 against P5 s50 (lab archive) and P5 s150 / P2 (E11b; on this node only when present: pairs missing here are made

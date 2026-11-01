@@ -1866,6 +1866,24 @@ def test_task_fetches_are_parallel_v259z112():   # [v2.5.9z112] (Fable 11-01: th
     assert "FETCH_PARALLEL=${FETCH_PARALLEL_BG:-1}" in rt and 'cap="FETCH_CONNS_CAP=${RESULT_FETCH_CONNS:-32}"' in rt   # the background pulls: their own
 
 
+def test_mode_benches_v259z108b():   # [v2.5.9z108b] (Q-083 D4) math500L / math500S, rules 2.5.109
+    here = os.path.dirname(os.path.abspath(__file__))
+    sys.path.insert(0, os.path.join(os.path.dirname(here), "code", "eval"))
+    import gen_eval as G
+    assert G.MODE_PREFIX == {"math500L": "[long] ", "math500S": "[short] "}
+    assert G.BENCH_SOURCES["math500L"] == G.BENCH_SOURCES["math500S"] == G.BENCH_SOURCES["math500"]      # the same 500 problems
+    src = open(os.path.join(os.path.dirname(here), "code", "eval", "gen_eval.py")).read()
+    assert '"content": MODE_PREFIX.get(args.bench, "") + r["problem"] + suffix' in src                     # the token first, as in training
+    sys.path.insert(0, os.path.join(os.path.dirname(here), "code", "patches")); import opd_route
+    assert G.MODE_PREFIX["math500L"] + "x" == opd_route.prefixed("x", True) and G.MODE_PREFIX["math500S"] + "x" == opd_route.prefixed("x", False)
+    for b in ("math500L", "math500S"):
+        R.check_eval_args(["result:runs/E10b-P5mode/global_step_50/actor/huggingface", b, "4", "0.6"])
+    assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 109)
+    q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
+    assert re.search(r"^b259z108b +open +EVAL-e10b-P5mode:E10b-P5mode$", q, re.M)
+    assert sorted(l.split()[4] for l in q.splitlines() if l.startswith("#eval EVAL-e10b-P5mode ")) == ["math500L", "math500S"]
+
+
 def test_run_and_rerun_accept_v259z109(env):   # [v2.5.9z109] (Q-087) EVAL-eosw and PROBE-TERM4-EOSW, rules 2.5.107
     for i, t in enumerate(("EVAL-eosw", "PROBE-TERM4-EOSW")):
         st, msg, _ = env.c.v_run([t], 380 + i)

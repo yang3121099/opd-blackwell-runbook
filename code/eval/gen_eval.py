@@ -34,6 +34,11 @@ BENCH_SOURCES = {
                        "91184b52131e7fc9455fef848035173aea8cc01a")],
     "minervamath": [("math-ai/minervamath", "test", "question", "answer", None, "ee46ddc498933b1977577953250ca5c66be64f96")],
 }
+# [v2.5.9z108b] (Q-083 E10b-P5mode, Fable 11-01 D4) math500L / math500S = MATH-500 with the arm's visible mode token in front of the
+# problem (the same 500 problems, source and grader; the token first in the user message, as opd_route.prefixed wrote it in training)
+MODE_PREFIX = {"math500L": "[long] ", "math500S": "[short] "}
+for _b in MODE_PREFIX:
+    BENCH_SOURCES[_b] = BENCH_SOURCES["math500"]
 
 
 # [v2.5.9z15] (the reviewer 10-22, Runming: "too few metrics?") multiple-choice benches, read from the node's #fetch copies under
@@ -363,7 +368,7 @@ def main():
     prompts = []
     for r in rows:
         suffix = MC_SUFFIX if args.bench in MC_SOURCES else "" if args.bench == "ifeval" else PROMPT_SUFFIX   # [v2.5.9z16] ifeval: as it is
-        msgs = [{"role": "user", "content": r["problem"] + suffix}]
+        msgs = [{"role": "user", "content": MODE_PREFIX.get(args.bench, "") + r["problem"] + suffix}]   # [v2.5.9z108b] the mode token
         kw = {"enable_thinking": args.mode == "think"}
         try:
             prompts.append(tok.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True, **kw))
