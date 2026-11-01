@@ -259,6 +259,105 @@ def _gate():
         raise Backoff()
 
 
+# [v2.5.9z124] (ops-lead 11-02 16:14 UTC, Fable 16:2x UTC: from 15:56 UTC the HF account answered 429 after 25 publish-type commits in
+# five minutes, and the node went blind - no status, pulse or receipts - for over half an hour) the control plane before bulk uploads:
+#  - a bulk upload (BULK_MIN_MB, 50 MB, or more in one call: results, weights, publish-redacted) takes control/bulk_upload.lock, one at
+#    a time on this node (waiting at most BULK_LOCK_WAIT_S, 3600 s, then TimeoutError: the caller's retry / results queue takes it),
+#    and before it waits while the control plane is blind (control/control_blind_since), at most BULK_YIELD_MAX_S (1800 s);
+#  - during a 429 backoff the node status (status/<node>.json, only it) is still tried once every STATUS_TRY_S (300 s): a backoff the
+#    account has lifted ends at that try (note_ok) instead of keeping the node blind for another round;
+#  - control/control_blind_since is written when a status put fails or is skipped, removed when one succeeds (control.py blind_check
+#    raises the alert control_blind after BLIND_ALERT_S).
+STATUS_RE = re.compile(r"status/[^/]+\.json$")
+BULK_MIN_MB = 50
+
+
+def _commit(api, nbytes, **kw):
+    """[v2.5.9z124] (Fable's 8th item) create_commit with at most BULK_THREADS (1) upload threads for a bulk commit: hf_hub cannot
+    split one file over several connections, so a bulk upload takes one lane; smaller commits keep the hub's default. num_threads
+    is passed only where the installed huggingface_hub has it."""
+    import inspect
+    if nbytes >= float(os.environ.get("BULK_MIN_MB", BULK_MIN_MB)) * 1e6 and "num_threads" in inspect.signature(api.create_commit).parameters:
+        kw["num_threads"] = int(os.environ.get("BULK_THREADS", "1"))
+    return api.create_commit(**kw)
+
+
+def _cdir():
+    return os.path.join(os.environ.get("OPD_ROOT", ""), "control")
+
+
+def _blind(on):
+    p = os.path.join(_cdir(), "control_blind_since")
+    try:
+        if on and not os.path.exists(p):
+            os.makedirs(_cdir(), exist_ok=True)
+            with open(p, "w") as f:
+                f.write(time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()) + "\n")
+        elif not on and os.path.exists(p):
+            os.remove(p)
+    except OSError:
+        pass
+
+
+def _status_try_due():
+    """In a backoff: True at most once per STATUS_TRY_S (the stamp control/status_try.t is written when it says True)."""
+    p = os.path.join(_cdir(), "status_try.t")
+    try:
+        last = os.path.getmtime(p)
+    except OSError:
+        last = 0.0
+    if time.time() - last < float(os.environ.get("STATUS_TRY_S", "300")):
+        return False
+    try:
+        os.makedirs(_cdir(), exist_ok=True)
+        with open(p, "w") as f:
+            f.write(str(int(time.time())))
+    except OSError:
+        return False
+    return True
+
+
+def _nbytes(src):
+    if os.path.isdir(src):
+        return sum(os.path.getsize(os.path.join(r, f)) for r, _, fs in os.walk(src) for f in fs if os.path.isfile(os.path.join(r, f)))
+    return os.path.getsize(src) if os.path.isfile(src) else 0
+
+
+class _BulkLock:
+    """Context manager: the node's one-at-a-time lock for an upload of BULK_MIN_MB or more (a no-op below)."""
+
+    def __init__(self, nbytes):
+        self.on = nbytes >= float(os.environ.get("BULK_MIN_MB", BULK_MIN_MB)) * 1e6
+        self.f = None
+
+    def __enter__(self):
+        if not self.on:
+            return self
+        import fcntl
+        poll = float(os.environ.get("BULK_POLL_S", "30"))
+        t_end = time.time() + float(os.environ.get("BULK_YIELD_MAX_S", "1800"))
+        while os.path.exists(os.path.join(_cdir(), "control_blind_since")) and time.time() < t_end:   # the control plane first
+            time.sleep(poll)
+        os.makedirs(_cdir(), exist_ok=True)
+        self.f = open(os.path.join(_cdir(), "bulk_upload.lock"), "w")
+        t_end = time.time() + float(os.environ.get("BULK_LOCK_WAIT_S", "3600"))
+        while True:
+            try:
+                fcntl.flock(self.f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                return self
+            except BlockingIOError:
+                if time.time() >= t_end:
+                    self.f.close(); self.f = None
+                    raise TimeoutError("bulk upload lock busy")
+                time.sleep(max(poll / 6, 0.05))
+
+    def __exit__(self, *exc):
+        if self.f:
+            import fcntl
+            fcntl.flock(self.f, fcntl.LOCK_UN); self.f.close(); self.f = None
+        return False
+
+
 WEIGHT_MB = 100   # [v2.5.9z50] ops-lead's A1 condition: weights stay out of the private repository while public uploads are paused
 
 
@@ -311,15 +410,25 @@ def put(src, dst, kind=None):
     if kind != "public" and public_paused() and rename(dst).lstrip("/").startswith(PUBLIC_PREFIXES) and is_weight(src, dst):   # [v2.5.9z50]
         record_transfer({"dir": "up", "dst": rename(dst), "deferred": "weights_pending", "bytes": defer_weight(src, rename(dst)), "ok": True})
         return
-    _gate()   # [v2.5.9z52] (a held weight above needs no request)
+    status = bool(STATUS_RE.match(dst.lstrip("/")))   # [v2.5.9z124] the node status: one try per STATUS_TRY_S in a backoff
+    try:
+        if not (status and backoff_left() > 0 and _status_try_due()):
+            _gate()   # [v2.5.9z52] (a held weight above needs no request)
+    except Backoff:
+        if status:
+            _blind(True)
+        raise
     t0, ok = time.time(), False
     try:
-        _put(src, dst, kind) if kind else _put(src, dst); ok = True
+        with _BulkLock(_nbytes(src)):   # [v2.5.9z124] one bulk upload at a time, after the control plane
+            _put(src, dst, kind) if kind else _put(src, dst); ok = True
     except Exception as e:
         if is_429(e):
             note_429()
         raise
     finally:
+        if status:
+            _blind(not ok)
         files = [os.path.join(r, f) for r, _, fs in os.walk(src) for f in fs] if os.path.isdir(src) else [src]
         record_transfer({"dir": "up", "dst": rename(dst), "files": len(files),
                          "bytes": sum(os.path.getsize(f) for f in files if os.path.isfile(f)), "seconds": round(time.time() - t0, 1), "ok": ok})
@@ -553,9 +662,22 @@ def put_public_unchanged(pairs, message):
     """v2.5.6n (scrubdiff fix): [(local file, path in the public repository)] uploaded byte for byte in one commit; the
     caller has checked every file (no forbidden token, no path of this machine)."""
     from huggingface_hub import CommitOperationAdd
+    _gate()   # [v2.5.9z124] was: no backoff check (publish-redacted kept committing through a 429)
     api, repo = hf("public")
-    api.create_commit(repo_id=repo, repo_type="model", commit_message=message,
-                      operations=[CommitOperationAdd(path_in_repo=d, path_or_fileobj=l) for l, d in pairs])
+    t0, ok, nb = time.time(), False, sum(os.path.getsize(l) for l, _ in pairs if os.path.isfile(l))
+    try:
+        with _BulkLock(nb):
+            _commit(api, nb, repo_id=repo, repo_type="model", commit_message=message,
+                    operations=[CommitOperationAdd(path_in_repo=d, path_or_fileobj=l) for l, d in pairs])
+            ok = True
+    except Exception as e:
+        if is_429(e):
+            note_429()
+        raise
+    finally:
+        record_transfer({"dir": "up", "dst": f"batch of {len(pairs)}: {pairs[0][1] if pairs else '-'}", "files": len(pairs), "bytes": nb,
+                         "seconds": round(time.time() - t0, 1), "ok": ok})
+    note_ok()
 
 
 def _public_files(src, dst):
@@ -589,7 +711,7 @@ def _put_public(api, repo, src, dst):
         else:
             ops.append(CommitOperationAdd(path_in_repo=pin, path_or_fileobj=local))
     if ops:
-        api.create_commit(repo_id=repo, repo_type="model", operations=ops, commit_message=dst)
+        _commit(api, _nbytes(src), repo_id=repo, repo_type="model", operations=ops, commit_message=dst)   # [v2.5.9z124] one lane when bulk
 
 
 def _put(src, dst, force=None):

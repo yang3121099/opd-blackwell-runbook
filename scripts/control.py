@@ -2519,6 +2519,8 @@ def alerts(status_path):
     rsv = reserve_low()   # [v2.5.9z12] fewer tasks ready than free GPUs + 2, for 10 minutes
     if rsv:
         now.add("reserve_low")
+    if os.path.exists(_p("control_blind_since")) and time.time() - os.path.getmtime(_p("control_blind_since")) > float(_cfg("BLIND_ALERT_S", "900")):
+        now.add("control_blind")   # [v2.5.9z124] the node status has not gone up for 15 min (also on the GitHub heartbeat: GH_URGENT)
     roots = {f"root{i}": {"free_gb": r.get("free_gb"), "current": r.get("current")} for i, r in enumerate(st.get("ckpt_roots") or [])}
     state(alerts=sorted(now))   # v2.5.8: saved first, so a failing event can never re-fire every round
     for a in sorted(now - prev):
@@ -3083,6 +3085,25 @@ def reserve_note(ready, free, tasks, held, now=None):
     return r
 
 
+def blind_check():
+    """[v2.5.9z124] watchdog.sh every round: control/control_blind_since (remote.py: the node status did not go up) older than
+    BLIND_ALERT_S (900 s) -> one event control_blind per episode (marker control/control_blind.alerted); the file gone again ->
+    event control_blind_recovered, marker removed. Returns ok / blind / alerted / recovered."""
+    p, m = _p("control_blind_since"), _p("control_blind.alerted")
+    if os.path.exists(p):
+        age = time.time() - os.path.getmtime(p)
+        if age > float(_cfg("BLIND_ALERT_S", "900")) and not os.path.exists(m):
+            open(m, "w").write(utc() + "\n")
+            event("node", "control_blind", f"the node status has not gone up for {int(age // 60)} min; new bulk uploads wait")
+            return "alerted"
+        return "blind"
+    if os.path.exists(m):
+        os.remove(m)
+        event("node", "control_blind_recovered", "the node status goes up again")
+        return "recovered"
+    return "ok"
+
+
 def reserve_low(now=None):
     """The reserve alert: reserve.json fresh (< 15 min) and low for RESERVE_ALERT_MIN (10) minutes or more."""
     now = time.time() if now is None else now
@@ -3564,7 +3585,7 @@ def suspects():
 # leaks nothing.
 GH_URGENT = {"failed", "gate_failed", "disk_alert", "ckpt_disk_alert", "ckpt_root_alert", "disk_write_fail", "disk_fallback_on",
              "ctrl_switch_refused", "tasks_guard_critical",   # [v2.5.9z71]
-             "reserve_low", "stalled", "upload_sync_missing", "watchdog_gave_up", "watchdog_stuck"}
+             "reserve_low", "stalled", "upload_sync_missing", "watchdog_gave_up", "watchdog_stuck", "control_blind"}   # [v2.5.9z124] control_blind
 GH_URL = "https://github.com/yang3121099/opd-b300-heartbeat.git"   # (Fable 14:4x UTC) HTTPS through the node's proxy, as the runbook's pulls
 GH_CRED = "~/.config/opd/gh_hb_credentials"   # written by Runming (a token for this repository only); git reads it, this code never does
 
@@ -3783,6 +3804,8 @@ if __name__ == "__main__":
         do_scrubdiff(int(sys.argv[2]), fix=sys.argv[3:4] == ["fix"])
     elif cmd == "do_inventory":   # [v2.5.9z72] v_inventory's background half
         do_inventory(int(sys.argv[2]), len(sys.argv) > 3 and sys.argv[3] == "pend")
+    elif cmd == "blind_check":   # [v2.5.9z124] watchdog.sh every round
+        print(blind_check())
     elif cmd == "do_du":
         do_du(int(sys.argv[2]), sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else "")
     elif cmd == "do_mounts":   # [v2.5.9z123]

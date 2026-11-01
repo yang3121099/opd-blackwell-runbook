@@ -89,7 +89,7 @@ def test_no_request_during_the_backoff_and_a_429_starts_it(root, monkeypatch):
     assert calls == ["status/n/replies/1.json"]          # nothing tried while it lasts
     e = Exception("x"); e.response = types.SimpleNamespace(status_code=429)
     assert RM.is_429(e) and not RM.is_429(Exception("500 Server Error"))
-    r = subprocess.run([sys.executable, os.path.join(HERE, "remote.py"), "put", f, "status/n.json"], capture_output=True, text=True,
+    r = subprocess.run([sys.executable, os.path.join(HERE, "remote.py"), "put", f, "pulse/n.json"], capture_output=True, text=True,   # [v2.5.9z124] (the node status gets one try per STATUS_TRY_S in a backoff)
                        env={k: v for k, v in dict(os.environ, OPD_ROOT=root).items() if k != "HF_TOKEN"})
     assert r.returncode == 1 and "put failed: Backoff" in r.stderr
     assert subprocess.run([sys.executable, os.path.join(HERE, "remote.py"), "backoff"], capture_output=True, text=True,

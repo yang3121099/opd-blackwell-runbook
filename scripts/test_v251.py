@@ -2001,3 +2001,15 @@ def test_resume_lifts_blocked_v259z122b(env):   # [v2.5.9z122b] (H800 11-01) res
     assert not os.path.exists(os.path.join(d, ".blocked")) and not os.path.exists(os.path.join(d, ".paused"))
     st, msg, _ = env.c.v_resume(["E12c-P5tail-8k"], 432)
     assert st == "ok" and msg == "E12c-P5tail-8k resumed"                                       # nothing to lift
+
+
+def test_blind_check_alerts_once_per_episode_v259z124(env):   # [v2.5.9z124] the node status not going up for 15 min
+    p = env.c._p("control_blind_since"); open(p, "w").write("t\n")
+    assert env.c.blind_check() == "blind"                                                     # younger than BLIND_ALERT_S
+    os.utime(p, (time.time() - 1000, time.time() - 1000))
+    assert env.c.blind_check() == "alerted" and env.c.blind_check() == "blind"                 # one event per episode
+    os.remove(p)
+    assert env.c.blind_check() == "recovered" and env.c.blind_check() == "ok"
+    here = os.path.dirname(os.path.abspath(__file__))
+    assert "control.py blind_check" in open(os.path.join(here, "watchdog.sh")).read()
+    assert '"control_blind"}' in open(os.path.join(here, "control.py")).read()                # GH_URGENT carries it too

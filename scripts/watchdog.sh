@@ -58,6 +58,7 @@ stop_loop() {   # TERM the trees of loop $1, KILL what is left after WD_TERM_WAI
   [ -z "$(alive_of $members)" ] && [ -z "$(pids_of $1)" ]; }
 while true; do
   now=$(date +%s)
+  $(command -v timeout > /dev/null && echo timeout 60) python $RUNBOOK/scripts/control.py blind_check > /dev/null 2>&1 || true   # [v2.5.9z124] the node status not going up: one alert per episode
   for L in run_tasks heartbeat uploader; do   # [v2.5.8] uploader
     f=$CDIR/loop_$L; [ -f $f ] || continue   # never seen alive (not started yet): not the watchdog's business
     t=$(cat $f 2>/dev/null | tr -cd 0-9); age=$(( now - ${t:-$now} ))
