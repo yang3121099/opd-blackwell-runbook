@@ -1144,7 +1144,11 @@ def _forbidden_tokens():
         pass
     for h in (socket.gethostname(), socket.getfqdn()):
         add(h)
-    paths = [os.environ.get(x, "") for x in ("HOME", "OPD_ROOT", "RUNBOOK", "CKPT_ROOT", "ARCHIVE_ROOT")]
+    paths = [os.environ.get(x, "") for x in ("HOME", "OPD_ROOT", "RUNBOOK", "CKPT_ROOT", "ARCHIVE_ROOT", "FROM_OPD_ROOT", "HF_HOME")]
+    for v in ("venv", "venv-fa"):   # [v2.5.9z117] (ops-lead 08:27 UTC) the old base's segments: a venv that really lives there
+        p = os.path.join(os.environ.get("OPD_ROOT", ""), v)
+        if os.path.exists(p):
+            paths.append(os.path.realpath(p))
     try:
         paths += list(candidates())
     except Exception:

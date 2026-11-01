@@ -446,8 +446,19 @@ def scrub_roots():
     v = os.path.join(os.environ.get("OPD_ROOT", ""), "venv")
     if os.path.exists(v):
         add(os.path.dirname(os.path.realpath(v)), "$OPD_ROOT")
-    add(os.environ.get("HOME"), "~")
+    # [v2.5.9z117] (ops-lead 11-01 08:27 UTC: the H800's base and caches were not replaced, so train.log-like files could carry
+    # absolute paths into the public repository) the node base (OPD_ROOT's parent), the caches, and the old base above FROM_OPD_ROOT
+    for k, name in (("HF_HOME", "$HF_HOME"), ("XDG_CACHE_HOME", "$XDG_CACHE_HOME"), ("TRITON_CACHE_DIR", "$TRITON_CACHE_DIR")):
+        add(os.environ.get(k), name)
+    add(os.environ.get("HOME"), "~")   # before the bases: a base that is $HOME keeps "~"
+    for k, name in (("OPD_ROOT", "$OPD_BASE"), ("FROM_OPD_ROOT", "$OLD_BASE")):
+        p = os.environ.get(k)
+        if p and os.path.isabs(p) and os.path.dirname(p.rstrip("/")) not in ("", "/"):
+            add(os.path.dirname(p.rstrip("/")), name)
     return sorted(m.items(), key=lambda kv: -len(kv[0]))
+
+
+RAY_TMP = re.compile(r"/tmp/ray[A-Za-z0-9_]*")   # [v2.5.9z117] the node's Ray / vLLM temp directories (/tmp/ray_gpu<a>_<b>)
 
 
 PRIVATE_IP = re.compile(r"(?<![0-9.])(?:10\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])|192\.168|100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])|169\.254)"
@@ -479,6 +490,7 @@ def scrub_text(t, roots, toks, ips=None, gen=False):
     Beijing: train.log, metrics.json, twr.json and gen_eval.log in the public repository carried them)."""
     for p, name in roots:
         t = t.replace(p + "/", name + "/") if gen else t.replace(p, name)
+    t = RAY_TMP.sub("<tmp>/ray", t)   # [v2.5.9z117]
 
     def fix(m):
         words = {w.lower() for w in re.split(r"[^A-Za-z0-9_]+", m.group(0)) if w}

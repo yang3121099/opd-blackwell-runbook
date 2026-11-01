@@ -669,6 +669,31 @@ def test_rules_scrubdiff(cmd, ok):
             R.parse({"cmd": cmd, "reason": "t"})
 
 
+def test_public_scrub_takes_the_base_and_caches_v259z117(rem, monkeypatch, tmp_path):
+    """[v2.5.9z117] (ops-lead 11-01 08:27 UTC) the node base (OPD_ROOT's parent), HF_HOME / XDG_CACHE_HOME / TRITON_CACHE_DIR, the old
+    base above FROM_OPD_ROOT and /tmp/ray* leave public text as placeholders; the venv's real path adds the old base's names."""
+    import control
+    base = tmp_path / "code"; root = base / "opd" / "run"; root.mkdir(parents=True)
+    old = tmp_path / "oldbase_x" / "someuser" / "code" / "opd-env"; (old / "venv").mkdir(parents=True)
+    os.symlink(old / "venv", root / "venv")
+    monkeypatch.setenv("OPD_ROOT", str(root)); monkeypatch.setenv("FROM_OPD_ROOT", str(old / "run"))
+    monkeypatch.setenv("HF_HOME", str(base / "opd" / "cache" / "hf")); monkeypatch.setenv("TRITON_CACHE_DIR", "/var/cache/trit_x")
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "xdg"))
+    roots = dict(rem.r.scrub_roots())
+    assert roots[str(base / "opd")] == "$OPD_BASE" and roots[str(base / "opd" / "cache" / "hf")] == "$HF_HOME"
+    assert roots["/var/cache/trit_x"] == "$TRITON_CACHE_DIR" and roots[str(tmp_path / "xdg")] == "$XDG_CACHE_HOME"
+    assert roots[str(old)] in ("$OLD_BASE", "$OPD_ROOT")                                # (the venv rule may name it first)
+    toks = control._forbidden_tokens()
+    assert "someuser" in toks and "oldbase_x" in toks                                   # the old base's names, from the venv's real path
+    log = (f"cache {base}/opd/cache/hf/hub/x and {base}/opd/tmp/y; ray /tmp/ray_gpu6_7/session_1/logs; "
+           f"triton /var/cache/trit_x/k; old {old}/run/z and {old}/venv/lib/a.py\n")
+    out = rem.r.scrub_text(log, rem.r.scrub_roots(), toks, set())
+    assert str(base) not in out and "/tmp/ray" not in out and "someuser" not in out and "oldbase_x" not in out and "trit_x" not in out
+    assert "$HF_HOME/hub/x" in out and "$OPD_BASE/tmp/y" in out and "<tmp>/ray/session_1/logs" in out and "$TRITON_CACHE_DIR/k" in out
+    gen = rem.r.scrub_text('{"text": "see ' + str(base) + '/opd/x and /tmp/ray_gpu1/y"}', rem.r.scrub_roots(), toks, None, gen=True)
+    assert str(base) not in gen and "/tmp/ray_gpu1" not in gen                           # generation text: as path prefixes
+
+
 def test_gen_scrub_keeps_bare_home(rem):
     """v2.5.6n: in generation outputs a root is replaced only as a path prefix; logs keep the full replacement."""
     roots = [("/home/u1", "~"), ("/data/x/opd", "$OPD_ROOT")]
