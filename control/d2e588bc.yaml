@@ -50,3 +50,4 @@ commands:
   - {"seq": 48, "cmd": "pause EVAL-budA-e12cP5-16k", "reason": "its input runs/E12c-P5-16k/global_step_50 is not in the result repos (E12c-P5-16k never finished): the prefetch fails every round (Fable A1 06:2xZ)", "utc": "2026-11-01T06:35:17Z"}
   - {"seq": 49, "cmd": "pause EVAL-budA-e12cP5-8k", "reason": "an #eval-only name (no stage line) whose result: start is not in the repos: the prefetch fails every round (ops-lead pre-A1 06:21Z)", "utc": "2026-11-01T06:46:17Z"}
   - {"seq": 50, "cmd": "pause EVAL-budA-e12eP5tail-16k", "reason": "an #eval-only name (no stage line) whose result: start is not in the repos: the prefetch fails every round (ops-lead pre-A1 06:21Z)", "utc": "2026-11-01T06:46:22Z"}
+  - {"seq": 51, "cmd": "pause EVAL-e12e-P5tail-16k", "reason": "an #eval-only name (no stage line) whose result: start is not in the repos: the prefetch fails every round (ops-lead pre-A1 06:21Z)", "utc": "2026-11-01T06:46:27Z"}
