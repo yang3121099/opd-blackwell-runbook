@@ -56,3 +56,4 @@ commands:
   - {"seq": 54, "cmd": "kill EVAL-ext32k-17tail-h800", "reason": "preempt for PROBE-E12E-8K's 4 GPUs: 23+ min at 0 GPU memory on a one-connection fetch; restarted after a #fetch of E10b-P5tail s50 (Fable pre-A1 06:5xZ)", "utc": "2026-11-01T06:57:18Z"}
   - {"seq": 55, "cmd": "pause E12c-P5tail-8k", "reason": "Fable 06:5xZ rule 4: its start E10c-P5tail-c50 s30 is not local - pulled by #fetch first (no one-connection fetch on 2 GPUs); resumed at .fetch_ok", "utc": "2026-11-01T06:57:44Z"}
   - {"seq": 56, "cmd": "tail fetch_result_E10e-P5tail_s50.log 10", "reason": "is the background pull of Q-074e's start running (z111b's #fetch)", "utc": "2026-11-01T07:06:12Z"}
+  - {"seq": 57, "cmd": "tail EVAL-eosw.log 20", "reason": "eosw's first row at 96 min: generation progress (Fable pre-A1 07:2xZ)", "utc": "2026-11-01T07:18:48Z"}
