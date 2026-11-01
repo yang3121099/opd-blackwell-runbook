@@ -47,3 +47,4 @@ commands:
   - {"seq": 45, "cmd": "run EVAL-e10d-P5tail-s43", "reason": "rerun (seq 35) cleared the failure but .paused stays: run starts it (ops-lead A1 21:06Z / 03:08Z, Fable 06:0xZ)", "utc": "2026-11-01T06:18:20Z"}
   - {"seq": 46, "cmd": "snapshot runs/PROBE-E12B-16K/smoke.out", "reason": "diagnose: the 1.7B 16K gate at step 0 for 2.5 h with a stalled alert (read only; Fable 06:0xZ ③)", "utc": "2026-11-01T06:33:55Z"}
   - {"seq": 47, "cmd": "resume E12c-P5tail-8k", "reason": "Q-074f, #gpus 2 (z109); PROBE-E12C-8K PASS on the H800 (Fable A1 06:2xZ)", "utc": "2026-11-01T06:35:12Z"}
+  - {"seq": 48, "cmd": "pause EVAL-budA-e12cP5-16k", "reason": "its input runs/E12c-P5-16k/global_step_50 is not in the result repos (E12c-P5-16k never finished): the prefetch fails every round (Fable A1 06:2xZ)", "utc": "2026-11-01T06:35:17Z"}
