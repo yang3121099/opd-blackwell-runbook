@@ -38,3 +38,4 @@ commands:
   - {"seq": 36, "cmd": "resume E12d-P5tail-8k-s43", "reason": "Q-074i, #gpus 2 from the queue; PROBE-E12B-8K PASS on the H800 (ops-lead A1 03:32Z)", "utc": "2026-11-01T03:59:03Z"}
   - {"seq": 37, "cmd": "resume PROBE-E12E-8K", "reason": "Q-081 / Q-074e 8B gate on 4 GPUs, re-measured at 80 GB; paused, not done, in status 03:58Z (ops-lead A1 03:32Z)", "utc": "2026-11-01T03:59:08Z"}
   - {"seq": 38, "cmd": "tail watchdog.log 10", "reason": "z106b post-push check: no more run_tasks stale restarts (ops-lead 03:08Z)", "utc": "2026-11-01T03:59:24Z"}
+  - {"seq": 39, "cmd": "tail PROBE-E12C-8K.log 30", "reason": "diagnose: the 0.6B 8K gate at 58 min with its GPU at 0% and a stalled alert", "utc": "2026-11-01T04:29:12Z"}
