@@ -150,6 +150,26 @@ def readings_held():   # [v2.5.9z69] control/readings_held.json from run_tasks.s
         return len(r.get("held") or [])
     except (OSError, ValueError):
         return 0
+def uploads_by_task():   # [v2.5.9z116] (Fable 08:4x UTC c) per task: its last successful upload under runs/<task> and the files sent, from
+    out = {}               # control/transfers.jsonl (all of it, not the status's last 200), so the patrol needs no listing of the result repository
+    try:
+        lines = open(os.path.join(root, "control", "transfers.jsonl"), errors="ignore").read().splitlines()
+    except OSError:
+        return out
+    for l in lines:
+        if 'runs/' not in l:   # a cheap pre-filter (a batch's dst is "batch of N: runs/...")
+            continue
+        try:
+            r = json.loads(l)
+        except ValueError:
+            continue
+        m = re.match(r"(?:batch of [0-9]+: )?runs/([^/\s]+)", r.get("dst") or "")   # a batch is counted under its first file's task
+        if not m or r.get("dir") != "up" or not r.get("ok") or r.get("deferred"):   # a deferred weight upload sent nothing
+            continue
+        u = out.setdefault(m.group(1), {"last_upload_utc": None, "uploaded_files": 0})
+        u["last_upload_utc"] = max(u["last_upload_utc"] or "", r.get("utc") or "") or None
+        u["uploaded_files"] += int(r.get("files") or 0)
+    return out
 live = live_tasks()
 tasks = {}; stale = []
 queue = open(os.path.join(runbook, "tasks", "queue.txt")).read() if os.path.exists(os.path.join(runbook, "tasks", "queue.txt")) else ""
@@ -204,6 +224,9 @@ for d in sorted(x for x in glob.glob(os.path.join(root, "runs", "*")) if os.path
                 t["progress"] = pr
         except Exception:
             pass
+ups = uploads_by_task()   # [v2.5.9z116] tasks[].last_upload_utc / uploaded_files (status only; the pulse keeps its own fields)
+for _n, _t in tasks.items():
+    _t.update(ups.get(_n) or {"last_upload_utc": None, "uploaded_files": 0})
 gpu = []
 for line in subprocess.run(["nvidia-smi", "--query-gpu=index,name,utilization.gpu,memory.used,memory.total", "--format=csv,noheader,nounits"],
                            capture_output=True, text=True).stdout.strip().splitlines():

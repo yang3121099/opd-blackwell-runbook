@@ -77,3 +77,25 @@ def test_pulse_carries_upload_pending(root):
     p = C.build_pulse(st, "0, 0, 0, 275040\n")
     assert p["tasks"]["EVAL-a"]["phase"] == "upload_pending" and "phase" not in p["tasks"]["EVAL-b"] and p["results_pending"] == 3
     assert C.build_pulse({"tasks": {}, "results_pending": "x"}, "")["results_pending"] is None
+
+
+def test_heartbeat_uploads_by_task_v259z116():   # [v2.5.9z116] (Fable 08:4x UTC c) last_upload_utc / uploaded_files per task
+    hb = open(os.path.join(HERE, "heartbeat.sh")).read()
+    assert '_t.update(ups.get(_n) or {"last_upload_utc": None, "uploaded_files": 0})' in hb
+    assert hb.index("ups = uploads_by_task()") > hb.index("for d in sorted(x for x in glob.glob(") and hb.index("ups = uploads_by_task()") < hb.index("gpu = []")
+    import re
+    ns = {"os": os, "json": json, "re": re}
+    exec(hb[hb.index("def uploads_by_task():"):hb.index("live = live_tasks()")], ns)
+    root = tempfile.mkdtemp(); os.makedirs(os.path.join(root, "control")); ns["root"] = root
+    assert ns["uploads_by_task"]() == {}                                                  # no transfers.jsonl yet
+    recs = [{"utc": "2026-11-01T07:43:12Z", "dir": "up", "dst": "runs/E10b-P5mode/global_step_50/actor/huggingface", "files": None, "ok": True, "deferred": True},
+            {"utc": "2026-11-01T07:44:02Z", "dir": "up", "dst": "runs/E10b-P5mode/global_step_50/actor/huggingface", "files": 12, "ok": True},
+            {"utc": "2026-11-01T07:45:22Z", "dir": "up", "dst": "runs/E10b-P5mode", "files": 5, "ok": True},
+            {"utc": "2026-11-01T07:46:00Z", "dir": "up", "dst": "runs/E10b-P5mode", "files": 3, "ok": False},
+            {"utc": "2026-11-01T07:50:00Z", "dir": "up", "dst": "batch of 2: runs/EVAL-a/.done", "files": 2, "ok": True},
+            {"utc": "2026-11-01T07:51:00Z", "dir": "down", "dst": "runs/E10d-P5tail/global_step_50/actor/huggingface", "files": 9, "ok": True},
+            {"utc": "2026-11-01T07:52:00Z", "dir": "up", "dst": "status/abcd1234.json", "files": 1, "ok": True}]
+    open(os.path.join(root, "control", "transfers.jsonl"), "w").write("\n".join(json.dumps(r) for r in recs) + "\nnot json \"runs/x\n")
+    u = ns["uploads_by_task"]()
+    assert u == {"E10b-P5mode": {"last_upload_utc": "2026-11-01T07:45:22Z", "uploaded_files": 17},   # deferred and failed ones skipped
+                 "EVAL-a": {"last_upload_utc": "2026-11-01T07:50:00Z", "uploaded_files": 2}}       # a batch under its first file; downloads not counted
