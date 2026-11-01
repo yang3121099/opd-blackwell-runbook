@@ -1856,6 +1856,10 @@ def test_run_and_rerun_accept_v259z109(env):   # [v2.5.9z109] (Q-087) EVAL-eosw 
     rt = open(os.path.join(here, "run_tasks.sh")).read()
     assert "[[ $pp =~ ^runs/E1[0-2][bcde]-[A-Za-z0-9._-]+/global_step_[0-9]+/actor/huggingface$ ]]" in rt          # the 8B starts too
     assert "\n#fetch result:runs/E10e-P5self/global_step_50/actor/huggingface\n" in q
+    fl = [l.split()[1] for l in q.splitlines() if l.startswith("#fetch ")]
+    assert fl[0] == "result:runs/E10e-P5tail/global_step_50/actor/huggingface"                 # [z111b] Q-074e's own start first
+    e12 = open(os.path.join(here, "run_e12.sh")).read()
+    assert "[ -f $CKPT_ROOT/adhoc_models/result/runs/E10e-P5tail/global_step_50/actor/huggingface/.fetch_ok ]" in e12   # the pulled copy counts
 
 
 def test_run_and_rerun_accept_v259z108(env):   # [v2.5.9z108] (Q-083) the mode-token arm and its gate, rules 2.5.106

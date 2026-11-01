@@ -58,7 +58,9 @@ SS=150; case $A in P5self|P5self-s43) SS=50;; esac       # [v2.5.8a] E10b-P5self
 [ $T = E12c-P5tail-8k ] && { SRUN=E10c-P5tail-c50; SS=30; }   # [v2.5.9z92] (Q-074f) the 0.6B tail arm's s50 = E10c-P5tail-c50's global_step_30 (20 + 30 steps)
 if { [ $T = E12e-P5tail-8k ] || [ $T = E12e-P5tail-16k ]; } && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then   # [v2.5.9z97] (Q-074j) E12e-P5tail-16k from the same s50   # [v2.5.9z92] (Q-074e) its gates as Q-081 (PROBE-E12B-8K / PROBE-E12E-8K, ops-lead 12:06Z: the 8B 4-GPU fit), and E10e-P5tail's s50 uploaded (upload_sync's marker), else WAIT_INPUTS; no wait for Q-075b's readings (Fable)
   U=$OPD_ROOT/runs/E10e-P5tail/ckpt/global_step_50
-  [ -f $U/.uploaded ] && [ ! -f $U/.not_uploaded ] || { echo "WAIT_INPUTS $T: runs/E10e-P5tail/ckpt/global_step_50/.uploaded not on this node"; exit 1; }   # waiting, no attempt (s50 not uploaded yet)
+  # [v2.5.9z111b] (H800 11-01: E10e-P5tail was trained on the B300, never here) or the start pulled from the result repository (#fetch result:)
+  { [ -f $U/.uploaded ] && [ ! -f $U/.not_uploaded ]; } || [ -f $CKPT_ROOT/adhoc_models/result/runs/E10e-P5tail/global_step_50/actor/huggingface/.fetch_ok ] \
+    || { echo "WAIT_INPUTS $T: runs/E10e-P5tail/ckpt/global_step_50/.uploaded not on this node"; exit 1; }   # waiting, no attempt (nor a complete pulled copy)
 fi
 # [v2.5.9z43] (Q-058, the reviewer's pre-registration 10-22) the progressive-window arms continue a run's step 25 for 25 more
 # steps (PROG_STEPS): E12b-P5-prog = E12b-P5's recipe (4K) from E12b-P5-8k s25 (shrink), E12b-P5-prog-up = the 8K recipe from

@@ -1491,6 +1491,8 @@ fill18   open   EVAL-ext-4Bp5tail:E10d-P5tail EVAL-gm-4Bp5tail:E10d-P5tail EVAL-
 # #fetch one at a time: the student once DeepSeek has its .fetch_ok, then the base.
 # [z109] (ops-lead 05:20 UTC (b)) the #fetch block, in file order: the start pulls first - E10e-P5self s50 (PROBE-E12E-8K's 8B start), then
 # E12b's two s25 starts; the model and dataset pulls this node does not use now are off ('# [z109 off]', one line each, reopened by A1)
+# [z111b] (Fable 06:1x UTC) first Q-074e's own start, E10e-P5tail s50 (the arm E12e-P5tail-8k); E10e-P5self s50 is only its gate's smoke start
+#fetch result:runs/E10e-P5tail/global_step_50/actor/huggingface
 #fetch result:runs/E10e-P5self/global_step_50/actor/huggingface
 #fetch result:runs/E12b-P5-8k/global_step_25/actor/huggingface
 #fetch result:runs/E12b-P5-s44/global_step_25/actor/huggingface
