@@ -1990,3 +1990,14 @@ def test_beyond_arms_registered_v259z118(env):   # [v2.5.9z118] (research_progra
     assert "FRET=0; TOPD=\"\"; case $TASK in E10b-P5fret) FRET=1;; E10b-P5topd) TOPD=${TOPD_ALPHA:-0.2};; E10b-P5fret-topd) FRET=1; TOPD=${TOPD_ALPHA:-0.2};; esac" in ra
     assert "unset OPD_FRET OPD_TOPD_ALPHA; [ $FRET = 1 ] && export OPD_FRET=1" in ra                          # every other arm: both off
     assert ra.index("eosw_patch.py ||") < ra.index("shape_patch.py ||")                                         # after the other hooks
+
+
+def test_resume_lifts_blocked_v259z122b(env):   # [v2.5.9z122b] (H800 11-01) resume lifts .blocked; its gates are checked again
+    d = env.c.task_dir("E12c-P5tail-8k"); os.makedirs(d, exist_ok=True)
+    for f, body in ((".paused", "x"), (".blocked", "blocked_by: PROBE-E12C\nreason: PROBE-E12C has not passed\nsince: t\n")):
+        open(os.path.join(d, f), "w").write(body)
+    st, msg, _ = env.c.v_resume(["E12c-P5tail-8k"], 431)
+    assert st == "ok" and "lifted blocked_by PROBE-E12C" in msg
+    assert not os.path.exists(os.path.join(d, ".blocked")) and not os.path.exists(os.path.join(d, ".paused"))
+    st, msg, _ = env.c.v_resume(["E12c-P5tail-8k"], 432)
+    assert st == "ok" and msg == "E12c-P5tail-8k resumed"                                       # nothing to lift

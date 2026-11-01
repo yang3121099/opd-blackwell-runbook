@@ -118,6 +118,14 @@ def v_resume(a, seq):
             os.remove(os.path.join(task_dir(t), f))
         except FileNotFoundError:
             pass
+    # [v2.5.9z122b] (H800 11-01: Q-074f stayed blocked_by PROBE-E12C after z122 dropped that check for window variants; run_tasks lifts a
+    # .blocked only when its gate passes) resume also lifts .blocked: the next pass checks the task's gates again - a failed gate among its
+    # deps blocks it at once, and its own gate check blocks it again (no attempt counted)
+    b = os.path.join(task_dir(t), ".blocked")
+    if os.path.exists(b):
+        by = (re.findall(r"^blocked_by: (\S+)", open(b, errors="ignore").read(), re.M) or ["?"])[0]
+        os.remove(b)
+        return "ok", f"{t} resumed (lifted blocked_by {by}; its gates are checked again)", {}
     return "ok", f"{t} resumed", {}
 
 
