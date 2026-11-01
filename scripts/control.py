@@ -437,7 +437,83 @@ def _direct_put(src, dst):
     return ok
 
 
+# [v2.5.9z124c] (ops-lead 11-02 17:19 UTC on notes/z124c_design_20261102.md; Fable: the hourly HF commit limit) the control plane's
+# private-repository items in one commit per status round, on CONTROL_BATCH=1 (setenv; 0 = the z53 paths as before):
+#  - receipts (status/<node>/replies/*), events (status/<node>/events/*) and procs (status/<node>/procs.json) go to the control spool
+#    control/ctrl_spool/ (one uploader per file: never the outbox, never a direct put; procs: the newest only);
+#  - the status round (STATUS_PUT_S) puts the node status and the spool in one commit (remote.py putmany): at most CTRL_BATCH_FILES
+#    (100) files / CTRL_BATCH_MB (5) MB, the rest the next round; procs only when PROCS_PUT_S is due; the status is always in it;
+#  - a failed commit keeps the spool; two failed batches in a row that were not a 429 -> the next rounds send the status alone (event
+#    control_batch_degraded) until it succeeds, then batches again: a bad receipt or event never keeps the node blind;
+#  - the pulse (public repository) and the hourly resync of replies/ and events/ stay as they were.
+CTRL_SPOOL_RE = re.compile(r"status/[^/]+/(?:replies/[^/]+|events/[^/]+|procs\.json)")
+STATUS_DST_RE = re.compile(r"status/[^/]+\.json")
+
+
+def _batch_on():
+    return _cfg("CONTROL_BATCH", "0") == "1"
+
+
+def _spool_add(src, dst):
+    d = _p("ctrl_spool"); os.makedirs(d, exist_ok=True)
+    key = "procs" if dst.endswith("/procs.json") else re.sub(r"[^A-Za-z0-9._-]", "_", dst.lstrip("/"))
+    tmp = os.path.join(d, f".{key}.{os.getpid()}.tmp")
+    json.dump({"src": src, "dst": dst.lstrip("/"), "utc": utc()}, open(tmp, "w")); os.replace(tmp, os.path.join(d, key + ".json"))
+    return True
+
+
+def _spool_items():
+    d = _p("ctrl_spool"); out = []
+    for n in (sorted(os.listdir(d)) if os.path.isdir(d) else []):
+        if n.endswith(".json") and not n.startswith("."):
+            try:
+                out.append((os.path.join(d, n), json.load(open(os.path.join(d, n)))))
+            except (OSError, ValueError):
+                pass
+    return out
+
+
+def _control_commit(src, dst):
+    """The status round on CONTROL_BATCH=1: the node status and the spooled control items in one commit; see above."""
+    st = _jread("ctrl_batch.json", {}); fails = int(st.get("fails") or 0)
+    pairs, taken, procs = [[src, dst]], [], False
+    if fails < 2:
+        nb = os.path.getsize(src) if os.path.isfile(src) else 0
+        cap_n, cap_b = int(_cfg("CTRL_BATCH_FILES", "100")), float(_cfg("CTRL_BATCH_MB", "5")) * 1e6
+        procs_due = _due({"dst": f"status/{node_id()}/procs.json"})
+        for p, it in _spool_items():
+            s, d = it.get("src", ""), it.get("dst", "")
+            if not os.path.isfile(s):
+                _rm(p); continue
+            if d.endswith("/procs.json") and not procs_due:
+                continue
+            if len(pairs) >= cap_n or nb + os.path.getsize(s) > cap_b:
+                break
+            pairs.append([s, d]); taken.append(p); nb += os.path.getsize(s); procs = procs or d.endswith("/procs.json")
+    ok = _direct_put(pairs if len(pairs) > 1 else src, dst)
+    if ok:
+        for p in taken:
+            _rm(p)
+        if procs:
+            _stamp([f"procs:status/{node_id()}/procs.json"])
+        if fails:
+            _jwrite_ctrl({"fails": 0})
+            if fails >= 2:
+                event("node", "control_batch_recovered", "the status went up alone; batches again")
+    elif len(pairs) > 1 and _backoff_left() <= 0:   # a failed batch that was not a 429
+        _jwrite_ctrl({"fails": fails + 1})
+        if fails + 1 == 2:
+            event("node", "control_batch_degraded", f"two batches failed ({len(pairs)} files): the status goes up alone until it succeeds")
+    return ok
+
+
+def _jwrite_ctrl(st):
+    tmp = _p(f"ctrl_batch.json.{os.getpid()}.tmp"); json.dump(st, open(tmp, "w")); os.replace(tmp, _p("ctrl_batch.json"))
+
+
 def queue_put(src, dst, kind=None):
+    if kind is None and _batch_on() and CTRL_SPOOL_RE.fullmatch(dst.lstrip("/")):   # [v2.5.9z124c] the control spool, one uploader per file
+        return _spool_add(src, dst)
     direct = kind is None and DIRECT_RE.fullmatch(dst.lstrip("/")) and _cfg("CONTROL_DIRECT", "1") == "1"   # [v2.5.9z53]
     if not direct and os.environ.get("OUTBOX", "1") == "1" and uploader_alive():
         return enqueue(src, dst, kind)
@@ -447,6 +523,8 @@ def queue_put(src, dst, kind=None):
             return True
         _stamp([k])
     if direct:
+        if _batch_on() and STATUS_DST_RE.fullmatch(dst.lstrip("/")):   # [v2.5.9z124c] the status round carries the spool
+            return _control_commit(src, dst)
         return _direct_put(src, dst)
     return remote_put(src, dst, kind) if kind else remote_put(src, dst)
 

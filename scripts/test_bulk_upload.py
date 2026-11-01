@@ -164,3 +164,28 @@ def test_the_hourly_commit_budget_v259z124b(R, tmp_path, monkeypatch):   # [v2.5
     monkeypatch.setattr(R, "hf", lambda kind: (_ for _ in ()).throw(AssertionError("no request over budget")))
     with pytest.raises(R.Budget):
         R.put_public_unchanged([(_file(tmp_path, "r.jsonl", 10), "runs/T/redacted/r.jsonl")], "m")   # a publish needs the headroom
+
+
+def test_put_many_carrying_the_status_gets_its_try_in_a_backoff_v259z124c(R, tmp_path, monkeypatch):   # [v2.5.9z124c]
+    commits = []
+
+    class Api:
+        def create_commit(self, repo_id=None, repo_type=None, commit_message=None, operations=None):
+            commits.append(len(operations))
+    monkeypatch.setattr(R, "hf", lambda kind: (Api(), "me/ops")); monkeypatch.setattr(R, "split_mode", lambda: False)
+    monkeypatch.setattr(R, "BACKEND", "hf")
+    import types
+    monkeypatch.setitem(sys.modules, "huggingface_hub", types.SimpleNamespace(CommitOperationAdd=lambda path_in_repo, path_or_fileobj: (path_in_repo, path_or_fileobj)))
+    json.dump({"level": 1, "wait_s": 60, "until": time.time() + 60}, open(tmp_path / "control" / "hf_backoff.json", "w"))
+    st, rp = _file(tmp_path, "st.json", 10), _file(tmp_path, "rp.json", 10)
+    lf = tmp_path / "batch.json"; lf.write_text(json.dumps([[st, "status/node.json"], [rp, "status/node/replies/3.json"]]))
+    R.put_many(str(lf))                                                             # the status' try: one commit of both
+    assert commits == [2] and not os.path.exists(tmp_path / "control" / "hf_backoff.json")   # success ends the backoff
+    json.dump({"level": 1, "wait_s": 60, "until": time.time() + 60}, open(tmp_path / "control" / "hf_backoff.json", "w"))
+    with pytest.raises(R.Backoff):
+        R.put_many(str(lf))                                                         # within STATUS_TRY_S: no request
+    assert commits == [2] and os.path.exists(tmp_path / "control" / "control_blind_since")
+    lf2 = tmp_path / "batch2.json"; lf2.write_text(json.dumps([[rp, "status/node/replies/3.json"]]))
+    os.remove(tmp_path / "control" / "status_try.t")
+    with pytest.raises(R.Backoff):
+        R.put_many(str(lf2))                                                        # no status in it: no try

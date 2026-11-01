@@ -483,7 +483,14 @@ def put_many(listfile):
             put(s, d)
         return
     from huggingface_hub import CommitOperationAdd
-    _gate()
+    status = any(STATUS_RE.match(d.lstrip("/")) for _, d in pairs)   # [v2.5.9z124c] the control commit carries the node status
+    try:
+        if not (status and backoff_left() > 0 and _status_try_due()):   # [v2.5.9z124] its one try per STATUS_TRY_S in a backoff
+            _gate()
+    except Backoff:
+        if status:
+            _blind(True)
+        raise
     t0, ok = time.time(), False
     try:
         api, repo = hf("private")
@@ -498,6 +505,8 @@ def put_many(listfile):
             note_429()
         raise
     finally:
+        if status:
+            _blind(not ok)
         record_transfer({"dir": "up", "dst": f"batch of {len(pairs)}: {rename(pairs[0][1]) if pairs else '-'}", "files": len(pairs),
                          "bytes": sum(os.path.getsize(s) for s, _ in pairs), "seconds": round(time.time() - t0, 1), "ok": ok})
     note_ok()

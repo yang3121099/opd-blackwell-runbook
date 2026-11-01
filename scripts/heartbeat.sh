@@ -170,6 +170,12 @@ def uploads_by_task():   # [v2.5.9z116] (Fable 08:4x UTC c) per task: its last s
         u["last_upload_utc"] = max(u["last_upload_utc"] or "", r.get("utc") or "") or None
         u["uploaded_files"] += int(r.get("files") or 0)
     return out
+def commits_last_hour():   # [v2.5.9z124c] remote.commits_last_hour (transfers.jsonl), None when it cannot be read
+    try:
+        sys.path.insert(0, os.path.join(runbook, "scripts")); import remote as _rm
+        return _rm.commits_last_hour()
+    except Exception:
+        return None
 live = live_tasks()
 tasks = {}; stale = []
 queue = open(os.path.join(runbook, "tasks", "queue.txt")).read() if os.path.exists(os.path.join(runbook, "tasks", "queue.txt")) else ""
@@ -260,6 +266,7 @@ json.dump({"host": os.uname().nodename, "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ
            "held": jload(os.path.join(root, "control", "held.json")),   # [v2.5.9c] GPUs held for a #gpus task
            "readings_held": readings_held(),   # [v2.5.9z69] readings not started for the work disk (READINGS_DISK_MIN_GB), 0 when the disk is fine
            "results_pending": results_pending(),   # [v2.5.9z65] result directories in weights_replay's queue (control/weights_pending.txt)
+           "commits_last_hour": commits_last_hour(),   # [v2.5.9z124c] (ops-lead's 3rd item) the node's own HF commits in the last hour (z124b's count)
            "runbook_head": git("rev-parse", "--short", "HEAD"), "runbook_version": "v2.5.9",
            "run_tasks_sha": open(os.path.join(root, "control", "run_tasks.sha")).read().strip() if os.path.exists(os.path.join(root, "control", "run_tasks.sha")) else None,
            "ckpt_roots": roots_report(),   # v2.5: every candidate root: mount, free GB, writable, alert, task dirs and sizes
