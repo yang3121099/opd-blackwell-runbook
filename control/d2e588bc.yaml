@@ -62,3 +62,4 @@ commands:
   - {"seq": 60, "cmd": "setenv PUBLIC_UPLOADS=1", "reason": "disaster tolerance (Runming via Fable 08:2x): runs/ to -pub again (the B300 split), per-question generations scrubbed by _put_public; Fable A1 08:4xZ", "utc": "2026-11-01T08:25:47Z"}
   - {"seq": 61, "cmd": "resume E12e-P5tail-8k", "reason": "Q-074e, #gpus 4: PROBE-E12E-8K PASS on the H800, its start E10e-P5tail s50 local (.fetch_ok 07:28:50Z); Fable pre-A1 07:5xZ", "utc": "2026-11-01T08:30:31Z"}
   - {"seq": 62, "cmd": "snapshot runs/EVAL-eosw", "reason": "Fable 08:3x/08:5x UTC: eosw T0.6 row still 1/2 at the 09:25Z threshold (3 h 47 min) - read its chunks and gen_eval log", "utc": "2026-11-01T09:29:45Z"}
+  - {"seq": 63, "cmd": "du ckpt adhoc_models/runs/E10-P5-1.7B-lr3e-6-s50", "reason": "z119: is the lab P5 1.7B s50 already on the node (TERM4 row for P5 s50, Fable 08:5x)", "utc": "2026-11-01T09:29:49Z"}
