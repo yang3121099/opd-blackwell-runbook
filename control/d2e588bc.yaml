@@ -23,3 +23,4 @@ commands:
   - {"seq": 21, "cmd": "setenv LOGP_MB=1", "reason": "Q-087: formal settings before E10b-P5-eosw (Fable 16:3x; ops-lead pre-A1 22:49Z; PROBE-EOSW PASS)", "utc": "2026-10-31T22:53:39Z"}
   - {"seq": 22, "cmd": "run E10b-P5-eosw", "reason": "Q-087 arm, 1 GPU, ~4.5 h on the H800; first 5 steps are the memory gate (ops-lead pre-A1 22:49Z)", "utc": "2026-10-31T22:53:44Z"}
   - {"seq": 23, "cmd": "rerun FA-PROBE", "reason": "fa-build PASS (seq 9): varlen + smoke in venv-fa (ops-lead pre-A1 17:02Z item 3)", "utc": "2026-10-31T23:54:04Z"}
+  - {"seq": 24, "cmd": "pause E10b-P5-eosw", "reason": "Q-087: OOM twice at FIXED_MICRO_BSZ=4 (9.27 GiB logits alloc); stop before the third attempt, Fable rules the path (ops-lead pre-A1 22:49Z item 3)", "utc": "2026-11-01T00:23:40Z"}
