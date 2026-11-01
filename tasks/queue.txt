@@ -183,7 +183,7 @@ b259s25  open   EVAL-ext32k-4Bp5l16k-s43-s25:E12d-P5-16k-s43+EVAL-ext32k-4Bs43+E
 b259z90  open   E12d-P5tail-8k:PROBE-E12B-8K+E10d-P5tail EVAL-e12d-P5tail-8k:E12d-P5tail-8k+EVAL-e12d-P5-8k+EVAL-e10d-P5tail EVAL-budA-e12dP5tail-8k:E12d-P5tail-8k+EVAL-budA-4B+EVAL-budA-e10dP5tail+EVAL-budA-e12dP5-8k EVAL-ext32k-4Bp5tail8k:E12d-P5tail-8k+EVAL-ext32k-4Bp5l8k+EVAL-ext32k-4Bp5tail
 b259z91  open   PROBE-E12E-8K:PROBE-E12B-8K E12e-P5self-8k:PROBE-E12E-8K+PROBE-E12B-8K+E10e-P5self E10b-P5-t32:PROBE-T32 E12b-P5tail-8k-s43:PROBE-E12B-8K+E10b-P5tail-s43 PROBE-TAIL-8B:PROBE-TAIL+PROBE-8B E10e-P5tail:PROBE-TAIL-8B+PROBE-TAIL+PROBE-8B EVAL-e12b-P5tail-8k-s43:E12b-P5tail-8k-s43+EVAL-e12b-P5tail-8k+EVAL-tail-s43 EVAL-budA-e12bP5tail-8k-s43:E12b-P5tail-8k-s43+EVAL-budA-e12bP5tail-8k+EVAL-tail-s43 EVAL-ext32k-17p5tail8k-s43:E12b-P5tail-8k-s43+EVAL-ext32k-17p5tail8k+EVAL-ext32k-17tail-s43 EVAL-e12e-P5self-8k:E12e-P5self-8k+EVAL-e10e-P5self EVAL-budA-e12eP5self-8k:E12e-P5self-8k+EVAL-budA-e10eP5self+EVAL-8B-base EVAL-ext32k-8Bp5self8k:E12e-P5self-8k+EVAL-ext32k-8Bp5self EVAL-e10e-P5tail:E10e-P5tail+EVAL-e10e-P5self+EVAL-8B-base EVAL-budA-e10eP5tail:E10e-P5tail+EVAL-budA-e10eP5self+EVAL-8B-base EVAL-ext32k-8Bp5tail:E10e-P5tail+EVAL-ext32k-8Bp5self EVAL-e10b-P5t32:E10b-P5-t32 EVAL-budA-e10bP5t32:E10b-P5-t32 EVAL-ext32k-17t32:E10b-P5-t32
 b259z92  open   E12b-P5tail-16k:PROBE-E12B-16K+E10b-P5tail E10d-P5tail-s43:PROBE-TAIL-4B+PROBE-TAIL E12c-P5tail-8k:PROBE-E12C-8K+PROBE-E12B-8K+E10c-P5tail-c50 E12e-P5tail-8k:PROBE-E12E-8K+PROBE-E12B-8K+E10e-P5tail EVAL-e12b-P5tail-16k:E12b-P5tail-16k+EVAL-e12b-P5-16k+EVAL-tail EVAL-budA-e12bP5tail-16k:E12b-P5tail-16k+EVAL-budA-e12bP5-16k+EVAL-tail EVAL-ext32k-17p5tail16k:E12b-P5tail-16k+EVAL-ext32k-17p5l16k+EVAL-ext32k-17tail EVAL-e10d-P5tail-s43:E10d-P5tail-s43+EVAL-e10d-P5tail EVAL-budA-e10dP5tail-s43:E10d-P5tail-s43+EVAL-budA-e10dP5tail EVAL-ext32k-4Bp5tail-s43:E10d-P5tail-s43+EVAL-ext32k-4Bp5tail EVAL-e12c-P5tail-8k:E12c-P5tail-8k+EVAL-e12c-P5-8k+EVAL-e10c-P5tail-c50 EVAL-budA-e12cP5tail-8k:E12c-P5tail-8k EVAL-ext32k-06p5tail8k:E12c-P5tail-8k+EVAL-ext32k-06tail-c50 EVAL-e12e-P5tail-8k:E12e-P5tail-8k+EVAL-e12e-P5self-8k+EVAL-e10e-P5tail EVAL-budA-e12eP5tail-8k:E12e-P5tail-8k+EVAL-budA-e12eP5self-8k+EVAL-budA-e10eP5tail EVAL-ext32k-8Bp5tail8k:E12e-P5tail-8k+EVAL-ext32k-8Bp5self8k+EVAL-ext32k-8Bp5tail
-b259z95  open   E12d-P5tail-16k:PROBE-E12B-16K+E10d-P5tail EVAL-e12d-P5tail-16k:E12d-P5tail-16k+EVAL-e12d-P5-16k+EVAL-e10d-P5tail EVAL-budA-e12dP5tail-16k:E12d-P5tail-16k+EVAL-budA-4B+EVAL-budA-e10dP5tail+EVAL-budA-e12dP5-16k EVAL-ext32k-4Bp5tail16k:E12d-P5tail-16k+EVAL-ext32k-4Bp5l16k+EVAL-ext32k-4Bp5tail
+b259z95  open   E12d-P5tail-16k:PROBE-E12D-16K+PROBE-E12B-16K+E10d-P5tail EVAL-e12d-P5tail-16k:E12d-P5tail-16k+EVAL-e12d-P5-16k+EVAL-e10d-P5tail EVAL-budA-e12dP5tail-16k:E12d-P5tail-16k+EVAL-budA-4B+EVAL-budA-e10dP5tail+EVAL-budA-e12dP5-16k EVAL-ext32k-4Bp5tail16k:E12d-P5tail-16k+EVAL-ext32k-4Bp5l16k+EVAL-ext32k-4Bp5tail
 b259z96a open   VERIFY-PRIV-LFS
 b259z93  open   E10b-P5tail-s44:PROBE-TAIL E12b-P5tail-8k-s44:PROBE-E12B-8K+E10b-P5tail-s44 EVAL-tail-s44:E10b-P5tail-s44+EVAL-tail+EVAL-tail-s43 EVAL-ext32k-17tail-s44:E10b-P5tail-s44+EVAL-ext32k-17tail+EVAL-ext32k-17tail-s43 EVAL-e12b-P5tail-8k-s44:E12b-P5tail-8k-s44+EVAL-e12b-P5tail-8k+EVAL-tail-s44 EVAL-budA-e12bP5tail-8k-s44:E12b-P5tail-8k-s44+EVAL-budA-e12bP5tail-8k+EVAL-tail-s44 EVAL-ext32k-17p5tail8k-s44:E12b-P5tail-8k-s44+EVAL-ext32k-17p5tail8k+EVAL-ext32k-17tail-s44
 b259z97  open   E12d-P5tail-8k-s43:PROBE-E12B-8K+E10d-P5tail-s43 EVAL-e12d-P5tail-8k-s43:E12d-P5tail-8k-s43+EVAL-e12d-P5tail-8k+EVAL-e10d-P5tail-s43 EVAL-budA-e12dP5tail-8k-s43:E12d-P5tail-8k-s43+EVAL-budA-4B+EVAL-budA-e10dP5tail-s43+EVAL-budA-e12dP5tail-8k EVAL-ext32k-4Bp5tail8k-s43:E12d-P5tail-8k-s43+EVAL-ext32k-4Bp5tail8k+EVAL-ext32k-4Bp5tail-s43
@@ -1497,6 +1497,7 @@ fill18   open   EVAL-ext-4Bp5tail:E10d-P5tail EVAL-gm-4Bp5tail:E10d-P5tail EVAL-
 # and Q-074f's (E12c-P5tail-8k: E10c-P5tail-c50's global_step_30 = its s50)
 #fetch result:runs/E10b-P5tail/global_step_50/actor/huggingface
 #fetch result:runs/E10c-P5tail-c50/global_step_30/actor/huggingface
+#fetch result:runs/E10d-P5tail/global_step_50/actor/huggingface
 #fetch result:runs/E10e-P5self/global_step_50/actor/huggingface
 #fetch result:runs/E12b-P5-8k/global_step_25/actor/huggingface
 #fetch result:runs/E12b-P5-s44/global_step_25/actor/huggingface
@@ -3629,6 +3630,13 @@ b259z109 open   EVAL-eosw:E10b-P5-eosw PROBE-TERM4-EOSW:EVAL-eosw
 # (it was 2 in z109) and its distill start E10b-P5tail-s44 on 4
 #gpus E12b-P5tail-8k-s44 4
 #gpus E10b-P5tail-s44 4
+
+# [z113] (Fable 11-01 06:3x UTC, pre-A1: PROBE-E12B-16K peaked at 80.4 of 81.6 GB on one GPU, and the update's fp32 logits at micro 4 x 16K
+# do not shrink with FSDP) Q-074h's own gate: the 4B 16K 3-step smoke of E12d-P5tail-16k itself on four GPUs, the formal settings (fa,
+# micro 4, LOGP_MB 1), from E10d-P5tail s50 (pulled by #fetch above); E12d-P5tail-16k waits for it. FAIL at the logits -> FUSED=1 path
+# [held: ops-lead 06:56 UTC - opened by a one-word diff once E10d-P5tail s50's .fetch_ok is on the node (no in-task pull on 4 GPUs)]
+b259z113 held   PROBE-E12D-16K
+#gpus PROBE-E12D-16K 4
 
 # [z110] (Fable 05:2x UTC ②: H judgments on one machine; ops-lead 05:25 / 05:33 UTC: a new name, not a rerun of the imported reference)
 # Q-074d H1's reference read again on the H800: E10b-P5tail s50, AIME24 / 25 avg@16 32K T0.6, as EVAL-ext32k-17tail's two rows with _h800

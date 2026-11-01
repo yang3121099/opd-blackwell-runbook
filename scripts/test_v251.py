@@ -1839,6 +1839,21 @@ def test_run_and_rerun_accept_v259z102(env):   # [v2.5.9z102] (Q-087) the positi
     assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 104)
 
 
+def test_q074h_gate_v259z113(env):   # [v2.5.9z113] (Q-074h) PROBE-E12D-16K, rules 2.5.108
+    st, msg, _ = env.c.v_run(["PROBE-E12D-16K"], 390)
+    assert st == "accepted", msg
+    R.parse({"cmd": "rerun PROBE-E12D-16K", "reason": "t"})
+    assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 108)
+    here = os.path.dirname(os.path.abspath(__file__))
+    ts = open(os.path.join(here, "task.sh")).read(); pv = open(os.path.join(here, "probe_e12var.sh")).read()
+    assert "  PROBE-E12D-16K) PEV_LADDER=E12d bash $RUNBOOK/scripts/probe_e12var.sh $G 16k;;" in ts and "|PROBE-E12D-16K$|" in ts   # four GPUs
+    assert "[ $L:$VAR = E12d:16k ] && ARM=E12d-P5tail-16k" in pv and "|E12d:16k|" in pv                                  # the arm itself
+    q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
+    assert re.search(r"^b259z113 +(held|open) +PROBE-E12D-16K$", q, re.M) and "\n#gpus PROBE-E12D-16K 4\n" in q   # held until its start is local
+    assert " E12d-P5tail-16k:PROBE-E12D-16K+PROBE-E12B-16K+E10d-P5tail " in q
+    assert "\n#fetch result:runs/E10d-P5tail/global_step_50/actor/huggingface\n" in q
+
+
 def test_task_fetches_are_parallel_v259z112():   # [v2.5.9z112] (Fable 11-01: the proxy limits each connection)
     here = os.path.dirname(os.path.abspath(__file__))
     r = subprocess.run(["bash", "-c", f"unset FETCH_PARALLEL FETCH_CONNS_CAP; export OPD_ROOT=/nonexistent; source {here}/env.sh > /dev/null 2>&1; "
