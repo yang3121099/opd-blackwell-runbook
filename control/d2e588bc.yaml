@@ -54,3 +54,4 @@ commands:
   - {"seq": 52, "cmd": "pause EVAL-ext32k-8Bp5tail16k", "reason": "an #eval-only name (no stage line) whose result: start is not in the repos: the prefetch fails every round (ops-lead pre-A1 06:21Z)", "utc": "2026-11-01T06:46:32Z"}
   - {"seq": 53, "cmd": "kill EVAL-e10d-P5tail-s43", "reason": "preempt for PROBE-E12E-8K's 4 GPUs; its s25 is not in the repos (only s50, done) - s25 UNAVAILABLE, not run again (Fable pre-A1 06:5xZ)", "utc": "2026-11-01T06:57:13Z"}
   - {"seq": 54, "cmd": "kill EVAL-ext32k-17tail-h800", "reason": "preempt for PROBE-E12E-8K's 4 GPUs: 23+ min at 0 GPU memory on a one-connection fetch; restarted after a #fetch of E10b-P5tail s50 (Fable pre-A1 06:5xZ)", "utc": "2026-11-01T06:57:18Z"}
+  - {"seq": 55, "cmd": "pause E12c-P5tail-8k", "reason": "Fable 06:5xZ rule 4: its start E10c-P5tail-c50 s30 is not local - pulled by #fetch first (no one-connection fetch on 2 GPUs); resumed at .fetch_ok", "utc": "2026-11-01T06:57:44Z"}
