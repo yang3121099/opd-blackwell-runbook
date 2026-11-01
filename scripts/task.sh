@@ -78,7 +78,7 @@ case $T in
   FA-PROBE) bash $RUNBOOK/scripts/fa_probe.sh $G;;
   SPEED-PROBE) bash $RUNBOOK/scripts/speed_probe.sh $G;;
   PROBE-4B) bash $RUNBOOK/scripts/probe_4b.sh $G;;
-  PROBE-TERM|PROBE-TERM2|PROBE-TERM3|PROBE-TERM4|PROBE-TERM4-4B|PROBE-TERM4-06B) bash $RUNBOOK/scripts/term_probe.sh $G $T;;   # v2.5.7zk: -4B; [v2.5.9v] -06B
+  PROBE-TERM|PROBE-TERM2|PROBE-TERM3|PROBE-TERM4-EOSW|PROBE-TERM4|PROBE-TERM4-4B|PROBE-TERM4-06B) bash $RUNBOOK/scripts/term_probe.sh $G $T;;   # v2.5.7zk: -4B; [v2.5.9v] -06B; [v2.5.9z109] -EOSW (Q-087 H1, its own one row)
   STRICT-C1) bash $RUNBOOK/scripts/strict_c1.sh $G $T;;
   PROBE-T32) bash $RUNBOOK/scripts/probe_t32.sh $G;;   # [v2.5.9z9] (Q-053): the gate of E10d-P5-t32
   PROBE-T14) bash $RUNBOOK/scripts/probe_t14.sh $G;;   # v2.5.7p (Q-015): the 14B teacher's gate

@@ -68,6 +68,9 @@ ok "PROBE-TERM4: own lines, thinking template flag, no teacher, --term4" '[ "$(w
 printf '#term PROBE-TERM4-4B 4_P0 local:m4local E11b-P0/e11b_P0.jsonl\n' >> $T/rb/tasks/queue.txt; mkdir -p $T/root/m4local; touch $T/root/m4local/model.safetensors
 : > $CALLS; : > $CALLS.tsv; bash $T/rb/scripts/term_probe.sh 3 PROBE-TERM4-4B > $T/out44 2>&1
 ok "v2.5.7zk PROBE-TERM4-4B: own lines (local model), --term4, uploads to runs/PROBE-TERM4-4B" '[ "$(wc -l < $CALLS.tsv | tr -d " ")" = 1 ] && grep -q "^4_P0	$T/root/m4local	" $CALLS.tsv && grep -q "^term_probe .*--no_teacher --term4" $CALLS && grep -q "^remote put $T/root/runs/PROBE-TERM4-4B/up runs/PROBE-TERM4-4B$" $CALLS && ! grep -q "runs/PROBE-TERM4/up" $CALLS'
+printf '#term PROBE-TERM4-EOSW 17_P5eosw local:m4local E11b-P0/e11b_P0.jsonl\n' >> $T/rb/tasks/queue.txt
+: > $CALLS; : > $CALLS.tsv; bash $T/rb/scripts/term_probe.sh 3 PROBE-TERM4-EOSW > $T/out4e 2>&1
+ok "[v2.5.9z109] PROBE-TERM4-EOSW: its one line, --term4, uploads to runs/PROBE-TERM4-EOSW" '[ "$(wc -l < $CALLS.tsv | tr -d " ")" = 1 ] && grep -q "^17_P5eosw	" $CALLS.tsv && grep -q "^term_probe .*--no_teacher --term4" $CALLS && grep -q "^remote put $T/root/runs/PROBE-TERM4-EOSW/up runs/PROBE-TERM4-EOSW$" $CALLS && ! grep -q "runs/PROBE-TERM4/up" $CALLS'
 ok "v2.5.7zk task.sh and the rerun rule take PROBE-TERM4-4B" 'grep -q "PROBE-TERM4|PROBE-TERM4-4B|PROBE-TERM4-06B) bash \$RUNBOOK/scripts/term_probe.sh" $SRC/scripts/task.sh && python3 -c "import sys; sys.path.insert(0, \"$SRC/scripts\"); import control_rules as R; R.parse({\"cmd\": \"rerun PROBE-TERM4-4B\", \"reason\": \"t\"})"'
 # [v2.5.9v] PROBE-TERM4-06B: its own lines, --term4, its own runs/PROBE-TERM4-06B (the 1.7B and 4B tasks' lines not read)
 printf '#term PROBE-TERM4-06B 06_P0 local:m06local E11b-P0/e11b_P0.jsonl\n' >> $T/rb/tasks/queue.txt; mkdir -p $T/root/m06local; touch $T/root/m06local/model.safetensors

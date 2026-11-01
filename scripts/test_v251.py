@@ -1839,6 +1839,25 @@ def test_run_and_rerun_accept_v259z102(env):   # [v2.5.9z102] (Q-087) the positi
     assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 104)
 
 
+def test_run_and_rerun_accept_v259z109(env):   # [v2.5.9z109] (Q-087) EVAL-eosw and PROBE-TERM4-EOSW, rules 2.5.107
+    for i, t in enumerate(("EVAL-eosw", "PROBE-TERM4-EOSW")):
+        st, msg, _ = env.c.v_run([t], 380 + i)
+        assert st == "accepted", msg
+        R.parse({"cmd": f"rerun {t}", "reason": "t"})
+    assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 107)
+    here = os.path.dirname(os.path.abspath(__file__))
+    ts = open(os.path.join(here, "task.sh")).read(); tp = open(os.path.join(here, "term_probe.sh")).read()
+    assert re.search(r"^  PROBE-TERM\|[^)]*\|PROBE-TERM4-EOSW\|[^)]*\) bash \$RUNBOOK/scripts/term_probe.sh \$G \$T;;", ts, re.M)
+    assert "|| $T == PROBE-TERM4-EOSW ]] && echo --no_teacher --term4" in tp     # TERM4's measures, not PROBE-TERM's
+    q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
+    assert re.search(r"^b259z109 +open +EVAL-eosw:E10b-P5-eosw PROBE-TERM4-EOSW:EVAL-eosw$", q, re.M)
+    assert [l.split()[2] for l in q.splitlines() if l.startswith("#term PROBE-TERM4-EOSW ")] == ["17_P5eosw"]   # one row
+    assert "\n#gpus E12c-P5tail-8k 2\n" in q and "\n#gpus E12b-P5tail-8k-s44 2\n" in q
+    rt = open(os.path.join(here, "run_tasks.sh")).read()
+    assert "[[ $pp =~ ^runs/E1[0-2][bcde]-[A-Za-z0-9._-]+/global_step_[0-9]+/actor/huggingface$ ]]" in rt          # the 8B starts too
+    assert "\n#fetch result:runs/E10e-P5self/global_step_50/actor/huggingface\n" in q
+
+
 def test_run_and_rerun_accept_v259z108(env):   # [v2.5.9z108] (Q-083) the mode-token arm and its gate, rules 2.5.106
     for i, t in enumerate(("E10b-P5mode", "PROBE-MODE")):
         st, msg, _ = env.c.v_run([t], 370 + i)

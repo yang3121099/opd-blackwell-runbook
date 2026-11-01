@@ -1489,19 +1489,24 @@ fill18   open   EVAL-ext-4Bp5tail:E10d-P5tail EVAL-gm-4Bp5tail:E10d-P5tail EVAL-
 # pulls at 64 connections each (~192) stalled the proxy (an hour, ~0.85 MB/s in all), and the setenv PREFETCH_PAR=1 does not
 # reach the running loop (it reads PREFETCH_PAR from its start-up environment), so their retries would start them again. Back to
 # #fetch one at a time: the student once DeepSeek has its .fetch_ok, then the base.
-#fetch Qwen/Qwen2.5-Math-1.5B-Instruct
-#fetch deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B
-#fetch Qwen/Qwen2.5-Math-1.5B
-#fetch Qwen/Qwen3-VL-8B-Thinking
-#fetch Qwen/Qwen3-VL-2B-Instruct
+# [z109] (ops-lead 05:20 UTC (b)) the #fetch block, in file order: the start pulls first - E10e-P5self s50 (PROBE-E12E-8K's 8B start), then
+# E12b's two s25 starts; the model and dataset pulls this node does not use now are off ('# [z109 off]', one line each, reopened by A1)
+#fetch result:runs/E10e-P5self/global_step_50/actor/huggingface
+#fetch result:runs/E12b-P5-8k/global_step_25/actor/huggingface
+#fetch result:runs/E12b-P5-s44/global_step_25/actor/huggingface
+# [z109 off] #fetch Qwen/Qwen2.5-Math-1.5B-Instruct
+# [z109 off] #fetch deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B
+# [z109 off] #fetch Qwen/Qwen2.5-Math-1.5B
+# [z109 off] #fetch Qwen/Qwen3-VL-8B-Thinking
+# [z109 off] #fetch Qwen/Qwen3-VL-2B-Instruct
 # 10-22 01:2x Beijing (Fable's Q-051, ops-lead): Geometry3K (verl's example set, ~100 MB, open licence) before Qwen3-32B, for PROBE-VLM / E15-VLM
-#fetch dataset:hiyouga/geometry3k
+# [z109 off] #fetch dataset:hiyouga/geometry3k
 # (Fable / ops-lead 10-22 01:4x Beijing) MathVista for E15-VLM's testmini reading (CC BY-SA 4.0, evaluation only, not redistributed): the
 # whole repository (1.75 GB; testmini is one 141.6 MB parquet, fetch_pass takes no prefix), ~4-8 min at the measured 3.6-7 MB/s
-#fetch dataset:AI4Math/MathVista
-#fetch dataset:BytedTsinghua-SIA/DAPO-Math-17k
+# [z109 off] #fetch dataset:AI4Math/MathVista
+# [z109 off] #fetch dataset:BytedTsinghua-SIA/DAPO-Math-17k
 # 10-22 01:02 Beijing (17:02 UTC): Qwen3-VL-8B-Thinking in (.fetch_ok, 17.55 GB, ~3.6 MB/s); Qwen3-32B next (ops-lead's standing A1)
-#fetch Qwen/Qwen3-32B
+# [z109 off] #fetch Qwen/Qwen3-32B
 # [v2.5.9z13] (the prefetch list, ops-lead for the reviewer 10-22 07:3x Beijing; Runming: long-term models / data ahead, urgent ones at
 # once day or night): P1 HMMT-Feb-2025 (Q-044 holdout: pulled, not opened), BeyondAIME, Qwen3-VL-2B-Thinking, MathVision, MathVerse, MMK12
 # (1.48 GB, under the 5 GB line), DeepScaleR-Preview; P2 Qwen3-VL-4B-Instruct / -Thinking (Qwen3VLForConditionalGeneration, as VL-2B:
@@ -1509,21 +1514,21 @@ fill18   open   EVAL-ext-4Bp5tail:E10d-P5tail EVAL-gm-4Bp5tail:E10d-P5tail EVAL-
 # accepted the terms; a 401 / 403 is reported, Runming accepts on the HF page). Not pulled: Qwen3.5-9B / 2B (Qwen3_5ForConditionalGeneration
 # is in neither vLLM 0.11.0 nor transformers 4.57.1; vLLM added it 2026-02-09, so it needs a new venv), Qwen3-30B-A3B (P3).
 # BFCL v3 / ToolACE / Auto-ClawEval(-mini) are in place from opd-lab-assets@20608a5.
-#fetch dataset:MathArena/hmmt_feb_2025
-#fetch dataset:ByteDance-Seed/BeyondAIME
-#fetch Qwen/Qwen3-VL-2B-Thinking
-#fetch dataset:MathLLMs/MathVision
-#fetch dataset:AI4Math/MathVerse
-#fetch dataset:FanqingM/MMK12
-#fetch dataset:agentica-org/DeepScaleR-Preview-Dataset
-#fetch Qwen/Qwen3-VL-4B-Instruct
-#fetch Qwen/Qwen3-VL-4B-Thinking
+# [z109 off] #fetch dataset:MathArena/hmmt_feb_2025
+# [z109 off] #fetch dataset:ByteDance-Seed/BeyondAIME
+# [z109 off] #fetch Qwen/Qwen3-VL-2B-Thinking
+# [z109 off] #fetch dataset:MathLLMs/MathVision
+# [z109 off] #fetch dataset:AI4Math/MathVerse
+# [z109 off] #fetch dataset:FanqingM/MMK12
+# [z109 off] #fetch dataset:agentica-org/DeepScaleR-Preview-Dataset
+# [z109 off] #fetch Qwen/Qwen3-VL-4B-Instruct
+# [z109 off] #fetch Qwen/Qwen3-VL-4B-Thinking
 # (the reviewer 10-22 08:0x Beijing, via ops-lead) MMLU-Pro and IFEval: the headline checkpoints' general-ability regression check
 # (MMLU-Pro as a fixed-seed 1K subset on the node; the evaluation rows come later from the reviewer); pulled only for now
-#fetch dataset:TIGER-Lab/MMLU-Pro
-#fetch dataset:google/IFEval
+# [z109 off] #fetch dataset:TIGER-Lab/MMLU-Pro
+# [z109 off] #fetch dataset:google/IFEval
 # [v2.5.9z23] (Runming accepted GPQA's terms on its HF page with the node's account, 10-22) GPQA back; last, its first attempt shows the access
-#fetch dataset:Idavidrein/gpqa
+# [z109 off] #fetch dataset:Idavidrein/gpqa
 #git xirui-li/ClawEnvKit e7003442030e15c5e85f4c5f28a5e54774c6a21a code
 # b259fp / b259f (runbook v2.5.9f, T1, reviewer A1 10-21): E12b-P5-stop2 = E12b-P5 with the graded stop reward (reward_stop2.py:
 # acc x (1 + 0.5 clip(1 - tail/1024, 0, 1)), tail = student tokens after the first \boxed{}, a cut response tail 1024), from P5
@@ -2382,8 +2387,6 @@ fill18   open   EVAL-ext-4Bp5tail:E10d-P5tail EVAL-gm-4Bp5tail:E10d-P5tail EVAL-
 # PROBE-PROG, which waits for both starts: its prefetch (one connection) then finds the start in and pulls nothing
 # [v2.5.9z43] (ops-lead's A1) the two starts pulled ahead, in the background (fetch_pass: parallel, at most 32 connections), not in
 # the gate's CPU slot; E12b-P5-8k s25 is in already (EVAL-ext32k-17p5l8k-s25's prefetch), so only E12b-P5-s44 s25 is pulled
-#fetch result:runs/E12b-P5-8k/global_step_25/actor/huggingface
-#fetch result:runs/E12b-P5-s44/global_step_25/actor/huggingface
 #eval EVAL-budA-p5s44rl-s25 budAp5s44rl_s25_math500_T0.6_32k result:runs/E12b-P5-s44/global_step_25/actor/huggingface math500 4 0.6 32768
 #budget EVAL-budA-p5s44rl-s25 budget_curve_vsStart EVAL-budA17c/budA17c_E10bP5s44_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAp5s44rl_s25_math500_T0.6_32k EVAL-budA-p5s44rl-a/budAp5s44rl_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-p5s44rl-b/budAp5s44rl_s75_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-p5s44rl-b/budAp5s44rl_s100_math500_T0.6_32k_math500_no_think_t0.6.jsonl
 #budget EVAL-budA-p5s44rl-s25 budget_curve EVAL-budA17a/budA_base17_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA17c/budA17c_E10bP5s44_s150_math500_T0.6_32k_math500_no_think_t0.6.jsonl budAp5s44rl_s25_math500_T0.6_32k EVAL-budA-p5s44rl-a/budAp5s44rl_s50_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-p5s44rl-b/budAp5s44rl_s75_math500_T0.6_32k_math500_no_think_t0.6.jsonl EVAL-budA-p5s44rl-b/budAp5s44rl_s100_math500_T0.6_32k_math500_no_think_t0.6.jsonl
@@ -3602,6 +3605,25 @@ b259z107 open   E10b-P5-eosw:PROBE-EOSW
 b259z108 held   PROBE-MODE E10b-P5mode:PROBE-MODE
 #gpus PROBE-MODE 2
 #gpus E10b-P5mode 2
+
+# [z109] (Q-087 E10b-P5-eosw's readings, research_program §3o / scheduler h800-v10 11-01 04:5x UTC; ops-lead A1) H2 / H3: MATH-500 16K
+# at T0.6 / T1.0 against P5 s50 (lab archive) and P5 s150 / P2 (E11b; on this node only when present: pairs missing here are made
+# by S4); H1: TERM4 p_stop_last >= 0.6 on its own probe name (PROBE-TERM4-EOSW: one row, PROBE-TERM4's 45 rows untouched)
+b259z109 open   EVAL-eosw:E10b-P5-eosw PROBE-TERM4-EOSW:EVAL-eosw
+#eval EVAL-eosw e10b_P5eosw_s50_math500_T0.6 result:runs/E10b-P5-eosw/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-eosw e10b_P5eosw_s50_math500_T1.0 result:runs/E10b-P5-eosw/global_step_50/actor/huggingface math500 4 1.0
+#twr EVAL-eosw e10b_P5eosw_s50_math500_T0.6
+#pair EVAL-eosw e10b_P5eosw_s50_math500_T0.6 archive:runs/e10/e10_P5_1.7B_s50_math500_T0.6_math500_no_think_t0.6.jsonl E11b-P5/e11b_P5_math500_T0.6_math500_no_think_t0.6.jsonl
+#pair EVAL-eosw e10b_P5eosw_s50_math500_T1.0 E11b-P5/e11b_P5_math500_T1.0_math500_no_think_t1.0.jsonl
+#term PROBE-TERM4-EOSW 17_P5eosw result:runs/E10b-P5-eosw/global_step_50/actor/huggingface EVAL-eosw/e10b_P5eosw_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+# [z109] (scheduler h800-v10; GPU count by projected hours: > 12 h on one GPU -> 2) Q-074f E12c-P5tail-8k ~13.3 h on one H800 (667 B300 min x 1.2)
+# -> 2 GPUs (~7.4 h); Q-074g E12b-P5tail-8k-s44 ~11.7 h -> 2 GPUs (~6.5 h; the tail of the plan ends ~5 h earlier)
+#gpus E12c-P5tail-8k 2
+#gpus E12b-P5tail-8k-s44 2
+# [z109] (H800 11-01: PROBE-E12E-8K's start fetch got no complete file in its hour, 7 shards of ~2.4 GB at ~0.4 MB/s on one connection)
+# the 8B start pulled in the background ahead of its gate: 32 connections, niced, no GPU, 6 h per call (needs PREFETCH_PAR >= 1);
+# run_e12.sh's own fetch then finds .fetch_ok in adhoc_models/result and goes on at once
+# (the #fetch line of this pull sits at the top of the #fetch block: ops-lead 05:20 UTC (b))
 
 # [fill18] (sched-preempt draft 10-26 10:4x UTC, v130; Fable 18:4x Beijing: no idle GPU to 10-28 24:00 Beijing; ops-lead A1) the transfer
 # row and the general-ability triple for the registered s50 arms that lack them; a pad stage after every formal arm; rows whose s50 is not

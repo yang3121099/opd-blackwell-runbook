@@ -232,7 +232,7 @@ fetch_pass() {
       # [v2.5.9z43] (ops-lead's A1 of Q-058) result:runs/<run>/global_step_<n>/actor/huggingface = a start in this node's public result
       # repository, pulled ahead of its arm into adhoc_models/result (where run_e12.sh and the readings look), outside the CPU lane,
       # with at most RESULT_FETCH_CONNS (32) connections until the node-wide budget exists
-      result:runs/*) pp=${m#result:}; [[ $pp =~ ^runs/E1[0-2][bcd]-[A-Za-z0-9._-]+/global_step_[0-9]+/actor/huggingface$ ]] || continue
+      result:runs/*) pp=${m#result:}; [[ $pp =~ ^runs/E1[0-2][bcde]-[A-Za-z0-9._-]+/global_step_[0-9]+/actor/huggingface$ ]] || continue   # [v2.5.9z109] E10e (the 8B starts)
         d=$CKPT_ROOT/adhoc_models/result/$pp; [ -f $d/.fetch_ok ] && continue; r=$(python $RUNBOOK/scripts/remote.py repo public) || continue; ds=""
         nm=result_$(echo $pp | cut -d/ -f2)_s${pp#*/global_step_}; nm=${nm%%/*};;
       *) continue;;
