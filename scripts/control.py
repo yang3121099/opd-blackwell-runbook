@@ -2058,6 +2058,31 @@ def v_du(a, seq, flags=None, entry=None):
     return "accepted", f"sizing {a[0]}/{a[1] if len(a) > 1 else ''} (read-only)", {}
 
 
+def v_mounts(a, seq, flags=None, entry=None):
+    """mounts ([v2.5.9z123]; Runming 11-02 via Fable, read-only): in the background, scripts/mount_probe.py - the real file systems
+    (total / free, readable / writable by permission bits; nothing written), and beyond our base a bounded walk for B300-era runs/
+    with their saved steps and raw generation files. The report holds paths: to logs/<node>/requests/<seq>/ (private) only; the
+    receipt carries counts."""
+    subprocess.Popen(["setsid", sys.executable, os.path.abspath(__file__), "do_mounts", str(seq)],
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return "accepted", "mount probe started (read-only; report to the private repository)", {}
+
+
+def do_mounts(seq):
+    stage = _p(f"req_{seq}"); shutil.rmtree(stage, ignore_errors=True); os.makedirs(stage)
+    try:
+        r = subprocess.run([sys.executable, os.path.join(RUNBOOK, "scripts", "mount_probe.py"), os.path.join(stage, "mounts.json")],
+                           capture_output=True, text=True, timeout=int(_cfg("MP_TIMEOUT", "330")))
+    except subprocess.TimeoutExpired:
+        receipt(seq, None, "failed", "mount_probe.py did not finish in time"); return
+    if r.returncode != 0 or not os.path.exists(os.path.join(stage, "mounts.json")):
+        receipt(seq, None, "failed", redact((r.stderr or "").strip().splitlines()[-1:][0] if (r.stderr or "").strip() else f"exit {r.returncode}")[:300]); return
+    dest = f"logs/{node_id()}/requests/{seq}"
+    up = subprocess.run([sys.executable, os.path.join(RUNBOOK, "scripts", "remote.py"), "put", stage, dest], capture_output=True, text=True)
+    receipt(seq, None, "ok" if up.returncode == 0 else "failed",
+            redact(r.stdout.strip())[:300] + (f" (report: {dest}/mounts.json)" if up.returncode == 0 else " (report upload failed; kept on the node)"))
+
+
 def do_du(seq, prefix, rel):
     t0 = time.time(); t, why = resolve_ours(prefix, rel)
     if why:
@@ -3334,7 +3359,7 @@ def _v24(fn):
 VERBS = {"pause": _v24(v_pause), "resume": _v24(v_resume), "kill": _v24(v_kill), "prio": _v24(v_prio),
          "restore": _v24(v_restore), "rerun_verify": _v24(v_rerun_verify), "setenv": v_set, "set": v_set,
          "snapshot": lambda a, seq, flags=None, entry=None: v_snapshot0(seq) if not a else v_snapshot(a, seq),
-         "ps": v_ps, "logs": v_logs, "run": v_run, "rerun": v_rerun, "republish": v_republish, "publish": v_publish, "publish-redacted": v_publish_redacted, "pend-weight": v_pend_weight, "leakscan": v_leakscan, "fa-build": v_fa_build, "scrubdiff": v_scrubdiff, "du": v_du, "inventory": v_inventory, "rm-ours": v_rm_ours, "dr-keep": v_dr_keep, "persist-env": v_persist_env, "rebuild-drill": v_rebuild_drill, "eval": v_eval, "update": v_update, "upload": v_upload,
+         "ps": v_ps, "logs": v_logs, "run": v_run, "rerun": v_rerun, "republish": v_republish, "publish": v_publish, "publish-redacted": v_publish_redacted, "pend-weight": v_pend_weight, "leakscan": v_leakscan, "fa-build": v_fa_build, "scrubdiff": v_scrubdiff, "du": v_du, "mounts": v_mounts, "inventory": v_inventory, "rm-ours": v_rm_ours, "dr-keep": v_dr_keep, "persist-env": v_persist_env, "rebuild-drill": v_rebuild_drill, "eval": v_eval, "update": v_update, "upload": v_upload,
          "signal": v_signal, "kill-pgid": v_killpgid, "cancel": v_cancel, "heartbeat": v_heartbeat, "env-probe": v_env_probe, "setup": v_setup, "verify": _v24(v_rerun_verify), "tail": v_tail, "restart-loops": v_restart_loops, "dispatch": v_dispatch, "move-ckpt": v_move_ckpt, "reap": v_reap}
 assert set(VERBS) == set(R.VERBS), set(VERBS) ^ set(R.VERBS)
 TASK_VERBS = R.TASK_VERBS
@@ -3760,6 +3785,8 @@ if __name__ == "__main__":
         do_inventory(int(sys.argv[2]), len(sys.argv) > 3 and sys.argv[3] == "pend")
     elif cmd == "do_du":
         do_du(int(sys.argv[2]), sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else "")
+    elif cmd == "do_mounts":   # [v2.5.9z123]
+        do_mounts(int(sys.argv[2]))
     elif cmd == "do_rm_ours":
         do_rm_ours(int(sys.argv[2]), sys.argv[3], sys.argv[4])
     elif cmd == "disk_fallback":   # [v2.5.9z48] run_tasks.sh every round; [v2.5.9z71] in the background, never waiting on the lock
