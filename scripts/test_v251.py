@@ -1852,7 +1852,7 @@ def test_run_and_rerun_accept_v259z109(env):   # [v2.5.9z109] (Q-087) EVAL-eosw 
     q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
     assert re.search(r"^b259z109 +open +EVAL-eosw:E10b-P5-eosw PROBE-TERM4-EOSW:EVAL-eosw$", q, re.M)
     assert [l.split()[2] for l in q.splitlines() if l.startswith("#term PROBE-TERM4-EOSW ")] == ["17_P5eosw"]   # one row
-    assert "\n#gpus E12c-P5tail-8k 2\n" in q and "\n#gpus E12b-P5tail-8k-s44 2\n" in q
+    assert "\n#gpus E12c-P5tail-8k 2\n" in q and re.search(r"^#gpus E12b-P5tail-8k-s44 [24]$", q, re.M)   # [z111] 4
     rt = open(os.path.join(here, "run_tasks.sh")).read()
     assert "[[ $pp =~ ^runs/E1[0-2][bcde]-[A-Za-z0-9._-]+/global_step_[0-9]+/actor/huggingface$ ]]" in rt          # the 8B starts too
     assert "\n#fetch result:runs/E10e-P5self/global_step_50/actor/huggingface\n" in q

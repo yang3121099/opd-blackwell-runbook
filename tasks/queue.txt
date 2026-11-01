@@ -3619,7 +3619,10 @@ b259z109 open   EVAL-eosw:E10b-P5-eosw PROBE-TERM4-EOSW:EVAL-eosw
 # [z109] (scheduler h800-v10; GPU count by projected hours: > 12 h on one GPU -> 2) Q-074f E12c-P5tail-8k ~13.3 h on one H800 (667 B300 min x 1.2)
 # -> 2 GPUs (~7.4 h); Q-074g E12b-P5tail-8k-s44 ~11.7 h -> 2 GPUs (~6.5 h; the tail of the plan ends ~5 h earlier)
 #gpus E12c-P5tail-8k 2
-#gpus E12b-P5tail-8k-s44 2
+# [z111] (Fable 05:5x UTC on Runming's order: a training arm takes 4 GPUs when they are free; scheduler h800-v11) Q-074g's RL 2 -> 4
+# (it was 2 in z109) and its distill start E10b-P5tail-s44 on 4
+#gpus E12b-P5tail-8k-s44 4
+#gpus E10b-P5tail-s44 4
 
 # [z110] (Fable 05:2x UTC ②: H judgments on one machine; ops-lead 05:25 / 05:33 UTC: a new name, not a rerun of the imported reference)
 # Q-074d H1's reference read again on the H800: E10b-P5tail s50, AIME24 / 25 avg@16 32K T0.6, as EVAL-ext32k-17tail's two rows with _h800
