@@ -35,3 +35,4 @@ commands:
   - {"seq": 33, "cmd": "tail run_tasks.log 40", "reason": "diagnose: run requests seq 30/31 accepted 02:40Z, not started while 5 GPUs are free", "utc": "2026-11-01T02:54:11Z"}
   - {"seq": 34, "cmd": "tail watchdog.log 20", "reason": "diagnose: run_tasks restarts every ~11 min (RUN_TASKS_START), requests never served", "utc": "2026-11-01T02:59:05Z"}
   - {"seq": 35, "cmd": "rerun EVAL-e10d-P5tail-s43", "reason": "Q-075c reading: only s25 failed (model fetch in the 429 backoff); finished evals are skipped (ops-lead A1 03:08Z)", "utc": "2026-11-01T03:24:24Z"}
+  - {"seq": 36, "cmd": "resume E12d-P5tail-8k-s43", "reason": "Q-074i, #gpus 2 from the queue; PROBE-E12B-8K PASS on the H800 (ops-lead A1 03:32Z)", "utc": "2026-11-01T03:59:03Z"}
