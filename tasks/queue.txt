@@ -3620,6 +3620,13 @@ b259z109 open   EVAL-eosw:E10b-P5-eosw PROBE-TERM4-EOSW:EVAL-eosw
 # -> 2 GPUs (~7.4 h); Q-074g E12b-P5tail-8k-s44 ~11.7 h -> 2 GPUs (~6.5 h; the tail of the plan ends ~5 h earlier)
 #gpus E12c-P5tail-8k 2
 #gpus E12b-P5tail-8k-s44 2
+
+# [z110] (Fable 05:2x UTC ②: H judgments on one machine; ops-lead 05:25 / 05:33 UTC: a new name, not a rerun of the imported reference)
+# Q-074d H1's reference read again on the H800: E10b-P5tail s50, AIME24 / 25 avg@16 32K T0.6, as EVAL-ext32k-17tail's two rows with _h800
+# tags; one GPU. H1 compares EVAL-ext32k-17p5tail16k with these (each >= -2), paired intervals by S4
+b259z110 open   EVAL-ext32k-17tail-h800:E10b-P5tail
+#eval EVAL-ext32k-17tail-h800 ext32k17_P5tail_s50_aime24_T0.6_h800 result:runs/E10b-P5tail/global_step_50/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-17tail-h800 ext32k17_P5tail_s50_aime25_T0.6_h800 result:runs/E10b-P5tail/global_step_50/actor/huggingface aime25 16 0.6 32768
 # [z109] (H800 11-01: PROBE-E12E-8K's start fetch got no complete file in its hour, 7 shards of ~2.4 GB at ~0.4 MB/s on one connection)
 # the 8B start pulled in the background ahead of its gate: 32 connections, niced, no GPU, 6 h per call (needs PREFETCH_PAR >= 1);
 # run_e12.sh's own fetch then finds .fetch_ok in adhoc_models/result and goes on at once
