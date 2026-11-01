@@ -29,3 +29,4 @@ commands:
   - {"seq": 27, "cmd": "run PROBE-E12B-8K", "reason": "gate of the 1.7B 8K RL recipe on the H800 (venv-fa, micro 4, LOGP_MB 1); ops-lead pre-A1 00:19Z, VENV=fa in control_env 01:26Z", "utc": "2026-11-01T01:28:37Z"}
   - {"seq": 28, "cmd": "rerun E10b-P5-eosw", "reason": "Q-087 on venv-fa (rmpad), micro 4, #gpus 2 from the queue; ops-lead pre-A1 01:19Z, no Fable stop by 01:30Z", "utc": "2026-11-01T01:30:29Z"}
   - {"seq": 29, "cmd": "resume E10b-P5-eosw", "reason": "Q-087 on venv-fa (rmpad), micro 4, #gpus 2 from the queue; ops-lead pre-A1 01:19Z, no Fable stop by 01:30Z", "utc": "2026-11-01T01:30:34Z"}
+  - {"seq": 30, "cmd": "run PROBE-E12C-8K", "reason": "Q-077 / Q-074f gate on the H800 (0.6B 8K, venv-fa, micro 4); ops-lead A1 02:00Z", "utc": "2026-11-01T02:23:41Z"}
