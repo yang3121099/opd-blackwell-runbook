@@ -51,3 +51,4 @@ commands:
   - {"seq": 49, "cmd": "pause EVAL-budA-e12cP5-8k", "reason": "an #eval-only name (no stage line) whose result: start is not in the repos: the prefetch fails every round (ops-lead pre-A1 06:21Z)", "utc": "2026-11-01T06:46:17Z"}
   - {"seq": 50, "cmd": "pause EVAL-budA-e12eP5tail-16k", "reason": "an #eval-only name (no stage line) whose result: start is not in the repos: the prefetch fails every round (ops-lead pre-A1 06:21Z)", "utc": "2026-11-01T06:46:22Z"}
   - {"seq": 51, "cmd": "pause EVAL-e12e-P5tail-16k", "reason": "an #eval-only name (no stage line) whose result: start is not in the repos: the prefetch fails every round (ops-lead pre-A1 06:21Z)", "utc": "2026-11-01T06:46:27Z"}
+  - {"seq": 52, "cmd": "pause EVAL-ext32k-8Bp5tail16k", "reason": "an #eval-only name (no stage line) whose result: start is not in the repos: the prefetch fails every round (ops-lead pre-A1 06:21Z)", "utc": "2026-11-01T06:46:32Z"}
