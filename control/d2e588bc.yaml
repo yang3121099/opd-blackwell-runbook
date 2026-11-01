@@ -25,3 +25,4 @@ commands:
   - {"seq": 23, "cmd": "rerun FA-PROBE", "reason": "fa-build PASS (seq 9): varlen + smoke in venv-fa (ops-lead pre-A1 17:02Z item 3)", "utc": "2026-10-31T23:54:04Z"}
   - {"seq": 24, "cmd": "pause E10b-P5-eosw", "reason": "Q-087: OOM twice at FIXED_MICRO_BSZ=4 (9.27 GiB logits alloc); stop before the third attempt, Fable rules the path (ops-lead pre-A1 22:49Z item 3)", "utc": "2026-11-01T00:23:40Z"}
   - {"seq": 25, "cmd": "run FA-PROBE", "reason": "start the reset FA-PROBE (rerun seq 23; the probe keeps .paused from its first FAIL; ops-lead pre-A1 17:02Z items 1/3)", "utc": "2026-11-01T00:23:45Z"}
+  - {"seq": 26, "cmd": "setenv VENV=fa", "reason": "FA-PROBE PASS in venv-fa (varlen + 3-step rmpad smoke, peak 73.3 GB); ops-lead pre-A1 17:02Z item 4 / 19:49Z item 4", "utc": "2026-11-01T00:53:37Z"}
