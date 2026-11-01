@@ -17,6 +17,7 @@ one. Without the file both are HF_REPO, as in v2.5. Every call reads the file ag
 switch on their next upload. A destination path component equal to this machine's host name (full or short) becomes the
 node id, so no file is named after the host. Private-class files are refused when the private repository is public.
 """
+import calendar
 import hashlib
 import os
 import re
@@ -272,6 +273,43 @@ STATUS_RE = re.compile(r"status/[^/]+\.json$")
 BULK_MIN_MB = 50
 
 
+class Budget(Backoff):
+    """[v2.5.9z124b] the node's hourly HF commit budget refuses this upload (a Backoff: the callers' retry / results queue take it)."""
+
+
+def commits_last_hour(now=None):
+    """[v2.5.9z124b] (Fable 11-02 16:5x UTC, 9th item: the HF account's hourly commit limit) successful uploads in the last hour, from
+    the tail of control/transfers.jsonl (record_transfer: one line per commit; deferred and failed ones not counted)."""
+    now = now or time.time(); p = os.path.join(_cdir(), "transfers.jsonl"); n = 0
+    try:
+        with open(p, "rb") as f:
+            f.seek(0, 2); f.seek(max(0, f.tell() - int(os.environ.get("BUDGET_TAIL_BYTES", "600000"))))
+            lines = f.read().decode("utf-8", "replace").splitlines()[1:]
+    except OSError:
+        return 0
+    for l in lines:
+        try:
+            r = json.loads(l)
+            if r.get("dir") == "up" and r.get("ok") and not r.get("deferred") and \
+                    now - calendar.timegm(time.strptime(r["utc"], "%Y-%m-%dT%H:%M:%SZ")) < 3600:
+                n += 1
+        except (ValueError, KeyError, TypeError):
+            pass
+    return n
+
+
+def _budget(dst, nbytes, publish=False):
+    """[v2.5.9z124b] the control plane (status/, pulse/) is never refused; anything else stops at CONTROL_ONLY_AT (80) commits in the
+    last hour, and a bulk upload (BULK_MIN_MB or more) or a publish needs more than BULK_HEADROOM (20) left of HF_COMMIT_BUDGET (100)."""
+    if dst.lstrip("/").startswith(("status/", "pulse/")):
+        return
+    n = commits_last_hour(); cap = float(os.environ.get("HF_COMMIT_BUDGET", "100"))
+    if n >= float(os.environ.get("CONTROL_ONLY_AT", "80")):
+        raise Budget(f"commit budget: {n} in the last hour, control plane only")
+    if (publish or nbytes >= float(os.environ.get("BULK_MIN_MB", BULK_MIN_MB)) * 1e6) and cap - n <= float(os.environ.get("BULK_HEADROOM", "20")):
+        raise Budget(f"commit budget: {n} of {int(cap)} in the last hour, no room for a bulk upload")
+
+
 def _commit(api, nbytes, **kw):
     """[v2.5.9z124] (Fable's 8th item) create_commit with at most BULK_THREADS (1) upload threads for a bulk commit: hf_hub cannot
     split one file over several connections, so a bulk upload takes one lane; smaller commits keep the hub's default. num_threads
@@ -418,6 +456,7 @@ def put(src, dst, kind=None):
         if status:
             _blind(True)
         raise
+    _budget(dst, _nbytes(src))   # [v2.5.9z124b] the hourly commit budget
     t0, ok = time.time(), False
     try:
         with _BulkLock(_nbytes(src)):   # [v2.5.9z124] one bulk upload at a time, after the control plane
@@ -663,8 +702,10 @@ def put_public_unchanged(pairs, message):
     caller has checked every file (no forbidden token, no path of this machine)."""
     from huggingface_hub import CommitOperationAdd
     _gate()   # [v2.5.9z124] was: no backoff check (publish-redacted kept committing through a 429)
+    nb = sum(os.path.getsize(l) for l, _ in pairs if os.path.isfile(l))
+    _budget(pairs[0][1] if pairs else "runs/", nb, publish=True)   # [v2.5.9z124b] a publish needs headroom
     api, repo = hf("public")
-    t0, ok, nb = time.time(), False, sum(os.path.getsize(l) for l, _ in pairs if os.path.isfile(l))
+    t0, ok = time.time(), False
     try:
         with _BulkLock(nb):
             _commit(api, nb, repo_id=repo, repo_type="model", commit_message=message,

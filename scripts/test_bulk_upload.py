@@ -133,3 +133,34 @@ def test_a_bulk_commit_takes_one_lane(R, monkeypatch):
             seen.append("old")
     R._commit(OldApi(), 10 ** 9, repo_id="r", operations=[], commit_message="m")
     assert seen[-1] == "old"
+
+
+def _transfers(tmp_path, n_recent, n_old=0, n_failed=0):
+    now = time.time()
+    rows = [{"utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now - 60)), "dir": "up", "dst": "runs/T", "ok": True}] * n_recent
+    rows += [{"utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now - 4000)), "dir": "up", "dst": "runs/T", "ok": True}] * n_old
+    rows += [{"utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now - 60)), "dir": "up", "dst": "runs/T", "ok": False}] * n_failed
+    rows += [{"utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now - 60)), "dir": "up", "dst": "runs/T", "ok": True, "deferred": "x"}] * 5
+    rows += [{"utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now - 60)), "dir": "down", "dst": "runs/T", "ok": True}] * 5
+    open(tmp_path / "control" / "transfers.jsonl", "w").write("first line is skipped as possibly partial\n" + "\n".join(json.dumps(r) for r in rows) + "\n")
+
+
+def test_the_hourly_commit_budget_v259z124b(R, tmp_path, monkeypatch):   # [v2.5.9z124b] Fable's 9th item
+    monkeypatch.setattr(R, "_put", _slow_put(R, 0.0))
+    _transfers(tmp_path, 79, n_old=50, n_failed=30)
+    assert R.commits_last_hour() == 79                                              # old, failed, deferred, downloads not counted
+    R.put(_file(tmp_path, "small.json", 10), "runs/T/small.json")                   # 79 < 80: data still goes
+    _transfers(tmp_path, 79)
+    R.put(_file(tmp_path, "big.jsonl", 5000), "runs/T/big.jsonl")                   # 100 - 79 = 21 > 20: a bulk upload goes
+    _transfers(tmp_path, 80)
+    with pytest.raises(R.Budget):
+        R.put(_file(tmp_path, "small2.json", 10), "runs/T/small2.json")            # at 80: control plane only
+    R.put(_file(tmp_path, "st.json", 10), "status/node.json")                      # the control plane is never refused
+    R.put(_file(tmp_path, "pl.json", 10), "pulse/node.json")
+    assert issubclass(R.Budget, R.Backoff)                                           # the callers' retry paths take it
+    monkeypatch.setenv("HF_COMMIT_BUDGET", "90"); _transfers(tmp_path, 70)
+    with pytest.raises(R.Budget):
+        R.put(_file(tmp_path, "big2.jsonl", 5000), "runs/T/big2.jsonl")            # 90 - 70 = 20: no room for a bulk upload
+    monkeypatch.setattr(R, "hf", lambda kind: (_ for _ in ()).throw(AssertionError("no request over budget")))
+    with pytest.raises(R.Budget):
+        R.put_public_unchanged([(_file(tmp_path, "r.jsonl", 10), "runs/T/redacted/r.jsonl")], "m")   # a publish needs the headroom
