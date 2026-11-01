@@ -1493,6 +1493,10 @@ fill18   open   EVAL-ext-4Bp5tail:E10d-P5tail EVAL-gm-4Bp5tail:E10d-P5tail EVAL-
 # E12b's two s25 starts; the model and dataset pulls this node does not use now are off ('# [z109 off]', one line each, reopened by A1)
 # [z111b] (Fable 06:1x UTC) first Q-074e's own start, E10e-P5tail s50 (the arm E12e-P5tail-8k); E10e-P5self s50 is only its gate's smoke start
 #fetch result:runs/E10e-P5tail/global_step_50/actor/huggingface
+# [z113a] (Fable 06:5x UTC rule 4: a task that needs weights starts only once they are local) the H1 reference's start (EVAL-ext32k-17tail-h800)
+# and Q-074f's (E12c-P5tail-8k: E10c-P5tail-c50's global_step_30 = its s50)
+#fetch result:runs/E10b-P5tail/global_step_50/actor/huggingface
+#fetch result:runs/E10c-P5tail-c50/global_step_30/actor/huggingface
 #fetch result:runs/E10e-P5self/global_step_50/actor/huggingface
 #fetch result:runs/E12b-P5-8k/global_step_25/actor/huggingface
 #fetch result:runs/E12b-P5-s44/global_step_25/actor/huggingface
