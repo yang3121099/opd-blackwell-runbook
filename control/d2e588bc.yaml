@@ -31,3 +31,4 @@ commands:
   - {"seq": 29, "cmd": "resume E10b-P5-eosw", "reason": "Q-087 on venv-fa (rmpad), micro 4, #gpus 2 from the queue; ops-lead pre-A1 01:19Z, no Fable stop by 01:30Z", "utc": "2026-11-01T01:30:34Z"}
   - {"seq": 30, "cmd": "run PROBE-E12C-8K", "reason": "Q-077 / Q-074f gate on the H800 (0.6B 8K, venv-fa, micro 4); ops-lead A1 02:00Z", "utc": "2026-11-01T02:23:41Z"}
   - {"seq": 31, "cmd": "run PROBE-E12B-16K", "reason": "Q-028 / Q-074h gate on the H800 (1.7B 16K, micro 4: does 16K fit 80 GB); ops-lead A1 02:00Z", "utc": "2026-11-01T02:23:46Z"}
+  - {"seq": 32, "cmd": "tail EVAL-e10d-P5tail-s43.log 50", "reason": "diagnose: the Q-075c reading finished ok=0 (one failed attempt)", "utc": "2026-11-01T02:54:06Z"}
