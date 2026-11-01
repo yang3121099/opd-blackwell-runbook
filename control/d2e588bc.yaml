@@ -41,3 +41,4 @@ commands:
   - {"seq": 39, "cmd": "tail PROBE-E12C-8K.log 30", "reason": "diagnose: the 0.6B 8K gate at 58 min with its GPU at 0% and a stalled alert", "utc": "2026-11-01T04:29:12Z"}
   - {"seq": 40, "cmd": "tail PROBE-E12E-8K.log 20", "reason": "diagnose: the 8B gate at 20 min with its four GPUs at 0%", "utc": "2026-11-01T04:29:17Z"}
   - {"seq": 41, "cmd": "snapshot runs/PROBE-E12C-8K/smoke.out", "reason": "diagnose: the 0.6B 8K gate in fetch_model.py for ~1 h at 0.2% CPU (read only)", "utc": "2026-11-01T04:34:38Z"}
+  - {"seq": 42, "cmd": "setenv PREFETCH_PAR=1", "reason": "one background pull at a time: E10e-P5self s50 first (z109 303fba6, ops-lead A1 05:20Z condition (b) met)", "utc": "2026-11-01T05:32:16Z"}
