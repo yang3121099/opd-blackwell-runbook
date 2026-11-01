@@ -40,7 +40,12 @@ lenwall() {   # [v2.5.9z38] (Q-060) an OPD run's per-step length / clip and its 
   if [ -n "$w" ]; then echo "$w"; [ "$DRY" = 1 ] || python $RUNBOOK/scripts/control.py event $TASK wall_cross "${w#WALL $TASK }" > /dev/null 2>&1
     echo wall.json >> $RUN/.up_due; fi   # [v2.5.9z52]
   n=$(awk 'NR > 1' $RUN/len_by_step.csv 2> /dev/null | grep -c .); u=$(cat $RUN/.len_uploaded 2> /dev/null || echo 0)
-  [ $n -ge $(( u + ${LEN_EVERY:-5} )) ] && echo len_by_step.csv >> $RUN/.up_due && { echo $n > $RUN/.len_uploaded; echo "LEN_UP $TASK $n steps $(date -u +%T) (queued)"; }
+  [ $n -ge $(( u + ${LEN_EVERY:-5} )) ] && echo len_by_step.csv >> $RUN/.up_due && { echo $n > $RUN/.len_uploaded; echo "LEN_UP $TASK $n steps $(date -u +%T) (queued)"; modelen; }
+  return 0; }
+modelen() {   # [v2.5.9z108] (Q-083) E10b-P5mode's per-token lengths (mode_len.py over its rollout dump, the student's tokenizer), queued
+  [ $TASK = E10b-P5mode ] || return 0
+  local py=$OPD_ROOT/venv/bin/python; [ -x $py ] || py=python
+  timeout 900 $py $RUNBOOK/scripts/mode_len.py $RUN $TASK 2> /dev/null | grep '^MODE_LEN ' && echo len_by_token.json >> $RUN/.up_due
   return 0; }
 x5alert() {   # [v2.5.9z59] (Fable 10-22) an E16 step whose responses carry special ids in more than X5_SPECIAL_ALERT (2%) of its rows: one event
   [ "$DRY" = 1 ] && return 0   # [v2.5.9z61] (ops-lead's follow-up) as lenwall
@@ -108,8 +113,8 @@ while true; do
   if grep -q '^finished:' $RUN/config.yaml 2>/dev/null && [ $pend = 0 ]; then
     [ -f $RUN/train.log ] && python $RUNBOOK/scripts/metrics_jsonl.py $RUN/train.log > $RUN/metrics.jsonl
     case $TASK in E12[bcde]-*) stats 0;; esac   # [v2.5.9g] complete, whether or not run_e12.sh's own pass (after finished:) is done
-    case $TASK in E10[bcde]-*) lenwall;; esac   # [v2.5.9z38] the last steps' rows and a late wall; [v2.5.9z68] E10e
-    upn train.log config.yaml metrics.jsonl rollout_stats.csv lensel.jsonl stopmerge.jsonl tailswap.jsonl len_by_step.csv wall.json && rm -f $RUN/.up_due   # [v2.5.8m] lensel.jsonl: the length-selected arms' per-prompt record; [v2.5.9z52] one commit
+    case $TASK in E10[bcde]-*) lenwall; modelen;; esac   # [v2.5.9z38] the last steps' rows and a late wall; [v2.5.9z68] E10e; [v2.5.9z108] modelen
+    upn train.log config.yaml metrics.jsonl rollout_stats.csv lensel.jsonl stopmerge.jsonl tailswap.jsonl len_by_step.csv wall.json len_by_token.json && rm -f $RUN/.up_due   # [v2.5.8m] lensel.jsonl: the length-selected arms' per-prompt record; [v2.5.9z52] one commit
     [ -d $RUN/rollouts ] && up $RUN/rollouts runs/$TASK/rollouts
     [ -f $RUN/.done ] && up $RUN/.done runs/$TASK/.done
     echo "UPLOAD_DONE $TASK $(date -u +%T)"

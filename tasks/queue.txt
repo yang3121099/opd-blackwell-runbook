@@ -3594,6 +3594,15 @@ b26c     open   CORPUS-RECORD
 b259z107 open   E10b-P5-eosw:PROBE-EOSW
 #gpus E10b-P5-eosw 2
 
+# [z108] (Q-083 E10b-P5mode, research_program §3i / beyond_mainline §1: the 1.7B base, P5's recipe, 50 steps, a visible mode token
+# '[long] ' / '[short] ' per prompt by mix's coin, the teacher by token and without it; Fable 10-27 §3l approved the engineering;
+# ops-lead 11-01 02:00 UTC: write it) its gate PROBE-MODE (unit tests, the parquet, a 3-step smoke) and the arm, both on two GPUs as
+# E10b-P5-eosw (the 1.7B update at micro 4); ~1.5 h on two H800 (eosw ran ~106 s/step). Its two 16K readings (MATH-500 with each token,
+# s50, T0.6) come in z108b. [held: ops-lead 02:53 UTC - nothing starts before Fable's D1-D6 (04:00 UTC); a one-word diff opens it]
+b259z108 held   PROBE-MODE E10b-P5mode:PROBE-MODE
+#gpus PROBE-MODE 2
+#gpus E10b-P5mode 2
+
 # [fill18] (sched-preempt draft 10-26 10:4x UTC, v130; Fable 18:4x Beijing: no idle GPU to 10-28 24:00 Beijing; ops-lead A1) the transfer
 # row and the general-ability triple for the registered s50 arms that lack them; a pad stage after every formal arm; rows whose s50 is not
 # on the node wait (no fetch below the work disk's lines, no attempt used)

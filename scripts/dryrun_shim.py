@@ -28,7 +28,7 @@ CONTROL = {"event": "record", "reap": "record", "rcpt": "record", "node": "node"
 REMOTE = {"backoff": "zero", "repo": "class", "put": "record", "pend": "record", "putmany": "record"}
 NODE_TOKEN = "${NODE}"   # never the real node id (control.py node hashes the host name)
 # code/train / code/agent jobs a runner may call by bare name (from inside their directory)
-DATA_JOBS = {"prep_mmk12.py", "prep_tools_parquet.py", "build_sft_data.py", "gen_teacher_traces.py"}
+DATA_JOBS = {"prep_mmk12.py", "prep_tools_parquet.py", "build_sft_data.py", "gen_teacher_traces.py", "mode_data.py"}   # [v2.5.9z108] mode_data.py: Q-083
 # a heredoc that inspects or patches the installed verl (run_sft.sh's attention patch): recorded, as a *_patch.py call
 PATCH_HEREDOC = re.compile(r"find_spec\(\s*['\"]verl|^\s*import verl|^\s*from verl", re.M)
 # a heredoc that imports test modules (the probes' unit-test runners): recorded and reported as passed, as a test_*.py call

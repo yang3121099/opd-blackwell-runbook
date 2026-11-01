@@ -1839,6 +1839,20 @@ def test_run_and_rerun_accept_v259z102(env):   # [v2.5.9z102] (Q-087) the positi
     assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 104)
 
 
+def test_run_and_rerun_accept_v259z108(env):   # [v2.5.9z108] (Q-083) the mode-token arm and its gate, rules 2.5.106
+    for i, t in enumerate(("E10b-P5mode", "PROBE-MODE")):
+        st, msg, _ = env.c.v_run([t], 370 + i)
+        assert st == "accepted", msg
+        R.parse({"cmd": f"rerun {t}", "reason": "t"})
+    assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 106)
+    here = os.path.dirname(os.path.abspath(__file__))
+    ts = open(os.path.join(here, "task.sh")).read(); q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
+    assert "  E10b-P5mode) bash $RUNBOOK/scripts/run_arm.sh $G $T;;" in ts and "  PROBE-MODE) bash $RUNBOOK/scripts/probe_mode.sh $G;;" in ts
+    assert re.search(r"^b259z108 +(open|held) +PROBE-MODE E10b-P5mode:PROBE-MODE$", q, re.M)   # held until Fable's D1-D6 (ops-lead 02:53 UTC)
+    assert "\n#gpus PROBE-MODE 2\n" in q and "\n#gpus E10b-P5mode 2\n" in q
+    assert re.search(r"^\S*\s*rules 2\.5\.106\b", open(os.path.join(os.path.dirname(here), "control", "CHANGES.md")).read(), re.M)
+
+
 
 @pytest.mark.parametrize("cmd", ["setenv LOGP_MB=0", "setenv LOGP_MB=17", "setenv LOGP_MB=x"])
 def test_rules_refuse_bad_logp_mb(cmd):   # [v2.5.9z106]

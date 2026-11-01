@@ -7,7 +7,7 @@ set -uo pipefail
 source "$(dirname "$0")/env.sh"; G=$1; T=$2
 # [v2.5.9a] G = one GPU, cpu, or a list a,b (a #gpus task, run_tasks.sh): a list only for the trainings and PROBE-2GPU
 [[ $G =~ ^([0-9]+(,[0-9]+){0,3}|cpu)$ ]] || { echo "bad gpu $G"; exit 2; }
-case $G in *,*) [[ $T =~ ^(E10[bcde]-|E12[bcde]-|PROBE-2GPU$|PROBE-8B$|PROBE-E12E-8K$|PROBE-E12E-16K$|PROBE-TAIL-8B$) ]] || { echo "$T takes one GPU (got $G)"; exit 2; };; esac
+case $G in *,*) [[ $T =~ ^(E10[bcde]-|PROBE-MODE$|E12[bcde]-|PROBE-2GPU$|PROBE-8B$|PROBE-E12E-8K$|PROBE-E12E-16K$|PROBE-TAIL-8B$) ]] || { echo "$T takes one GPU (got $G)"; exit 2; };; esac
 # v2.5.4a: a task whose previous attempt ran out of GPU memory (run_tasks.sh writes runs/<task>/.oom) gets FIXED_MICRO_BSZ=4
 # for its own retries, unless the key is set already; nothing else changes
 [ -f $OPD_ROOT/runs/$T/.oom ] && [ -z "${FIXED_MICRO_BSZ:-}" ] && { export FIXED_MICRO_BSZ=4; echo "OOM_RETRY $T with FIXED_MICRO_BSZ=4"; }
@@ -40,6 +40,7 @@ case $T in
   E10b-P5bud2k|E10b-P5bud3k) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z73] (Q-061) the tail swap at min(the first box, N)
   E10b-P5softmix50) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z83] (Q-073) the two readings soft-mixed (0.5 / 0.5) at every position
   E10b-P5-eosw) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z102] (Q-087) P5 with the stop decision's 16 positions weighted x64; gated by PROBE-EOSW
+  E10b-P5mode) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z108] (Q-083) P5 with a visible mode token per prompt ([long] / [short]); gated by PROBE-MODE
   E10b-P5-dense|E10b-P5-akl) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z76] (Q-065) the per-token KL over the vocabulary
   E10b-P5-akl2|E10b-P5-fkl|E10b-P5-dense-k256|E10b-P5-akl-mu03|E10b-P5-akl-mu07|E10b-P5self-akl|E10b-P5selfroute-c100) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z85] (Q-079) the AKL series; (Q-072b) selfroute continued to s100
   E10e-P5self) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z68] (Q-068) the 8B student taught by itself, four GPUs (#gpus 4)
@@ -126,6 +127,7 @@ case $T in
   PROBE-SELFROUTE) bash $RUNBOOK/scripts/probe_selfroute.sh $G;;   # [v2.5.9z82] (Q-072) the gate of E10b-P5selfroute: the probe's labels and their check
   PROBE-PSTAR) bash $RUNBOOK/scripts/probe_pstar.sh $G;;   # [v2.5.9z75] (Q-064) p* from the 8B teacher's sequence log-probs
   PROBE-EOSW) bash $RUNBOOK/scripts/probe_eosw.sh $G;;   # [v2.5.9z102] (Q-087) the position-weighted arm's gate
+  PROBE-MODE) bash $RUNBOOK/scripts/probe_mode.sh $G;;   # [v2.5.9z108] (Q-083) the mode-token arm's gate: unit tests, the parquet, a 3-step smoke on its GPUs
   PROBE-DENSE) bash $RUNBOOK/scripts/probe_dense.sh $G;;   # [v2.5.9z76] (Q-065) the dense arms' gate
   PROBE-DENSE-4B) PDN_PROBE=PROBE-DENSE-4B PDN_P5=E10d-P5 PDN_ARM=E10d-P5-akl PDN_MODE=akl bash $RUNBOOK/scripts/probe_dense.sh $G;;   # [v2.5.9z85] (Q-079) the 4B AKL arm's smoke
   PROBE-ROUTE) bash $RUNBOOK/scripts/probe_route.sh $G;;   # [v2.5.9x] the gate of E10b-P5route / -P5mix

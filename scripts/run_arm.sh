@@ -177,6 +177,12 @@ SRC50=0; [ $TASK = E10b-P5selfroute-c100 ] && { ROUTE=route; ROUTE_SELF=1; SRC50
 # [v2.5.9z47] (the reviewer 10-22 18:5x Beijing via ops-lead) E10b-P5mix60 = mix75 / mix90's recipe with the coin at p = 0.6; it starts only
 # after PROBE-MIXP checked 0.6 (the share and the nesting under 0.75 / 0.9), besides PROBE-ROUTE
 [ $TASK = E10b-P5mix60 ] && { ROUTE=mix; ROUTE_P=0.6; BASE=E10b-P5; }
+# [v2.5.9z108] (Q-083, research_program §3i; beyond_mainline §1) E10b-P5mode = P5's recipe from the base with a visible mode token per
+# prompt: mode_data.py writes the training parquet with '[long] ' / '[short] ' in front of each prompt by mix's coin (OPD_SEED), the
+# teacher follows the token (opd_route.py's prefix mode: [long] the thinking template, [short] the non-thinking one) and scores the
+# prompt without it (mode_patch.py; OPD_MODE_STRIP=0 keeps it). 50 steps, s50 uploaded; route.jsonl per step (with the stripped
+# count); verl's rollout dump in <run>/mode_dump (not uploaded) feeds mode_len.py's len_by_token.json. Gated by PROBE-MODE.
+PMODE=0; [ $TASK = E10b-P5mode ] && { PMODE=1; ROUTE=prefix; BASE=E10b-P5; }
 # [v2.5.9z66] (Q-059, the reviewer's pre-registration research_program 3c; Fable 10-23 04:2x UTC) E10b-P5-8k / E10b-P5smerge-8k = P5's
 # recipe from the base with 8K rollouts (max_response_length 8192, as E10b-P5think), without / with the stop-merged teacher (as
 # E10b-P5stopmerge): with the 4K E10b-P5 / E10b-P5stopmerge the 2x2 window x stop merge. 50 steps on flash-attn (venv-fa), s25 kept
@@ -253,7 +259,8 @@ if [ $POLISH = 1 ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
 fi
 # [v2.5.9x] the routed / mixed arms start only after PROBE-ROUTE passed (the unit tests on the node + a 3-step smoke of route)
 if [ -n "$ROUTE" ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then
-  grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-ROUTE/report.json 2> /dev/null || { echo "PROBE-ROUTE has not passed: $TASK not started"; exit 3; }
+  G8=PROBE-ROUTE; [ $PMODE = 1 ] && G8=PROBE-MODE   # [v2.5.9z108] the mode arm's own gate
+  grep -q '"result": "PASS"' $OPD_ROOT/runs/$G8/report.json 2> /dev/null || { echo "$G8 has not passed: $TASK not started"; exit 3; }
   [ -z "$ROUTE_P" ] || grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-MIXP/report.json 2> /dev/null || { echo "PROBE-MIXP has not passed: $TASK not started"; exit 3; }   # [v2.5.9z38]
 fi
 [ -n "$ROUTE_INV" ] && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ] && { grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-ROUTE-INV/report.json 2> /dev/null || { echo "PROBE-ROUTE-INV has not passed: $TASK not started"; exit 3; }; }   # [v2.5.9z45]
@@ -403,6 +410,11 @@ unset OPD_X5 OPD_X5_EMPTY_THINK OPD_X5_LOG; [ $X5 = 1 ] && export OPD_X5=1 OPD_X
 [ $T32 = 1 ] && [ "${SMOKE:-0}" = 1 ] && export OPD_ROUTE=count OPD_ROUTE_LOG=$OUT/route.jsonl   # [v2.5.9z9] PROBE-T32: the teacher's rows per call
 # [v2.5.9b] the data, prompt length and logged reward: math by default, the tool-call parquet for a tool arm
 TRAIN=$OPD_ROOT/data/dapo_train.parquet; VAL=$OPD_ROOT/data/math500_100.parquet; MAXP=1024; REWARD=$RUNBOOK/code/train/reward_mathverify.py
+if [ $PMODE = 1 ]; then   # [v2.5.9z108] (Q-083) the same rows with the mode token in front (kept when the parquet and its header are there)
+  mkdir -p $OUT/data
+  [ "${DRYRUN:-0}" = 1 ] || python $RUNBOOK/scripts/mode_data.py $TRAIN $OUT/data/train_mode.parquet --seed $OPD_SEED || { echo "MODE_DATA_FAILED $TASK"; exit 1; }
+  TRAIN=$OUT/data/train_mode.parquet; ROLLOUT_DUMP=${ROLLOUT_DUMP:-$OUT/mode_dump}
+fi
 if [ $TOOL = 1 ]; then
   [ -n "${TOOL_DATA:-}" ] && [ -f ${TOOL_DATA}_train.parquet ] && [ -f ${TOOL_DATA}_val.parquet ] || { echo "TOOL_DATA_MISSING $TASK: set TOOL_DATA to a prep_tools_parquet.py prefix"; exit 2; }
   TRAIN=${TOOL_DATA}_train.parquet; VAL=${TOOL_DATA}_val.parquet; MAXP=2048; REWARD=$RUNBOOK/code/agent/tool_grader.py
@@ -458,7 +470,7 @@ lr: $LR
 data_seed: $SEED
 steps: $STEPS
 student: $STUDENT (no_think)
-teacher: $TEACHER (ref; think-template=$OPD_REF_THINK; param_offload=${TEACHER_OFFLOAD:-1})$([ $SMERGE = 1 ] && echo '; stop-merged after the first box (opd_stopmerge.py)')$([ $TAIL = 1 ] && [ -z "$SOFTMIX" ] && echo '; tail-swapped: the non-thinking reading after the first box (opd_tailswap.py)')$([ -n "$SOFTMIX" ] && echo "; soft-mixed: $SOFTMIX * the thinking reading + (1 - $SOFTMIX) * the non-thinking one at every position (opd_tailswap.py OPD_TAILSWAP_SOFTMIX; the unnormalized geometric mean)")$([ $BUD -gt 0 ] && echo "; budget: the switch at min(the first box, $BUD tokens)")$([ -n "$DENSE" ] && echo "; dense $DENSE over the teacher's top-${OPD_DENSE_K:-64} (opd_dense.py)")$([ $EOSW = 1 ] && echo "; position-weighted: the ${OPD_EOSW_N:-16} positions after the last complete box x${OPD_EOSW_W:-64} (opd_eosw.py)")$([ $POLISH = 1 ] && echo '; polish: the 0.6B base on its thinking template, from E10c-P5-fix4 s150')$([ $T32 = 1 ] && echo '; the 32B teacher (Qwen3-32B) on its thinking template, offloaded')$([ -n "$ROUTE" ] && echo "; template per prompt: $ROUTE (opd_route.py; route: PROBE-DIFF17 r >= 0.5 -> non-thinking, else thinking; mix: a fixed p = 0.5 coin)")$([ "${DENSE:-}" = akl ] && echo "; AKL (official code: the token crossing mu in the tail, mu ${OPD_DENSE_MU:-0.5})")
+teacher: $TEACHER (ref; think-template=$OPD_REF_THINK; param_offload=${TEACHER_OFFLOAD:-1})$([ $SMERGE = 1 ] && echo '; stop-merged after the first box (opd_stopmerge.py)')$([ $TAIL = 1 ] && [ -z "$SOFTMIX" ] && echo '; tail-swapped: the non-thinking reading after the first box (opd_tailswap.py)')$([ -n "$SOFTMIX" ] && echo "; soft-mixed: $SOFTMIX * the thinking reading + (1 - $SOFTMIX) * the non-thinking one at every position (opd_tailswap.py OPD_TAILSWAP_SOFTMIX; the unnormalized geometric mean)")$([ $BUD -gt 0 ] && echo "; budget: the switch at min(the first box, $BUD tokens)")$([ -n "$DENSE" ] && echo "; dense $DENSE over the teacher's top-${OPD_DENSE_K:-64} (opd_dense.py)")$([ $EOSW = 1 ] && echo "; position-weighted: the ${OPD_EOSW_N:-16} positions after the last complete box x${OPD_EOSW_W:-64} (opd_eosw.py)")$([ $POLISH = 1 ] && echo '; polish: the 0.6B base on its thinking template, from E10c-P5-fix4 s150')$([ $T32 = 1 ] && echo '; the 32B teacher (Qwen3-32B) on its thinking template, offloaded')$([ $PMODE = 1 ] && echo "; mode token per prompt ([long] -> thinking, [short] -> non-thinking teacher; mix's coin, OPD_SEED $OPD_SEED; the teacher's prompt $([ "${OPD_MODE_STRIP:-1}" = 0 ] && echo with || echo without) the token; mode_data.py, mode_patch.py)")$([ -n "$ROUTE" ] && echo "; template per prompt: $ROUTE (opd_route.py; route: PROBE-DIFF17 r >= 0.5 -> non-thinking, else thinking; mix: a fixed p = 0.5 coin)")$([ "${DENSE:-}" = akl ] && echo "; AKL (official code: the token crossing mu in the tail, mu ${OPD_DENSE_MU:-0.5})")
 student_template: $([ $STHINK = 1 ] && echo "thinking (the teacher prompt uses the same template)" || echo non-thinking), max_response_length $MAXRESP
 attention: $ATTN (use_remove_padding=$RMPAD)
 batching: ${MODE:-default} [$BATCH]
@@ -485,7 +497,8 @@ if [ -n "$DENSE" ]; then python $RUNBOOK/code/patches/dense_patch.py || { echo "
 if [ $EOSW = 1 ]; then python $RUNBOOK/code/patches/eosw_patch.py || { echo "EOSW_PATCH_FAILED $TASK"; exit 1; }; fi   # [v2.5.9z102] idempotent
 if [ $SMERGE = 1 ]; then python $RUNBOOK/code/patches/stopmerge_patch.py || { echo "STOPMERGE_PATCH_FAILED $TASK"; exit 1; }; fi   # [v2.5.9l] idempotent
 if [ $TAIL = 1 ]; then python $RUNBOOK/code/patches/tailswap_patch.py || { echo "TAILSWAP_PATCH_FAILED $TASK"; exit 1; }; fi   # [v2.5.9n] idempotent
-if [ -n "$ROUTE" ] || [ "${OPD_ROUTE:-}" = count ]; then python $RUNBOOK/code/patches/route_patch.py || { echo "ROUTE_PATCH_FAILED $TASK"; exit 1; }; fi   # [v2.5.9x] idempotent; [v2.5.9z9] PROBE-T32's count
+if [ -n "$ROUTE" ] || [ "${OPD_ROUTE:-}" = count ]; then python $RUNBOOK/code/patches/route_patch.py || { echo "ROUTE_PATCH_FAILED $TASK"; exit 1; }; fi
+if [ $PMODE = 1 ]; then python $RUNBOOK/code/patches/mode_patch.py || { echo "MODE_PATCH_FAILED $TASK"; exit 1; }; fi   # [v2.5.9z108] after route's hook; idempotent   # [v2.5.9x] idempotent; [v2.5.9z9] PROBE-T32's count
 if [ $X5 = 1 ]; then python $RUNBOOK/code/patches/x5_patch.py || { echo "X5_PATCH_FAILED $TASK"; exit 1; }; fi   # [v2.5.9z46] idempotent
 cd $OPD_ROOT/G-OPD/verl
 python3 -m verl.trainer.main_ppo \
