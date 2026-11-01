@@ -222,6 +222,68 @@ def rand_matched(adv, response_mask, frac=0.10, generator=None, cap=RAND_CAP):
     return out, scales, chosen
 
 
+# [v2.5.9z118] (Fable 08:3x UTC, research_program 3q, lit_6pro_consensus_20261101 3): the 2 x 2 beyond arms' two switches on P5's
+# per-token reward r_k = log q - log p of the sampled token (G-OPD's advantage before the policy loss). shape_patch.py's hook calls
+# shape() just before the policy loss, a no-op unless OPD_FRET=1 or OPD_TOPD_ALPHA is set:
+#   OPD_TOPD_ALPHA = a (0.2): the bounded reward r~_k = log(a e^r_k + 1 - a) (TOP-D's interpolation; in [log(1 - a), log(a rho_max + 1 - a)])
+#   OPD_FRET=1: the suffix credit A_k = r_k + (1 / (T - k)) sum_{j > k} r_j (positions 1..T of the response; the later rewards' mean,
+#     0 at the last token), on the bounded reward when both are on; no group normalisation
+def topd_alpha():
+    v = os.environ.get("OPD_TOPD_ALPHA", "").strip()
+    if not v:
+        return None
+    a = float(v)
+    if not 0 < a < 1:
+        raise ValueError(f"OPD_TOPD_ALPHA {v} not in (0, 1)")
+    return a
+
+
+def fret_on():
+    return os.environ.get("OPD_FRET") == "1"
+
+
+def shaping_active():
+    return fret_on() or topd_alpha() is not None
+
+
+def topd(r, response_mask, alpha):
+    """r~ = log(alpha e^r + 1 - alpha), computed as logaddexp(log alpha + r, log(1 - alpha)) (no overflow for a large r)."""
+    import math
+    rf = r.float()
+    out = torch.logaddexp(rf + math.log(alpha), torch.full_like(rf, math.log(1 - alpha)))
+    return (out * response_mask).to(r.dtype)
+
+
+def fret(r, response_mask):
+    """A_k = r_k + mean of r_j over the response's later valid positions (j > k); 0 added at the last one. Reverse cumulative sums
+    over response_mask (a padded position adds nothing and gets 0)."""
+    m = response_mask.to(torch.float32); rf = r.float() * m
+    later_sum = torch.flip(torch.cumsum(torch.flip(rf, [1]), 1), [1]) - rf
+    later_n = torch.flip(torch.cumsum(torch.flip(m, [1]), 1), [1]) - m
+    return ((rf + later_sum / later_n.clamp(min=1)) * m).to(r.dtype)
+
+
+def shape(adv, response_mask):
+    """(advantages, metrics) for the policy loss: topd then fret, as the switches say; the input unchanged when both are off."""
+    a, f = topd_alpha(), fret_on()
+    if a is None and not f:
+        return adv, {}
+    rm = response_mask > 0; out = adv; met = {}
+    if rm.any():
+        r = adv[rm].float()
+        met["shape/r_min"] = r.min().item(); met["shape/r_max"] = r.max().item()
+        met["shape/rho_max"] = float(torch.exp(r.max().clamp(max=80.0)).item())
+    if a is not None:
+        out = topd(out, response_mask, a)
+        if rm.any():
+            t = out[rm].float(); met["shape/topd_min"] = t.min().item(); met["shape/topd_max"] = t.max().item(); met["shape/topd_alpha"] = a
+    if f:
+        out = fret(out, response_mask)
+        if rm.any():
+            met["shape/fret_abs_mean"] = out[rm].float().abs().mean().item()
+    return out, met
+
+
 def compute(variant, old_log_prob, ref_log_prob, response_mask, generator=None, responses=None):
     """Returns (advantages, loss_mask). P5 uses opd_k1; its difference is the teacher prompt
     (think template + '<think>\\n'), handled in ref input preparation, not here."""

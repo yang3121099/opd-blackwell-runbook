@@ -41,6 +41,7 @@ case $T in
   E10b-P5bud2k|E10b-P5bud3k) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z73] (Q-061) the tail swap at min(the first box, N)
   E10b-P5softmix50) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z83] (Q-073) the two readings soft-mixed (0.5 / 0.5) at every position
   E10b-P5-eosw) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z102] (Q-087) P5 with the stop decision's 16 positions weighted x64; gated by PROBE-EOSW
+  E10b-P5fret|E10b-P5topd|E10b-P5fret-topd) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z118] (research_program 3q) P5 with the suffix credit / TOP-D's bounded reward / both; gated by PROBE-FRET
   E10b-P5mode) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z108] (Q-083) P5 with a visible mode token per prompt ([long] / [short]); gated by PROBE-MODE
   E10b-P5-dense|E10b-P5-akl) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z76] (Q-065) the per-token KL over the vocabulary
   E10b-P5-akl2|E10b-P5-fkl|E10b-P5-dense-k256|E10b-P5-akl-mu03|E10b-P5-akl-mu07|E10b-P5self-akl|E10b-P5selfroute-c100) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z85] (Q-079) the AKL series; (Q-072b) selfroute continued to s100
@@ -79,7 +80,7 @@ case $T in
   FA-PROBE) bash $RUNBOOK/scripts/fa_probe.sh $G;;
   SPEED-PROBE) bash $RUNBOOK/scripts/speed_probe.sh $G;;
   PROBE-4B) bash $RUNBOOK/scripts/probe_4b.sh $G;;
-  PROBE-TERM|PROBE-TERM2|PROBE-TERM3|PROBE-TERM4-EOSW|PROBE-TERM4|PROBE-TERM4-4B|PROBE-TERM4-06B) bash $RUNBOOK/scripts/term_probe.sh $G $T;;   # v2.5.7zk: -4B; [v2.5.9v] -06B; [v2.5.9z109] -EOSW (Q-087 H1, its own one row)
+  PROBE-TERM|PROBE-TERM2|PROBE-TERM3|PROBE-TERM4-EOSW|PROBE-TERM4-FRET|PROBE-TERM4|PROBE-TERM4-4B|PROBE-TERM4-06B) bash $RUNBOOK/scripts/term_probe.sh $G $T;;   # v2.5.7zk: -4B; [v2.5.9v] -06B; [v2.5.9z109] -EOSW (Q-087 H1, its own one row)
   STRICT-C1) bash $RUNBOOK/scripts/strict_c1.sh $G $T;;
   PROBE-T32) bash $RUNBOOK/scripts/probe_t32.sh $G;;   # [v2.5.9z9] (Q-053): the gate of E10d-P5-t32
   PROBE-T14) bash $RUNBOOK/scripts/probe_t14.sh $G;;   # v2.5.7p (Q-015): the 14B teacher's gate
@@ -128,6 +129,7 @@ case $T in
   PROBE-SELFROUTE) bash $RUNBOOK/scripts/probe_selfroute.sh $G;;   # [v2.5.9z82] (Q-072) the gate of E10b-P5selfroute: the probe's labels and their check
   PROBE-PSTAR) bash $RUNBOOK/scripts/probe_pstar.sh $G;;   # [v2.5.9z75] (Q-064) p* from the 8B teacher's sequence log-probs
   PROBE-EOSW) bash $RUNBOOK/scripts/probe_eosw.sh $G;;   # [v2.5.9z102] (Q-087) the position-weighted arm's gate
+  PROBE-FRET) bash $RUNBOOK/scripts/probe_fret.sh $G;;   # [v2.5.9z118] (research_program 3q) the beyond arms' gate: unit tests, four 3-step smokes on one GPU
   PROBE-MODE) bash $RUNBOOK/scripts/probe_mode.sh $G;;   # [v2.5.9z108] (Q-083) the mode-token arm's gate: unit tests, the parquet, a 3-step smoke on its GPUs
   PROBE-DENSE) bash $RUNBOOK/scripts/probe_dense.sh $G;;   # [v2.5.9z76] (Q-065) the dense arms' gate
   PROBE-DENSE-4B) PDN_PROBE=PROBE-DENSE-4B PDN_P5=E10d-P5 PDN_ARM=E10d-P5-akl PDN_MODE=akl bash $RUNBOOK/scripts/probe_dense.sh $G;;   # [v2.5.9z85] (Q-079) the 4B AKL arm's smoke

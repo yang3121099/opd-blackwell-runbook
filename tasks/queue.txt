@@ -3898,3 +3898,26 @@ b259z110 open   EVAL-ext32k-17tail-h800:E10b-P5tail
 #eval EVAL-gm-17p5l16k gm_17p5l16k_mmlupro1k_T0_4k result:runs/E12b-P5-16k/global_step_50/actor/huggingface mmlupro1k 1 0 4096 no_think
 #eval EVAL-gm-17p5l16k gm_17p5l16k_gpqa_T0.6_16k result:runs/E12b-P5-16k/global_step_50/actor/huggingface gpqa 4 0.6 16384 no_think
 #eval EVAL-gm-17p5l16k gm_17p5l16k_mmlupro1k_T0_16k result:runs/E12b-P5-16k/global_step_50/actor/huggingface mmlupro1k 1 0 16384 no_think
+
+# [z118] (research_program 3q; Fable 08:3x UTC, lit_6pro_consensus_20261101 3: science A1 in advance; ops-lead A1 of this diff) the 2 x 2
+# beyond arms on P5's per-token reward r = log q - log p (1.7B, E10b-P5's recipe from the student base, 50 steps, one GPU each; fa,
+# micro 4, LOGP_MB 1 from control.env): E10b-P5fret = the suffix credit A_k = r_k + the later rewards' mean (no group normalisation),
+# E10b-P5topd = TOP-D's bounded reward log(0.2 e^r + 0.8), E10b-P5fret-topd = both; P5 s50 is the (no, no) cell. Order fret -> topd ->
+# fret-topd (queue order; the scheduler places them). Gate PROBE-FRET (unit tests, a 3-step smoke of P5 and of each arm on one GPU,
+# step time <= 1.2 x P5, finite gradients, topd's reward range). Readings at s50: MATH-500 16K T0.6 n4 paired with P5 s50 (the lab's
+# archived s50, as every P5 s50 pair); TERM4 (p_stop_last, the primary) in PROBE-TERM4-FRET; the wall step, mean length, truncation,
+# the three event columns and grad_norm's step-to-step CV come from the uploaded metrics / outcomes (zero GPU). [held: opened by a
+# one-word diff when the scheduler's slot comes]
+b259z118 held   PROBE-FRET E10b-P5fret:PROBE-FRET E10b-P5topd:PROBE-FRET E10b-P5fret-topd:PROBE-FRET EVAL-e10b-P5fret:E10b-P5fret EVAL-e10b-P5topd:E10b-P5topd EVAL-e10b-P5fret-topd:E10b-P5fret-topd PROBE-TERM4-FRET:EVAL-e10b-P5fret+EVAL-e10b-P5topd+EVAL-e10b-P5fret-topd
+#eval EVAL-e10b-P5fret e10b_P5fret_s50_math500_T0.6 result:runs/E10b-P5fret/global_step_50/actor/huggingface math500 4 0.6
+#pair EVAL-e10b-P5fret e10b_P5fret_s50_math500_T0.6 archive:runs/e10/e10_P5_1.7B_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#eval EVAL-e10b-P5topd e10b_P5topd_s50_math500_T0.6 result:runs/E10b-P5topd/global_step_50/actor/huggingface math500 4 0.6
+#pair EVAL-e10b-P5topd e10b_P5topd_s50_math500_T0.6 archive:runs/e10/e10_P5_1.7B_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#eval EVAL-e10b-P5fret-topd e10b_P5fret-topd_s50_math500_T0.6 result:runs/E10b-P5fret-topd/global_step_50/actor/huggingface math500 4 0.6
+#pair EVAL-e10b-P5fret-topd e10b_P5fret-topd_s50_math500_T0.6 archive:runs/e10/e10_P5_1.7B_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+# [z118] (Fable 15:0x UTC: z119's choice B) the 2 x 2's (no, no) cell in the same run: the lab's P5 1.7B s50 on its archived generations
+# (TERM4-EOSW finished before z119 reached the node; not rerun); its weights 4.1 GB come through term_probe's own fetch_ckpt (16 connections)
+#term PROBE-TERM4-FRET 17_P5s50 yang31210999/opd-lab-ckpts/runs/E10-P5-1.7B-lr3e-6-s50/global_step_50/actor/huggingface archive:runs/e10/e10_P5_1.7B_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#term PROBE-TERM4-FRET 17_P5fret result:runs/E10b-P5fret/global_step_50/actor/huggingface EVAL-e10b-P5fret/e10b_P5fret_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#term PROBE-TERM4-FRET 17_P5topd result:runs/E10b-P5topd/global_step_50/actor/huggingface EVAL-e10b-P5topd/e10b_P5topd_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#term PROBE-TERM4-FRET 17_P5fret-topd result:runs/E10b-P5fret-topd/global_step_50/actor/huggingface EVAL-e10b-P5fret-topd/e10b_P5fret-topd_s50_math500_T0.6_math500_no_think_t0.6.jsonl

@@ -1958,3 +1958,35 @@ def test_e12c_variant_skips_the_base_gate_v259z122():   # [v2.5.9z122] (H800 11-
     r = open(os.path.join(here, "run_e12.sh")).read()
     assert 'if [ $LADDER = E12c ] && [ -z "$VAR" ] && [ "${SMOKE:-0}" != 1 ]; then\n  grep -q \'"result": "PASS"\' $OPD_ROOT/runs/PROBE-E12C/report.json' in r
     assert '[ $LADDER = E12c ] && GATES="$GATES PROBE-E12C-$(echo $VAR | tr a-z A-Z)"' in r                       # a variant keeps its own gates
+
+
+def test_beyond_arms_registered_v259z118(env):   # [v2.5.9z118] (research_program 3q) fret / topd / fret-topd, PROBE-FRET, PROBE-TERM4-FRET; rules 2.5.110
+    for i, t in enumerate(("E10b-P5fret", "E10b-P5topd", "E10b-P5fret-topd", "PROBE-FRET", "PROBE-TERM4-FRET")):
+        st, msg, _ = env.c.v_run([t], 420 + i)
+        assert st == "accepted", msg
+    for t in ("PROBE-FRET", "PROBE-TERM4-FRET"):
+        R.parse({"cmd": f"rerun {t}", "reason": "t"})
+    assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 110)
+    here = os.path.dirname(os.path.abspath(__file__))
+    ts = open(os.path.join(here, "task.sh")).read(); tp = open(os.path.join(here, "term_probe.sh")).read()
+    assert "\n  E10b-P5fret|E10b-P5topd|E10b-P5fret-topd) bash $RUNBOOK/scripts/run_arm.sh $G $T;;" in ts
+    assert "\n  PROBE-FRET) bash $RUNBOOK/scripts/probe_fret.sh $G;;" in ts
+    assert re.search(r"^  PROBE-TERM\|[^)]*\|PROBE-TERM4-FRET\|[^)]*\) bash \$RUNBOOK/scripts/term_probe.sh \$G \$T;;", ts, re.M)
+    assert "|| $T == PROBE-TERM4-FRET || $T == PROBE-TERM4-EOSW ]] && echo --no_teacher --term4" in tp
+    hb = open(os.path.join(here, "heartbeat.sh")).read()
+    assert '"PROBE-FRET",' in hb and '"PROBE-TERM4-FRET"' in hb
+    rt = open(os.path.join(here, "run_tasks.sh")).read()
+    assert "        E10b-P5fret|E10b-P5topd|E10b-P5fret-topd) env UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-50} setsid" in rt   # s50 uploaded
+    q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
+    assert re.search(r"^b259z118 +held +PROBE-FRET E10b-P5fret:PROBE-FRET E10b-P5topd:PROBE-FRET E10b-P5fret-topd:PROBE-FRET "
+                     r"EVAL-e10b-P5fret:E10b-P5fret EVAL-e10b-P5topd:E10b-P5topd EVAL-e10b-P5fret-topd:E10b-P5fret-topd "
+                     r"PROBE-TERM4-FRET:EVAL-e10b-P5fret\+EVAL-e10b-P5topd\+EVAL-e10b-P5fret-topd$", q, re.M)
+    for arm in ("P5fret", "P5topd", "P5fret-topd"):
+        assert re.search(rf"^#eval EVAL-e10b-{arm} e10b_{arm}_s50_math500_T0.6 result:runs/E10b-{arm}/global_step_50/actor/huggingface math500 4 0.6$", q, re.M)
+        assert f"\n#pair EVAL-e10b-{arm} e10b_{arm}_s50_math500_T0.6 archive:runs/e10/e10_P5_1.7B_s50_math500_T0.6_math500_no_think_t0.6.jsonl\n" in q
+        assert not re.search(rf"^#gpus E10b-{arm} ", q, re.M)                                    # one GPU each
+    assert [l.split()[2] for l in q.splitlines() if l.startswith("#term PROBE-TERM4-FRET ")] == ["17_P5s50", "17_P5fret", "17_P5topd", "17_P5fret-topd"]   # + the (no, no) cell (Fable 15:0x UTC)
+    ra = open(os.path.join(here, "run_arm.sh")).read()
+    assert "FRET=0; TOPD=\"\"; case $TASK in E10b-P5fret) FRET=1;; E10b-P5topd) TOPD=${TOPD_ALPHA:-0.2};; E10b-P5fret-topd) FRET=1; TOPD=${TOPD_ALPHA:-0.2};; esac" in ra
+    assert "unset OPD_FRET OPD_TOPD_ALPHA; [ $FRET = 1 ] && export OPD_FRET=1" in ra                          # every other arm: both off
+    assert ra.index("eosw_patch.py ||") < ra.index("shape_patch.py ||")                                         # after the other hooks

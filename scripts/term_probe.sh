@@ -25,7 +25,8 @@
 # lines and runs/PROBE-TERM4-06B
 # [v2.5.9z109] (Q-087 H1) PROBE-TERM4-EOSW = TERM4 on E10b-P5-eosw s50 alone: its own #term PROBE-TERM4-EOSW line and runs/PROBE-TERM4-EOSW
 # (PROBE-TERM4's 45 rows are not measured again, its report is not replaced)
-# Usage: bash term_probe.sh <gpu> PROBE-TERM|PROBE-TERM2|PROBE-TERM3|PROBE-TERM4|PROBE-TERM4-4B|PROBE-TERM4-06B|PROBE-TERM4-EOSW
+# [v2.5.9z118] (research_program 3q) PROBE-TERM4-FRET = TERM4 on the three beyond arms' s50 (fret, topd, fret-topd): its own #term lines
+# Usage: bash term_probe.sh <gpu> PROBE-TERM|PROBE-TERM2|PROBE-TERM3|PROBE-TERM4|PROBE-TERM4-4B|PROBE-TERM4-06B|PROBE-TERM4-EOSW|PROBE-TERM4-FRET
 set -uo pipefail
 G=$1; T=$2; source "$(dirname "$0")/env.sh"; source ${VENV_EVAL:-$OPD_ROOT/venv}/bin/activate
 D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; Q=${QUEUE_FILE:-$RUNBOOK/tasks/queue.txt}; mkdir -p $D/gen $D/up/gen
@@ -86,7 +87,7 @@ done <<< "$(awk -v t="$QT" '$1 == "#term" && $2 == t {print $3, $4, $5, $6}' "$Q
 [ -s $D/inputs.tsv ] || { step "no #term lines for $T"; exit 1; }
 step "measure $(wc -l < $D/inputs.tsv) models"
 CUDA_VISIBLE_DEVICES=$G python $RUNBOOK/code/analysis/term_probe.py --teacher $TEACHER --inputs $D/inputs.tsv --out $D/report.json \
-  --samples $D/samples.jsonl --cache_dir $D/cache $([ $T = PROBE-TERM3 ] && echo --no_teacher) $([[ $T == PROBE-TERM4 || $T == PROBE-TERM4-4B || $T == PROBE-TERM4-06B || $T == PROBE-TERM4-EOSW ]] && echo --no_teacher --term4) >> $LOG 2>&1; rc=$?
+  --samples $D/samples.jsonl --cache_dir $D/cache $([ $T = PROBE-TERM3 ] && echo --no_teacher) $([[ $T == PROBE-TERM4 || $T == PROBE-TERM4-4B || $T == PROBE-TERM4-06B || $T == PROBE-TERM4-FRET || $T == PROBE-TERM4-EOSW ]] && echo --no_teacher --term4) >> $LOG 2>&1; rc=$?
 python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true
 echo "$G $(date -u +%FT%TZ)" > $D/.gpu_released; step "GPU_RELEASED gpu=$G"   # [v2.5.9z65a] the uploads below without the GPU
 export CUDA_VISIBLE_DEVICES=   # [ops-lead's A1 condition] no GPU after the release
