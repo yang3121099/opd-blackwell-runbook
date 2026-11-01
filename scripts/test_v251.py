@@ -1839,6 +1839,18 @@ def test_run_and_rerun_accept_v259z102(env):   # [v2.5.9z102] (Q-087) the positi
     assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 104)
 
 
+def test_task_fetches_are_parallel_v259z112():   # [v2.5.9z112] (Fable 11-01: the proxy limits each connection)
+    here = os.path.dirname(os.path.abspath(__file__))
+    r = subprocess.run(["bash", "-c", f"unset FETCH_PARALLEL FETCH_CONNS_CAP; export OPD_ROOT=/nonexistent; source {here}/env.sh > /dev/null 2>&1; "
+                        "echo $FETCH_PARALLEL $FETCH_CONNS_CAP"], capture_output=True, text=True)
+    assert r.stdout.split() == ["1", "16"], r.stdout + r.stderr                       # every task's fetch_model.py call in parallel, 16 a call
+    r = subprocess.run(["bash", "-c", f"export FETCH_PARALLEL=0 FETCH_CONNS_CAP=8 OPD_ROOT=/nonexistent; source {here}/env.sh > /dev/null 2>&1; "
+                        "echo $FETCH_PARALLEL $FETCH_CONNS_CAP"], capture_output=True, text=True)
+    assert r.stdout.split() == ["0", "8"]                                              # an explicit setting wins
+    rt = open(os.path.join(here, "run_tasks.sh")).read()
+    assert "FETCH_PARALLEL=${FETCH_PARALLEL_BG:-1}" in rt and 'cap="FETCH_CONNS_CAP=${RESULT_FETCH_CONNS:-32}"' in rt   # the background pulls: their own
+
+
 def test_run_and_rerun_accept_v259z109(env):   # [v2.5.9z109] (Q-087) EVAL-eosw and PROBE-TERM4-EOSW, rules 2.5.107
     for i, t in enumerate(("EVAL-eosw", "PROBE-TERM4-EOSW")):
         st, msg, _ = env.c.v_run([t], 380 + i)

@@ -73,6 +73,11 @@ export STUDENT_06B=${STUDENT_06B:-Qwen/Qwen3-0.6B} STUDENT_17B=${STUDENT_17B:-Qw
 export GOPD_COMMIT=37371a4c31ad7947746200d234161769191f4748
 export UPLOAD_BACKEND=${UPLOAD_BACKEND:-hf}          # hf | modelscope
 export HF_HUB_ENABLE_HF_TRANSFER=${HF_HUB_ENABLE_HF_TRANSFER:-1}
+# [v2.5.9z112] (Fable 11-01 06:3x UTC; H800 11-01: the proxy limits each connection - one connection ~0.4 MB/s, a 32-connection
+# background pull 13.2 MB/s) every fetch_model.py call of a task (run_e12 / run_arm / run_queue_eval / term_probe / the probes) downloads
+# in parallel Range segments (par_fetch.py, resumable across calls), 16 connections a call: the node's ~64 (10-22: 192 stalled the proxy)
+# hold up to 4 such calls, or 2 beside a 32-connection #fetch pull (run_tasks.sh sets its own FETCH_PARALLEL / FETCH_CONNS_CAP)
+export FETCH_PARALLEL=${FETCH_PARALLEL:-1} FETCH_CONNS_CAP=${FETCH_CONNS_CAP:-16}
 export RAY_prestart_worker_first_driver=${RAY_prestart_worker_first_driver:-0}
 export RAY_num_workers_soft_limit=${RAY_num_workers_soft_limit:-8}
 export VLLM_WORKER_MULTIPROC_METHOD=spawn PYTHONUNBUFFERED=1
