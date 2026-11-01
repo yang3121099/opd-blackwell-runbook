@@ -3642,8 +3642,8 @@ b259z109 open   EVAL-eosw:E10b-P5-eosw PROBE-TERM4-EOSW:EVAL-eosw
 # [z113] (Fable 11-01 06:3x UTC, pre-A1: PROBE-E12B-16K peaked at 80.4 of 81.6 GB on one GPU, and the update's fp32 logits at micro 4 x 16K
 # do not shrink with FSDP) Q-074h's own gate: the 4B 16K 3-step smoke of E12d-P5tail-16k itself on four GPUs, the formal settings (fa,
 # micro 4, LOGP_MB 1), from E10d-P5tail s50 (pulled by #fetch above); E12d-P5tail-16k waits for it. FAIL at the logits -> FUSED=1 path
-# [held: ops-lead 06:56 UTC - opened by a one-word diff once E10d-P5tail s50's .fetch_ok is on the node (no in-task pull on 4 GPUs)]
-b259z113 held   PROBE-E12D-16K
+# [opened: E10d-P5tail s50 .fetch_ok on the node 08:35:08 UTC (8.84 GB / 1999 s); ops-lead 06:56 UTC pre-A1 of this one-word diff]
+b259z113 open   PROBE-E12D-16K
 #gpus PROBE-E12D-16K 4
 
 # [z110] (Fable 05:2x UTC ②: H judgments on one machine; ops-lead 05:25 / 05:33 UTC: a new name, not a rerun of the imported reference)
