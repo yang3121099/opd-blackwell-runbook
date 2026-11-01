@@ -36,3 +36,4 @@ commands:
   - {"seq": 34, "cmd": "tail watchdog.log 20", "reason": "diagnose: run_tasks restarts every ~11 min (RUN_TASKS_START), requests never served", "utc": "2026-11-01T02:59:05Z"}
   - {"seq": 35, "cmd": "rerun EVAL-e10d-P5tail-s43", "reason": "Q-075c reading: only s25 failed (model fetch in the 429 backoff); finished evals are skipped (ops-lead A1 03:08Z)", "utc": "2026-11-01T03:24:24Z"}
   - {"seq": 36, "cmd": "resume E12d-P5tail-8k-s43", "reason": "Q-074i, #gpus 2 from the queue; PROBE-E12B-8K PASS on the H800 (ops-lead A1 03:32Z)", "utc": "2026-11-01T03:59:03Z"}
+  - {"seq": 37, "cmd": "resume PROBE-E12E-8K", "reason": "Q-081 / Q-074e 8B gate on 4 GPUs, re-measured at 80 GB; paused, not done, in status 03:58Z (ops-lead A1 03:32Z)", "utc": "2026-11-01T03:59:08Z"}
