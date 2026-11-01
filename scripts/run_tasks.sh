@@ -482,6 +482,7 @@ while true; do
     opened=0; [ "$status" = open ] && opened=1; [ "$status" = auto ] && [ $earlier_finished = 1 ] && opened=1
     stage_finished=1
     for spec in $(for s in $rest; do echo "$(prio ${s%%:*}) $s"; done | sort -s -n -k1,1 | cut -d' ' -f2); do
+      date -u +%s > $CDIR/loop_run_tasks   # [v2.5.9z106b] liveness per task: a long pass is not stale to the watchdog (10 min), a stuck task still is
       pull_due && { last_pull=$(date +%s); pull_and_control; }   # [v2.5.9z106] commands within a pass too (see pull_due)
       t=${spec%%:*}; deps=""; [ "$spec" != "$t" ] && deps=$(echo ${spec#*:} | tr '+' ' ')
       if done_ $t || dead $t || skipped $t; then continue; fi
@@ -523,7 +524,7 @@ while true; do
   # [v2.5.9z12] the reserve: ready GPU tasks left waiting against the GPUs still free (control.py: alert reserve_low after 10 min)
   if [ "${DRY:-0}" = 1 ]; then echo "RESERVE ready=$READY free=${#FREE[@]} tasks=[${RT# }] held=[${HELD# }]"; [ -n "$READ_LOW" ] && echo "READINGS_HELD [${RHELD# }]"; [ -n "$ALL_LOW" ] && echo "TASKS_HELD [${AHELD# }]"
   else python $RUNBOOK/scripts/control.py reserve_note $READY ${#FREE[@]} "$RT" "$HELD" > /dev/null 2>&1
-    python3 -c "import json, os, sys, time; t = sys.argv[3] + '.tmp'; json.dump({'utc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), 'low': sys.argv[1], 'held': sys.argv[2].split()}, open(t, 'w')); os.replace(t, sys.argv[3])" \\
+    python3 -c "import json, os, sys, time; t = sys.argv[3] + '.tmp'; json.dump({'utc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), 'low': sys.argv[1], 'held': sys.argv[2].split()}, open(t, 'w')); os.replace(t, sys.argv[3])" \
       "${READ_LOW:-}" "${RHELD# }" $CDIR/readings_held.json 2> /dev/null || true   # [v2.5.9z69]
   fi
   # v2.5: ad-hoc `run` / `eval` requests (control.py) take only the GPUs this pass left free: the queue goes first

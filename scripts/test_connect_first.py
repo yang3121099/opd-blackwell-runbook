@@ -180,3 +180,23 @@ def test_commands_apply_within_a_long_pass():
                         "\nlast_pull=$(( $(date +%s) - 61 )); pull_due && echo due; last_pull=$(date +%s); pull_due || echo wait; DRY=1; last_pull=0; pull_due || echo dry"],
                        capture_output=True, text=True)
     assert r.stdout.split() == ["due", "wait", "dry"], r.stdout + r.stderr
+
+
+def test_liveness_within_a_long_pass():
+    """[v2.5.9z106b] (H800 11-01: run_tasks restarted by the watchdog every ~11 min, the run requests never served) the pass writes
+    the watchdog's liveness file before each task, ahead of the pull and the done check."""
+    src = open(os.path.join(HERE, "run_tasks.sh")).read()
+    loop = src[src.index('    for spec in $(for s in $rest;'):src.index('  done < <(stage_lines "$Q")')]
+    i = loop.index("date -u +%s > $CDIR/loop_run_tasks")
+    assert i < loop.index("pull_due && { last_pull=$(date +%s); pull_and_control; }") < loop.index("if done_ $t || dead $t || skipped $t")
+    wd = open(os.path.join(HERE, "watchdog.sh")).read()
+    assert "f=$CDIR/loop_$L" in wd                                      # the file the watchdog reads
+
+
+def test_no_literal_backslash_line_ends():
+    """[v2.5.9z106b] (since z69: readings_held.json's writer ended its line with a literal '\\\\', so python got no arguments, an
+    IndexError every pass, and the next line ran as a command of its own) a shell line ends with one backslash, never two."""
+    for name in ("run_tasks.sh", "heartbeat.sh", "watchdog.sh", "loops.sh", "upload_sync.sh", "task.sh"):
+        for i, line in enumerate(open(os.path.join(HERE, name)).read().splitlines(), 1):
+            assert not line.endswith("\\\\"), f"{name}:{i}"
+
