@@ -1951,3 +1951,10 @@ def test_run_and_rerun_accept_v259z108(env):   # [v2.5.9z108] (Q-083) the mode-t
 def test_rules_refuse_bad_logp_mb(cmd):   # [v2.5.9z106]
     with pytest.raises(R.Reject):
         R.parse({"cmd": cmd, "reason": "t"})
+
+
+def test_e12c_variant_skips_the_base_gate_v259z122():   # [v2.5.9z122] (H800 11-01) the base PROBE-E12C only for E12c-P0 / -P5
+    here = os.path.dirname(os.path.abspath(__file__))
+    r = open(os.path.join(here, "run_e12.sh")).read()
+    assert 'if [ $LADDER = E12c ] && [ -z "$VAR" ] && [ "${SMOKE:-0}" != 1 ]; then\n  grep -q \'"result": "PASS"\' $OPD_ROOT/runs/PROBE-E12C/report.json' in r
+    assert '[ $LADDER = E12c ] && GATES="$GATES PROBE-E12C-$(echo $VAR | tr a-z A-Z)"' in r                       # a variant keeps its own gates

@@ -75,8 +75,10 @@ if [ -n "$PROG" ] && [ "${SMOKE:-0}" != 1 ]; then
   grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-PROG/report.json 2> /dev/null || { echo "PROBE-PROG has not passed: $T not started"; exit 3; }
 fi
 TRAINF=$OPD_ROOT/data/dapo_train.parquet; [ -n "$PROG" ] && TRAINF=$OPD_ROOT/data/dapo_train_skip1600_s4242.parquet
-# [v2.5.8a] an E12c task starts only after PROBE-E12C passed (the smoke itself is exempt)
-if [ $LADDER = E12c ] && [ "${SMOKE:-0}" != 1 ]; then
+# [v2.5.8a] an E12c task starts only after PROBE-E12C passed (the smoke itself is exempt). [v2.5.9z122] (H800 11-01 15:11Z: the
+# 4K base smoke ran out of memory on one 80 GB GPU, and Q-074f sat blocked behind it) the base ladder (E12c-P0 / -P5) only: a window
+# variant (VAR set: E12c-P5-8k / -16k, E12c-P5tail-8k) is gated by its own PROBE-E12C-<VAR> and PROBE-E12B-<VAR> above, on this node
+if [ $LADDER = E12c ] && [ -z "$VAR" ] && [ "${SMOKE:-0}" != 1 ]; then
   grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-E12C/report.json 2> /dev/null || { echo "PROBE-E12C has not passed: $T not started"; exit 3; }
 fi
 SM=${SMOKE:-0}; NAME=$T; [ $SM = 1 ] && NAME=${PROBE_TASK:-smoke-$T}
