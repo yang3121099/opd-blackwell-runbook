@@ -102,3 +102,4 @@ commands:
   - {"seq": 100, "cmd": "resume E10b-P5tail-s44", "reason": "z125 (ddb949c, ops-lead A1 16:33 UTC): Q-074g unpaused ahead of its gate (Runming rule 3); s44 waits for PROBE-TERM4-FRET, 2 GPUs", "utc": "2026-11-01T16:43:56Z"}
   - {"seq": 101, "cmd": "resume E12b-P5tail-8k-s44", "reason": "z125 (ddb949c, ops-lead A1 16:33 UTC): Q-074g unpaused ahead of its gate (Runming rule 3); s44 waits for PROBE-TERM4-FRET, 2 GPUs", "utc": "2026-11-01T16:44:01Z"}
   - {"seq": 102, "cmd": "resume EVAL-tail-s44", "reason": "z125 (ddb949c, ops-lead A1 16:33 UTC): Q-074g unpaused ahead of its gate (Runming rule 3); s44 waits for PROBE-TERM4-FRET, 2 GPUs", "utc": "2026-11-01T16:44:05Z"}
+  - {"seq": 103, "cmd": "resume EVAL-e12b-P5tail-8k-s44", "reason": "z125 (ddb949c, ops-lead A1 16:33 UTC): Q-074g unpaused ahead of its gate (Runming rule 3); s44 waits for PROBE-TERM4-FRET, 2 GPUs", "utc": "2026-11-01T16:44:10Z"}
