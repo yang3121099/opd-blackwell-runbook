@@ -28,3 +28,4 @@ commands:
   - {"seq": 26, "cmd": "setenv VENV=fa", "reason": "FA-PROBE PASS in venv-fa (varlen + 3-step rmpad smoke, peak 73.3 GB); ops-lead pre-A1 17:02Z item 4 / 19:49Z item 4", "utc": "2026-11-01T00:53:37Z"}
   - {"seq": 27, "cmd": "run PROBE-E12B-8K", "reason": "gate of the 1.7B 8K RL recipe on the H800 (venv-fa, micro 4, LOGP_MB 1); ops-lead pre-A1 00:19Z, VENV=fa in control_env 01:26Z", "utc": "2026-11-01T01:28:37Z"}
   - {"seq": 28, "cmd": "rerun E10b-P5-eosw", "reason": "Q-087 on venv-fa (rmpad), micro 4, #gpus 2 from the queue; ops-lead pre-A1 01:19Z, no Fable stop by 01:30Z", "utc": "2026-11-01T01:30:29Z"}
+  - {"seq": 29, "cmd": "resume E10b-P5-eosw", "reason": "Q-087 on venv-fa (rmpad), micro 4, #gpus 2 from the queue; ops-lead pre-A1 01:19Z, no Fable stop by 01:30Z", "utc": "2026-11-01T01:30:34Z"}
