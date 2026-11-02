@@ -182,3 +182,37 @@ def test_the_loop_script_one_round(node, tmp_path):
     assert remote_file(node) is not None and os.path.exists(C._p("loop_gh_heartbeat"))
     src = open(os.path.join(HERE, "run_tasks.sh")).read()
     assert "ensure_loop gh_heartbeat" in src
+
+
+def _bash_fn(src, name):
+    """run_tasks.sh's function <name>, from its line to the brace that closes it."""
+    i = src.index(f"\n{name}() {{") + 1; depth = 0
+    for j in range(i, len(src)):
+        depth += {"{": 1, "}": -1}.get(src[j], 0)
+        if depth == 0 and src[j] == "}":
+            return src[i:j + 1]
+    raise AssertionError(name)
+
+
+def test_a_frozen_run_tasks_round_starts_gh_heartbeat_v259z126(tmp_path):
+    """[v2.5.9z126] (Fable 11-02, next_machine_selfserve 2 item 1: the GitHub heartbeat from T0 + 5 min) a node bootstrap.sh just started
+    is frozen (control/dispatch_frozen, no main venv): run_tasks' frozen round alone starts gh_heartbeat.sh (with the watchdog and the
+    uploader), before any venv, verify or dispatch. run_tasks.sh's own functions on stub loops (nothing but files is written)."""
+    src = open(os.path.join(HERE, "run_tasks.sh")).read()
+    assert "if [ -f $CDIR/dispatch_frozen ]; then frozen_round;" in src
+    rb, root = tmp_path / "rb", tmp_path / "root"
+    (rb / "scripts").mkdir(parents=True); (root / "control").mkdir(parents=True); (root / "logs").mkdir()
+    (root / "control" / "dispatch_frozen").write_text("x\n")
+    for n in ("gh_heartbeat", "watchdog", "uploader"):
+        (rb / "scripts" / f"{n}.sh").write_text(f'echo started > "$OPD_ROOT/started_{n}"\n')
+    (rb / "scripts" / "loops.sh").write_text("exit 0\n")
+    (tmp_path / "bin").mkdir(); s = tmp_path / "bin" / "setsid"; s.write_text('#!/bin/sh\nexec "$@"\n'); s.chmod(0o755)
+    body = "\n".join(_bash_fn(src, f) for f in ("ensure_loop", "ensure_watchdog", "ensure_uploader", "frozen_round"))
+    script = (f"set -u\n{body}\nverify_busy() {{ return 0; }}\nlast_pull=0\nfrozen_round\n"
+              'for i in $(seq 50); do [ -f "$OPD_ROOT/started_gh_heartbeat" ] && break; sleep 0.1; done\n')
+    r = subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=60,
+                       env=dict(os.environ, OPD_ROOT=str(root), RUNBOOK=str(rb), CDIR=str(root / "control"), PULL="0", DRY="0",
+                                PATH=f"{tmp_path / 'bin'}:{os.environ['PATH']}"))
+    assert (root / "started_gh_heartbeat").exists(), r.stdout + r.stderr
+    assert (root / "started_watchdog").exists() and (root / "started_uploader").exists()
+    assert (root / "control" / "gh_heartbeat.sha").read_text().strip()   # ensure_loop's record: restarted when the file changes

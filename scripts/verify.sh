@@ -30,7 +30,11 @@ CUDA_VISIBLE_DEVICES=$VG python $RUNBOOK/scripts/vllm_check.py 2>&1 | grep -E "V
 [ ${PIPESTATUS[0]} = 0 ] && echo "VLLM PASS" || echo "VLLM FAIL"
 echo "== 3. 3-step P2 smoke: 0.6B student + 8B teacher (no validation, no checkpoints)"
 t=$(date +%s)
-SMOKE=1 STUDENT=$STUDENT_06B bash $RUNBOOK/scripts/run_arm.sh $VG E10b-P2 > $OPD_ROOT/logs/smoke.log 2>&1; rc=$?
+# [v2.5.9z126] (a profile's VENV=fa before setup step 4 has built venv-fa) the smoke on the main venv through PROBE_ENV, which wins over
+# control.env (env.sh, v2.5.7i); with venv-fa in place it runs on the profile's venv as before
+SE=""; [ "${VENV:-}" = fa ] && ! { [ -x $OPD_ROOT/venv-fa/bin/python ] && $OPD_ROOT/venv-fa/bin/python -c "import flash_attn" 2> /dev/null; } && SE="VENV="
+[ -n "$SE" ] && echo "   (VENV=fa set, venv-fa not built yet: the smoke on the main venv)"
+PROBE_ENV="${PROBE_ENV:-} $SE" SMOKE=1 STUDENT=$STUDENT_06B bash $RUNBOOK/scripts/run_arm.sh $VG E10b-P2 > $OPD_ROOT/logs/smoke.log 2>&1; rc=$?
 grep -E "(^|[ )])step:[0-9]+ - " $OPD_ROOT/logs/smoke.log | tr ' ' '\n' | \
   grep -E '^(step:|timing_s/step:|perf/max_memory_allocated_gb:|actor/pg_loss:|actor/entropy:|response_length/mean:|opd/adv_abs_mean:)' | paste -s -d ' '
 nan=$(grep -E "(^|[ )])step:[0-9]+ - " $OPD_ROOT/logs/smoke.log | grep -ciE ":(nan|inf)( |$)")

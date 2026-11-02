@@ -7,13 +7,19 @@
 #   B2 a base directory: --base, else the largest writable local disk; T=<base>/opd (runbook, run, ckpt, cache below it)
 #   B0 the Hugging Face token: --token-file <0600 file>, or --hf-home <dir> (its token file, read in place, never copied), else typed
 #      once with read -rs (not echoed, not in the shell history) into $T/run/.hf_token (0600)
+#   B0b [z126] the GitHub heartbeat token (Fable 11-02: a second way out): --gh-token-file <0600 file>, else typed once with read -rs
+#      (Enter skips; --no-gh does not ask), stored for git alone as ~/.config/opd/gh_hb_credentials (0600, git's credential store;
+#      GH_HB_CRED moves it); after B1 one `git ls-remote` of GH_HB_URL (default the private heartbeat repository) says whether it is
+#      reachable, and B6 waits up to 90 s for gh_heartbeat's first push of hb/<node>.json. No token is printed or uploaded.
 #   B1 the network: direct when GitHub and Hugging Face answer 200, else the proxy candidates found in the environment, the profile
 #      files and other processes' environments (proxy variables only), each tested; $T/run/proxy.env (0600) with no_proxy for this
 #      host. No proxy value is printed or uploaded.
 #   B3 the runbook cloned (or pulled) into $T/runbook; the node id (as cold_start.sh)
 #   B4 $T/run/venv-ctl: requirements.ctl.txt only (huggingface_hub, pyyaml; no torch)
 #   B5 cold_start.sh --step 1 (no old command may ever run here), then node.env, control/coldstart_args, control/bootstrap.json,
-#      heartbeat every 120 s, STATUS_PUT_S=120, dispatch frozen (control/dispatch_frozen)
+#      heartbeat every 120 s, STATUS_PUT_S=120, dispatch frozen (control/dispatch_frozen). [z126] --profile <name>[,<name>]: the
+#      export lines of profiles/<name>.env into control.env, a key already there kept (setenv wins on a rerun); --role rehearsal
+#      then writes profiles/rehearsal.env over the same keys (the rehearsal's commit limits)
 #   B6 loops.sh start (heartbeat and run_tasks; a running set is adopted, never doubled), then waits for the first status upload
 # Rerunning it is safe: every step looks at what is there first. --retire-tmux / --retire-file hand a machine over from earlier
 # blocks: refused while any of our scripts runs; a tmux session is closed only when its panes hold nothing but sh / bash / tee /
@@ -21,15 +27,17 @@
 set -uo pipefail
 RB_URL=${RB_URL:-https://github.com/yang3121099/opd-blackwell-runbook.git}
 REPOS=public=yang31210999/opd-lab-b300-pub,private=yang31210999/opd-lab-b300-ops
-BASE=""; TOKF=""; HFH=""; ONLY=""; CKMIN=200; ROLE=node; RETIRE_TMUX=""; RETIRE_FILES=""; DRY=0; OLDC=""
+BASE=""; TOKF=""; HFH=""; ONLY=""; CKMIN=200; ROLE=node; RETIRE_TMUX=""; RETIRE_FILES=""; DRY=0; OLDC=""; GHTOKF=""; NOGH=0; PROFILE=""
 while [ $# -gt 0 ]; do case $1 in
   --base) BASE=$2; shift 2;; --token-file) TOKF=$2; shift 2;; --hf-home) HFH=$2; shift 2;; --repos) REPOS=$2; shift 2;;
   --only) ONLY=$2; shift 2;; --ckpt-min-gb) CKMIN=$2; shift 2;; --role) ROLE=$2; shift 2;; --old-base-cands) OLDC=$2; shift 2;;
   --retire-tmux) RETIRE_TMUX="$RETIRE_TMUX $2"; shift 2;; --retire-file) RETIRE_FILES="$RETIRE_FILES $2"; shift 2;; --dry) DRY=1; shift;;
+  --gh-token-file) GHTOKF=$2; shift 2;; --no-gh) NOGH=1; shift;; --profile) PROFILE=$2; shift 2;;
   *) echo "BOOTSTRAP usage: unknown argument $1"; exit 2;; esac; done
 say() { echo "[bootstrap $(date -u +%H:%MZ)] $*"; }
 stop() { say "STOP: $*"; exit 1; }
-[[ $ROLE =~ ^(node|rehearsal)$ ]] && [[ $CKMIN =~ ^[0-9]+$ ]] && [[ -z $ONLY || $ONLY =~ ^[A-Za-z0-9._-]+(,[A-Za-z0-9._-]+)*$ ]] || { echo "BOOTSTRAP usage: --role node|rehearsal, --ckpt-min-gb N, --only task[,task]"; exit 2; }
+[[ $ROLE =~ ^(node|rehearsal)$ ]] && [[ $CKMIN =~ ^[0-9]+$ ]] && [[ -z $ONLY || $ONLY =~ ^[A-Za-z0-9._-]+(,[A-Za-z0-9._-]+)*$ ]] \
+  && [[ -z $PROFILE || $PROFILE =~ ^[A-Za-z0-9_-]+(,[A-Za-z0-9_-]+)*$ ]] || { echo "BOOTSTRAP usage: --role node|rehearsal, --ckpt-min-gb N, --only task[,task], --profile name[,name]"; exit 2; }
 for c in bash git curl python3; do command -v $c > /dev/null || stop "$c is missing on this machine"; done
 OURS='^bash /root/h800_(setup|loops|fix)\.sh|scripts/(verify|run_arm|overnight|cold_start|setup_runner)\.sh|scripts/task\.sh'
 
@@ -53,6 +61,29 @@ elif [ -z "$TOKF" ]; then
 fi
 [ $DRY = 1 ] || { [ -s "$TOKF" ] && [[ "$(stat -c %a "$TOKF" 2> /dev/null || stat -f %Lp "$TOKF")" =~ ^[46]00$ ]] || stop "token file missing or not 0600 / 0400"; }
 say "token: from its file, not shown"
+
+# ---------- B0b. the GitHub heartbeat token (z126) ----------
+# git's credential store line, written with the shell's own printf (no process gets the token as an argument); a GitHub token is
+# letters, digits and _ (ghp_..., github_pat_...), anything else is not stored
+GHC=${GH_HB_CRED:-$HOME/.config/opd/gh_hb_credentials}; GHURL=${GH_HB_URL:-https://github.com/yang3121099/opd-b300-heartbeat.git}
+if [ $NOGH = 1 ]; then say "GitHub heartbeat: not asked (--no-gh)"
+elif [ -s "$GHC" ]; then say "GitHub heartbeat: its token is stored already (not shown)"
+else
+  ghtok=""
+  if [ -n "$GHTOKF" ]; then
+    [ -s "$GHTOKF" ] && [[ "$(stat -c %a "$GHTOKF" 2> /dev/null || stat -f %Lp "$GHTOKF")" =~ ^[46]00$ ]] || stop "--gh-token-file missing or not 0600 / 0400"
+    IFS= read -r ghtok < "$GHTOKF" || true
+  elif [ $DRY = 1 ]; then say "would ask for the GitHub heartbeat token (read -rs, Enter skips)"
+  else read -rs -p "GitHub token for the heartbeat repository (typed, not shown; Enter skips): " ghtok < /dev/tty; echo; fi
+  ghtok=${ghtok//[[:space:]]/}
+  if [ -z "$ghtok" ]; then [ $DRY = 1 ] && [ -z "$GHTOKF" ] || say "GitHub heartbeat: no token, off (Hugging Face is the only way out)"
+  elif [[ $ghtok =~ ^[A-Za-z0-9_]{20,255}$ ]]; then
+    mkdir -p "$(dirname "$GHC")" && chmod 700 "$(dirname "$GHC")"
+    ( umask 077; printf 'https://%s:%s@github.com\n' "${GH_HB_USER:-yang3121099}" "$ghtok" > "$GHC" ); chmod 600 "$GHC"
+    say "GitHub heartbeat: token stored for git (0600, not shown)"
+  else say "GitHub heartbeat: what was typed is not a GitHub token (letters, digits, _): not stored, off"; fi
+  unset ghtok
+fi
 
 # ---------- hand-over from earlier blocks (C8) ----------
 if [ -n "${RETIRE_TMUX// /}${RETIRE_FILES// /}" ]; then
@@ -95,6 +126,16 @@ if [ ! -s $PX ]; then
   fi
 fi
 
+# ---------- B1b. can the heartbeat repository be reached with that token (z126) ----------
+if [ $NOGH = 0 ] && [ -s "$GHC" ]; then
+  if [ $DRY = 1 ]; then say "would check the GitHub heartbeat repository (git ls-remote)"
+  else TO=""; command -v timeout > /dev/null && TO="timeout -k 5 40"
+    if GIT_TERMINAL_PROMPT=0 $TO git -c credential.helper= -c "credential.helper=store --file=$GHC" ls-remote "$GHURL" > /dev/null 2>&1
+    then say "GitHub heartbeat: repository reachable with its token"
+    else say "GitHub heartbeat: repository not reachable (missing, or the token has no access to it): the node goes on, gh_heartbeat retries every 1-15 min"; fi
+  fi
+fi
+
 # ---------- B3. the runbook, the node id ----------
 if [ -d $T/runbook/.git ]; then git -C $T/runbook pull -q --ff-only || say "git pull failed: the clone as it is"
 else git clone -q ${RB_BRANCH:+-b $RB_BRANCH} $RB_URL $T/runbook || stop "git clone failed"; fi   # RB_BRANCH: a rehearsal's branch
@@ -133,16 +174,37 @@ fi
     echo "export HF_HOME=$T/cache/hf"   # also with --hf-home: its token is read from there, the caches stay below $T
     [ "$CAPS" = 9.0 ] && echo "export OVERNIGHT_TIER_A_ONLY=1 FA_CUDA_ARCHS=90   # Hopper: vLLM tier A, flash-attn for sm_90"
     [ -n "$OLDC" ] && echo "export OLD_BASE_CANDS=$OLDC"
+    [ -n "${GH_HB_CRED:-}" ] && echo "export GH_HB_CRED=$GHC"   # [z126] a credential file moved from its default
+    [ -n "${GH_HB_URL:-}" ] && echo "export GH_HB_URL=$GHURL"
     [ -s $PX ] && echo "[ -s $PX ] && . $PX"
     echo "[ -s $TOKF ] && export HF_TOKEN=\"\$(head -1 $TOKF | tr -d '[:space:]')\""
   } > $O/node.env.new && mv $O/node.env.new $O/node.env )
 grep -q "^export OPD_ROOT=$O RUNBOOK=$RB OPD_NODE=$NODE HF_REPO=" $O/node.env || stop "node.env not written"
 echo "$ARGS" > $O/control/coldstart_args
 [ -f $O/control/heartbeat_sec ] || echo 120 > $O/control/heartbeat_sec
-touch $O/control.env; grep -q '^export STATUS_PUT_S=' $O/control.env || echo 'export STATUS_PUT_S=120' >> $O/control.env
+touch $O/control.env
+if [ -n "$PROFILE" ]; then   # [z126] the node class's settings; a key already in control.env is kept (setenv wins on a rerun)
+  for pn in ${PROFILE//,/ }; do
+    PF=$RB/profiles/$pn.env; [ -f $PF ] || stop "no profile $pn (there are: $(ls $RB/profiles 2> /dev/null | sed -n 's/\.env$//p' | paste -sd' ' -))"
+    added=""; kept=""
+    while IFS= read -r line; do [[ $line =~ ^export\ ([A-Z][A-Z0-9_]*)=([A-Za-z0-9_.,:=+-]*)$ ]] || continue; k=${BASH_REMATCH[1]}
+      if grep -q "^export $k=" $O/control.env; then kept="$kept $k"; else echo "$line" >> $O/control.env; added="$added $k"; fi
+    done < $PF
+    say "profile $pn: control.env +${added:- nothing}${kept:+ (already set, kept:$kept)}"
+  done
+  echo "$PROFILE" > $O/control/profile
+fi
+if [ $ROLE = rehearsal ]; then   # [z126] the rehearsal's limits over whatever is there
+  while IFS= read -r line; do [[ $line =~ ^export\ ([A-Z][A-Z0-9_]*)=([A-Za-z0-9_.,:=+-]*)$ ]] || continue; k=${BASH_REMATCH[1]}
+    grep -v "^export $k=" $O/control.env > $O/control.env.new; echo "$line" >> $O/control.env.new; mv $O/control.env.new $O/control.env
+  done < $RB/profiles/rehearsal.env
+  say "rehearsal limits: $(sed -n 's/^export //p' $RB/profiles/rehearsal.env | paste -sd' ' -)"
+fi
+grep -q '^export STATUS_PUT_S=' $O/control.env || echo 'export STATUS_PUT_S=120' >> $O/control.env
 # the first bootstrap freezes dispatch (also over loops it adopts: their run_tasks honours the file once it runs z106)
 [ -f $O/control/bootstrap.json ] || { date -u +%FT%TZ > $O/control/dispatch_frozen
-  printf '{"utc": "%s", "node": "%s", "role": "%s", "runbook": "%s"}\n' "$(date -u +%FT%TZ)" $NODE $ROLE "$(git -C $RB log -1 --format=%h)" > $O/control/bootstrap.json; }
+  printf '{"utc": "%s", "node": "%s", "role": "%s", "runbook": "%s", "profile": "%s", "gh_token": %s}\n' "$(date -u +%FT%TZ)" $NODE $ROLE \
+    "$(git -C $RB log -1 --format=%h)" "$PROFILE" "$([ $NOGH = 0 ] && [ -s "$GHC" ] && echo true || echo false)" > $O/control/bootstrap.json; }
 [ -f $O/control/setup_state.json ] || printf '{"step": "B", "name": "bootstrap", "state": "done", "utc": "%s", "last_lines": []}\n' "$(date -u +%FT%TZ)" > $O/control/setup_state.json
 say "control: applied_seq $(cat $O/control/applied_seq 2> /dev/null), heartbeat every $(cat $O/control/heartbeat_sec) s, dispatch $([ -f $O/control/dispatch_frozen ] && echo frozen || echo on)"
 
@@ -154,3 +216,10 @@ bash $RB/scripts/loops.sh start > $O/logs/bootstrap_loops.log 2>&1; rc=$?
 for i in $(seq 36); do grep -q "^HEARTBEAT " $O/logs/heartbeat.log 2> /dev/null && break; sleep 5; done
 if grep -q "^HEARTBEAT " $O/logs/heartbeat.log 2> /dev/null; then echo "node $NODE online; everything else is remote"
 else say "node $NODE started, first status not confirmed yet; heartbeat.err:"; tail -n 5 $O/logs/heartbeat.err 2> /dev/null | sed -E 's#//[^/@ ]+@#//***@#g; s/hf_[A-Za-z0-9]{8,}/hf_***/g'; fi
+# [z126] the second way out: run_tasks (frozen or not) starts gh_heartbeat, whose first round pushes at once
+if [ $NOGH = 0 ] && [ -s "$GHC" ]; then
+  for i in $(seq 18); do grep -q '"last_ok_utc": "' $O/control/gh_hb.json 2> /dev/null && break; sleep 5; done
+  if grep -q '"last_ok_utc": "' $O/control/gh_hb.json 2> /dev/null; then echo "GitHub heartbeat: hb/$NODE.json pushed"
+  else say "GitHub heartbeat: no push yet ($(python3 -c "import json, sys; print(json.load(open(sys.argv[1])).get('last_error') or 'no round yet')" $O/control/gh_hb.json 2> /dev/null \
+    | sed -E 's#//[^/@ ]+@#//***@#g; s/(gh[pousr]_|github_pat_)[A-Za-z0-9_]+/\1***/g' || echo 'no round yet')); the HF path goes on"; fi
+fi
