@@ -1,38 +1,53 @@
-# Cold start: an empty machine back to running (runbook v2.5.9z100; requirements v26 §11)
+# Cold start: a new machine, connected first, everything else remote (runbook v2.5.9z127)
 
-For a NEW machine whose disks hold nothing of ours (REBUILD.md covers a new container on the old share). Everything comes from
-git (this runbook) and the two Hugging Face repositories. Target: the first GPU task within 4 h of pasting the command.
+For a NEW machine (nothing of ours on its disks). The person at the machine pastes one line and types two tokens; from the moment
+the line prints `node <id> online` the project installs, checks, repairs and runs this machine through control commands, and that
+person is never asked again (next_machine_selfserve_20261102). Targets: status, pulse and the GitHub heartbeat within 5 min; the
+weights downloading within 10 min; the first arm within 2.5 h; every GPU busy within 6 h.
 
-## Before
-- The token in a file only you can read: `install -m 600 /dev/null <file>`, then put the token in it with an editor (never on a
-  command line, never in the environment of your shell).
-- The largest LOCAL disk for the runbook clone, --opd-root and the checkpoints (>= 1 TB free): the control plane (the runbook,
-  control/, logs/) must sit on one local disk, never a network filesystem - the health check refuses it otherwise.
-
-## The command (one block, under nohup: it runs for hours)
+## The line (the only thing pasted)
 ```bash
-git clone https://github.com/<owner>/opd-blackwell-runbook <disk>/opd-blackwell-runbook && cd <disk>/opd-blackwell-runbook && setsid nohup bash scripts/cold_start.sh --token-file <0600 file> --opd-root <disk>/opd-run --ckpt-root <disk>/opd-ckpt --repos public=<owner/name>,private=<owner/name> --node <old node id, to keep its history> > <disk>/coldstart.out 2>&1 & sleep 5; tail -f <disk>/opd-run/logs/coldstart.log
+R=https://github.com/yang3121099/opd-blackwell-runbook.git; d=$(mktemp -d); { git clone -q $R $d 2>/dev/null || { rm -rf $d; d=$(mktemp -d); p=$(grep -hoE "^(export +)?(https_proxy|HTTPS_PROXY)=['\"]?[^'\" ]+" /etc/environment /etc/profile /etc/profile.d/*.sh ~/.bashrc ~/.profile 2>/dev/null | head -1 | sed -E "s/^(export +)?[A-Za-z_]+=//; s/['\"]//g"); [ -n "$p" ] && https_proxy=$p git clone -q $R $d; } || { echo "STOP: git cannot reach github.com from this machine: ask how git reaches the internet here"; false; }; } && bash $d/scripts/bootstrap.sh --profile 80g
 ```
-`--node`: the old node's id keeps ctl.py, the status path and the control history; without it the machine gets a new id from its
-host name (then ctl.py is pointed at the new id).
+(The clone into a temporary directory only fetches bootstrap.sh. When git cannot reach GitHub directly, the line retries once
+through the first https_proxy in /etc/environment, /etc/profile(.d), ~/.bashrc or ~/.profile, value not printed; else it prints
+STOP. The owner's copy with the expected output: the lab's handoff/newnode_paste_20261102.md.)
+- It asks for the Hugging Face token and then the GitHub heartbeat token, each typed and not shown (`read -rs`; nothing on a
+  command line, in the shell history or in a file anyone else can read). Enter at the second one skips the GitHub heartbeat.
+- `--base <dir>`: the disk to use (default: the largest writable local disk). `--profile <name>[,<name>]`: the node class
+  (profiles/*.env: `80g` for 80 GB cards). `--role rehearsal`: a rehearsal's commit limits (profiles/rehearsal.env).
+- Rerunning the line is safe: every step looks at what is there first.
 
-## What happens (STEP lines in logs/coldstart.log)
-0. the token file (0600) read into the process only; paths.env (CKPT_ROOT, OPD_NODE), hf_repos.txt.
-1. **control bootstrap before any loop**: control/applied_seq = the largest seq of control/<node>.yaml, so no old command runs;
-   control/control.env.proposed = each setenv key's last value, printed, **not applied** - ops-lead reviews it, then the lines kept
-   go to $OPD_ROOT/control.env by hand.
-2. overnight.sh (OVERNIGHT_NO_LOOPS=1): base models, the cu128 venv, data, the vLLM tier probe, verify.sh.
-3. the node's last status from the private repository: which tasks are done.
-4. in parallel: the other models the unfinished tasks need (the manifest, regenerated from the pulled queue), venv-fa, venv-vl,
-   venv-ifeval.
-5. the probe labels from the private repository, checked against the Hub's hash; missing ones: rerun the probe, registered as a NEW
-   label version.
-6. which weights the unfinished tasks need are on the Hub (control/coldstart_weights.json; missing ones: those tasks wait).
-7. health checks, all PASS or nothing starts (logs/coldstart_health.txt): GPUs, CKPT_ROOT >= 1 TB, both repositories answer, the
-   token writes to the private repository (a probe under status/<node>/), the control plane on one local disk, a reused node id's
-   last status older than 2 h (two machines never share an id), GitHub, the four venvs, verify.sh, applied_seq == the history's
-   largest with no command run during the bootstrap, the outbox empty, no loop yet.
-8. heartbeat and run_tasks, and one event "coldstart" with the skipped seqs.
+## What bootstrap.sh does (2-5 min, then `node <id> online; everything else is remote`)
+B2 the base directory; B0 the HF token (0600); B0b the GitHub heartbeat token, stored for git alone (0600); B1 direct or a working
+proxy found on the machine (values never printed); B1b one `git ls-remote` of the heartbeat repository; B3 the runbook clone and
+the node id (a hash of the host name); B4 the control venv (huggingface_hub, pyyaml; no torch); B5 cold_start.sh step 1 (no old
+command can run), node.env, the profile's keys into control.env (a key already there is kept), heartbeat every 120 s, **dispatch
+frozen**; B6 heartbeat + run_tasks (+ watchdog, uploader, gh_heartbeat), the first status, the first GitHub push.
 
-A rerun skips what is done. COLDSTART_DRYRUN=1 installs, downloads and starts nothing (scripts/test_cold_start.sh).
-After step 8 the executor checks from the project side: three fresh status rounds, one `ps` with its receipt.
+## From there, remote only (the executor pushes these; they are pre-approved for T0)
+| Command | What it does |
+|---|---|
+| `env-probe` | GPUs, driver, disks, network, an old base or not: into status |
+| `setenv K=V` | the differences from the profile |
+| `mounts` | read-only mount probe (shared disks) |
+| `setup all` | cold_start.sh steps 2-7 in the background, each step in status.setup_state; a STOP shows the step log's last lines |
+| `run FETCH-<name>` / `run FETCH-all` | the queue's `#fetch` lines pulled while dispatch is frozen and before the main venv (control venv, 32 connections for a start, no GPU, never task.sh, so `setup` is never refused because of them) |
+| `run PROBE-TAIL` | the canary, once the main venv is ready |
+| `dispatch on` | accepted only when the **main venv** imports torch / vllm / verl (control/venv_ready) **and the canary PROBE-TAIL passed on this node**; nothing else |
+| `tail <log>`, `setup <N>`, `restart-loops` | repair: read the failing step's log, `setenv` the fix, rerun that step |
+
+## verify reports, it does not stop (z127)
+verify.sh's five checks (G2 unit tests; GPU / vLLM; the 3-step smoke; the upload path; the control self-test) go into
+status.verify (control/verify_state.json, "ok" = the first four passed). On a connect-first node a FAIL stops neither setup step 2
+nor the step 7 health checks nor `dispatch on`. It holds only the queue rows that declare `#needs verify <task>`; they start once
+verify passes (`verify` reruns it). While VENV=fa is set and venv-fa is not built yet, the smoke runs on the main venv.
+
+## The one case that needs the person again
+bootstrap.sh prints "ask the machine's owner how git / pip reach the internet here": neither direct nor any proxy found on the
+machine reaches GitHub and Hugging Face.
+
+## Without bootstrap (older flow, kept for a machine that cannot run it)
+`setsid nohup bash scripts/cold_start.sh --token-file <0600 file> --opd-root <disk>/opd-run --ckpt-root <disk>/opd-ckpt --repos
+public=<owner/name>,private=<owner/name>` runs steps 0-8 in one go: there a verify FAIL or any health check FAIL stops before the
+loops start. COLDSTART_DRYRUN=1 installs, downloads and starts nothing (scripts/test_cold_start.sh).

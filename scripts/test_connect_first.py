@@ -111,7 +111,14 @@ def test_dispatch_needs_the_main_venv(env):
     assert env.c.v_dispatch(["off"], 51)[0] == "ok" and os.path.exists(os.path.join(env.c.CDIR, "dispatch_frozen"))
     assert env.c.v_dispatch(["on"], 52)[0] == "rejected" and os.path.exists(os.path.join(env.c.CDIR, "dispatch_frozen"))
     open(os.path.join(env.c.CDIR, "venv_ready"), "w").write("x\n")
-    assert env.c.v_dispatch(["on"], 53)[0] == "ok" and not os.path.exists(os.path.join(env.c.CDIR, "dispatch_frozen"))
+    # [v2.5.9z127] and the canary on this node: PROBE-TAIL's report PASS (verify's result does not matter)
+    st, msg, _ = env.c.v_dispatch(["on"], 53)
+    assert st == "rejected" and "canary PROBE-TAIL" in msg and os.path.exists(os.path.join(env.c.CDIR, "dispatch_frozen"))
+    os.makedirs(env.root / "runs" / "PROBE-TAIL"); rep = env.root / "runs" / "PROBE-TAIL" / "report.json"
+    rep.write_text('{"result": "FAIL"}'); assert env.c.v_dispatch(["on"], 54)[0] == "rejected"
+    rep.write_text('{"result": "PASS"}')
+    json.dump({"result": {"G2": "FAIL"}, "ok": False}, open(os.path.join(env.c.CDIR, "verify_state.json"), "w"))
+    assert env.c.v_dispatch(["on"], 55)[0] == "ok" and not os.path.exists(os.path.join(env.c.CDIR, "dispatch_frozen"))
 
 
 def test_pulse_fields_pass_the_leak_check(env, monkeypatch):

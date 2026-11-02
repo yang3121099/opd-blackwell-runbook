@@ -169,7 +169,13 @@ step 6 "vLLM OK via tier $TIER (triton.env: $(grep -h '^export' $OPD_ROOT/triton
 # ---------- 7. verify (G2 tests, GPU, vLLM, 3-step smoke, upload path) ----------
 for i in $(seq 1 30); do complete_dir $P17 && break; sleep 60; done
 bash scripts/verify.sh > $OPD_ROOT/logs/verify.log 2>&1
-if grep -q "G2 PASS" $OPD_ROOT/logs/verify.log && grep -q "VLLM PASS" $OPD_ROOT/logs/verify.log && grep -q "SMOKE PASS" $OPD_ROOT/logs/verify.log; then step 7 "verify PASS ($(grep -oE '(G2|VLLM|SMOKE|UPLOAD_CHECK)[A-Z _]*(PASS|FAIL)' $OPD_ROOT/logs/verify.log | tr '\n' ' '))"; else fail 7 "verify (see logs/verify.log: $(grep -oE '(G2|VLLM|SMOKE)[A-Z _]*(PASS|FAIL)' $OPD_ROOT/logs/verify.log | tr '\n' ' '))"; fi
+# [v2.5.9z127] (Fable 11-02, next_machine_selfserve 2 item 3: on the H800 a verify FAIL stopped the install and the control for 10.8 h)
+# a connect-first node (venv-ctl, bootstrap.sh) records the five checks in status.verify and goes on: `dispatch on` needs the main
+# venv and the canary, and a FAIL holds only the queue rows that say `#needs verify <task>`. Elsewhere a FAIL stops here as before.
+[ -d $OPD_ROOT/venv-ctl ] && python3 scripts/control.py verify_state $OPD_ROOT/logs/verify.log 0 > /dev/null 2>&1
+if grep -q "G2 PASS" $OPD_ROOT/logs/verify.log && grep -q "VLLM PASS" $OPD_ROOT/logs/verify.log && grep -q "SMOKE PASS" $OPD_ROOT/logs/verify.log; then step 7 "verify PASS ($(grep -oE '(G2|VLLM|SMOKE|UPLOAD_CHECK)[A-Z _]*(PASS|FAIL)' $OPD_ROOT/logs/verify.log | tr '\n' ' '))"
+elif [ -d $OPD_ROOT/venv-ctl ]; then step 7 "verify reported, not a gate ($(grep -oE '(G2|VLLM|SMOKE|UPLOAD_CHECK|CONTROL)[A-Z _]*(PASS|FAIL)' $OPD_ROOT/logs/verify.log | tr '\n' ' ')): status.verify; rows with #needs verify wait for it"
+else fail 7 "verify (see logs/verify.log: $(grep -oE '(G2|VLLM|SMOKE)[A-Z _]*(PASS|FAIL)' $OPD_ROOT/logs/verify.log | tr '\n' ' '))"; fi
 if [ -z "${HF_TOKEN:-}" ] || [ -z "${HF_REPO:-}" ]; then fail 8 "HF_TOKEN / HF_REPO not exported in the launching shell"; fi
 python scripts/remote.py put $OPD_ROOT/logs/verify.log logs/$(hostname)/verify.log >>$LOG 2>&1 && step 8 "verify.log uploaded to $HF_REPO" || step 8 "verify.log upload FAILED (continuing)"
 # [v2.5.9z100] (cold start, requirements v26 §11) OVERNIGHT_NO_LOOPS=1: stop here; cold_start.sh runs its health checks and starts the loops

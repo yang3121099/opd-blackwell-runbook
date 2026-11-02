@@ -162,7 +162,10 @@ chk "venv-fa: flash_attn" "$OPD/venv-fa/bin/python -c 'import flash_attn'"
 if [ -z "$ONLY" ]; then chk "venv-vl: vllm, transformers" "$OPD/venv-vl/bin/python -c 'import vllm, transformers'"
   chk "venv-ifeval: langdetect" "$OPD/venv-ifeval/bin/python -c 'import langdetect'"
 else skp "venv-vl: vllm, transformers"; skp "venv-ifeval: langdetect"; fi
-chk "verify.sh: G2, VLLM, SMOKE PASS" "grep -q 'G2 PASS' $OPD/logs/verify.log && grep -q 'VLLM PASS' $OPD/logs/verify.log && grep -q 'SMOKE PASS' $OPD/logs/verify.log"
+V2="grep -q 'G2 PASS' $OPD/logs/verify.log && grep -q 'VLLM PASS' $OPD/logs/verify.log && grep -q 'SMOKE PASS' $OPD/logs/verify.log"
+if [ $BOOT = 1 ]; then   # [v2.5.9z127] connect-first: verify reports (status.verify), it is not a health gate
+  if eval "$V2" > /dev/null 2>&1; then echo "PASS verify.sh: G2, VLLM, SMOKE (reported)" >> $H; else echo "INFO verify.sh: not all of G2, VLLM, SMOKE passed - reported, not a gate (status.verify; rows with #needs verify wait)" >> $H; fi
+else chk "verify.sh: G2, VLLM, SMOKE PASS" "$V2"; fi
 if [ $BOOT = 1 ]; then   # [v2.5.9z106] the loops run already: exactly one heartbeat and one run_tasks (loops.sh), dispatch frozen
   chk "loops: one heartbeat, one run_tasks (loops.sh status)" "[ \"\$(bash $RB/scripts/loops.sh status | awk '\$1 == \"LOOPS\" {print \$3}' | paste -sd, -)\" = 1,1 ]"
   chk "dispatch frozen until \`dispatch on\`" "[ -f $OPD/control/dispatch_frozen ]"

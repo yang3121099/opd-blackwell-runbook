@@ -1488,8 +1488,47 @@ def _request(kind, seq, body):
     json.dump(dict(body, kind=kind, seq=seq, utc=utc()), open(_p("requests", f"{seq}_{kind}.json"), "w"))
 
 
+def fetch_names(qpath=None):
+    """[v2.5.9z127] the queue's #fetch lines by the name run_tasks.sh's fetch_pass pulls each one under (--task FETCH-<name>): a model
+    Qwen/<name> -> <name>, dataset:<owner>/<name> -> <owner>__<name>, result:runs/<run>/global_step_<n>/actor/huggingface ->
+    result_<run>_s<n>; a line fetch_pass skips is not listed."""
+    out = {}
+    for line in _read(qpath or os.path.join(RUNBOOK, "tasks", "queue.txt")).splitlines():
+        p = line.split()
+        if len(p) < 2 or p[0] != "#fetch":
+            continue
+        m = p[1]; r = re.fullmatch(r"result:runs/(E1[0-2][bcde]-[A-Za-z0-9._-]+)/global_step_([0-9]+)/actor/huggingface", m)
+        if re.fullmatch(r"Qwen/Qwen3-(VL-)?[0-9.]+B(-Instruct|-Thinking)?(-[0-9]{4})?|Qwen/Qwen2\.5-Math-[0-9.]+B(-Instruct)?"
+                        r"|deepseek-ai/DeepSeek-R1-Distill-Qwen-[0-9.]+B", m):
+            out[m.split("/", 1)[1]] = m
+        elif m.startswith("dataset:") and re.fullmatch(r"[A-Za-z0-9._-]+/[A-Za-z0-9._-]+", m[len("dataset:"):]):
+            out[m[len("dataset:"):].replace("/", "__")] = m
+        elif r:
+            out[f"result_{r.group(1)}_s{r.group(2)}"] = m
+    return out
+
+
+def v_fetch(t, seq):
+    """[v2.5.9z127] (Fable 11-02, next_machine_selfserve 2 item 6: the weights from T0 + 8 min, before the main venv) `run FETCH-<name>`
+    / `run FETCH-all`: the queue's #fetch line(s) of that name go into control/fetch_allow, and run_tasks' frozen round pulls them
+    (fetch_pass: fetch_model.py under setsid, PREFETCH_PAR at a time, 32 connections for a result: start, no GPU, never task.sh, so
+    `setup` is not refused while they run) on the control venv. With dispatch on every #fetch line is pulled anyway."""
+    names = fetch_names(); want = sorted(names) if t == "FETCH-all" else [t[len("FETCH-"):]]
+    bad = [n for n in want if n not in names]
+    if bad or not want:
+        return "rejected", (f"no #fetch line pulled as FETCH-{bad[0] if bad else '<name>'} in the queue (there are: "
+                            f"{', '.join(sorted(names))[:300] or 'none'})"), {}
+    have = set(_read(_p("fetch_allow")).split())
+    with open(_p("fetch_allow"), "a") as f:
+        f.writelines(n + "\n" for n in want if n not in have)
+    return "ok", (f"{len(want)} pull(s) allowed ({', '.join(want)[:200]}): run_tasks starts them from its next round, frozen or not, "
+                  f"PREFETCH_PAR at a time"), {}
+
+
 def v_run(a, seq, flags=None, entry=None):
     t = a[0]
+    if t.startswith("FETCH-"):   # [v2.5.9z127] a pull, not a task
+        return v_fetch(t, seq)
     r = subprocess.run(["bash", "-c", f'T={t}; ARMS="P2|P3|P4lowlr|P5|P6|P6r|P2noEOS|Pstop|P6rand|P6top5|P4EOSpen|P5top10|P5rand10m"; '
                         'case $T in E12b-P5-prog|E12b-P5-prog-up|PROBE-PROG) exit 0;; esac; '   # [v2.5.9z43] (Q-058)
                         'case $T in E10b-P5route-inv|PROBE-ROUTE-INV) exit 0;; esac; '   # [v2.5.9z45] (Q-063)
@@ -3373,11 +3412,15 @@ def v_setup(a, seq, flags=None, entry=None):
 
 
 def verify_state(log, seq):
-    """[v2.5.9z106] after a remote verify: each check's PASS / FAIL into control/verify_state.json, and the next heartbeat round now."""
+    """[v2.5.9z106] after a remote verify: each check's PASS / FAIL into control/verify_state.json, and the next heartbeat round now.
+    [v2.5.9z127] (Fable 11-02, next_machine_selfserve 2 item 3: verify reports, it does not stop) "ok" = the four training checks
+    (G2, VLLM, SMOKE, UPLOAD_CHECK) passed: what a queue row with `#needs verify <task>` waits for; nothing else reads it. seq 0 =
+    setup step 2 (overnight.sh)."""
     text = _read(log)
     res = {k: ("PASS" if re.search(rf"^{k} PASS", text, re.M) else "FAIL" if re.search(rf"^{k} FAIL", text, re.M) else None)
            for k in ("G2", "VLLM", "SMOKE", "UPLOAD_CHECK", "CONTROL")}
-    json.dump({"seq": seq, "utc": utc(), "result": res, "log": f"logs/{os.path.basename(log)}"}, open(_p("verify_state.json"), "w"))
+    ok = all(res[k] == "PASS" for k in ("G2", "VLLM", "SMOKE", "UPLOAD_CHECK"))
+    json.dump({"seq": seq, "utc": utc(), "result": res, "ok": ok, "log": f"logs/{os.path.basename(log)}"}, open(_p("verify_state.json"), "w"))
     open(_p("heartbeat_now"), "w").write(f"verify {seq} {utc()}\n")
 
 
@@ -3446,6 +3489,15 @@ def v_dispatch(a, seq, flags=None, entry=None):
         return "ok", "dispatch frozen: run_tasks keeps the control plane and explicit run requests only", {}
     if os.path.isdir(os.path.join(ROOT, "venv-ctl")) and not os.path.exists(_p("venv_ready")):
         return "rejected", "the main venv is not ready yet (setup); dispatch stays frozen", {}
+    # [v2.5.9z127] (Fable 11-02, next_machine_selfserve 2 item 3) a connect-first node: the main venv and the canary on this node, nothing
+    # else - verify reports into status.verify and holds only the rows that say `#needs verify`
+    cn = _cfg("DISPATCH_CANARY", "PROBE-TAIL")
+    try:
+        canary = json.load(open(os.path.join(ROOT, "runs", cn, "report.json"))).get("result")
+    except (OSError, ValueError, AttributeError):
+        canary = None
+    if os.path.isdir(os.path.join(ROOT, "venv-ctl")) and canary != "PASS":
+        return "rejected", f"the canary {cn} has not passed on this node (`run {cn}` first); dispatch stays frozen", {}
     if os.path.exists(f):
         os.remove(f)
     return "ok", "dispatch on: the queue's tasks start on free GPUs from the next round", {}

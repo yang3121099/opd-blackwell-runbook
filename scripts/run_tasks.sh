@@ -84,6 +84,10 @@ done_() { [ -f $OPD_ROOT/runs/$1/.done ] && return 0
   touch $m
   python $RUNBOOK/scripts/remote.py done $1 2>/dev/null && { mkdir -p $OPD_ROOT/runs/$1; touch $OPD_ROOT/runs/$1/.done; }; }
 skipped() { [ -f $OPD_ROOT/runs/$1/.skipped ]; }
+# [v2.5.9z127] (Fable 11-02, next_machine_selfserve 2 item 3) a queue line `#needs verify <task>`: that task waits until verify's four training
+# checks passed on this node (control/verify_state.json "ok"); verify holds nothing else
+needs_verify_ok() { grep -qE "^#needs verify $1( |\$)" "$Q" || return 0
+  python3 -c "import json, sys; sys.exit(0 if json.load(open(sys.argv[1])).get('ok') is True else 1)" $CDIR/verify_state.json 2> /dev/null; }
 # [v2.5.9z3] (ops-lead 10-21 19:5x UTC, after Q-038's gate failed and its arm failed three times on the gate check): a gate dependency
 # (PROBE-*) counts only when its report.json says PASS (a gate without a report or without a "result" field counts by .done, as
 # before: the older probes). A task held by a failed gate is blocked: runs/<task>/.blocked (blocked_by, reason), events blocked and,
@@ -217,6 +221,7 @@ net2_unfreeze() {   # [v2.5.9i] (ops-lead's A1 of 9h) the slow pull a PROBE-NET2
 # [v2.5.9z24] (ops-lead 10-22, Q-057's urgent pulls) up to PREFETCH_PAR (default 3) #fetch pulls at once, each name once (was: one at a
 # time); the readings' prefetches above have their own count under the same cap. Models: Qwen3 (text, VL) and, for Q-057's X5 arm,
 # Qwen/Qwen2.5-Math-<n>B(-Instruct) and deepseek-ai/DeepSeek-R1-Distill-Qwen-<n>B (to models/<name>); any other owner or name is skipped
+# [v2.5.9z127] fetch_pass allow: only the names in control/fetch_allow (`run FETCH-<name>`, control.py v_fetch) - the frozen round's pulls
 fetch_pass() {
   local n; n=$(ours_pargs -f "fetch_model\.py .* --task FETCH-" | grep -o "fetch_model\.py .* --task FETCH-[A-Za-z0-9._-]*" | sed 's/.*--task //' | sort -u | wc -l | tr -d ' ')   # [v2.5.9z24] distinct pulls
   [ "${n:-0}" -gt 0 ] && fetch_progress
@@ -237,6 +242,7 @@ fetch_pass() {
         nm=result_$(echo $pp | cut -d/ -f2)_s${pp#*/global_step_}; nm=${nm%%/*};;
       *) continue;;
     esac
+    [ "${1:-}" = allow ] && ! grep -qxF "$nm" $CDIR/fetch_allow 2> /dev/null && continue   # [v2.5.9z127]
     case $m in result:*) pre=$pp; dst=${d%/$pp}; cap="FETCH_CONNS_CAP=${RESULT_FETCH_CONNS:-32}";; *) pre=""; dst=$d; cap="";; esac   # [v2.5.9z43]
     [ -f $d/.fetch_ok ] && continue
     [ -n "$(ours_pgrep -f "fetch_model\.py .* --task FETCH-${nm//./\\.}( |\$)")" ] && continue   # [v2.5.9z24] already being pulled
@@ -407,6 +413,7 @@ frozen_round() {
   if [ "${PULL:-1}" = 1 ] && [ $(( $(date +%s) - last_pull )) -ge ${PULL_EVERY:-60} ]; then last_pull=$(date +%s); pull_and_control; fi
   [ "${DRY:-0}" = 1 ] && { echo "FROZEN dispatch frozen: control plane only"; return; }
   bash $RUNBOOK/scripts/loops.sh ensure heartbeat >> $OPD_ROOT/logs/loops.log 2>&1
+  [ -s $CDIR/fetch_allow ] && fetch_pass allow   # [v2.5.9z127] `run FETCH-*`: the weights come in before the main venv (control venv)
   [ -f $OPD_ROOT/venv-ctl/bin/activate ] && [ ! -f $CDIR/venv_ready ] && return   # no main venv yet: requests wait
   verify_busy && return
   FREE=( $(free_gpus) ); serve_requests; }   # (spaced: test_ops_guard finds the full pass's own FREE=($(free_gpus)) line)
@@ -498,6 +505,7 @@ while true; do
       paused $t && continue
       ok=1; for d in $deps; do done_ $d || ok=0; done
       [ $ok = 1 ] || continue
+      needs_verify_ok $t || continue   # [v2.5.9z127]
       g=""; for d in $deps; do gate_ok $d || g=$d; done   # [v2.5.9z3] a failed gate holds its dependents
       if [ -n "$g" ]; then block $t $g; continue; fi
       if [ -f $OPD_ROOT/runs/$t/.blocked ]; then   # [v2.5.9z3] held by its own gate check: only that gate's PASS lets it go
