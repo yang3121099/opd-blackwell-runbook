@@ -81,6 +81,8 @@ case $T in
   SPEED-PROBE) bash $RUNBOOK/scripts/speed_probe.sh $G;;
   PROBE-4B) bash $RUNBOOK/scripts/probe_4b.sh $G;;
   PROBE-TERM|PROBE-TERM2|PROBE-TERM3|PROBE-TERM4-EOSW|PROBE-TERM4-FRET|PROBE-TERM4|PROBE-TERM4-4B|PROBE-TERM4-06B) bash $RUNBOOK/scripts/term_probe.sh $G $T;;   # v2.5.7zk: -4B; [v2.5.9v] -06B; [v2.5.9z109] -EOSW (Q-087 H1, its own one row)
+  PROBE-TERM4-N*) [[ $T =~ ^PROBE-TERM4-N[0-9A-Z]{1,8}$ ]] || { echo "bad TERM4 name $T (PROBE-TERM4-N + 1-8 capitals / digits)"; exit 2; }
+    bash $RUNBOOK/scripts/term_probe.sh $G $T;;   # [v2.5.9z128] (ops-lead 11-02 08:5x UTC: the chain arms' p_stop_last on the next node) one TERM4 task per chain, its own #term lines
   STRICT-C1) bash $RUNBOOK/scripts/strict_c1.sh $G $T;;
   PROBE-T32) bash $RUNBOOK/scripts/probe_t32.sh $G;;   # [v2.5.9z9] (Q-053): the gate of E10d-P5-t32
   PROBE-T14) bash $RUNBOOK/scripts/probe_t14.sh $G;;   # v2.5.7p (Q-015): the 14B teacher's gate

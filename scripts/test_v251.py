@@ -1042,7 +1042,9 @@ def _task_sh_names():
             r = re.search(r"\[\[ \$T =~ (\^\S+\$) \]\]", rest)
             fams[lab[:-2]] = r.group(1) if r else None
         elif lab != "*":   # the default: an unknown task
-            names += lab.split("|")
+            names += [x for x in lab.split("|") if "*" not in x]
+            globs = [x for x in lab.split("|") if "*" in x]
+            assert set(globs) <= {"PROBE-TERM4-N*"}, f"a new glob label {globs}: give it a test like z128's"   # [v2.5.9z128] tested on its own
     return names, fams
 
 
@@ -1918,7 +1920,7 @@ def test_run_and_rerun_accept_v259z109(env):   # [v2.5.9z109] (Q-087) EVAL-eosw 
     here = os.path.dirname(os.path.abspath(__file__))
     ts = open(os.path.join(here, "task.sh")).read(); tp = open(os.path.join(here, "term_probe.sh")).read()
     assert re.search(r"^  PROBE-TERM\|[^)]*\|PROBE-TERM4-EOSW\|[^)]*\) bash \$RUNBOOK/scripts/term_probe.sh \$G \$T;;", ts, re.M)
-    assert "|| $T == PROBE-TERM4-EOSW ]] && echo --no_teacher --term4" in tp     # TERM4's measures, not PROBE-TERM's
+    assert "|| $T == PROBE-TERM4-EOSW || $T =~ ^PROBE-TERM4-N[0-9A-Z]{1,8}$ ]] && echo --no_teacher --term4" in tp     # TERM4's measures, not PROBE-TERM's ([z128] + the N family)
     q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
     assert re.search(r"^b259z109 +open +EVAL-eosw:E10b-P5-eosw PROBE-TERM4-EOSW:EVAL-eosw$", q, re.M)
     assert [l.split()[2] for l in q.splitlines() if l.startswith("#term PROBE-TERM4-EOSW ")] == ["17_P5eosw", "17_P5s50"]   # [z119] + P5 s50, the same run
@@ -1972,7 +1974,7 @@ def test_beyond_arms_registered_v259z118(env):   # [v2.5.9z118] (research_progra
     assert "\n  E10b-P5fret|E10b-P5topd|E10b-P5fret-topd) bash $RUNBOOK/scripts/run_arm.sh $G $T;;" in ts
     assert "\n  PROBE-FRET) bash $RUNBOOK/scripts/probe_fret.sh $G;;" in ts
     assert re.search(r"^  PROBE-TERM\|[^)]*\|PROBE-TERM4-FRET\|[^)]*\) bash \$RUNBOOK/scripts/term_probe.sh \$G \$T;;", ts, re.M)
-    assert "|| $T == PROBE-TERM4-FRET || $T == PROBE-TERM4-EOSW ]] && echo --no_teacher --term4" in tp
+    assert "|| $T == PROBE-TERM4-FRET || $T == PROBE-TERM4-EOSW || $T =~ ^PROBE-TERM4-N[0-9A-Z]{1,8}$ ]] && echo --no_teacher --term4" in tp   # [z128] + the N family
     hb = open(os.path.join(here, "heartbeat.sh")).read()
     assert '"PROBE-FRET",' in hb and '"PROBE-TERM4-FRET"' in hb
     rt = open(os.path.join(here, "run_tasks.sh")).read()
@@ -2013,3 +2015,26 @@ def test_blind_check_alerts_once_per_episode_v259z124(env):   # [v2.5.9z124] the
     here = os.path.dirname(os.path.abspath(__file__))
     assert "control.py blind_check" in open(os.path.join(here, "watchdog.sh")).read()
     assert '"control_blind"}' in open(os.path.join(here, "control.py")).read()                # GH_URGENT carries it too
+
+
+def test_term4_family_one_task_per_chain_v259z128(env):
+    """[v2.5.9z128] (ops-lead 11-02 08:5x UTC: the chain arms' p_stop_last on the next node, Q-075c H2's s43 row never ran)
+    PROBE-TERM4-N<id> (1-8 capitals / digits): accepted by run / rerun, task.sh sends it to term_probe.sh, TERM4 without a teacher,
+    a probe in the status; a lower-case or over-long id, or any other character, is not."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    for i, t in enumerate(("PROBE-TERM4-N074E", "PROBE-TERM4-N075C", "PROBE-TERM4-NN")):
+        st, msg, _ = env.c.v_run([t], 520 + i)
+        assert st == "accepted", msg
+    for i, t in enumerate(("PROBE-TERM4-Nab", "PROBE-TERM4-N", "PROBE-TERM4-N123456789", "PROBE-TERM4-X074E")):
+        assert env.c.v_run([t], 530 + i)[0] == "rejected", t
+    src = open(os.path.join(here, "control.py")).read()
+    rr = re.search(r'not re\.fullmatch\(r"(FA-PROBE\|SPEED-PROBE\|PROBE-4B\|PROBE-TERM[^"]*)"', src).group(1)
+    assert re.fullmatch(rr, "PROBE-TERM4-N074E") and not re.fullmatch(rr, "PROBE-TERM4-Nab")   # rerun of a finished one
+    ts = open(os.path.join(here, "task.sh")).read()
+    i = ts.index("\n  PROBE-TERM4-N*) "); line = ts[i + 1:ts.index(";;", i) + 2]
+    assert "bash $RUNBOOK/scripts/term_probe.sh $G $T;;" in line
+    for t, rc in (("PROBE-TERM4-N074E", 0), ("PROBE-TERM4-Nx;id", 1), ("PROBE-TERM4-N074e", 1)):
+        r = subprocess.run(["bash", "-c", 'T="$1"; [[ $T =~ ^PROBE-TERM4-N[0-9A-Z]{1,8}$ ]]', "_", t])
+        assert r.returncode == rc, t
+    hb = open(os.path.join(here, "heartbeat.sh")).read()
+    assert 're.fullmatch(r"PROBE-TERM4-N[0-9A-Z]{1,8}", name)' in hb
