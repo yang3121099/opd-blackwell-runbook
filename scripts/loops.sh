@@ -14,6 +14,9 @@
 # - The loops run with $OPD_ROOT/node.env when it exists (bootstrap writes it; the first adoption writes it from the adopted
 #   heartbeat's environment, selected keys only, the token by reference to its file when one matches).
 # - status: one line, and control/loops.json for the heartbeat's status.
+# - [v2.5.9z133] (A100 rehearsal 11-03: after `loops.sh stop` the watchdog, uploader and gh_heartbeat run_tasks had started were still
+#   running, and the watchdog restarts dead loops) `stop` (both) stops this runbook's resident loops too: the watchdog first, then
+#   heartbeat and run_tasks, then uploader, gh_heartbeat and weights_replay (the same "ours" rule; run_tasks starts them again).
 # Exit 0 ok; 2 usage; 3 duplicate loops; 4 a loop still there after KILL / did not start; 5 the lock is held (ensure: 0, skipped).
 set -uo pipefail
 source "$(dirname "$0")/env.sh"
@@ -22,6 +25,7 @@ CDIR=$OPD_ROOT/control; mkdir -p $CDIR $OPD_ROOT/logs
 VERB=${1:-status}; WHICH=${2:-both}
 case $VERB in start|stop|restart|ensure|status) ;; *) echo "LOOPS usage: loops.sh start|stop|restart|ensure|status [heartbeat|run_tasks|both]"; exit 2;; esac
 case $WHICH in both) LS="heartbeat run_tasks";; heartbeat|run_tasks) LS=$WHICH;; *) echo "LOOPS usage: loop heartbeat, run_tasks or both"; exit 2;; esac
+[ $VERB = stop ] && [ $WHICH = both ] && LS="watchdog heartbeat run_tasks uploader gh_heartbeat weights_replay"   # [v2.5.9z133]
 RB_REAL=$(cd $RUNBOOK 2> /dev/null && pwd -P)   # macOS: /var is /private/var
 ev() { if [ "${LOOPS_SYNC_EV:-0}" = 1 ]; then python3 $RUNBOOK/scripts/control.py event node "$1" "$2" > /dev/null 2>&1   # the tests
   else command -v timeout > /dev/null && (timeout -k 10 60 python3 $RUNBOOK/scripts/control.py event node "$1" "$2" > /dev/null 2>&1 &); fi; }

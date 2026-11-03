@@ -48,7 +48,10 @@ js() { python3 -c "import json, sys; d = json.load(open(sys.argv[1])); sys.exit(
 out=$(LP status); js || { sleep 1; out=$(LP status); }   # macOS has no session ids: a subshell caught mid-fork counts once; again
 ok "status writes control/loops.json" 'python3 -c "import json, sys; d = json.load(open(sys.argv[1])); sys.exit(0 if len(d[\"heartbeat\"]) == 1 and len(d[\"run_tasks\"]) == 1 else 1)" $O/control/loops.json'
 out=$(LP bogus); rc=$?; ok "bad verb: usage, exit 2" '[ $rc = 2 ]'
+for L in watchdog uploader gh_heartbeat; do printf 'while true; do x=$(sleep 1; echo); done\n' > $RB/scripts/$L.sh   # [v2.5.9z133] run_tasks' residents
+  (cd $RB; setsid nohup bash scripts/$L.sh $T/marker > /dev/null 2>&1 < /dev/null &) > /dev/null 2>&1; done; sleep 1   # (the marker: this test's own, and pkill below)
 LP stop > /dev/null; kill $task $other 2> /dev/null; sleep 1
 ok "stop: none left" '[ "$(cnt heartbeat)" = 0 ] && [ "$(cnt run_tasks)" = 0 ]'
+ok "[v2.5.9z133] stop also stops this runbook's watchdog, uploader and gh_heartbeat" '! pgrep -f "scripts/(watchdog|uploader|gh_heartbeat)[.]sh $T/marker" > /dev/null'
 pkill -f "$T/" 2> /dev/null; [ -n "${KEEP_T:-}" ] && echo "kept $T" || rm -rf $T
 [ $fails = 0 ] && echo "LOOPS_TEST PASS ($n checks)" || { echo "LOOPS_TEST FAIL ($fails of $n)"; exit 1; }
