@@ -27,6 +27,8 @@ import fcntl
 import hashlib
 import json
 import os
+import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -118,6 +120,71 @@ def missing(files, local):
     return bad
 
 
+# [v2.5.9z134] (Fable 11-03 22:5x Beijing, pre-approved; ops-lead A1) a copy already on this machine's disks before the Hub: an old
+# base the bootstrap line found (node.env OLD_BASE_CANDS, ':'-separated; FROM_OPD_ROOT) and FETCH_LOCAL_ROOTS (node.env only, never
+# setenv: paths stay off the public control file). Sources are only read (the intern share: no write, no delete, Runming 10-26).
+def local_roots():
+    roots = [r for r in os.environ.get("OLD_BASE_CANDS", "").split(":") + [os.environ.get("FROM_OPD_ROOT", "")]
+             + os.environ.get("FETCH_LOCAL_ROOTS", "").split(":") if r]
+    out = []
+    for r in roots:
+        rp = os.path.realpath(r)
+        if os.path.isdir(rp) and rp not in out:
+            out.append(rp)
+    return out
+
+
+def local_sources(prefix, local):
+    """[z134] (directory, tag) pairs that may hold <prefix>: the old base's run output, its adhoc_models/result, the sibling
+    opd-ckpt (same two forms), the DR mirror <parent>/opd-dr/dr/<run>/global_step_<n>/actor/huggingface; for a whole-repository
+    pull (empty prefix) the old base's models/<name> or data/hf/<name>. Never the destination itself."""
+    out = []
+    for r in local_roots():
+        up = os.path.dirname(r)
+        if prefix:
+            for b, tag in ((r, "base"), (os.path.join(r, "adhoc_models", "result"), "base_adhoc"),
+                           (os.path.join(up, "opd-ckpt"), "ckpt"), (os.path.join(up, "opd-ckpt", "adhoc_models", "result"), "ckpt_adhoc")):
+                out.append((os.path.join(b, prefix), tag))
+            m = re.fullmatch(r"runs/([A-Za-z0-9._-]+)/(global_step_\d+)/actor/huggingface", prefix)
+            if m:
+                out.append((os.path.join(up, "opd-dr", "dr", m.group(1), m.group(2), "actor", "huggingface"), "dr"))
+        else:
+            name = os.path.basename(local.rstrip("/"))
+            out += [(os.path.join(r, "models", name), "models"), (os.path.join(r, "data", "hf", name), "data")]
+    dest = os.path.realpath(os.path.join(local, prefix))
+    return [(d, t) for d, t in out if os.path.realpath(d) != dest]
+
+
+def seed_local(files, prefix, local):
+    """[z134] Copy the listed files from the first local source that has every one of them at the listed size; the copy is then
+    checked like a download (missing(): size, sha256 of LFS files) and whatever does not match comes from the Hub. None when no
+    source has them all (FETCH_LOCAL=0: never), else {source, files, bytes} (and error when a copy broke off)."""
+    if single_file(prefix) or os.environ.get("FETCH_LOCAL", "1") == "0":
+        return None
+    for src, tag in local_sources(prefix, local):
+        if not os.path.isdir(src):
+            continue
+        rel = [(path, size, os.path.join(src, os.path.relpath(path, prefix) if prefix else path)) for path, size, _ in files]
+        if not all(os.path.isfile(s) and os.path.getsize(s) == size for _, size, s in rel):
+            continue
+        n = b = 0
+        for path, size, s in rel:
+            d = os.path.join(local, path)
+            if os.path.isfile(d) and os.path.getsize(d) == size:
+                continue
+            os.makedirs(os.path.dirname(d), exist_ok=True)
+            try:
+                shutil.copyfile(s, d + ".local")
+                os.replace(d + ".local", d)
+            except OSError as e:
+                if os.path.exists(d + ".local"):
+                    os.remove(d + ".local")
+                return {"source": tag, "files": n, "bytes": b, "error": f"{type(e).__name__}: {str(e)[:120]}"}
+            n += 1; b += size
+        return {"source": tag, "files": n, "bytes": b}
+    return None
+
+
 def night(t=None):   # [v2.5.9q] the window large pulls run in: 22:00-08:00 Beijing (UTC+8)
     h = (time.gmtime(t).tm_hour + 8) % 24
     return h >= 22 or h < 8
@@ -188,7 +255,7 @@ def fetch(repo, prefix, local):
                 return {"ok": True, "cached": True, "files": len(files)}
         except (ValueError, KeyError, TypeError):
             pass
-    errors, t0, got = [], time.time(), 0
+    errors, t0, got, seeded = [], time.time(), 0, None
     for ep in ENDPOINTS:
         tok = None if ep.rstrip("/") == "https://huggingface.co" else False   # HF_TOKEN goes to huggingface.co only, never to a mirror
         api = HfApi(endpoint=ep, token=tok)
@@ -198,6 +265,8 @@ def fetch(repo, prefix, local):
                 if not files:
                     errors.append({"endpoint": ep, "attempt": attempt, "error": "NoFiles", "detail": f"nothing under {prefix}"})
                     break
+                if seeded is None:   # [z134] once per call, with the Hub's listing in hand
+                    seeded = seed_local(files, prefix, local) or {}
                 todo = missing(files, local)
                 deferred, token_files = [], []
                 for path, size, sha in sorted(todo, key=lambda x: x[1]):   # [v2.5.9q] small files first
@@ -232,7 +301,8 @@ def fetch(repo, prefix, local):
                     return {"ok": True, "endpoint": ep, "hf_transfer": bool(getattr(K, "HF_HUB_ENABLE_HF_TRANSFER", False)),
                             "files": len(files), "bytes": got, "seconds": round(s, 1),
                             "mb_s": round(got / 1e6 / s, 1) if s > 0 and got else None, "errors": errors,
-                            "token_files": len(token_files)}   # [v2.5.9z25] files fetched with the token after par_fetch's 401 / 403
+                            "token_files": len(token_files),   # [v2.5.9z25] files fetched with the token after par_fetch's 401 / 403
+                            **({"local": seeded} if seeded else {})}   # [z134] what a local copy supplied (source tag, files, bytes)
                 errors.append({"endpoint": ep, "attempt": attempt, "error": "Incomplete", "detail": ", ".join(p for p, _, _ in todo)[:200]})
             except Exception as e:   # every failure is recorded; the next attempt / endpoint follows
                 errors.append({"endpoint": ep, "attempt": attempt, "error": type(e).__name__, "detail": str(e)[:200]})

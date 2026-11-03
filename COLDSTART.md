@@ -34,6 +34,7 @@ frozen**; B6 heartbeat + run_tasks (+ watchdog, uploader, gh_heartbeat), the fir
 | `setup all` | cold_start.sh steps 2-7 in the background, each step in status.setup_state; a STOP shows the step log's last lines |
 | `run FETCH-<name>` / `run FETCH-all` | the queue's `#fetch` lines pulled while dispatch is frozen and before the main venv (control venv, 32 connections for a start, no GPU, never task.sh, so `setup` is never refused because of them) |
 | `run PROBE-TAIL` | the canary, once the main venv is ready |
+| (z134) a local copy first | every `#fetch` pull and setup's model pulls look for the same files on this machine's disks first: an old base the bootstrap line recorded (node.env OLD_BASE_CANDS / FROM_OPD_ROOT, or FETCH_LOCAL_ROOTS in node.env, never setenv), its opd-ckpt and DR mirror; a source with every listed file at the listed size is copied (read only), the copy checked like a download (sha256 of LFS files), the rest from the Hub; FETCH_LOCAL=0 turns it off |
 | `dispatch on` | accepted only when the **main venv** imports torch / vllm / verl (control/venv_ready) **and the canary PROBE-TAIL passed on this node**; nothing else |
 | `tail <log>`, `setup <N>`, `restart-loops` | repair: read the failing step's log, `setenv` the fix, rerun that step |
 

@@ -257,3 +257,86 @@ def test_conns_cap_from_the_environment_only(monkeypatch, tmp_path):   # [v2.5.9
     monkeypatch.setenv("FETCH_CONNS_CAP", "128"); assert F.conns_now() == 64
     for bad in ("", "0", "x", "-4"):
         monkeypatch.setenv("FETCH_CONNS_CAP", bad); assert F.conns_now() == 64
+
+
+# [v2.5.9z134] a copy already on this machine's disks (an old base, its opd-ckpt / DR mirror) before the Hub; sources only read
+P = "runs/X/global_step_40/actor/huggingface"
+
+
+def plant(d, weights=W):
+    os.makedirs(d, exist_ok=True)
+    open(os.path.join(d, "config.json"), "wb").write(C)
+    open(os.path.join(d, "model.safetensors"), "wb").write(weights)
+    return {f: os.path.getmtime(os.path.join(d, f)) for f in ("config.json", "model.safetensors")}
+
+
+@pytest.fixture
+def old(monkeypatch, tmp_path):
+    for k in ("OLD_BASE_CANDS", "FROM_OPD_ROOT", "FETCH_LOCAL_ROOTS", "FETCH_LOCAL"):
+        monkeypatch.delenv(k, raising=False)
+    r = tmp_path / "share" / "code" / "opd-run"; r.mkdir(parents=True)
+    monkeypatch.setenv("OLD_BASE_CANDS", f"{tmp_path / 'nope'}:{r}")
+    return r
+
+
+def test_local_source_hit_downloads_nothing(hub, old, tmp_path):
+    src = old / "adhoc_models" / "result" / P; before = plant(src)
+    r = F.fetch("o/r", P, str(tmp_path / "new"))
+    assert r["ok"] and hub["calls"] == [] and r["bytes"] == 0
+    assert r["local"] == {"source": "base_adhoc", "files": 2, "bytes": len(C) + len(W)}
+    assert (tmp_path / "new" / P / "model.safetensors").read_bytes() == W and (tmp_path / "new" / P / ".fetch_ok").is_file()
+    assert {f: os.path.getmtime(src / f) for f in before} == before and sorted(os.listdir(src)) == ["config.json", "model.safetensors"]   # read only
+
+
+def test_no_local_source_goes_to_the_hub(hub, old, tmp_path):
+    r = F.fetch("o/r", P, str(tmp_path / "new"))
+    assert r["ok"] and "local" not in r and len(hub["calls"]) == 2
+
+
+def test_listing_mismatch_skips_the_source(hub, old, tmp_path):
+    src = old / P; plant(src, weights=W[:-1])   # one byte short: not the Hub's file list
+    r = F.fetch("o/r", P, str(tmp_path / "new"))
+    assert r["ok"] and "local" not in r and len(hub["calls"]) == 2
+    assert (src / "model.safetensors").read_bytes() == W[:-1]   # the source untouched
+
+
+def test_sha_mismatch_after_the_copy_comes_from_the_hub(hub, old, tmp_path):
+    src = old / P; plant(src, weights=b"y" * len(W))   # right size, wrong content
+    r = F.fetch("o/r", P, str(tmp_path / "new"))
+    assert r["ok"] and r["local"]["files"] == 2 and [f for _, f in hub["calls"]] == [f"{P}/model.safetensors"]
+    assert (tmp_path / "new" / P / "model.safetensors").read_bytes() == W and (src / "model.safetensors").read_bytes() == b"y" * len(W)
+
+
+def test_dr_mirror_and_ckpt_sibling(hub, old, tmp_path):
+    plant(old.parent / "opd-dr" / "dr" / "X" / "global_step_40" / "actor" / "huggingface")
+    r = F.fetch("o/r", P, str(tmp_path / "new"))
+    assert r["ok"] and r["local"]["source"] == "dr" and hub["calls"] == []
+    plant(old.parent / "opd-ckpt" / "runs" / "Y" / "global_step_7" / "actor" / "huggingface")
+    r = F.fetch("o/r", "runs/Y/global_step_7/actor/huggingface", str(tmp_path / "new"))
+    assert r["ok"] and r["local"]["source"] == "ckpt"
+
+
+def test_local_off_and_single_files(hub, old, monkeypatch, tmp_path):
+    plant(old / P); monkeypatch.setenv("FETCH_LOCAL", "0")
+    r = F.fetch("o/r", P, str(tmp_path / "new"))
+    assert r["ok"] and "local" not in r and len(hub["calls"]) == 2
+    assert F.seed_local([("a/x.jsonl", 3, None)], "a/x.jsonl", str(tmp_path)) is None
+
+
+def test_sources_never_the_destination_and_models(old, monkeypatch, tmp_path):
+    monkeypatch.setenv("FETCH_LOCAL_ROOTS", str(old))   # listed twice: one entry
+    assert [t for _, t in F.local_sources(P, str(old / "adhoc_models" / "result"))] == ["base", "ckpt", "ckpt_adhoc", "dr"]
+    assert F.local_sources("", "/x/models/Qwen3-8B") == [(str(old / "models" / "Qwen3-8B"), "models"), (str(old / "data" / "hf" / "Qwen3-8B"), "data")]
+
+
+def test_coldstart_models_use_the_local_copy(old, monkeypatch, tmp_path):
+    import coldstart_hf as CH
+    monkeypatch.delenv("COLDSTART_FAKE", raising=False)
+    (old / "models" / "Qwen3-8B").mkdir(parents=True)
+    m = tmp_path / "m.json"; m.write_text(json.dumps({"models": [{"name": "Qwen3-8B", "hf": "Qwen/Qwen3-8B", "always": True}]}))
+    seen = []
+    monkeypatch.setattr(F, "fetch", lambda repo, prefix, local: seen.append((repo, prefix, local)) or {"ok": True, "local": {"source": "models"}})
+    import huggingface_hub
+    monkeypatch.setattr(huggingface_hub, "snapshot_download", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no Hub snapshot")))
+    assert CH.cmd_models(str(m), str(tmp_path / "done.txt"), str(tmp_path / "models")) == 0
+    assert seen == [("Qwen/Qwen3-8B", "", str(tmp_path / "models" / "Qwen3-8B"))]

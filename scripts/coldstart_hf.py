@@ -132,6 +132,14 @@ def cmd_models(manifest, done_txt, models_dir):
             print(f"MODEL {x['name']} present"); continue
         if fake() is not None:
             os.makedirs(dest, exist_ok=True); open(os.path.join(dest, ".fetch_ok"), "w").write("fake\n"); print(f"MODEL {x['name']} fetched (fake)"); continue
+        try:   # [v2.5.9z134] an old base's copy first (fetch_model's local sources, checked against the Hub's listing), else as before
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import fetch_model as F
+            if any(os.path.isdir(d) for d, _ in F.local_sources("", dest)):
+                r = F.fetch(x["hf"], "", dest)
+                if r.get("ok"):
+                    print(f"MODEL {x['name']} fetched (local {(r.get('local') or {}).get('source', '-')}, checked against the Hub)"); continue
+        except Exception as e:
+            print(f"MODEL {x['name']} local copy skipped ({type(e).__name__})")
         try:
             from huggingface_hub import snapshot_download
             snapshot_download(x["hf"], local_dir=dest, max_workers=int(os.environ.get("COLDSTART_WORKERS", "8")))
