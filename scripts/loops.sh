@@ -22,6 +22,7 @@ set -uo pipefail
 source "$(dirname "$0")/env.sh"
 CDIR=$OPD_ROOT/control; mkdir -p $CDIR $OPD_ROOT/logs
 [ -f $OPD_ROOT/node.env ] && source $OPD_ROOT/node.env
+[ "${LINK_VENV:-0}" = 1 ] && [ -n "${FROM_OPD_ROOT:-}" ] && export PYTHONDONTWRITEBYTECODE=1   # [v2.5.9z134] (ops-lead 11-03) the old base's linked venv on a share: no .pyc written there
 VERB=${1:-status}; WHICH=${2:-both}
 case $VERB in start|stop|restart|ensure|status) ;; *) echo "LOOPS usage: loops.sh start|stop|restart|ensure|status [heartbeat|run_tasks|both]"; exit 2;; esac
 case $WHICH in both) LS="heartbeat run_tasks";; heartbeat|run_tasks) LS=$WHICH;; *) echo "LOOPS usage: loop heartbeat, run_tasks or both"; exit 2;; esac
