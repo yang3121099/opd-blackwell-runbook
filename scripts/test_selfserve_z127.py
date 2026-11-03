@@ -61,7 +61,7 @@ def _fetch_harness(env, body):
     for f in ("python", "setsid"):
         os.chmod(bin_ / f, 0o755)
     src = open(os.path.join(HERE, "run_tasks.sh")).read()
-    fns = "\n".join(_bash_fn(src, f) for f in ("fetch_pass",))
+    fns = "\n".join(_bash_fn(src, f) for f in ("cenv", "fetch_pass"))
     script = (f"set -u\n{fns}\nours_pargs() {{ :; }}\nours_pgrep() {{ return 0; }}\nfetch_progress() {{ :; }}\n{body}\n"
               'for i in $(seq 30); do [ -s "$CALLS" ] && break; sleep 0.1; done; sleep 0.3\n')
     calls = env.tmp / "calls"; calls.write_text("")
@@ -175,3 +175,32 @@ def test_cold_start_health_reports_verify_on_a_bootstrap_node():
     src = open(os.path.join(HERE, "cold_start.sh")).read()
     i = src.index('V2="grep -q'); block = src[i:src.index("\n", src.index("else chk \"verify.sh", i))]
     assert "if [ $BOOT = 1 ]" in block and "INFO verify.sh" in block and "bad=1" not in block.split("else chk")[0]
+
+
+def test_prefetch_par_is_read_on_every_pass_v259z131(env):
+    """[v2.5.9z131] (ops-lead 11-03: 3 pulls x 32 connections > the node's ~64) `setenv PREFETCH_PAR=1` reaches the running run_tasks
+    loop: fetch_pass reads it from control.env on every pass (the loop sources control.env only when it starts)."""
+    open(os.path.join(env.c.CDIR, "fetch_allow"), "w").write("Qwen3-8B\nresult_E10b-P5_s150\n")
+    (env.root / "control.env").write_text("export PREFETCH_PAR=1\n")
+    got, r = _fetch_harness(env, "fetch_pass allow")
+    assert len(got) == 1, (got, r.stdout + r.stderr)
+    (env.root / "control.env").write_text("export PREFETCH_PAR=2\n")
+    got, r = _fetch_harness(env, "fetch_pass allow")
+    assert len(got) == 2
+
+
+def test_dispatch_on_waits_for_venv_fa_under_vfa_v259z131(env):
+    """[v2.5.9z131] (ops-lead 11-03) the 80g profile's VENV=fa: `dispatch on` also needs venv-fa to import flash_attn."""
+    (env.root / "venv-ctl").mkdir(); open(os.path.join(env.c.CDIR, "venv_ready"), "w").write("x\n")
+    (env.root / "runs" / "PROBE-TAIL").mkdir(parents=True); (env.root / "runs" / "PROBE-TAIL" / "report.json").write_text('{"result": "PASS"}')
+    (env.root / "control.env").write_text("export VENV=fa\n")
+    st, msg, _ = env.c.v_dispatch(["on"], 70)
+    assert st == "rejected" and "venv-fa" in msg
+    (env.root / "venv-fa" / "bin").mkdir(parents=True); py = env.root / "venv-fa" / "bin" / "python"
+    py.write_text("#!/bin/sh\nexit 1\n"); py.chmod(0o755)
+    assert env.c.v_dispatch(["on"], 71)[0] == "rejected"   # there, but no flash_attn
+    py.write_text("#!/bin/sh\nexit 0\n")
+    assert env.c.v_dispatch(["on"], 72)[0] == "ok"
+    (env.root / "control.env").write_text("export VENV=\n"); py.write_text("#!/bin/sh\nexit 1\n")
+    open(os.path.join(env.c.CDIR, "dispatch_frozen"), "w").write("x\n")
+    assert env.c.v_dispatch(["on"], 73)[0] == "ok"   # VENV empty: the main venv alone

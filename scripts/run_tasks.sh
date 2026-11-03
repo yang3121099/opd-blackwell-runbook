@@ -199,7 +199,7 @@ prefetch_pass() {
   n=$(ours_pargs -f "run_queue_eval\.sh prefetch" | grep -o "run_queue_eval\.sh prefetch [A-Za-z0-9._-]*" | sort -u | wc -l | tr -d ' ')   # [v2.5.9z88d] ours_pgrep
   command -v timeout > /dev/null && PTO="timeout -k 60 ${PREFETCH_TIMEOUT:-5400}"
   for t in $(awk '$1 == "#eval" {print $2}' "$Q" | sort -u); do
-    [ "${n:-0}" -ge "${PREFETCH_PAR:-3}" ] && return
+    [ "${n:-0}" -ge "$(cenv PREFETCH_PAR ${PREFETCH_PAR:-3})" ] && return
     [ -n "$(ours_pgrep -f "run_queue_eval\.sh prefetch $t( |\$)")" ] && continue
     [ -f $OPD_ROOT/runs/$t/.done ] && continue; inputs_ok $t && continue
     paused $t && continue   # [v2.5.9z106] (Fable / ops-lead 11-01 17:19 UTC) a paused reading's model is not fetched: on a new node the
@@ -229,7 +229,7 @@ fetch_pass() {
   [ -n "$(find $OPD_ROOT/logs/heartbeat.err -mmin -60 2> /dev/null)" ] && tail -20 $OPD_ROOT/logs/heartbeat.err | grep -q UPLOAD_TIMEOUT && return
   local m d r ds nm io
   for m in $(awk '$1 == "#fetch" {print $2}' "$Q"); do
-    [ "${n:-0}" -ge "${PREFETCH_PAR:-3}" ] && return   # [v2.5.9z24]
+    [ "${n:-0}" -ge "$(cenv PREFETCH_PAR ${PREFETCH_PAR:-3})" ] && return   # [v2.5.9z24]
     case $m in   # [v2.5.9e] Qwen3 text and VL models, and datasets (dataset:<owner>/<name> -> data/hf/<owner>__<name>)
       Qwen/*|deepseek-ai/*) [[ $m =~ ^Qwen/Qwen3-(VL-)?[0-9.]+B(-Instruct|-Thinking)?(-[0-9]{4})?$ || $m =~ ^Qwen/Qwen2\.5-Math-[0-9.]+B(-Instruct)?$ || $m =~ ^deepseek-ai/DeepSeek-R1-Distill-Qwen-[0-9.]+B$ ]] || continue
         r=$m; nm=${m#*/}; d=$OPD_ROOT/models/$nm; ds="";;   # [v2.5.9z24] the two Q-057 families
