@@ -16,6 +16,13 @@
 set -euo pipefail
 # v2.5.7c: SMOKE=1 (FA-SPEED-E12) runs SMOKE_STEPS (3) steps in runs/$PROBE_TASK: no checkpoint, upload, DR, validation
 source "$(dirname "$0")/env.sh"; source "$(dirname "$0")/dr.sh"; G=$1; T=$2; LADDER=${T%%-*}; A=${T#*-}
+# [v2.5.9z129] (Fable 11-03 04:2x UTC, one name on two machines: the lost H800 may still upload under the arms it was running)
+# <arm>-nn = that arm's recipe under a new run name: T below is the arm's own name (every recipe line reads it), NAME / the run
+# directory / the uploads keep -nn. E12e-P5tail-8k-nn continues E12e-P5tail-8k's s25 for 25 steps (CONT: the PROG mechanism -
+# its weights, a fresh optimizer, the data from step 26 through code/train/skip_order.py's continuation file; data.seed 4242 and
+# 64 prompts a step as every E12, so the same file as the prog arms'); its global_step_25 is the chain's s50.
+NN=""; CONT=""; case $T in E12e-P5tail-8k-nn|E12c-P5tail-8k-nn) NN=-nn; T=${T%-nn}; A=${A%-nn};; esac
+[ "$NN$T" = -nnE12e-P5tail-8k ] && CONT=1
 # [v2.5.8b] (Q-020, reviewer 22:0x UTC 10-19): E12b-P5-<variant> = E12b-P5 with one change: kl = a KL loss to the start (coef
 # 0.01, low_var_kl, the reference policy = the start P5 s150), stop = the stop reward ([v2.5.8c]). Everything else is E12b-P5's.
 # [v2.5.9f] (T1, reviewer 07:4x UTC 10-21): stop2 = the continuous stop reward (code/train/reward_stop2.py), 100 steps as stop
@@ -46,7 +53,7 @@ if [ -n "$VAR" ] && [ "${SMOKE:-0}" != 1 ]; then
   GATES=PROBE-E12B-$(echo $VAR | tr a-z A-Z); [ "$VAR" = 16k-kl ] && GATES="PROBE-E12B-16K PROBE-E12B-KL"   # [v2.5.9y]
   [ $LADDER = E12c ] && GATES="$GATES PROBE-E12C-$(echo $VAR | tr a-z A-Z)"   # [v2.5.9z85] (Q-077) the 0.6B window arms' own smokes too
   [ $LADDER = E12e ] && GATES="$GATES PROBE-E12E-$(echo $VAR | tr a-z A-Z)"   # [v2.5.9z91] (Q-081) and the 8B four-GPU smoke
-  for P in $GATES; do grep -q '"result": "PASS"' $OPD_ROOT/runs/$P/report.json 2> /dev/null || { echo "$P has not passed: $T not started"; exit 3; }; done
+  for P in $GATES; do grep -q '"result": "PASS"' $OPD_ROOT/runs/$P/report.json 2> /dev/null || { echo "$P has not passed: $T$NN not started"; exit 3; }; done
 fi
 SRC=E10b; [ $LADDER = E12d ] && SRC=E10d   # v2.5.7o: the preparation run a start comes from
 [ $LADDER = E12e ] && SRC=E10e   # [v2.5.9z91] (Q-081) the 8B starts
@@ -56,11 +63,12 @@ SS=150; case $A in P5self|P5self-s43) SS=50;; esac       # [v2.5.8a] E10b-P5self
 [ "$A" = P5tail-s43 ] && SS=50   # [v2.5.9z91] (Q-074c) its seed 43 too
 [ "$A" = P5tail-s44 ] && SS=50   # [v2.5.9z93] (Q-074g) and 44
 [ $T = E12c-P5tail-8k ] && { SRUN=E10c-P5tail-c50; SS=30; }   # [v2.5.9z92] (Q-074f) the 0.6B tail arm's s50 = E10c-P5tail-c50's global_step_30 (20 + 30 steps)
-if { [ $T = E12e-P5tail-8k ] || [ $T = E12e-P5tail-16k ]; } && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then   # [v2.5.9z97] (Q-074j) E12e-P5tail-16k from the same s50   # [v2.5.9z92] (Q-074e) its gates as Q-081 (PROBE-E12B-8K / PROBE-E12E-8K, ops-lead 12:06Z: the 8B 4-GPU fit), and E10e-P5tail's s50 uploaded (upload_sync's marker), else WAIT_INPUTS; no wait for Q-075b's readings (Fable)
+[ -n "$CONT" ] && { SRUN=E12e-P5tail-8k; SS=25; }   # [v2.5.9z129] its own s25 (a #fetch result: line pulls it ahead)
+if [ -z "$CONT" ] && { [ $T = E12e-P5tail-8k ] || [ $T = E12e-P5tail-16k ]; } && [ "${SMOKE:-0}" != 1 ] && [ "${DRYRUN:-0}" != 1 ]; then   # [v2.5.9z97] (Q-074j) E12e-P5tail-16k from the same s50   # [v2.5.9z92] (Q-074e) its gates as Q-081 (PROBE-E12B-8K / PROBE-E12E-8K, ops-lead 12:06Z: the 8B 4-GPU fit), and E10e-P5tail's s50 uploaded (upload_sync's marker), else WAIT_INPUTS; no wait for Q-075b's readings (Fable)
   U=$OPD_ROOT/runs/E10e-P5tail/ckpt/global_step_50
   # [v2.5.9z111b] (H800 11-01: E10e-P5tail was trained on the B300, never here) or the start pulled from the result repository (#fetch result:)
   { [ -f $U/.uploaded ] && [ ! -f $U/.not_uploaded ]; } || [ -f $CKPT_ROOT/adhoc_models/result/runs/E10e-P5tail/global_step_50/actor/huggingface/.fetch_ok ] \
-    || { echo "WAIT_INPUTS $T: runs/E10e-P5tail/ckpt/global_step_50/.uploaded not on this node"; exit 1; }   # waiting, no attempt (nor a complete pulled copy)
+    || { echo "WAIT_INPUTS $T$NN: runs/E10e-P5tail/ckpt/global_step_50/.uploaded not on this node"; exit 1; }   # waiting, no attempt (nor a complete pulled copy)
 fi
 # [v2.5.9z43] (Q-058, the reviewer's pre-registration 10-22) the progressive-window arms continue a run's step 25 for 25 more
 # steps (PROG_STEPS): E12b-P5-prog = E12b-P5's recipe (4K) from E12b-P5-8k s25 (shrink), E12b-P5-prog-up = the 8K recipe from
@@ -72,16 +80,17 @@ PROG=""; [[ $T == E12b-P5-prog || $T == E12b-P5-prog-up ]] && PROG=1
 [ $T = E12b-P5-prog ] && { SRUN=E12b-P5-8k; SS=25; }
 [ $T = E12b-P5-prog-up ] && { SRUN=E12b-P5-s44; SS=25; }
 if [ -n "$PROG" ] && [ "${SMOKE:-0}" != 1 ]; then
-  grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-PROG/report.json 2> /dev/null || { echo "PROBE-PROG has not passed: $T not started"; exit 3; }
+  grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-PROG/report.json 2> /dev/null || { echo "PROBE-PROG has not passed: $T$NN not started"; exit 3; }
 fi
 TRAINF=$OPD_ROOT/data/dapo_train.parquet; [ -n "$PROG" ] && TRAINF=$OPD_ROOT/data/dapo_train_skip1600_s4242.parquet
+[ -n "$CONT" ] && TRAINF=$OPD_ROOT/data/dapo_train_skip1600_s4242.parquet   # [v2.5.9z129] built below when missing (after the venv)
 # [v2.5.8a] an E12c task starts only after PROBE-E12C passed (the smoke itself is exempt). [v2.5.9z122] (H800 11-01 15:11Z: the
 # 4K base smoke ran out of memory on one 80 GB GPU, and Q-074f sat blocked behind it) the base ladder (E12c-P0 / -P5) only: a window
 # variant (VAR set: E12c-P5-8k / -16k, E12c-P5tail-8k) is gated by its own PROBE-E12C-<VAR> and PROBE-E12B-<VAR> above, on this node
 if [ $LADDER = E12c ] && [ -z "$VAR" ] && [ "${SMOKE:-0}" != 1 ]; then
-  grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-E12C/report.json 2> /dev/null || { echo "PROBE-E12C has not passed: $T not started"; exit 3; }
+  grep -q '"result": "PASS"' $OPD_ROOT/runs/PROBE-E12C/report.json 2> /dev/null || { echo "PROBE-E12C has not passed: $T$NN not started"; exit 3; }
 fi
-SM=${SMOKE:-0}; NAME=$T; [ $SM = 1 ] && NAME=${PROBE_TASK:-smoke-$T}
+SM=${SMOKE:-0}; NAME=$T$NN; [ $SM = 1 ] && NAME=${PROBE_TASK:-smoke-$T}   # [v2.5.9z129] -nn
 OUT=$OPD_ROOT/runs/$NAME; mkdir -p $OUT/rollouts
 [ -f $OUT/.done ] && exit 0
 if [ $SM != 1 ] && declare -F rollouts_link > /dev/null; then rollouts_link $OUT; fi   # [v2.5.9z48] a new run's rollouts on $CKPT_ROOT (env.sh)
@@ -104,8 +113,9 @@ fi
 case $A in P0|P1|P2|P3|P5|P5-s43|P5-s44|P2-s43|P5self|P5self-s43) STEPS=100;; *) STEPS=60;; esac   # v2.5.6j: P5-s43 = the headline chain's second seed (queue v3 V3-c2); v2.5.7n: P5-s44 its third (from the flash-attn arm)
 case $VAR in 8k|16k|16k-kl) STEPS=${E12B_LONG_STEPS:-50};; r3) STEPS=${E12B_R3_STEPS:-50};; esac   # [v2.5.8h] reviewer 17:4x UTC: 50 steps (constant lr: extendable)
 [ -n "$PROG" ] && STEPS=${PROG_STEPS:-25}   # [v2.5.9z43] 25 more steps (total s50)
+[ -n "$CONT" ] && STEPS=25   # [v2.5.9z129] s26-s50 of E12e-P5tail-8k
 hf_backoff() { local s; s=$(python3 $RUNBOOK/scripts/remote.py backoff 2> /dev/null); [ "${s:-0}" -gt 0 ] 2> /dev/null; }   # [v2.5.9z52] the 429 backoff lasts
-[ $A = P0 ] || has_weights $START || ! hf_backoff || { echo "WAIT_INPUTS $T: start checkpoint not in (the HF 429 backoff lasts)"; exit 1; }   # [v2.5.9z52] waiting, no attempt
+[ $A = P0 ] || has_weights $START || ! hf_backoff || { echo "WAIT_INPUTS $T$NN: start checkpoint not in (the HF 429 backoff lasts)"; exit 1; }   # [v2.5.9z52] waiting, no attempt
 [ $A = P0 ] || has_weights $START || { echo "missing start checkpoint $START"; exit 1; }
 TBS=64; ADV=grpo; [ "$VAR" = r3 ] && { TBS=128; ADV=reinforce_plus_plus_baseline; }   # [v2.5.9w]
 # v2.5.7c: venv-fa (flash-attn, remove-padding) only with VENV=fa and E12B_FA=1: the E12b ladder stays on one attention
@@ -121,6 +131,12 @@ case $T in E12c-P5-8k|E12c-P5-16k) V=$OPD_ROOT/venv-fa;; esac   # [v2.5.9z85] (Q
 [ $LADDER = E12e ] && VLLM_UTIL=${E12E_VLLM_UTIL:-0.5}   # [v2.5.9z91] (Q-081) the 8B actor as the 4B one (PROBE-E12E-8K's peak checks it)
 [ $LADDER = E12d ] && VLLM_UTIL=${E12D_VLLM_UTIL:-0.5}   # v2.5.7o: vLLM 0.5 for the 4B actor (a node-wide VLLM_UTIL does not reach it)
 source $V/bin/activate
+# [v2.5.9z129] the continuation file on a node where PROBE-PROG never ran (skip_order.py build: deterministic from dapo_train.parquet,
+# data.seed 4242, 64 prompts a step; atomic)
+if [ -n "$CONT" ] && [ ! -s $TRAINF ] && [ "${DRYRUN:-0}" != 1 ]; then
+  python $RUNBOOK/code/train/skip_order.py build --train $OPD_ROOT/data/dapo_train.parquet --tokenizer $STUDENT_17B --out $TRAINF --skip_steps 25 \
+    || { echo "CONT_DATA_FAILED $T$NN: skip_order.py build"; exit 1; }
+fi
 # [v2.5.8a] E12c-P0's start, the 0.6B base, from a local copy: $OPD_ROOT/models/Qwen3-0.6B, else the Hugging Face cache
 # the E10c arms loaded it from, so the hub (blocked by the node's proxy since 10-19) is not asked
 if [ $LADDER = E12c ] && [ $A = P0 ] && [ ! -d "$START" ]; then
@@ -149,7 +165,7 @@ ENT=""; [ "$RMPAD" = False ] && ENT="actor_rollout_ref.actor.entropy_from_logits
 KERN=""; [ "${FUSED:-0}" = 1 ] && KERN="actor_rollout_ref.model.use_fused_kernels=True actor_rollout_ref.model.fused_kernel_options.impl_backend=torch"
 GCK=True; [ "${GC:-1}" = 0 ] && [ "${E12B_GC:-0}" = 1 ] && GCK=False
 [ -f $OUT/config.yaml ] && echo "resumed: $(date -u +%FT%TZ)" >> $OUT/config.yaml || cat > $OUT/config.yaml <<CFG
-task: $T
+task: $T$NN
 start: $START
 algo: $([ "$VAR" = r3 ] && echo "reinforce_plus_plus_baseline (group mean, batch whitening) ${TBS}x8, zero-variance groups dropped before the update (at most ${R3_KEEP_GROUPS:-64} groups kept, opd_vardrop.py; seed OPD_SEED ${OPD_SEED:-1234} x 100003 + step)" || echo "GRPO 64x8"), $((MAXR / 1024))K, T=1.0, lr 1e-6, clip 0.2/0.28, $(case $VAR in kl|16k-kl) echo "KL loss 0.01 low_var_kl to the start (reference = $START)";; *) echo "KL 0";; esac), mini-batch 16, data.seed 4242, $STEPS steps
 variant: ${VAR:-none}
@@ -185,6 +201,7 @@ case $T in E12d-P5tail-8k-s43|E12e-P5tail-16k) UW=25,$STEPS;; esac   # [v2.5.9z9
 [ $T = E12d-P5tail-8k ] && UW=25,$STEPS   # [v2.5.9z90] (Q-074b) as E12d-P5-8k: s25 and s50 up (z86: saved every 25 steps)
 case $T in E12b-P5-16k-s44|E12d-P5-16k-s43) UW=25,$STEPS;; esac   # [v2.5.9z84] (Q-076) as the 16K arms: s25 and s50 up
 case $T in E12c-P5-8k|E12c-P5-16k) UW=25,$STEPS;; esac   # [v2.5.9z85] (Q-077) as the 1.7B / 4B window arms: s25 and s50 up
+[ -n "$CONT" ] && UW=25   # [v2.5.9z129] the continued arm's last save (= the chain's s50)
 # [v2.5.9z86] (fix; found 10-25 16:5x UTC: EVAL-e12b-P5tail-8k's s25 weights did not exist) with DR off (seq 545, 10-24) the save
 # interval above fell to the final step, so an arm uploading s25 (UW=25,...) saved no s25 checkpoint; the save interval is
 # now the first upload step whenever it defaulted to the final one (DR / SPOT / SAVE set and the smokes unchanged)
@@ -199,6 +216,8 @@ KL="actor_rollout_ref.actor.use_kl_loss=False"; REWARD=$RUNBOOK/code/train/rewar
 export OPD_VARDROP= OPD_VARDROP_LOG=; [ "$VAR" = r3 ] && export OPD_VARDROP=1 OPD_VARDROP_K=${R3_KEEP_GROUPS:-64} OPD_VARDROP_LOG=$OUT/vardrop.jsonl OPD_SEED=${OPD_SEED:-1234}
 [ "${DRYRUN:-0}" = 1 ] && [ "$VAR" = r3 ] && echo "DRYRUN_R3 adv=$ADV tbs=$TBS vardrop=$OPD_VARDROP k=$OPD_VARDROP_K log=$(basename $OPD_VARDROP_LOG) seed=$OPD_SEED"   # tests
 [ -n "$PROG" ] && ! grep -q "^continues:" $OUT/config.yaml && echo "continues: $SRUN s$SS for $STEPS steps (weights, a fresh optimizer); data from the parents' step $((SS + 1)) on ($(basename $TRAINF))" >> $OUT/config.yaml   # [v2.5.9z43]
+[ -n "$CONT" ] && ! grep -q "^continues:" $OUT/config.yaml && echo "continues: $SRUN s$SS for $STEPS steps (weights, a fresh optimizer; its global_step_25 = the chain's s50); data from step $((SS + 1)) on ($(basename $TRAINF), built on this node)" >> $OUT/config.yaml   # [v2.5.9z129]
+[ "${DRYRUN:-0}" = 1 ] && [ -n "$NN" ] && echo "DRYRUN_NN name=$NAME recipe=$T start=$SRUN s$SS steps=$STEPS train=$(basename $TRAINF) uw=$UW"   # [v2.5.9z129] tests
 [ "${DRYRUN:-0}" = 1 ] && [ -n "$PROG" ] && echo "DRYRUN_PROG train=$(basename $TRAINF) from=$SRUN s$SS"   # [v2.5.9z43] tests
 [ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $NAME start=$START steps=$STEPS save=$SAVE contents=$CONTENTS kern=[$KERN] gc=$GCK venv=$(basename $V) ngpu=$NG rmpad=$RMPAD upload=${UPLOAD_WEIGHTS:-$UW} vllm=${VLLM_UTIL:-0.6} var=${VAR:-none} kl=[$KL] reward=$(basename $REWARD)"; exit 0; }   # tests
 if [ $SM = 0 ]; then

@@ -265,7 +265,8 @@ SAMPLE = {"$TASK": "E10b-P5", "$T": "E10b-P5", "$P": "PROBE-E12B-8K", "$PG": "PR
           "$R": "runs/E12b-P5-8k/global_step_25/actor/huggingface", "$M": "/sb/opd/runs/E10b-P5/ckpt/global_step_150/actor/huggingface",
           "${f#$OPD_ROOT/runs/}": "PROBE-DIFF17/labels_17.jsonl",
           "$XARM": "X1", "$(basename $m)": "Qwen2.5-Math-1.5B-Instruct", "$STUDENT": "/sb/opd/runs/A/ckpt/global_step_1/actor/huggingface",
-          "$START": "/sb/opd/runs/A/ckpt/global_step_1/actor/huggingface", "$DS": "google__IFEval", "$MODEL": "Qwen/Qwen3-4B"}
+          "$START": "/sb/opd/runs/A/ckpt/global_step_1/actor/huggingface", "$DS": "google__IFEval", "$MODEL": "Qwen/Qwen3-4B",
+          "$NN": ""}   # [v2.5.9z129] run_e12.sh names a -nn task as $T$NN
 
 
 def _runners():

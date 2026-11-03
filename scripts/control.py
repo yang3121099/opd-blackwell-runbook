@@ -1562,6 +1562,7 @@ def v_run(a, seq, flags=None, entry=None):
                         'case $T in E10b-P5mode|PROBE-MODE) exit 0;; esac; '   # [v2.5.9z108] (Q-083)
                         'case $T in E10b-P5fret|E10b-P5topd|E10b-P5fret-topd|PROBE-FRET|PROBE-TERM4-FRET) exit 0;; esac; '   # [v2.5.9z118] (research_program 3q)
                         '[[ $T =~ ^PROBE-TERM4-N[0-9A-Z]{1,8}$ ]] && exit 0; '   # [v2.5.9z128] one TERM4 task per chain
+                        'case $T in E12e-P5tail-8k-nn|E12c-P5tail-8k-nn) exit 0;; esac; '   # [v2.5.9z129] the in-flight arms renamed
                         'case $T in CORPUS-RECORD) exit 0;; esac; '   # [v2.6 S0] (Fable F7 / ops-lead O7) the corpus recorder
                         'case $T in HEARTBEAT-UNSTICK) exit 0;; esac; '   # [v2.5.9z88f] the heartbeat's gave_up marker, once no sandbox is left
                         'case $T in E10b-P5tail-s43|E10b-P5tail-s44|E12b-P5-8k-s44) true;; E10b-*) [[ $T =~ ^E10b-(($ARMS)(-s(43|44))?|(P2|P5)-t14|P5think|P5self|P5self-s43|P2self|P5len[SLR]|P5stopmerge|P5tail|P5route|P5mix|P5mix75|P5mix90)$ ]];; E10c-*) [[ $T =~ ^E10c-(($ARMS)-(fix4|dyn16k|dyn6144)(-s43)?|P5-polish|P5self)$ ]];; E10d-*) [[ $T =~ ^E10d-((P2|P5)(-s43)?|P5self(-s43)?|X1|X2|X4|P5-t32)$ ]];; E11b-*) [[ $T =~ ^E11b-(P0|($ARMS)(-s(43|44))?|(P2|P5)-t14)$ ]];; '
