@@ -44,6 +44,16 @@ status.verify (control/verify_state.json, "ok" = the first four passed). On a co
 nor the step 7 health checks nor `dispatch on`. It holds only the queue rows that declare `#needs verify <task>`; they start once
 verify passes (`verify` reruns it). While VENV=fa is set and venv-fa is not built yet, the smoke runs on the main venv.
 
+## GitHub blocked, Hugging Face open (z135)
+The usual case for machines in mainland China. The runbook has a git mirror on Hugging Face
+(https://huggingface.co/yang31210999/opd-blackwell-runbook, public, the same main: the Mac pushes it after every push to GitHub).
+The paste page's third line clones the mirror and runs bootstrap with `RB_URL=<the mirror>`: B1 then asks the mirror's info/refs
+and the HF API instead of GitHub, B1b skips its check when GitHub does not answer, and node.env carries RB_URL and
+OPD_CONTROL_ORIGIN, so run_tasks' git pull and control.py's origin check go through the mirror. B1 always prints the HTTP codes
+of GitHub, the runbook's host, the HF API and PyPI; without PyPI, setup step 2 can only link an old base's venv
+(FROM_OPD_ROOT + LINK_VENV=1). Still on GitHub (a second stage, only without an old base): G-OPD's clone, the flash-attn wheel,
+the aria2 binary.
+
 ## The one case that needs the person again
 bootstrap.sh prints "ask the machine's owner how git / pip reach the internet here": neither direct nor any proxy found on the
 machine reaches GitHub and Hugging Face.

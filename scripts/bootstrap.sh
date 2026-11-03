@@ -15,6 +15,10 @@
 #      files and other processes' environments (proxy variables only), each tested; $T/run/proxy.env (0600) with no_proxy for this
 #      host. No proxy value is printed or uploaded.
 #   B3 the runbook cloned (or pulled) into $T/runbook; the node id (as cold_start.sh)
+#   [z135] RB_URL on another host (GitHub blocked: the runbook's git mirror on Hugging Face, Fable / Runming 11-03): B1 asks that
+#      repository (info/refs) instead of GitHub, B1b skips its check when GitHub does not answer, node.env carries RB_URL and
+#      OPD_CONTROL_ORIGIN (control.py's origin check), so run_tasks' git pull and the control commands go through the mirror.
+#      B1 prints the HTTP codes of GitHub, the runbook's host, the HF API and PyPI (no PyPI: only an old base's venv).
 #   B4 $T/run/venv-ctl: requirements.ctl.txt only (huggingface_hub, pyyaml; no torch)
 #   B5 cold_start.sh --step 1 (no old command may ever run here), then node.env, control/coldstart_args, control/bootstrap.json,
 #      heartbeat every 120 s, STATUS_PUT_S=120, dispatch frozen (control/dispatch_frozen). [z126] --profile <name>[,<name>]: the
@@ -104,7 +108,12 @@ fi
 
 # ---------- B1. the network ----------
 code() { curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$1" 2> /dev/null; }
-reach() { [ "$(code https://github.com/)" = 200 ] && [ "$(code https://huggingface.co/api/models/Qwen/Qwen3-0.6B)" = 200 ]; }
+HFAPI=https://huggingface.co/api/models/Qwen/Qwen3-0.6B
+RBH=$(echo "$RB_URL" | sed -nE 's#^https?://([^/]+)/.*#\1#p')   # [z135] the runbook's host (empty for a local path: the tests)
+RBREFS="${RB_URL%.git}/info/refs?service=git-upload-pack"
+reach() { if [ -n "$RBH" ] && [ "$RBH" != github.com ]; then [ "$(code "$RBREFS")" = 200 ] && [ "$(code $HFAPI)" = 200 ]   # [z135]
+  else [ "$(code https://github.com/)" = 200 ] && [ "$(code $HFAPI)" = 200 ]; fi; }
+codes() { echo "github $(code https://github.com/)$([ -n "$RBH" ] && [ "$RBH" != github.com ] && echo ", runbook ($RBH) $(code "$RBREFS")"), hf api $(code $HFAPI), pypi $(code https://pypi.org/simple/pip/)"; }   # [z135]
 PX=$O/proxy.env
 if [ -s $PX ]; then . $PX; reach && say "network: the proxy found before (values not shown)" || { rm -f $PX; }; fi
 if [ ! -s $PX ]; then
@@ -118,7 +127,8 @@ if [ ! -s $PX ]; then
     while read -r u; do k=$((k + 1)); [ -n "$u" ] || continue
       ( export https_proxy=$u HTTPS_PROXY=$u http_proxy=$u HTTP_PROXY=$u; reach ) && { GOOD=$u; break; }; done < $C
     rm -f $C
-    [ -n "$GOOD" ] || stop "neither direct nor any of $n proxy candidate(s) reaches GitHub and Hugging Face: ask the machine's owner how git / pip reach the internet here"
+    [ -n "$GOOD" ] || { D=$( unset https_proxy HTTPS_PROXY http_proxy HTTP_PROXY all_proxy ALL_PROXY; codes )   # [z135] the direct codes
+      stop "neither direct nor any of $n proxy candidate(s) reaches $([ -n "$RBH" ] && [ "$RBH" != github.com ] && echo "the runbook ($RBH)" || echo GitHub) and Hugging Face (direct: $D)$([[ $D == "github 000"*"hf api 200"* ]] && echo "; GitHub blocked, Hugging Face answers: RB_URL=https://huggingface.co/yang31210999/opd-blackwell-runbook (the runbook's mirror)"): ask the machine's owner how git / pip reach the internet here"; }
     NP="localhost,127.0.0.1,::1,$(hostname),$(hostname -I 2> /dev/null | tr -s ' ' ',' | sed 's/,$//')"
     ( umask 077; printf 'export https_proxy=%s\nexport HTTPS_PROXY=%s\nexport http_proxy=%s\nexport HTTP_PROXY=%s\nexport no_proxy=%s\nexport NO_PROXY=%s\n' \
       "$GOOD" "$GOOD" "$GOOD" "$GOOD" "$NP" "$NP" > $PX ); unset GOOD
@@ -126,8 +136,12 @@ if [ ! -s $PX ]; then
   fi
 fi
 
+NC=$(codes); say "network codes: $NC"   # [z135] HTTP codes only, no values
+[[ $NC == *"pypi 200"* ]] || say "PyPI does not answer: setup step 2 can only use an old base's venv (FROM_OPD_ROOT + LINK_VENV=1 in node.env)"
+
 # ---------- B1b. can the heartbeat repository be reached with that token (z126) ----------
-if [ $NOGH = 0 ] && [ -s "$GHC" ]; then
+if [ $NOGH = 0 ] && [ -s "$GHC" ] && [[ $NC != "github 200"* ]]; then say "GitHub heartbeat: GitHub does not answer here, its check skipped (gh_heartbeat retries every 1-15 min)"   # [z135]
+elif [ $NOGH = 0 ] && [ -s "$GHC" ]; then
   if [ $DRY = 1 ]; then say "would check the GitHub heartbeat repository (git ls-remote)"
   else TO=""; command -v timeout > /dev/null && TO="timeout -k 5 40"
     if GIT_TERMINAL_PROMPT=0 $TO git -c credential.helper= -c "credential.helper=store --file=$GHC" ls-remote "$GHURL" > /dev/null 2>&1
@@ -174,6 +188,7 @@ fi
     echo "export HF_HOME=$T/cache/hf"   # also with --hf-home: its token is read from there, the caches stay below $T
     [ "$CAPS" = 9.0 ] && echo "export OVERNIGHT_TIER_A_ONLY=1 FA_CUDA_ARCHS=90   # Hopper: vLLM tier A, flash-attn for sm_90"
     [ -n "$OLDC" ] && echo "export OLD_BASE_CANDS=$OLDC"
+    [ -n "$RBH" ] && [ "$RBH" != github.com ] && echo "export RB_URL=$RB_URL OPD_CONTROL_ORIGIN=$(echo "${RB_URL%.git}" | sed -E 's#^https?://##; s#/$##')"   # [z135] the mirror for the loops
     [ -n "${GH_HB_CRED:-}" ] && echo "export GH_HB_CRED=$GHC"   # [z126] a credential file moved from its default
     [ -n "${GH_HB_URL:-}" ] && echo "export GH_HB_URL=$GHURL"
     [ -s $PX ] && echo "[ -s $PX ] && . $PX"

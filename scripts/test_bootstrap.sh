@@ -7,10 +7,16 @@ SRC=$(cd "$(dirname "$0")/.." && pwd); fails=0; n=0
 ok() { n=$((n + 1)); if eval "$2"; then :; else echo "  FAIL [$1]: ${out:0:600}"; fails=$((fails + 1)); fi; }
 T=$(mktemp -d); mkdir -p $T/bin $T/base
 TOKV="hf_$(printf 'Zq9%.0s' $(seq 12))"; printf '%s\n' "$TOKV" > $T/tok; chmod 600 $T/tok
-# curl: 200 when NET=direct, or when NET=proxy and a proxy is set to http://good:1; else 000
+# curl: 200 when NET=direct, or when NET=proxy and a proxy is set to http://good:1; [z135] NET=hfonly: huggingface.co only,
+# NET=githubonly: github.com only; else 000
 cat > $T/bin/curl <<'EOF'
 #!/bin/bash
-if [ "${NET:-direct}" = direct ] || { [ "$NET" = proxy ] && [ "${https_proxy:-}" = "http://good:1" ]; }; then printf 200; else printf 000; fi
+u=${@: -1}
+case ${NET:-direct} in
+  direct) c=200;; proxy) [ "${https_proxy:-}" = "http://good:1" ] && c=200 || c=000;;
+  hfonly) [[ $u == https://huggingface.co/* ]] && c=200 || c=000;; githubonly) [[ $u == https://github.com/* ]] && c=200 || c=000;; *) c=000;;
+esac
+printf $c
 EOF
 printf '#!/bin/bash\nexit 1\n' > $T/bin/nvidia-smi
 printf '#!/bin/bash\nexit 1\n' > $T/bin/pgrep   # [z126] the retire check sees only this test (no stray host process stops it)
@@ -59,6 +65,22 @@ ok "z126: an unknown profile: STOP naming the profiles there are" '[ $rc = 1 ] &
 out=$(B --profile ../x 2>&1); rc=$?; ok "z126: a profile name with a path: usage, exit 2" '[ $rc = 2 ]'
 rm -rf $T/base/opd; out=$(NET=direct B --no-gh --profile 80g --role rehearsal); rc=$?
 ok "z126: --role rehearsal writes its limits over the profile's (one line each)" '[ $rc = 0 ] && grep -qx "export STATUS_PUT_S=300" $O/control.env && grep -qx "export CONTROL_BATCH=1" $O/control.env && grep -qx "export HF_COMMIT_BUDGET=30" $O/control.env && [ "$(grep -c STATUS_PUT_S $O/control.env)" = 1 ] && grep -qx "export VENV=fa" $O/control.env'
+# [v2.5.9z135] the runbook's git mirror on Hugging Face (RB_URL on another host): the reach without GitHub (four cases), node.env
+# RB_URL + OPD_CONTROL_ORIGIN, the codes line, B1b's check skipped when GitHub does not answer. The mirror URL clones this
+# checkout (git's insteadOf), nothing goes to the network.
+HFRB=https://huggingface.co/x/opd-blackwell-runbook
+HB() { env RB_URL=$HFRB GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=url.$SRC.insteadOf GIT_CONFIG_VALUE_0=$HFRB bash $SRC/scripts/bootstrap.sh --base $T/base --token-file $T/tok --dry "$@" 2>&1; }
+rm -rf $T/base/opd; out=$(NET=hfonly HB --gh-token-file $T/ghtok); rc=$?
+ok "z135: GitHub blocked, RB_URL = the HF mirror: runs through; node.env RB_URL + OPD_CONTROL_ORIGIN; B1b skipped" '[ $rc = 0 ] && [[ "$out" == *"network: direct"* ]] && grep -qx "export RB_URL=$HFRB OPD_CONTROL_ORIGIN=huggingface.co/x/opd-blackwell-runbook" $O/node.env && [ -f $T/base/opd/runbook/scripts/loops.sh ] && [[ "$out" == *"GitHub does not answer here, its check skipped"* ]] && [[ "$out" != *"would check the GitHub"* ]]'
+ok "z135: the codes line names GitHub, the runbook host, the HF API, PyPI; PyPI blocked is said" '[[ "$out" == *"network codes: github 000, runbook (huggingface.co) 200, hf api 200, pypi 000"* ]] && [[ "$out" == *"PyPI does not answer: setup step 2 can only use an old base"* ]]'
+rm -rf $T/base/opd; rm -f $GH_HB_CRED; out=$(NET=hfonly B --no-gh); rc=$?
+ok "z135: GitHub blocked with the GitHub RB_URL: STOP with the direct codes and the mirror hint" '[ $rc = 1 ] && [[ "$out" == *"(direct: github 000, hf api 200, pypi 000); GitHub blocked, Hugging Face answers: RB_URL=https://huggingface.co/yang31210999/opd-blackwell-runbook"* ]] && [ ! -e $O/node.env ]'
+rm -rf $T/base/opd; out=$(NET=direct HB --no-gh); rc=$?
+ok "z135: everything open, RB_URL = the mirror: runs through, the mirror in node.env" '[ $rc = 0 ] && grep -q "^export RB_URL=$HFRB " $O/node.env'
+rm -rf $T/base/opd; out=$(NET=githubonly HB --no-gh); rc=$?
+ok "z135: Hugging Face blocked, RB_URL = the mirror: STOP before any clone" '[ $rc = 1 ] && [[ "$out" == *"reaches the runbook (huggingface.co) and Hugging Face"* ]] && [ ! -d $T/base/opd/runbook ]'
+rm -rf $T/base/opd; out=$(NET=direct B --no-gh); rc=$?
+ok "z135: the GitHub RB_URL: node.env without RB_URL / OPD_CONTROL_ORIGIN (control.py's default)" '[ $rc = 0 ] && ! grep -q "OPD_CONTROL_ORIGIN" $O/node.env'
 unset GH_HB_CRED
 [ -n "${KEEP_T:-}" ] && echo "kept $T" || rm -rf $T
 [ $fails = 0 ] && echo "BOOTSTRAP_TEST PASS ($n checks)" || { echo "BOOTSTRAP_TEST FAIL ($fails of $n)"; exit 1; }
