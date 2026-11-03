@@ -3503,9 +3503,13 @@ def v_dispatch(a, seq, flags=None, entry=None):
     # [v2.5.9z131] (ops-lead 11-03 04:5x UTC) a profile's VENV=fa: venv_ready says only that the main venv imports torch / vllm / verl;
     # venv-fa comes with setup step 4, and every VENV=fa arm sources it
     vfa = os.path.join(ROOT, "venv-fa", "bin", "python")
-    if os.path.isdir(os.path.join(ROOT, "venv-ctl")) and _cfg("VENV", "") == "fa" and not (
-            os.path.exists(vfa) and subprocess.run([vfa, "-c", "import flash_attn"], capture_output=True, timeout=120).returncode == 0):
-        return "rejected", "VENV=fa is set and venv-fa does not import flash_attn yet (setup step 4); dispatch stays frozen", {}
+    if os.path.isdir(os.path.join(ROOT, "venv-ctl")) and _cfg("VENV", "") == "fa":
+        try:   # [v2.5.9z132] (ops-lead 05:5x UTC) a hung import is a refusal, not an exception in apply
+            fa_ok = os.path.exists(vfa) and subprocess.run([vfa, "-c", "import flash_attn"], capture_output=True, timeout=120).returncode == 0
+        except (subprocess.TimeoutExpired, OSError):
+            fa_ok = False
+        if not fa_ok:
+            return "rejected", "VENV=fa is set and venv-fa does not import flash_attn yet (setup step 4); dispatch stays frozen", {}
     if os.path.exists(f):
         os.remove(f)
     return "ok", "dispatch on: the queue's tasks start on free GPUs from the next round", {}

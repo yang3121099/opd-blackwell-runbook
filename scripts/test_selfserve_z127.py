@@ -204,3 +204,17 @@ def test_dispatch_on_waits_for_venv_fa_under_vfa_v259z131(env):
     (env.root / "control.env").write_text("export VENV=\n"); py.write_text("#!/bin/sh\nexit 1\n")
     open(os.path.join(env.c.CDIR, "dispatch_frozen"), "w").write("x\n")
     assert env.c.v_dispatch(["on"], 73)[0] == "ok"   # VENV empty: the main venv alone
+
+
+def test_dispatch_on_a_hung_flash_attn_import_is_a_refusal_v259z132(env, monkeypatch):
+    """[v2.5.9z132] (ops-lead 11-03 05:5x UTC) venv-fa's import check times out (120 s): rejected, no exception out of apply."""
+    import subprocess as sp
+    (env.root / "venv-ctl").mkdir(); open(os.path.join(env.c.CDIR, "venv_ready"), "w").write("x\n")
+    (env.root / "runs" / "PROBE-TAIL").mkdir(parents=True); (env.root / "runs" / "PROBE-TAIL" / "report.json").write_text('{"result": "PASS"}')
+    (env.root / "control.env").write_text("export VENV=fa\n")
+    (env.root / "venv-fa" / "bin").mkdir(parents=True); (env.root / "venv-fa" / "bin" / "python").write_text("#!/bin/sh\nexit 0\n")
+    def hang(*a, **k):
+        raise sp.TimeoutExpired(a[0], k.get("timeout"))
+    monkeypatch.setattr(env.c.subprocess, "run", hang)
+    st, msg, _ = env.c.v_dispatch(["on"], 80)
+    assert st == "rejected" and "venv-fa" in msg
