@@ -1329,7 +1329,7 @@ def test_prog_wiring_v259z43():   # [v2.5.9z43] task.sh routes the three names, 
 
 
 def test_queue_prog_stage_before_diff4b_v259z43():   # [v2.5.9z43] ops-lead: Q-058 before diff4b, after b259z41o; every task of the stage has rows or a branch
-    q = open(os.path.join(HERE, "..", "tasks", "queue.txt")).read().splitlines()
+    q = open(os.path.join(HERE, "..", "tasks", "queue_archive_20261101.txt")).read().splitlines()
     names = [x.split()[0] for x in q if x and not x.startswith("#") and len(x.split()) > 2 and x.split()[1] == "open"]
     # [10-23 ops-lead: the scheduler's reorder, a09e09e] Q-058 and Q-066 ahead of the 32K OOD readings, diff4b still after them
     # [10-23 22:0x UTC, the scheduler's v79] Q-066 ahead of the 8k-s44 readings and Q-058's readings (its arms already run)
@@ -1475,7 +1475,7 @@ def test_run_and_rerun_accept_v259z68(env):   # [v2.5.9z68] (Q-068) the 8B self-
     rt = open(os.path.join(here, "run_tasks.sh")).read()
     assert "training_task() { case $1 in E10[bcde]-*|" in rt and rt.count("E1(0[bcde]|2[bcde]|6)-") == 2   # trained alike: disk guard, restart
     assert 'r"E1(0[bcde]|2[bcde]|6)-"' in open(os.path.join(here, "heartbeat.sh")).read()               # kind train
-    q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
+    q = open(os.path.join(os.path.dirname(here), "tasks", "queue_archive_20261101.txt")).read()
     assert "\n#gpus E10e-P5self 4\n" in q and "\n#gpus PROBE-8B 4\n" in q
 
 
@@ -1495,7 +1495,7 @@ def test_e12d_p5_16k_run_and_rerun_accepted():   # [v2.5.9z67] (Q-069)
         R.parse({"cmd": c, "reason": "t"})
     src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "task.sh")).read()
     assert src.index("  E12d-P5-16k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;") < src.index("  E12d-*)")
-    q = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tasks", "queue.txt")).read()
+    q = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tasks", "queue_archive_20261101.txt")).read()
     assert re.search(r"^#gpus E12d-P5-16k 2$", q, re.M)                                     # two GPUs, as the 1.7B 16K arms
 
 
@@ -1524,7 +1524,7 @@ def test_ifeval_rules_and_rows_v259z16(env):   # [v2.5.9z16] (rules 2.5.92) benc
         R.check_eval_args(args)
     assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 92)
     assert re.search(r"^\S+ rules 2\.5\.92 \(bench ifeval", open(os.path.join(HERE, "..", "control", "CHANGES.md")).read(), re.M)   # [10-25] renumbered
-    L = open(os.path.join(HERE, "..", "tasks", "queue.txt")).read().splitlines()
+    L = open(os.path.join(HERE, "..", "tasks", "queue_archive_20261101.txt")).read().splitlines()
     i = next(k for k, l in enumerate(L) if l.startswith("b259z15  open "))
     tasks = L[i].split()[2:]
     j = next(k for k, l in enumerate(L) if l.startswith("b259z16  open "))   # [10-25] ops-lead's condition 2: after b259z83, before fill17
@@ -1636,7 +1636,7 @@ def test_run_and_rerun_accept_v259z91(env):   # [v2.5.9z91] (Q-082 / Q-075b / Q-
     rt = open(os.path.join(here, "run_tasks.sh")).read()
     assert "training_task() { case $1 in E10[bcde]-*|E12[bcde]-*|" in rt                 # trained alike: disk guard, restart
     assert "case $TASK in E12[bcde]-*) stats 0;; esac" in open(os.path.join(here, "upload_sync.sh")).read()
-    q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
+    q = open(os.path.join(os.path.dirname(here), "tasks", "queue_archive_20261101.txt")).read()
     for g in ("PROBE-E12E-8K", "E12e-P5self-8k", "PROBE-TAIL-8B", "E10e-P5tail"):
         assert f"\n#gpus {g} 4\n" in q, g
 
@@ -1650,7 +1650,7 @@ def test_run_and_rerun_accept_v259z92(env):   # [v2.5.9z92] (Q-074d / Q-075c / Q
     ts = open(os.path.join(here, "task.sh")).read()
     assert ts.index("  E12b-P5tail-16k) ") < ts.index("  E12b-*) ") and ts.index("  E12c-P5tail-8k) ") < ts.index("  E12c-*) ")
     assert ts.index("  E10d-P5tail-s43) ") < ts.index("  E10d-*) ")
-    q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
+    q = open(os.path.join(os.path.dirname(here), "tasks", "queue_archive_20261101.txt")).read()
     assert "\n#gpus E12b-P5tail-16k 4\n" in q and "\n#gpus E12e-P5tail-8k 4\n" in q
     st = [l for l in q.split("\n") if l.startswith(("b259z91 ", "b259z92 ", "b259z85 "))]
     assert [l.split()[0] for l in st] == ["b259z91", "b259z92", "b259z85"]   # the scheduler's order: z91, z92, then z85
@@ -1671,7 +1671,7 @@ def test_run_and_rerun_accept_v259z89(env):   # [v2.5.9z89] (Q-080) the VLM retr
     assert "  E15-VLM-P2lo|E15-VLM-P5tail-lo) bash $RUNBOOK/scripts/run_vlm.sh $G $T;;" in ts
     assert "PTL_PROBE=PROBE-VLM-TAIL PTL_ARM=E15-VLM-P5tail-lo PTL_RUNNER=run_vlm.sh" in ts and "PTL_FINISHED=1 bash" in ts
     assert "DIAG-VLM-TRUNC) return 0;;" in open(os.path.join(here, "run_tasks.sh")).read()           # the CPU lane
-    q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
+    q = open(os.path.join(os.path.dirname(here), "tasks", "queue_archive_20261101.txt")).read()
     st = [l.split()[0] for l in q.split("\n") if l.startswith(("b259z92 ", "b259z93 ", "b259z89 ", "b259z92b "))]
     assert st == ["b259z92", "b259z93", "b259z89", "b259z92b"]                                         # the scheduler 23:3x UTC: after z93, before z92b
     items = next(l for l in q.split("\n") if l.startswith("b259z89 ")).split()[2:]
@@ -1691,7 +1691,7 @@ def test_run_and_rerun_accept_v259z97(env):   # [v2.5.9z97] (Q-074i / Q-074j; re
     assert "PROBE-E12E-16K$" in ts.split("\n")[9]                                                   # a #gpus list is allowed
     pe = open(os.path.join(here, "probe_e12var.sh")).read()
     assert "E12e:16k) ;;" in pe and "[ $L:$VAR = E12e:16k ] && ARM=E12e-P5tail-16k" in pe
-    q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
+    q = open(os.path.join(os.path.dirname(here), "tasks", "queue_archive_20261101.txt")).read()
     for g in ("#gpus E12d-P5tail-8k-s43 2", "#gpus E12e-P5tail-16k 4", "#gpus PROBE-E12E-16K 4"):
         assert f"\n{g}\n" in q
     lines = q.split("\n")
@@ -1713,7 +1713,7 @@ def test_run_and_rerun_accept_v259z95(env):   # [v2.5.9z95] (Q-074h) the 4B 16K 
     here = os.path.dirname(os.path.abspath(__file__))
     ts = open(os.path.join(here, "task.sh")).read()
     assert ts.index("  E12d-P5tail-16k) ") < ts.index("  E12d-*) ")
-    q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
+    q = open(os.path.join(os.path.dirname(here), "tasks", "queue_archive_20261101.txt")).read()
     assert "\n#gpus E12d-P5tail-16k 4\n" in q
     st = [l.split()[0] for l in q.split("\n") if l.startswith(("b259z92 ", "b259z95 ", "b259z93 "))]
     assert st == ["b259z92", "b259z95", "b259z93"]
@@ -1737,7 +1737,7 @@ def test_run_and_rerun_accept_v259z93(env):   # [v2.5.9z93] (Q-074g) the third s
     here = os.path.dirname(os.path.abspath(__file__))
     ts = open(os.path.join(here, "task.sh")).read()
     assert ts.index("  E10b-P5tail-s44) ") < ts.index("  E10b-*) ") and ts.index("  E12b-P5tail-8k-s44) ") < ts.index("  E12b-*) ")
-    q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
+    q = open(os.path.join(os.path.dirname(here), "tasks", "queue_archive_20261101.txt")).read()
     st = [l.split()[0] for l in q.split("\n") if l.startswith(("b259z92 ", "b259z93 ", "b259z92b ", "b259z85 "))]
     assert st == ["b259z92", "b259z93", "b259z92b", "b259z85"]   # Fable's order: Q-074g before the 32K rows
 
@@ -1825,7 +1825,7 @@ def test_do_publish_redacted_scrubs_checks_and_publishes_v259z96(env, monkeypatc
 
 def test_queue_v259z98():   # [v2.5.9z98] research_program 3j / 3l: the 32K rule, Q-077's budget curves out, Q-077 at AIME 16K, the new H4
     here = os.path.dirname(os.path.abspath(__file__))
-    q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read(); L = q.split("\n")
+    q = open(os.path.join(os.path.dirname(here), "tasks", "queue_archive_20261101.txt")).read(); L = q.split("\n")
     for gone in ("EVAL-ext32k-17aklmu07", "EVAL-ext32k-17selfakl", "EVAL-ext32k-06p5self", "EVAL-ext32k-06p5l8k", "EVAL-ext32k-06p5l16k", "budAP5aklmu07_s50_math500_T0.6_32k"):
         assert gone not in q, gone
     assert "#eval EVAL-aklmu07 e10b_P5aklmu07_s50_math500_T0.6 " in q and "#eval EVAL-selfakl " in q        # their 16K rows stay
@@ -1854,7 +1854,7 @@ def test_run_and_rerun_accept_v259z99(env):   # [v2.5.9z99] the zero-GPU diagnos
     rt = open(os.path.join(here, "run_tasks.sh")).read(); ts = open(os.path.join(here, "task.sh")).read()
     lane = re.search(r"cpu_task\(\) \{ case \$1 in ([^)]*)\)", rt).group(1).split("|")
     assert all(t in lane for t in names) and "  " + "|".join(names) + ") bash $RUNBOOK/scripts/diag_cpu.sh $T;;" in ts
-    q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
+    q = open(os.path.join(os.path.dirname(here), "tasks", "queue_archive_20261101.txt")).read()
     assert "b259z99" not in q and not any(t in q for t in names)                     # 10-28 01:5x UTC: code only, run on the A100
 
 
@@ -1875,7 +1875,7 @@ def test_q074h_gate_v259z113(env):   # [v2.5.9z113] (Q-074h) PROBE-E12D-16K, rul
     ts = open(os.path.join(here, "task.sh")).read(); pv = open(os.path.join(here, "probe_e12var.sh")).read()
     assert "  PROBE-E12D-16K) PEV_LADDER=E12d bash $RUNBOOK/scripts/probe_e12var.sh $G 16k;;" in ts and "|PROBE-E12D-16K$|" in ts   # four GPUs
     assert "[ $L:$VAR = E12d:16k ] && ARM=E12d-P5tail-16k" in pv and "|E12d:16k|" in pv                                  # the arm itself
-    q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
+    q = open(os.path.join(os.path.dirname(here), "tasks", "queue_archive_20261101.txt")).read()
     assert re.search(r"^b259z113 +(held|open) +PROBE-E12D-16K$", q, re.M) and "\n#gpus PROBE-E12D-16K 4\n" in q   # held until its start is local
     assert " E12d-P5tail-16k:PROBE-E12D-16K+PROBE-E12B-16K+E10d-P5tail " in q
     assert "\n#fetch result:runs/E10d-P5tail/global_step_50/actor/huggingface\n" in q
@@ -1906,7 +1906,7 @@ def test_mode_benches_v259z108b():   # [v2.5.9z108b] (Q-083 D4) math500L / math5
     for b in ("math500L", "math500S"):
         R.check_eval_args(["result:runs/E10b-P5mode/global_step_50/actor/huggingface", b, "4", "0.6"])
     assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 109)
-    q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
+    q = open(os.path.join(os.path.dirname(here), "tasks", "queue_archive_20261101.txt")).read()
     assert re.search(r"^b259z108b +open +EVAL-e10b-P5mode:E10b-P5mode$", q, re.M)
     assert sorted(l.split()[4] for l in q.splitlines() if l.startswith("#eval EVAL-e10b-P5mode ")) == ["math500L", "math500S"]
 
@@ -1921,7 +1921,7 @@ def test_run_and_rerun_accept_v259z109(env):   # [v2.5.9z109] (Q-087) EVAL-eosw 
     ts = open(os.path.join(here, "task.sh")).read(); tp = open(os.path.join(here, "term_probe.sh")).read()
     assert re.search(r"^  PROBE-TERM\|[^)]*\|PROBE-TERM4-EOSW\|[^)]*\) bash \$RUNBOOK/scripts/term_probe.sh \$G \$T;;", ts, re.M)
     assert "|| $T == PROBE-TERM4-EOSW || $T =~ ^PROBE-TERM4-N[0-9A-Z]{1,8}$ ]] && echo --no_teacher --term4" in tp     # TERM4's measures, not PROBE-TERM's ([z128] + the N family)
-    q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
+    q = open(os.path.join(os.path.dirname(here), "tasks", "queue_archive_20261101.txt")).read()
     assert re.search(r"^b259z109 +open +EVAL-eosw:E10b-P5-eosw PROBE-TERM4-EOSW:EVAL-eosw$", q, re.M)
     assert [l.split()[2] for l in q.splitlines() if l.startswith("#term PROBE-TERM4-EOSW ")] == ["17_P5eosw", "17_P5s50"]   # [z119] + P5 s50, the same run
     assert "\n#gpus E12c-P5tail-8k 2\n" in q and re.search(r"^#gpus E12b-P5tail-8k-s44 [24]$", q, re.M)   # [z111] 4
@@ -1941,7 +1941,7 @@ def test_run_and_rerun_accept_v259z108(env):   # [v2.5.9z108] (Q-083) the mode-t
         R.parse({"cmd": f"rerun {t}", "reason": "t"})
     assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 106)
     here = os.path.dirname(os.path.abspath(__file__))
-    ts = open(os.path.join(here, "task.sh")).read(); q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
+    ts = open(os.path.join(here, "task.sh")).read(); q = open(os.path.join(os.path.dirname(here), "tasks", "queue_archive_20261101.txt")).read()
     assert "  E10b-P5mode) bash $RUNBOOK/scripts/run_arm.sh $G $T;;" in ts and "  PROBE-MODE) bash $RUNBOOK/scripts/probe_mode.sh $G;;" in ts
     assert re.search(r"^b259z108 +(open|held) +PROBE-MODE E10b-P5mode:PROBE-MODE$", q, re.M)   # held until Fable's D1-D6 (ops-lead 02:53 UTC)
     assert "\n#gpus PROBE-MODE 2\n" in q and "\n#gpus E10b-P5mode 2\n" in q
@@ -1979,7 +1979,7 @@ def test_beyond_arms_registered_v259z118(env):   # [v2.5.9z118] (research_progra
     assert '"PROBE-FRET",' in hb and '"PROBE-TERM4-FRET"' in hb
     rt = open(os.path.join(here, "run_tasks.sh")).read()
     assert "        E10b-P5fret|E10b-P5topd|E10b-P5fret-topd) env UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-50} setsid" in rt   # s50 uploaded
-    q = open(os.path.join(os.path.dirname(here), "tasks", "queue.txt")).read()
+    q = open(os.path.join(os.path.dirname(here), "tasks", "queue_archive_20261101.txt")).read()
     assert re.search(r"^b259z118 +(?:held|open) +PROBE-FRET E10b-P5fret:PROBE-FRET E10b-P5topd:PROBE-FRET E10b-P5fret-topd:PROBE-FRET "
                      r"EVAL-e10b-P5fret:E10b-P5fret EVAL-e10b-P5topd:E10b-P5topd EVAL-e10b-P5fret-topd:E10b-P5fret-topd "
                      r"PROBE-TERM4-FRET:EVAL-e10b-P5fret\+EVAL-e10b-P5topd\+EVAL-e10b-P5fret-topd$", q, re.M)
@@ -2038,3 +2038,60 @@ def test_term4_family_one_task_per_chain_v259z128(env):
         assert r.returncode == rc, t
     hb = open(os.path.join(here, "heartbeat.sh")).read()
     assert 're.fullmatch(r"PROBE-TERM4-N[0-9A-Z]{1,8}", name)' in hb
+
+
+def test_newnode_v1_queue_v259z130(env):
+    """[v2.5.9z130] (Fable 11-03 04:2x UTC items 6-7; the ops-lead's five changes; gate_deps_20261103) the live queue is newnode-v1:
+    every row accepted by run, every #gpus target allowed several GPUs by task.sh, no arm depends on a TERM4 task, PROBE-E12C-8K on
+    one GPU, PROBE-E12E-8K without PROBE-E12B-8K, the gates' smoke starts and EVAL-e12c-P5-8k's steps fetched, EVAL-e12c-P5-8k in
+    front of Q-074f, one TERM4 task per chain arm, and the -nn names (the originals' s25 alone stays: E12e-P5tail-8k-nn continues it)."""
+    here = os.path.dirname(os.path.abspath(__file__)); repo = os.path.dirname(here)
+    q = open(os.path.join(repo, "tasks", "queue.txt")).read(); L = q.split("\n")
+    assert os.path.exists(os.path.join(repo, "tasks", "queue_archive_20261101.txt"))   # the H800-era queue, for provenance
+    spec = {}
+    for l in L:
+        w = l.split()
+        if len(w) >= 3 and not l.startswith("#") and w[1] in ("open", "auto", "locked"):
+            for s in w[2:]:
+                n, _, d = s.partition(":"); spec[n] = [x for x in d.split("+") if x]
+    assert len(spec) == 46
+    assert next(l.split()[2:] for l in L if l.startswith("nn7pad ")) == [   # Q-075c H1 on one node (Fable 05:1x / 05:2x UTC)
+        "EVAL-e10d-P5tail-nn:E10d-P5tail", "EVAL-budA-e10dP5tail-nn:E10d-P5tail", "EVAL-e10d-P5tail-s43-nn:E10d-P5tail-s43",
+        "EVAL-budA-e10dP5tail-s43-nn:E10d-P5tail-s43"]
+    # the H800 (d2e588bc) gets `dispatch off` in the same commit, explicit expiry: a revived H800 finishes its in-flight originals and
+    # dispatches no v1 row (the pull that brings v1 also applies seq 105, then run_tasks re-execs on its changed file: frozen)
+    import yaml, time as _t
+    e = [x for x in yaml.safe_load(open(os.path.join(repo, "control", "d2e588bc.yaml")))["commands"] if x["seq"] == 105]
+    assert len(e) == 1 and e[0]["cmd"] == "dispatch off" and e[0]["expires"] == "2026-12-31T00:00Z"
+    assert R.parse(e[0])[:2] == ("dispatch", ["off"]) and R.expiry(e[0], "dispatch") > _t.time()
+    assert not re.search(r"d2e588bc|/|host", e[0]["reason"])
+    for i, t in enumerate(sorted(spec)):
+        st, msg, _ = env.c.v_run([t], 600 + i)
+        assert st == "accepted", (t, msg)
+    multi = re.search(r"\[\[ \$T =~ (\^\(.*?\)) \]\] \|\| \{ echo \"\$T takes one GPU", open(os.path.join(here, "task.sh")).read()).group(1)
+    for l in L:
+        if l.startswith("#gpus "):
+            assert re.match(multi, l.split()[1]), f"task.sh runs {l.split()[1]} on one GPU only"
+    assert not any(l.startswith("#gpus PROBE-E12C-8K") for l in L) and spec["PROBE-E12E-8K"] == []
+    arms = [t for t in spec if re.match(r"E1[0-2][bcde]-", t)]
+    assert not [t for t in arms if any(d.startswith("PROBE-TERM") for d in spec[t])]
+    fetch = [l.split()[1] for l in L if l.startswith("#fetch ")]
+    for s in ("E10b-P5/global_step_150", "E10c-P5-fix4/global_step_150", "E12c-P5-8k/global_step_25", "E12c-P5-8k/global_step_50",
+              "E12e-P5tail-8k/global_step_25", "E10d-P5tail-s43/global_step_50"):
+        assert f"result:runs/{s}/actor/huggingface" in fetch, s
+    nn5 = next(l.split()[2:] for l in L if l.startswith("nn5q074f "))
+    assert nn5[0].startswith("EVAL-e12c-P5-8k:") and nn5[1].startswith("E12c-P5tail-8k-nn:")
+    term = {t: spec[t] for t in spec if t.startswith("PROBE-TERM4-N")}
+    assert term == {"PROBE-TERM4-N074I": ["EVAL-e12d-P5tail-8k-s43-nn"], "PROBE-TERM4-N075C": [], "PROBE-TERM4-N074E": ["EVAL-e12e-P5tail-8k-nn"],
+                    "PROBE-TERM4-N074H": ["EVAL-e12d-P5tail-16k"], "PROBE-TERM4-N074F": ["EVAL-e12c-P5tail-8k-nn"]}
+    assert fetch[-1] == "result:runs/E12e-P5tail-8k/global_step_25/actor/huggingface"   # off the critical path (the ops-lead)
+    rows = [l.split() for l in L if l.startswith("#term ")]
+    assert all(re.fullmatch(r"[A-Za-z0-9.-]+_[A-Za-z0-9._-]+", r[2]) and r[1] in spec for r in rows)
+    for old in ("E12e-P5tail-8k", "E12c-P5tail-8k", "EVAL-e12d-P5tail-8k-s43", "EVAL-ext32k-4Bp5tail8k-s43", "EVAL-budA-e12dP5tail-8k-s43",
+                "EVAL-e12e-P5tail-8k", "EVAL-budA-e12eP5tail-8k", "EVAL-ext32k-8Bp5tail8k", "EVAL-e12c-P5tail-8k", "EVAL-budA-e12cP5tail-8k",
+                "EVAL-ext32k-06p5tail8k"):   # + the -nn arms' six readings (the ops-lead's A1 condition)
+        assert old not in spec and old + "-nn" in spec
+        assert not [l for l in L if len(l.split()) > 1 and l.startswith("#") and l.split()[1] == old]
+        assert not re.search(r"(?<![A-Za-z0-9._/-])" + re.escape(old) + r"(?![A-Za-z0-9._-])", "\n".join(l for l in L if not l.startswith("# ")))
+    assert "result:runs/E12e-P5tail-8k/global_step_50/" not in q and "result:runs/E12e-P5tail-8k-nn/global_step_25/" in q
+    assert "result:runs/E12c-P5tail-8k/" not in q

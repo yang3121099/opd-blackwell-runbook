@@ -104,3 +104,4 @@ commands:
   - {"seq": 102, "cmd": "resume EVAL-tail-s44", "reason": "z125 (ddb949c, ops-lead A1 16:33 UTC): Q-074g unpaused ahead of its gate (Runming rule 3); s44 waits for PROBE-TERM4-FRET, 2 GPUs", "utc": "2026-11-01T16:44:05Z"}
   - {"seq": 103, "cmd": "resume EVAL-e12b-P5tail-8k-s44", "reason": "z125 (ddb949c, ops-lead A1 16:33 UTC): Q-074g unpaused ahead of its gate (Runming rule 3); s44 waits for PROBE-TERM4-FRET, 2 GPUs", "utc": "2026-11-01T16:44:10Z"}
   - {"seq": 104, "cmd": "resume EVAL-e12b-P5tail-8k-s44", "reason": "z125 (ddb949c, ops-lead A1 16:33 UTC): Q-074g's 16K reading unpaused ahead of its arm", "utc": "2026-11-01T16:44:40Z"}
+  - {"seq": 105, "cmd": "dispatch off", "reason": "next-machine queue v1 lands; keep this node from dispatching it (same names)", "utc": "2026-11-03T05:30:14Z", "expires": "2026-12-31T00:00Z"}
