@@ -2085,7 +2085,8 @@ def test_newnode_v1_queue_v259z130(env):
     assert term == {"PROBE-TERM4-N074I": ["EVAL-e12d-P5tail-8k-s43-nn"], "PROBE-TERM4-N075C": [], "PROBE-TERM4-N074E": ["EVAL-e12e-P5tail-8k-nn"],
                     "PROBE-TERM4-N074H": ["EVAL-e12d-P5tail-16k"], "PROBE-TERM4-N074F": ["EVAL-e12c-P5tail-8k-nn"],
                     "PROBE-TERM4-N091": ["EVAL-e12b-P0-8k"], "PROBE-TERM4-N090": ["EVAL-e12b-P5-8k-lenpen"], "PROBE-TERM4-NRL8K": []}   # [v2.5.9z136]
-    assert fetch[-1] == "result:runs/E12e-P5tail-8k/global_step_25/actor/huggingface"   # off the critical path (the ops-lead)
+    assert fetch[3] == "result:runs/E12e-P5tail-8k/global_step_25/actor/huggingface"   # [v2.5.9z136] (the ops-lead's A1 08:3xZ) the first 4-GPU arm's start, right after the three gate-smoke starts
+    assert fetch[-2:] == ["result:runs/E12d-P5tail-8k/global_step_50/actor/huggingface", "result:runs/E12b-P5-8k/global_step_50/actor/huggingface"]   # [z136] the pad re-read and NRL8K's weights, last
     rows = [l.split() for l in L if l.startswith("#term ")]
     assert all(re.fullmatch(r"[A-Za-z0-9.-]+_[A-Za-z0-9._-]+", r[2]) and r[1] in spec for r in rows)
     for old in ("E12e-P5tail-8k", "E12c-P5tail-8k", "EVAL-e12d-P5tail-8k-s43", "EVAL-ext32k-4Bp5tail8k-s43", "EVAL-budA-e12dP5tail-8k-s43",
