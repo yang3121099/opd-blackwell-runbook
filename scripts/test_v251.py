@@ -2054,7 +2054,7 @@ def test_newnode_v1_queue_v259z130(env):
         if len(w) >= 3 and not l.startswith("#") and w[1] in ("open", "auto", "locked"):
             for s in w[2:]:
                 n, _, d = s.partition(":"); spec[n] = [x for x in d.split("+") if x]
-    assert len(spec) == 58   # [v2.5.9z136] + Q-091 (5) and Q-090 (6) stages, + the 4B chain's 16K re-read in nn7pad
+    assert len(spec) == 59   # [v2.5.9z136] + Q-091 (5) and Q-090 (6) stages, the 8K RL-only arm's TERM4, + the 4B chain's 16K re-read in nn7pad
     assert next(l.split()[2:] for l in L if l.startswith("nn7pad ")) == [   # Q-075c H1 on one node (Fable 05:1x / 05:2x UTC)
         "EVAL-e10d-P5tail-nn:E10d-P5tail", "EVAL-budA-e10dP5tail-nn:E10d-P5tail", "EVAL-e10d-P5tail-s43-nn:E10d-P5tail-s43",
         "EVAL-budA-e10dP5tail-s43-nn:E10d-P5tail-s43", "EVAL-e12d-P5tail-8k-nn:E12d-P5tail-8k"]   # [v2.5.9z136]
@@ -2084,7 +2084,7 @@ def test_newnode_v1_queue_v259z130(env):
     term = {t: spec[t] for t in spec if t.startswith("PROBE-TERM4-N")}
     assert term == {"PROBE-TERM4-N074I": ["EVAL-e12d-P5tail-8k-s43-nn"], "PROBE-TERM4-N075C": [], "PROBE-TERM4-N074E": ["EVAL-e12e-P5tail-8k-nn"],
                     "PROBE-TERM4-N074H": ["EVAL-e12d-P5tail-16k"], "PROBE-TERM4-N074F": ["EVAL-e12c-P5tail-8k-nn"],
-                    "PROBE-TERM4-N091": ["EVAL-e12b-P0-8k"], "PROBE-TERM4-N090": ["EVAL-e12b-P5-8k-lenpen"]}   # [v2.5.9z136]
+                    "PROBE-TERM4-N091": ["EVAL-e12b-P0-8k"], "PROBE-TERM4-N090": ["EVAL-e12b-P5-8k-lenpen"], "PROBE-TERM4-NRL8K": []}   # [v2.5.9z136]
     assert fetch[-1] == "result:runs/E12e-P5tail-8k/global_step_25/actor/huggingface"   # off the critical path (the ops-lead)
     rows = [l.split() for l in L if l.startswith("#term ")]
     assert all(re.fullmatch(r"[A-Za-z0-9.-]+_[A-Za-z0-9._-]+", r[2]) and r[1] in spec for r in rows)
