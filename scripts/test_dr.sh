@@ -244,5 +244,14 @@ mkdir -p $T/base/root/runs/E12d-P5/rollouts; echo '{}' > $T/base/root/runs/E12d-
 DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12d-P0 > /dev/null 2>&1; DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12d-P5 > /dev/null 2>&1
 SMOKE=1 PROBE_TASK=PROBE-ZZ DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12d-P0 > /dev/null 2>&1
 ok "[v2.5.9z48] rollouts: a new run's a link to \$CKPT_ROOT/<task>/rollouts; a run with dumps keeps its dir; a smoke a plain dir; the trainer still writes \$OUT/rollouts" '[ -L $T/base/root/runs/E12d-P0/rollouts ] && [ "$(readlink $T/base/root/runs/E12d-P0/rollouts)" = "$T/ck/E12d-P0/rollouts" ] && [ -d $T/ck/E12d-P0/rollouts ] && [ ! -L $T/base/root/runs/E12d-P5/rollouts ] && [ -s $T/base/root/runs/E12d-P5/rollouts/1.jsonl ] && [ -d $T/base/root/runs/PROBE-ZZ/rollouts ] && [ ! -L $T/base/root/runs/PROBE-ZZ/rollouts ] && grep -q "trainer.rollout_data_dir=\$OUT/rollouts " $SRC/scripts/run_e12.sh'
+# [v2.5.9z136] (Q-091 / Q-090, research_program 3s) the no-distillation and the length-control 8K baselines
+z1=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P0-8k 2>&1 | tail -1)
+ok "[z136] E12b-P0-8k: the 8K recipe from the base (no start checkpoint), 50 steps, the plain reward" '[[ "$z1" == "DRYRUN E12b-P0-8k start=$T/m17 steps=50 "*"var=8k "*"reward=reward_mathverify.py" ]]'
+rm -f $T/base/root/runs/PROBE-E12B-STOP2/report.json; ( DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P5-8k-lenpen > $T/z2 2>&1 ); rz2=$?
+ok "[z136] E12b-P5-8k-lenpen waits for PROBE-E12B-STOP2 too (exit 3)" '[ $rz2 = 3 ] && grep -q "PROBE-E12B-STOP2 has not passed: E12b-P5-8k-lenpen not started" $T/z2'
+mkdir -p $T/base/root/runs/PROBE-E12B-STOP2; echo '{"result": "PASS"}' > $T/base/root/runs/PROBE-E12B-STOP2/report.json
+z3=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P5-8k-lenpen 2>&1 | tail -2); z4=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P5-stop2 2>&1 | tail -2)
+ok "[z136] E12b-P5-8k-lenpen: from E10b-P5 s150, 50 steps, 8K, reward_stop2 cut at 8192; E12b-P5-stop2 keeps 4096" '[[ "$z3" == "DRYRUN_REWARD maxlen=8192"*"DRYRUN E12b-P5-8k-lenpen start=$S5 steps=50 "*"var=8k "*"reward=reward_stop2.py" ]] && [[ "$z4" == "DRYRUN_REWARD maxlen=4096"*"var=stop2 "*"reward=reward_stop2.py" ]]'
+ok "[z136] the lenpen config names its reward; task.sh routes both names to run_e12.sh" 'grep -q "^reward: reward_stop2.py at the 8K limit" $T/base/root/runs/E12b-P5-8k-lenpen/config.yaml && grep -q "E12b-P0-8k|E12b-P5-8k-lenpen) bash \$RUNBOOK/scripts/run_e12.sh" "$(dirname "$0")/task.sh"'
 rm -rf $T
 [ $fails = 0 ] && echo "DR_TEST PASS ($n checks)" || echo "DR_TEST FAIL ($fails of $n)"

@@ -44,6 +44,9 @@ VAR=""; case $A in P5-kl|P5-stop|P5-stop2|P5-8k|P5-16k|P5-r3|P5-16k-kl) VAR=${A#
 [ "$A" = P5-16k-s43 ] && { VAR=16k; A=P5-s43; }   # [v2.5.9z84] (Q-076) E12d-P5-16k-s43: E12d-P5-16k's recipe from E10d-P5-s43 s150 (the 4B 16K window's second start), #gpus 4
 [ "$A" = P5-8k-s43 ] && { VAR=8k; A=P5-s43; }   # [v2.5.9z77] (Q-071; Fable 10-24 08:2x Beijing) E12d-P5-8k-s43: E12d-P5-8k's recipe from E10d-P5-s43 s150 (the second start; data.seed 4242 as every E12)
 [ "$A" = P5-prog-up ] && VAR=8k   # [v2.5.9z43] (Q-058) the grow-window arm: the 8K recipe (its gate PROBE-E12B-8K too)
+LENPEN=0
+[ "$A" = P0-8k ] && { VAR=8k; A=P0; }   # [v2.5.9z136] (Q-091, research_program 3s) E12b-P0-8k: the 8K recipe from the base, no distillation
+[ "$A" = P5-8k-lenpen ] && { VAR=8k; A=P5; LENPEN=1; }   # [v2.5.9z136] (Q-090, 3s) E12b-P5-8k-lenpen: the 8K recipe from E10b-P5 s150 with reward_stop2 (a length control baseline)
 # [v2.5.8h] (Runming 10-20 17:5x UTC via the reviewer, Q-028: the 4K limit costs too much): E12b-P5-8k / -16k = E12b-P5 with
 # max_response_length 8192 / 16384 and what the length forces: flash-attn with remove-padding (an SDPA micro-batch is
 # padded to its longest sequence), a token budget of at least prompt + response, vLLM batching above the model length
@@ -53,6 +56,7 @@ if [ -n "$VAR" ] && [ "${SMOKE:-0}" != 1 ]; then
   GATES=PROBE-E12B-$(echo $VAR | tr a-z A-Z); [ "$VAR" = 16k-kl ] && GATES="PROBE-E12B-16K PROBE-E12B-KL"   # [v2.5.9y]
   [ $LADDER = E12c ] && GATES="$GATES PROBE-E12C-$(echo $VAR | tr a-z A-Z)"   # [v2.5.9z85] (Q-077) the 0.6B window arms' own smokes too
   [ $LADDER = E12e ] && GATES="$GATES PROBE-E12E-$(echo $VAR | tr a-z A-Z)"   # [v2.5.9z91] (Q-081) and the 8B four-GPU smoke
+  [ $LENPEN = 1 ] && GATES="$GATES PROBE-E12B-STOP2"   # [v2.5.9z136] the reward function's smoke too
   for P in $GATES; do grep -q '"result": "PASS"' $OPD_ROOT/runs/$P/report.json 2> /dev/null || { echo "$P has not passed: $T$NN not started"; exit 3; }; done
 fi
 SRC=E10b; [ $LADDER = E12d ] && SRC=E10d   # v2.5.7o: the preparation run a start comes from
@@ -170,7 +174,7 @@ start: $START
 algo: $([ "$VAR" = r3 ] && echo "reinforce_plus_plus_baseline (group mean, batch whitening) ${TBS}x8, zero-variance groups dropped before the update (at most ${R3_KEEP_GROUPS:-64} groups kept, opd_vardrop.py; seed OPD_SEED ${OPD_SEED:-1234} x 100003 + step)" || echo "GRPO 64x8"), $((MAXR / 1024))K, T=1.0, lr 1e-6, clip 0.2/0.28, $(case $VAR in kl|16k-kl) echo "KL loss 0.01 low_var_kl to the start (reference = $START)";; *) echo "KL 0";; esac), mini-batch 16, data.seed 4242, $STEPS steps
 variant: ${VAR:-none}
 max_response_length: $MAXR
-reward: $(case $VAR in (stop) echo "reward_stop.py (1 if correct, +0.5 if every box agrees and the response ends within 64 tokens after the first box)";; (stop2) echo "reward_stop2.py (correct x (1 + 0.5 x clip(1 - tail / 1024, 0, 1)), tail = tokens after the first box, a cut response counts 1024)";; (*) echo reward_mathverify.py;; esac)   # [v2.5.8c] [v2.5.9f]
+reward: $([ $LENPEN = 1 ] && echo "reward_stop2.py at the 8K limit (Q-090 length control)" || case $VAR in (stop) echo "reward_stop.py (1 if correct, +0.5 if every box agrees and the response ends within 64 tokens after the first box)";; (stop2) echo "reward_stop2.py (correct x (1 + 0.5 x clip(1 - tail / 1024, 0, 1)), tail = tokens after the first box, a cut response counts 1024)";; (*) echo reward_mathverify.py;; esac)   # [v2.5.8c] [v2.5.9f] [v2.5.9z136]
 attention: $ATTN (use_remove_padding=$RMPAD)
 venv: $(basename $V)
 batching: [$BATCH]
@@ -210,7 +214,8 @@ case $T in E12c-P5-8k|E12c-P5-16k) UW=25,$STEPS;; esac   # [v2.5.9z85] (Q-077) a
 KL="actor_rollout_ref.actor.use_kl_loss=False"; REWARD=$RUNBOOK/code/train/reward_mathverify.py
 # [v2.5.8c] stop: the stop reward, counting the student's tokens (its start's tokenizer) against the 4K response limit
 [ "$VAR" = stop ] && { REWARD=$RUNBOOK/code/train/reward_stop.py; export OPD_REWARD_TOKENIZER=$START OPD_REWARD_MAXLEN=4096; }
-[ "$VAR" = stop2 ] && { REWARD=$RUNBOOK/code/train/reward_stop2.py; export OPD_REWARD_TOKENIZER=$START OPD_REWARD_MAXLEN=4096; }   # [v2.5.9f]
+[ "$VAR" = stop2 ] && { REWARD=$RUNBOOK/code/train/reward_stop2.py; export OPD_REWARD_TOKENIZER=$START OPD_REWARD_MAXLEN=4096; }
+[ $LENPEN = 1 ] && { REWARD=$RUNBOOK/code/train/reward_stop2.py; export OPD_REWARD_TOKENIZER=$START OPD_REWARD_MAXLEN=$MAXR; }   # [v2.5.9z136] (Q-090) stop2 at the 8K limit: a reply cut at 8192 earns no bonus   # [v2.5.9f]
 [[ $VAR == kl || $VAR == 16k-kl ]] && KL="actor_rollout_ref.actor.use_kl_loss=True actor_rollout_ref.actor.kl_loss_coef=0.01 actor_rollout_ref.actor.kl_loss_type=low_var_kl +actor_rollout_ref.ref.model.path=$START actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=$LOGP_MB actor_rollout_ref.ref.fsdp_config.param_offload=False"
 # [v2.5.9w] r3's group drop on (OPD_VARDROP), off for every other run
 export OPD_VARDROP= OPD_VARDROP_LOG=; [ "$VAR" = r3 ] && export OPD_VARDROP=1 OPD_VARDROP_K=${R3_KEEP_GROUPS:-64} OPD_VARDROP_LOG=$OUT/vardrop.jsonl OPD_SEED=${OPD_SEED:-1234}
@@ -219,6 +224,7 @@ export OPD_VARDROP= OPD_VARDROP_LOG=; [ "$VAR" = r3 ] && export OPD_VARDROP=1 OP
 [ -n "$CONT" ] && ! grep -q "^continues:" $OUT/config.yaml && echo "continues: $SRUN s$SS for $STEPS steps (weights, a fresh optimizer; its global_step_25 = the chain's s50); data from step $((SS + 1)) on ($(basename $TRAINF), built on this node)" >> $OUT/config.yaml   # [v2.5.9z129]
 [ "${DRYRUN:-0}" = 1 ] && [ -n "$NN" ] && echo "DRYRUN_NN name=$NAME recipe=$T start=$SRUN s$SS steps=$STEPS train=$(basename $TRAINF) uw=$UW"   # [v2.5.9z129] tests
 [ "${DRYRUN:-0}" = 1 ] && [ -n "$PROG" ] && echo "DRYRUN_PROG train=$(basename $TRAINF) from=$SRUN s$SS"   # [v2.5.9z43] tests
+[ "${DRYRUN:-0}" = 1 ] && [ -n "${OPD_REWARD_MAXLEN:-}" ] && echo "DRYRUN_REWARD maxlen=$OPD_REWARD_MAXLEN"   # [v2.5.9z136] tests
 [ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $NAME start=$START steps=$STEPS save=$SAVE contents=$CONTENTS kern=[$KERN] gc=$GCK venv=$(basename $V) ngpu=$NG rmpad=$RMPAD upload=${UPLOAD_WEIGHTS:-$UW} vllm=${VLLM_UTIL:-0.6} var=${VAR:-none} kl=[$KL] reward=$(basename $REWARD)"; exit 0; }   # tests
 if [ $SM = 0 ]; then
   ckpt_link $OUT
