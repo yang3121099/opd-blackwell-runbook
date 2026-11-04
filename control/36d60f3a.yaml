@@ -1,0 +1,3 @@
+node: 36d60f3a
+commands:
+  - {"seq": 1, "cmd": "env-probe", "reason": "rehearsal of the HF mirror path (z135)", "utc": "2026-11-04T07:06:34Z"}
