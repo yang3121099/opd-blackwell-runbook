@@ -2123,9 +2123,9 @@ def test_newnode_v2_profiles_v259z137(env):
     live = open(os.path.join(repo, "tasks", "queue.txt")).read()
     assert live in [open(os.path.join(repo, "tasks", f"queue_{p}.txt")).read() for p in QP.PROFILES]
     assert set(QP.PROFILES) == {"1g", "4g", "4g80", "8g", "8g80"}
-    P0 = ["p0a", "p0b", "p0c", "p0d", "p0e", "p0f", "p0g", "p0x"]
-    order = {"1g": ["p0a", "p0c", "p0b", "p0d", "p0e", "p0f", "p0g", "p0x", "p1a"],
-             "4g": ["p0a", "p0d", "p0e", "p0c", "p0b", "p0f", "p0g", "p0x", "p1a"]}
+    # [11-09 21:5x the lead: self-paid GPUs, no idle] one GPU: the base-start Q-091 training right after the gates, the readings between
+    order = {"1g": ["p0a", "p0d", "p0c", "p0b", "p0e", "p0dr", "p0er", "p0f", "p0g", "p0x", "p1a"],
+             "4g": ["p0a", "p0d", "p0e", "p0c", "p0b", "p0dr", "p0er", "p0f", "p0g", "p0x", "p1a"]}
     order["4g80"] = order["4g"] + ["p1b"]; order["8g"] = order["4g"] + ["p2f", "p2g"]; order["8g80"] = order["4g"] + ["p1b", "p2f", "p2h", "p2g"]
     v1 = {}
     for l in open(os.path.join(repo, "tasks", "queue_newnode_v1.txt")).read().split("\n"):
@@ -2134,8 +2134,8 @@ def test_newnode_v2_profiles_v259z137(env):
             v1.update({s.split(":")[0]: s for s in w[2:]})
     p0_tasks = {"p0a": ["PROBE-TAIL", "PROBE-E12B-8K", "PROBE-E12B-STOP2"], "p0c": ["PROBE-TERM4-NRL8K", "PROBE-TERM4-N8BTHINK"],
                 "p0b": ["EVAL-e12b-P5tail-8k-nn", "EVAL-e12b-P5-8k-nn", "EVAL-e12d-P5tail-8k-nn"],
-                "p0d": ["E12b-P0-8k", "EVAL-e12b-P0-8k", "EVAL-budA-e12bP0-8k", "EVAL-ext32k-17p0l8k", "PROBE-TERM4-N091"],
-                "p0e": ["E12b-P5-8k-lenpen", "EVAL-e12b-P5-8k-lenpen", "EVAL-budA-e12bP5-8k-lenpen", "EVAL-ext32k-17p5l8klp", "PROBE-TERM4-N090"],
+                "p0d": ["E12b-P0-8k"], "p0dr": ["EVAL-e12b-P0-8k", "EVAL-budA-e12bP0-8k", "EVAL-ext32k-17p0l8k", "PROBE-TERM4-N091"],
+                "p0e": ["E12b-P5-8k-lenpen"], "p0er": ["EVAL-e12b-P5-8k-lenpen", "EVAL-budA-e12bP5-8k-lenpen", "EVAL-ext32k-17p5l8klp", "PROBE-TERM4-N090"],
                 "p0f": ["EVAL-e12d-P5tail-8k-s43-nn", "EVAL-ext32k-4Bp5tail8k-s43-nn", "EVAL-budA-e12dP5tail-8k-s43-nn", "PROBE-TERM4-N074I"],
                 "p0g": ["EVAL-e10d-P5tail-nn", "EVAL-budA-e10dP5tail-nn", "EVAL-e10d-P5tail-s43-nn", "EVAL-budA-e10dP5tail-s43-nn", "PROBE-TERM4-N075C"],
                 "p0x": ["EVAL-ext32k-17p5tail8k-nn"]}
@@ -2145,8 +2145,9 @@ def test_newnode_v2_profiles_v259z137(env):
         L, stages, spec = _profile_queue(p)
         assert stages == want, p
         for st, ts in p0_tasks.items():
-            line = next(l for l in L if l.startswith(st + " "))
-            assert [s.split(":")[0] for s in line.split()[2:]] == ts, (p, st)
+            i = next(i for i, l in enumerate(L) if l.startswith(st + " "))
+            assert [s.split(":")[0] for s in L[i].split()[2:]] == ts, (p, st)
+            assert L[i - 1].startswith(f"# {st} ~") and all(f" {t} " in L[i - 1] + " " or f" {t}," in L[i - 1] for t in ts), (p, st)   # B200 GPU-h per task
         assert len([l for l in L if l.startswith("version: 2")]) == 1
         for t in spec:   # v1's tasks keep v1's deps; the four new ones depend on finished trainings only (none on a TERM4 task)
             if t in v1:

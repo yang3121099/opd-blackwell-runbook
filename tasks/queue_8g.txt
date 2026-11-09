@@ -2,22 +2,38 @@
 # Written by scripts/queue_profiles.py (lab WO-001; v3 workflow 7.2) from tasks/queue_newnode_v1.txt + its new rows: edit the
 # generator, not this file. Profiles 1g / 4g / 4g80 / 8g / 8g80; at T0, before cold_start.sh: `python3 scripts/queue_profiles.py
 # --select <profile>` copies tasks/queue_<profile>.txt to tasks/queue.txt (one commit, main + hf). Under 80 GB: no 4B / 8B training.
-# Stages: p0a gates, p0b same-machine anchors, p0c TERM4 (NRL8K, 8B think), p0d Q-091, p0e Q-090, p0f Q-074i, p0g Q-075c, p0x the
-# 1.7B chain's AIME 32K anchor, p1a 2 x 2 beyond arms, p1b Q-074e (8B, 4 GPUs), p2f Q-074f, p2h Q-074h, p2g Q-074g. Open stages
-# start in file order, one task per free GPU set; a waiting multi-GPU task holds the GPUs as they free.
+# Stages: p0a gates, p0b same-machine anchors, p0c TERM4 (NRL8K, 8B think), p0d / p0dr Q-091 training / readings, p0e / p0er Q-090
+# training / readings, p0f Q-074i, p0g Q-075c, p0x the 1.7B chain's AIME 32K anchor, p1a 2 x 2 beyond arms, p1b Q-074e (8B, 4 GPUs),
+# p2f Q-074f, p2h Q-074h, p2g Q-074g; "# <stage> ~N B200 GPU-h" over each stage. Open stages start in file order, one task per free
+# GPU set; a waiting multi-GPU task holds the GPUs as they free.
+# Memory keys: one card >= 140 GB (B200 ~180 GB) -> bootstrap.sh --profile 140g, or those export lines into $OPD_ROOT/control.env by
+# hand before setup (Fable 11-03: GC=0, LOGP_MB=4, VLLM_UTIL=0.5 on the B300 numerics); 80 GB cards -> --profile 80g.
 # Hard conditions of every arm (as in v1): its starts local (.fetch_ok; the #fetch block), its local gate PASS (the deps), stage open;
 # a multi-GPU arm only after the running ones show 5 steps without OOM and a median step <= 2 x its #steptime.
 # -nn names (Fable 11-03): the lost H800 may still upload under the old names; before T0 the executor checks -pub once: an original's
 # s50 .done already there -> pause the -nn row and point its readings back at the original (a one-word diff, pre-approved).
 version: 2
+# p0a ~0.9 B200 GPU-h: PROBE-TAIL 0.3, PROBE-E12B-8K 0.3, PROBE-E12B-STOP2 0.3
 p0a        open   PROBE-TAIL PROBE-E12B-8K PROBE-E12B-STOP2
-p0d        open   E12b-P0-8k:PROBE-E12B-8K EVAL-e12b-P0-8k:E12b-P0-8k EVAL-budA-e12bP0-8k:E12b-P0-8k EVAL-ext32k-17p0l8k:E12b-P0-8k PROBE-TERM4-N091:EVAL-e12b-P0-8k
-p0e        open   E12b-P5-8k-lenpen:PROBE-E12B-8K+PROBE-E12B-STOP2+E10b-P5 EVAL-e12b-P5-8k-lenpen:E12b-P5-8k-lenpen EVAL-budA-e12bP5-8k-lenpen:E12b-P5-8k-lenpen EVAL-ext32k-17p5l8klp:E12b-P5-8k-lenpen PROBE-TERM4-N090:EVAL-e12b-P5-8k-lenpen
+# p0d ~3.0 B200 GPU-h: E12b-P0-8k 3
+p0d        open   E12b-P0-8k:PROBE-E12B-8K
+# p0e ~3.0 B200 GPU-h: E12b-P5-8k-lenpen 3
+p0e        open   E12b-P5-8k-lenpen:PROBE-E12B-8K+PROBE-E12B-STOP2+E10b-P5
+# p0c ~1.3 B200 GPU-h: PROBE-TERM4-NRL8K 1, PROBE-TERM4-N8BTHINK 0.3
 p0c        open   PROBE-TERM4-NRL8K PROBE-TERM4-N8BTHINK
+# p0b ~2.9 B200 GPU-h: EVAL-e12b-P5tail-8k-nn 1.2, EVAL-e12b-P5-8k-nn 1.2, EVAL-e12d-P5tail-8k-nn 0.5
 p0b        open   EVAL-e12b-P5tail-8k-nn:E12b-P5tail-8k EVAL-e12b-P5-8k-nn:E12b-P5-8k EVAL-e12d-P5tail-8k-nn:E12d-P5tail-8k
+# p0dr ~4.0 B200 GPU-h: EVAL-e12b-P0-8k 1.2, EVAL-budA-e12bP0-8k 1, EVAL-ext32k-17p0l8k 1.5, PROBE-TERM4-N091 0.3
+p0dr       open   EVAL-e12b-P0-8k:E12b-P0-8k EVAL-budA-e12bP0-8k:E12b-P0-8k EVAL-ext32k-17p0l8k:E12b-P0-8k PROBE-TERM4-N091:EVAL-e12b-P0-8k
+# p0er ~3.4 B200 GPU-h: EVAL-e12b-P5-8k-lenpen 1, EVAL-budA-e12bP5-8k-lenpen 0.8, EVAL-ext32k-17p5l8klp 1.3, PROBE-TERM4-N090 0.3
+p0er       open   EVAL-e12b-P5-8k-lenpen:E12b-P5-8k-lenpen EVAL-budA-e12bP5-8k-lenpen:E12b-P5-8k-lenpen EVAL-ext32k-17p5l8klp:E12b-P5-8k-lenpen PROBE-TERM4-N090:EVAL-e12b-P5-8k-lenpen
+# p0f ~3.7 B200 GPU-h: EVAL-e12d-P5tail-8k-s43-nn 1.5, EVAL-ext32k-4Bp5tail8k-s43-nn 1.3, EVAL-budA-e12dP5tail-8k-s43-nn 0.6, PROBE-TERM4-N074I 0.3
 p0f        open   EVAL-e12d-P5tail-8k-s43-nn:E12d-P5tail-8k-s43+EVAL-e12d-P5tail-8k+EVAL-e10d-P5tail-s43 EVAL-ext32k-4Bp5tail8k-s43-nn:E12d-P5tail-8k-s43+EVAL-ext32k-4Bp5tail8k+EVAL-ext32k-4Bp5tail-s43 EVAL-budA-e12dP5tail-8k-s43-nn:E12d-P5tail-8k-s43+EVAL-budA-4B+EVAL-budA-e10dP5tail-s43+EVAL-budA-e12dP5tail-8k PROBE-TERM4-N074I:EVAL-e12d-P5tail-8k-s43-nn
+# p0g ~4.9 B200 GPU-h: EVAL-e10d-P5tail-nn 0.75, EVAL-budA-e10dP5tail-nn 1.2, EVAL-e10d-P5tail-s43-nn 0.75, EVAL-budA-e10dP5tail-s43-nn 1.2, PROBE-TERM4-N075C 1
 p0g        open   EVAL-e10d-P5tail-nn:E10d-P5tail EVAL-budA-e10dP5tail-nn:E10d-P5tail EVAL-e10d-P5tail-s43-nn:E10d-P5tail-s43 EVAL-budA-e10dP5tail-s43-nn:E10d-P5tail-s43 PROBE-TERM4-N075C
+# p0x ~1.5 B200 GPU-h: EVAL-ext32k-17p5tail8k-nn 1.5
 p0x        open   EVAL-ext32k-17p5tail8k-nn:E12b-P5tail-8k
+# p1a ~10.6 B200 GPU-h: PROBE-FRET 0.5, E10b-P5fret 2.5, E10b-P5topd 2.5, E10b-P5fret-topd 2.5, EVAL-e10b-P5fret 0.7, EVAL-e10b-P5topd 0.7, EVAL-e10b-P5fret-topd 0.7, PROBE-TERM4-FRET 0.5
 p1a        open   PROBE-FRET E10b-P5fret:PROBE-FRET E10b-P5topd:PROBE-FRET E10b-P5fret-topd:PROBE-FRET EVAL-e10b-P5fret:E10b-P5fret EVAL-e10b-P5topd:E10b-P5topd EVAL-e10b-P5fret-topd:E10b-P5fret-topd PROBE-TERM4-FRET:EVAL-e10b-P5fret+EVAL-e10b-P5topd+EVAL-e10b-P5fret-topd
 p2f        open   PROBE-E12C-8K EVAL-e12c-P5-8k:E12c-P5-8k+EVAL-e10c-P5-fix4+EVAL-e12c-P5 E12c-P5tail-8k-nn:PROBE-E12C-8K+PROBE-E12B-8K+E10c-P5tail-c50 EVAL-e12c-P5tail-8k-nn:E12c-P5tail-8k-nn+EVAL-e12c-P5-8k+EVAL-e10c-P5tail-c50 EVAL-budA-e12cP5tail-8k-nn:E12c-P5tail-8k-nn EVAL-ext32k-06p5tail8k-nn:E12c-P5tail-8k-nn+EVAL-ext32k-06tail-c50 PROBE-TERM4-N074F:EVAL-e12c-P5tail-8k-nn
 p2g        open   E10b-P5tail-s44:PROBE-TAIL E12b-P5tail-8k-s44:PROBE-E12B-8K+E10b-P5tail-s44 EVAL-tail-s44:E10b-P5tail-s44+EVAL-tail+EVAL-tail-s43 EVAL-ext32k-17tail-s44:E10b-P5tail-s44+EVAL-ext32k-17tail+EVAL-ext32k-17tail-s43 EVAL-e12b-P5tail-8k-s44:E12b-P5tail-8k-s44+EVAL-e12b-P5tail-8k+EVAL-tail-s44 EVAL-budA-e12bP5tail-8k-s44:E12b-P5tail-8k-s44+EVAL-budA-e12bP5tail-8k+EVAL-tail-s44 EVAL-ext32k-17p5tail8k-s44:E12b-P5tail-8k-s44+EVAL-ext32k-17p5tail8k+EVAL-ext32k-17tail-s44

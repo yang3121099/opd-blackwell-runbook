@@ -5,7 +5,8 @@ tasks/queue_newnode_v1.txt (z136's live queue, kept unchanged for provenance), p
 anchors, the 1.7B chain's AIME 32K anchor, the 8B base model's thinking-mode TERM4). tasks/queue.txt is a copy of one of them
 (1g until a machine arrives); every node-side reader keeps reading tasks/queue.txt, nothing on the node changes.
 
-  1g    one GPU: P0 in series a > c > b > d > e > f > g (+ the AIME anchor), then P1-a; no multi-GPU task
+  1g    one GPU (the default; a B200 ~180 GB with profiles/140g.env): P0 in series, the trainings interleaved with the readings
+        (a, d-train, c, b, e-train, d / e readings, f, g, the AIME anchor), then P1-a; no multi-GPU task
   4g    2-4 GPUs, or 4 under 80 GB: P0 in parallel (gates, then the two trainings, then the readings), then P1-a
   4g80  4 x 80 GB: 4g + P1-b (the 8B chain Q-074e on 4 GPUs, its gate PROBE-E12E-8K)
   8g    8 GPUs under 80 GB: P0 + P1-a, then P2 without 4B training (Q-074f, Q-074g)
@@ -31,10 +32,11 @@ STAGES = {
     # P0-b same-machine anchors: the 1.7B chain s50 and the 1.7B RL-only s50 at 16K T0.6 / T1.0, the 4B chain s50 at 16K (table 1's CI)
     "p0b": ["EVAL-e12b-P5tail-8k-nn:E12b-P5tail-8k", "EVAL-e12b-P5-8k-nn:E12b-P5-8k", "src:EVAL-e12d-P5tail-8k-nn"],
     # P0-d Q-091 E12b-P0-8k + its readings (research_program 3s)
-    "p0d": ["src:E12b-P0-8k", "src:EVAL-e12b-P0-8k", "src:EVAL-budA-e12bP0-8k", "src:EVAL-ext32k-17p0l8k", "src:PROBE-TERM4-N091"],
+    "p0d": ["src:E12b-P0-8k"],
+    "p0dr": ["src:EVAL-e12b-P0-8k", "src:EVAL-budA-e12bP0-8k", "src:EVAL-ext32k-17p0l8k", "src:PROBE-TERM4-N091"],
     # P0-e Q-090 E12b-P5-8k-lenpen + its readings
-    "p0e": ["src:E12b-P5-8k-lenpen", "src:EVAL-e12b-P5-8k-lenpen", "src:EVAL-budA-e12bP5-8k-lenpen", "src:EVAL-ext32k-17p5l8klp",
-            "src:PROBE-TERM4-N090"],
+    "p0e": ["src:E12b-P5-8k-lenpen"],
+    "p0er": ["src:EVAL-e12b-P5-8k-lenpen", "src:EVAL-budA-e12bP5-8k-lenpen", "src:EVAL-ext32k-17p5l8klp", "src:PROBE-TERM4-N090"],
     # P0-f Q-074i's three readings (the 4B second start) + its TERM4
     "p0f": ["src:EVAL-e12d-P5tail-8k-s43-nn", "src:EVAL-ext32k-4Bp5tail8k-s43-nn", "src:EVAL-budA-e12dP5tail-8k-s43-nn",
             "src:PROBE-TERM4-N074I"],
@@ -57,8 +59,24 @@ STAGES = {
     "p2g": ["src:E10b-P5tail-s44", "src:E12b-P5tail-8k-s44", "src:EVAL-tail-s44", "src:EVAL-ext32k-17tail-s44", "src:EVAL-e12b-P5tail-8k-s44",
             "src:EVAL-budA-e12bP5tail-8k-s44", "src:EVAL-ext32k-17p5tail8k-s44"],
 }
-P0_SERIAL = ["p0a", "p0c", "p0b", "p0d", "p0e", "p0f", "p0g", "p0x"]   # v3 7.2: a > c > b > d > e > f > g
-P0_PARALLEL = ["p0a", "p0d", "p0e", "p0c", "p0b", "p0f", "p0g", "p0x"]  # the two ~8 GPU-h trainings take GPUs right after the gates
+# [11-09 21:5x, the lead: GPUs are self-paid, no idle GPU; readings and trainings interleaved] one GPU: the Q-091 training first (it
+# starts from the base model, so nothing waits on a download), then c and b while the next starts are local, then the Q-090
+# training, then the two trainings' readings (their same-machine anchors already there), f, g; v3's a > c > b > d > e > f > g kept
+# for the readings. On several GPUs the two trainings take GPUs right after the gates, the readings fill the others.
+P0_SERIAL = ["p0a", "p0d", "p0c", "p0b", "p0e", "p0dr", "p0er", "p0f", "p0g", "p0x"]
+P0_PARALLEL = ["p0a", "p0d", "p0e", "p0c", "p0b", "p0dr", "p0er", "p0f", "p0g", "p0x"]
+# B200 GPU-hours per task (one B200 ~ one B300 card; the B300's measured gen_seconds: 1.7B MATH-500 16K n4 ~0.7 h, 4B ~0.5 h, AIME
+# 32K avg@16 0.7-1.6 h a benchmark, budA 32K 0.6-1.2 h; trainings 50 steps on one card from the H800-era 5 h at ~1.9x the H800's
+# generation speed; gates from v3's 1.5 H800 GPU-h). Written as a comment over each stage; env-probe's step time replaces them.
+EST = {"PROBE-TAIL": 0.3, "PROBE-E12B-8K": 0.3, "PROBE-E12B-STOP2": 0.3, "E12b-P0-8k": 3.0, "PROBE-TERM4-NRL8K": 1.0,
+       "PROBE-TERM4-N8BTHINK": 0.3, "EVAL-e12b-P5tail-8k-nn": 1.2, "EVAL-e12b-P5-8k-nn": 1.2, "EVAL-e12d-P5tail-8k-nn": 0.5,
+       "E12b-P5-8k-lenpen": 3.0, "EVAL-e12b-P0-8k": 1.2, "EVAL-budA-e12bP0-8k": 1.0, "EVAL-ext32k-17p0l8k": 1.5, "PROBE-TERM4-N091": 0.3,
+       "EVAL-e12b-P5-8k-lenpen": 1.0, "EVAL-budA-e12bP5-8k-lenpen": 0.8, "EVAL-ext32k-17p5l8klp": 1.3, "PROBE-TERM4-N090": 0.3,
+       "EVAL-e12d-P5tail-8k-s43-nn": 1.5, "EVAL-ext32k-4Bp5tail8k-s43-nn": 1.3, "EVAL-budA-e12dP5tail-8k-s43-nn": 0.6,
+       "PROBE-TERM4-N074I": 0.3, "EVAL-e10d-P5tail-nn": 0.75, "EVAL-budA-e10dP5tail-nn": 1.2, "EVAL-e10d-P5tail-s43-nn": 0.75,
+       "EVAL-budA-e10dP5tail-s43-nn": 1.2, "PROBE-TERM4-N075C": 1.0, "EVAL-ext32k-17p5tail8k-nn": 1.5,
+       "PROBE-FRET": 0.5, "E10b-P5fret": 2.5, "E10b-P5topd": 2.5, "E10b-P5fret-topd": 2.5, "EVAL-e10b-P5fret": 0.7,
+       "EVAL-e10b-P5topd": 0.7, "EVAL-e10b-P5fret-topd": 0.7, "PROBE-TERM4-FRET": 0.5}   # P1-a arms: #steptime 180 s x 50 steps
 PROFILES = {
     "1g": P0_SERIAL + ["p1a"],
     "4g": P0_PARALLEL + ["p1a"],
@@ -91,15 +109,18 @@ HEADER = """\
 # Written by scripts/queue_profiles.py (lab WO-001; v3 workflow 7.2) from tasks/queue_newnode_v1.txt + its new rows: edit the
 # generator, not this file. Profiles 1g / 4g / 4g80 / 8g / 8g80; at T0, before cold_start.sh: `python3 scripts/queue_profiles.py
 # --select <profile>` copies tasks/queue_<profile>.txt to tasks/queue.txt (one commit, main + hf). Under 80 GB: no 4B / 8B training.
-# Stages: p0a gates, p0b same-machine anchors, p0c TERM4 (NRL8K, 8B think), p0d Q-091, p0e Q-090, p0f Q-074i, p0g Q-075c, p0x the
-# 1.7B chain's AIME 32K anchor, p1a 2 x 2 beyond arms, p1b Q-074e (8B, 4 GPUs), p2f Q-074f, p2h Q-074h, p2g Q-074g. Open stages
-# start in file order, one task per free GPU set; a waiting multi-GPU task holds the GPUs as they free.
+# Stages: p0a gates, p0b same-machine anchors, p0c TERM4 (NRL8K, 8B think), p0d / p0dr Q-091 training / readings, p0e / p0er Q-090
+# training / readings, p0f Q-074i, p0g Q-075c, p0x the 1.7B chain's AIME 32K anchor, p1a 2 x 2 beyond arms, p1b Q-074e (8B, 4 GPUs),
+# p2f Q-074f, p2h Q-074h, p2g Q-074g; "# <stage> ~N B200 GPU-h" over each stage. Open stages start in file order, one task per free
+# GPU set; a waiting multi-GPU task holds the GPUs as they free.
+# Memory keys: one card >= 140 GB (B200 ~180 GB) -> bootstrap.sh --profile 140g, or those export lines into $OPD_ROOT/control.env by
+# hand before setup (Fable 11-03: GC=0, LOGP_MB=4, VLLM_UTIL=0.5 on the B300 numerics); 80 GB cards -> --profile 80g.
 # Hard conditions of every arm (as in v1): its starts local (.fetch_ok; the #fetch block), its local gate PASS (the deps), stage open;
 # a multi-GPU arm only after the running ones show 5 steps without OOM and a median step <= 2 x its #steptime.
 # -nn names (Fable 11-03): the lost H800 may still upload under the old names; before T0 the executor checks -pub once: an original's
 # s50 .done already there -> pause the -nn row and point its readings back at the original (a one-word diff, pre-approved).
 """
-WHAT = {"1g": "one GPU, P0 in series a > c > b > d > e > f > g, then P1-a",
+WHAT = {"1g": "one GPU (B200 default, profiles/140g.env), P0 in series with the trainings interleaved, then P1-a",
         "4g": "2-4 GPUs (or 4 under 80 GB), P0 in parallel, then P1-a",
         "4g80": "4 x 80 GB, P0 in parallel, then P1-a and P1-b (8B on 4 GPUs)",
         "8g": "8 GPUs under 80 GB, P0 + P1-a, then P2 without 4B training",
@@ -129,6 +150,9 @@ def render(p):
     for st in PROFILES[p]:
         ss = stage_specs(st, spec)
         tasks += [s.split(":")[0] for s in ss]
+        est = [(s.split(":")[0], EST[s.split(":")[0]]) for s in ss if s.split(":")[0] in EST]
+        if est:
+            out.append(f"# {st} ~{sum(h for _, h in est):.1f} B200 GPU-h: " + ", ".join(f"{t} {h:g}" for t, h in est))
         out.append(f"{st:<10} open   " + " ".join(ss))
     have = set(tasks)
     out.append("")
