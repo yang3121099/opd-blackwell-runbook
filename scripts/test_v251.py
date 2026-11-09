@@ -2046,7 +2046,7 @@ def test_newnode_v1_queue_v259z130(env):
     one GPU, PROBE-E12E-8K without PROBE-E12B-8K, the gates' smoke starts and EVAL-e12c-P5-8k's steps fetched, EVAL-e12c-P5-8k in
     front of Q-074f, one TERM4 task per chain arm, and the -nn names (the originals' s25 alone stays: E12e-P5tail-8k-nn continues it)."""
     here = os.path.dirname(os.path.abspath(__file__)); repo = os.path.dirname(here)
-    q = open(os.path.join(repo, "tasks", "queue.txt")).read(); L = q.split("\n")
+    q = open(os.path.join(repo, "tasks", "queue_newnode_v1.txt")).read(); L = q.split("\n")   # [v2.5.9z137] v1 kept as the row source of newnode-v2
     assert os.path.exists(os.path.join(repo, "tasks", "queue_archive_20261101.txt"))   # the H800-era queue, for provenance
     spec = {}
     for l in L:
@@ -2097,3 +2097,99 @@ def test_newnode_v1_queue_v259z130(env):
         assert not re.search(r"(?<![A-Za-z0-9._/-])" + re.escape(old) + r"(?![A-Za-z0-9._-])", "\n".join(l for l in L if not l.startswith("# ")))
     assert "result:runs/E12e-P5tail-8k/global_step_50/" not in q and "result:runs/E12e-P5tail-8k-nn/global_step_25/" in q
     assert "result:runs/E12c-P5tail-8k/" not in q
+
+
+def _profile_queue(p):
+    here = os.path.dirname(os.path.abspath(__file__))
+    L = open(os.path.join(os.path.dirname(here), "tasks", f"queue_{p}.txt")).read().split("\n")
+    stages, spec = [], {}
+    for l in L:
+        w = l.split()
+        if len(w) >= 3 and not l.startswith("#") and w[1] in ("open", "auto", "locked"):
+            stages.append(w[0])
+            for s in w[2:]:
+                n, _, d = s.partition(":"); spec[n] = [x for x in d.split("+") if x]
+    return L, stages, spec
+
+
+def test_newnode_v2_profiles_v259z137(env):
+    """[v2.5.9z137] (lab WO-001; v3 workflow 7.2) newnode-v2: five queue profiles written by queue_profiles.py from v1 + the new rows;
+    the committed files are what the generator writes, tasks/queue.txt is one of them; P0 first in every profile, 1g in the series
+    a > c > b > d > e > f > g, the parallel profiles with the two trainings right after the gates; P1-b only on 4 / 8 x 80 GB, P2 only
+    on 8 GPUs, no 4B / 8B training under 80 GB; every task accepted by run, every row's task in a stage, v1's specs unchanged."""
+    import queue_profiles as QP
+    here = os.path.dirname(os.path.abspath(__file__)); repo = os.path.dirname(here)
+    assert QP.main(["--check"]) == 0, "tasks/queue_<profile>.txt is stale: run python3 scripts/queue_profiles.py"
+    live = open(os.path.join(repo, "tasks", "queue.txt")).read()
+    assert live in [open(os.path.join(repo, "tasks", f"queue_{p}.txt")).read() for p in QP.PROFILES]
+    assert set(QP.PROFILES) == {"1g", "4g", "4g80", "8g", "8g80"}
+    P0 = ["p0a", "p0b", "p0c", "p0d", "p0e", "p0f", "p0g", "p0x"]
+    order = {"1g": ["p0a", "p0c", "p0b", "p0d", "p0e", "p0f", "p0g", "p0x", "p1a"],
+             "4g": ["p0a", "p0d", "p0e", "p0c", "p0b", "p0f", "p0g", "p0x", "p1a"]}
+    order["4g80"] = order["4g"] + ["p1b"]; order["8g"] = order["4g"] + ["p2f", "p2g"]; order["8g80"] = order["4g"] + ["p1b", "p2f", "p2h", "p2g"]
+    v1 = {}
+    for l in open(os.path.join(repo, "tasks", "queue_newnode_v1.txt")).read().split("\n"):
+        w = l.split()
+        if len(w) >= 3 and not l.startswith("#") and w[1] == "open":
+            v1.update({s.split(":")[0]: s for s in w[2:]})
+    p0_tasks = {"p0a": ["PROBE-TAIL", "PROBE-E12B-8K", "PROBE-E12B-STOP2"], "p0c": ["PROBE-TERM4-NRL8K", "PROBE-TERM4-N8BTHINK"],
+                "p0b": ["EVAL-e12b-P5tail-8k-nn", "EVAL-e12b-P5-8k-nn", "EVAL-e12d-P5tail-8k-nn"],
+                "p0d": ["E12b-P0-8k", "EVAL-e12b-P0-8k", "EVAL-budA-e12bP0-8k", "EVAL-ext32k-17p0l8k", "PROBE-TERM4-N091"],
+                "p0e": ["E12b-P5-8k-lenpen", "EVAL-e12b-P5-8k-lenpen", "EVAL-budA-e12bP5-8k-lenpen", "EVAL-ext32k-17p5l8klp", "PROBE-TERM4-N090"],
+                "p0f": ["EVAL-e12d-P5tail-8k-s43-nn", "EVAL-ext32k-4Bp5tail8k-s43-nn", "EVAL-budA-e12dP5tail-8k-s43-nn", "PROBE-TERM4-N074I"],
+                "p0g": ["EVAL-e10d-P5tail-nn", "EVAL-budA-e10dP5tail-nn", "EVAL-e10d-P5tail-s43-nn", "EVAL-budA-e10dP5tail-s43-nn", "PROBE-TERM4-N075C"],
+                "p0x": ["EVAL-ext32k-17p5tail8k-nn"]}
+    benches = R.BENCHES
+    seq = 900
+    for p, want in order.items():
+        L, stages, spec = _profile_queue(p)
+        assert stages == want, p
+        for st, ts in p0_tasks.items():
+            line = next(l for l in L if l.startswith(st + " "))
+            assert [s.split(":")[0] for s in line.split()[2:]] == ts, (p, st)
+        assert len([l for l in L if l.startswith("version: 2")]) == 1
+        for t in spec:   # v1's tasks keep v1's deps; the four new ones depend on finished trainings only (none on a TERM4 task)
+            if t in v1:
+                assert ":".join([t, "+".join(spec[t])]).rstrip(":") == v1[t], (p, t)
+        assert spec["PROBE-TERM4-N8BTHINK"] == [] and spec["EVAL-e12b-P5tail-8k-nn"] == ["E12b-P5tail-8k"]
+        assert spec["EVAL-e12b-P5-8k-nn"] == ["E12b-P5-8k"] and spec["EVAL-ext32k-17p5tail8k-nn"] == ["E12b-P5tail-8k"]
+        rows = [l.split() for l in L if l.split()[:1] and l.split()[0] in ("#eval", "#pair", "#budget", "#term", "#gpus", "#steptime")]
+        assert all(r[1] in spec for r in rows), p                                 # no row of a task the profile leaves out
+        evals = {r[1] for r in rows if r[0] == "#eval"}; terms = {r[1] for r in rows if r[0] == "#term"}
+        assert {t for t in spec if t.startswith("EVAL-")} <= evals and {t for t in spec if t.startswith("PROBE-TERM4-")} <= terms, p
+        assert not sorted({r[4] for r in rows if r[0] == "#eval" and r[4] not in benches}), p
+        outs = _eval_outputs(L)
+        assert not [r[-1] for r in rows if r[0] == "#term" and r[-1].endswith(".jsonl") and r[-1].split("/")[0] in evals and r[-1] not in outs]
+        multi = {r[1] for r in rows if r[0] == "#gpus"}
+        if p in ("1g", "4g"):
+            assert not multi, p                                                   # one-GPU rows only
+        trains4b8b = [t for t in spec if re.match(r"E1[02][de]-", t)]
+        if not p.endswith("80"):
+            assert not trains4b8b, (p, trains4b8b)                                # under 80 GB: no 4B / 8B training
+        assert ("p1b" in stages) == (p in ("4g80", "8g80")) and any(s.startswith("p2") for s in stages) == p.startswith("8g")
+        fetch = [l.split()[1] for l in L if l.startswith("#fetch ")]
+        assert len(fetch) == len(set(fetch)) and fetch[:2] == ["result:runs/E10b-P5/global_step_150/actor/huggingface",
+                                                             "result:runs/E10b-P5tail/global_step_50/actor/huggingface"]
+        for s in ("E12b-P5-8k/global_step_50", "E12b-P5tail-8k/global_step_50", "E12d-P5tail-8k/global_step_50", "E12d-P5tail-8k-s43/global_step_50",
+                  "E10d-P5tail/global_step_50", "E10d-P5tail-s43/global_step_50"):
+            assert f"result:runs/{s}/actor/huggingface" in fetch, (p, s)       # every P0 start / reading weight pulled ahead
+        assert ("result:runs/E12e-P5tail-8k/global_step_25/actor/huggingface" in fetch) == ("p1b" in stages)
+        for t in sorted(spec):
+            st, msg, _ = env.c.v_run([t], seq); seq += 1
+            assert st == "accepted", (p, t, msg)
+    L, _, _ = _profile_queue("8g80")
+    assert "#term PROBE-TERM4-N8BTHINK 8B_P0think Qwen/Qwen3-8B EVAL-budA-8Bthink/budA8B_think_math500_T0.6_32k_math500_think_t0.6.jsonl think" in L
+    _, _, s8 = _profile_queue("8g80")
+    assert set(v1) <= set(s8) and len(s8) == len(v1) + 4                         # 8g80 = all of v1 + the four new tasks
+
+
+def test_queue_profiles_select_v259z137(tmp_path, monkeypatch):   # [v2.5.9z137] --select copies one profile; a bad name is refused
+    import queue_profiles as QP
+    (tmp_path / "tasks").mkdir()
+    for p in QP.PROFILES:
+        (tmp_path / "tasks" / f"queue_{p}.txt").write_text(f"version: 2\n# {p}\n")
+    monkeypatch.setattr(QP, "RB", str(tmp_path))
+    assert QP.main(["--select", "4g80"]) == 0 and (tmp_path / "tasks" / "queue.txt").read_text() == "version: 2\n# 4g80\n"
+    with pytest.raises(SystemExit):
+        QP.main(["--select", "16g"])
+    assert (tmp_path / "tasks" / "queue.txt").read_text() == "version: 2\n# 4g80\n"
