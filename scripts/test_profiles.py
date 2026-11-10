@@ -90,4 +90,5 @@ def test_verify_smoke_on_the_main_venv_until_venv_fa_exists_v259z126(tmp_path):
 
 def test_140g_is_the_b300_numerics_with_the_memory_keys_z137():   # [v2.5.9z137] Fable 11-03's ruling for one card >= 140 GB (B200)
     kv = _kv(os.path.join(REPO, "profiles", "140g.env"))
-    assert kv == {"VENV": "fa", "FIXED_MICRO_BSZ": "4", "GC": "0", "LOGP_MB": "4", "VLLM_UTIL": "0.5"}
+    assert kv == {"VENV": "fa", "FIXED_MICRO_BSZ": "4", "GC": "0", "LOGP_MB": "4", "VLLM_UTIL": "0.5",
+                  "DISK_ALERT_GB": "150", "READINGS_DISK_MIN_GB": "150"}   # [z141] a ~1 TB data disk
