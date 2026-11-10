@@ -114,7 +114,8 @@ fi
 DONE=$OPD/control/coldstart_done.txt
 want 3 && { [ -f $DONE ] || $PY $RB/scripts/coldstart_hf.py status "$PRIV" "$NODE" $DONE | tee -a $LOG; }
 M=$RB/tasks/coldstart.json   # the committed first version; regenerated from the queue this machine pulled, when it is there
-if [ -f $RB/tasks/queue.txt ]; then python3 $RB/scripts/coldstart_manifest.py $RB/tasks/queue.txt $OPD/control/coldstart.json | tee -a $LOG && M=$OPD/control/coldstart.json; fi
+QF=${QUEUE_FILE:-$RB/tasks/queue.txt}   # [z139]
+if [ -f $QF ]; then python3 $RB/scripts/coldstart_manifest.py $QF $OPD/control/coldstart.json | tee -a $LOG && M=$OPD/control/coldstart.json; fi
 if [ -n "$ONLY" ]; then python3 $RB/scripts/coldstart_hf.py only $M "$ONLY" $OPD/control/coldstart_only.json | tee -a $LOG || fail 3 "--only $ONLY"; M=$OPD/control/coldstart_only.json; fi
 
 if want 4; then

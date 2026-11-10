@@ -2122,7 +2122,7 @@ def test_newnode_v2_profiles_v259z137(env):
     assert QP.main(["--check"]) == 0, "tasks/queue_<profile>.txt is stale: run python3 scripts/queue_profiles.py"
     live = open(os.path.join(repo, "tasks", "queue.txt")).read()
     assert live in [open(os.path.join(repo, "tasks", f"queue_{p}.txt")).read() for p in QP.PROFILES]
-    assert set(QP.PROFILES) == {"1g", "4g", "4g80", "8g", "8g80"}
+    assert set(QP.PROFILES) == {"1g", "4g", "4g80", "8g", "8g80", "1gs", "8gs"}   # [z139] + the split pair (own test)
     # [11-09 21:5x the lead: self-paid GPUs, no idle] one GPU: the base-start Q-091 training right after the gates, the readings between
     order = {"1g": ["p0a", "p0d", "p0c", "p0b", "p0e", "p0dr", "p0er", "p0f", "p0g", "p0x", "p1a"],
              "4g": ["p0a", "p0d", "p0e", "p0c", "p0b", "p0dr", "p0er", "p0f", "p0g", "p0x", "p1a"]}
@@ -2182,6 +2182,33 @@ def test_newnode_v2_profiles_v259z137(env):
     assert "#term PROBE-TERM4-N8BTHINK 8B_P0think Qwen/Qwen3-8B EVAL-budA-8Bthink/budA8B_think_math500_T0.6_32k_math500_think_t0.6.jsonl think" in L
     _, _, s8 = _profile_queue("8g80")
     assert set(v1) <= set(s8) and len(s8) == len(v1) + 4                         # 8g80 = all of v1 + the four new tasks
+
+
+def test_split_pair_1gs_8gs_z139():   # [z139] two machines: together 8g80's stages, only the gates on both; 8gs keeps every training
+    import queue_profiles as QP
+    a, b = QP.PROFILES["1gs"], QP.PROFILES["8gs"]
+    assert set(a) | set(b) == set(QP.PROFILES["8g80"]) and set(a) & set(b) == {"p0a"} and a[0] == b[0] == "p0a"
+    assert [s for s in QP.PROFILES["8g80"] if s in b] == b                       # 8g80's order
+    spec, _ = QP.source()
+    ta = {x.split(":")[0] for st in a for x in QP.stage_specs(st, spec)}
+    assert not [t for t in ta if re.match(r"E1\d", t)]                          # no training on the 1-GPU box
+    tb = {x.split(":")[0]: x.split(":")[1].split("+") if ":" in x else [] for st in b for x in QP.stage_specs(st, spec)}
+    trains = {t for t in tb if re.match(r"E1\d", t)}
+    newtrains = trains | {t for st in a for x in QP.stage_specs(st, spec) for t in [x.split(":")[0]] if re.match(r"E1\d", t)}
+    assert all(d in tb for t in tb for d in tb[t] if d in newtrains)              # a new training's readings run where it trains
+    text = QP.render("8gs")
+    assert "#gpus E12e-P5tail-8k-nn 4" in text and "PROBE-TERM4-NRL8K" not in text and "EVAL-e10d-P5tail-nn" not in text
+
+
+def test_queue_file_from_control_queue_name_z139(tmp_path):   # [z139] env.sh: control/queue_name -> QUEUE_FILE; without it unset
+    import subprocess
+    here = os.path.dirname(os.path.abspath(__file__))
+    (tmp_path / "control").mkdir()
+    cmd = f"unset QUEUE_FILE; export OPD_ROOT={tmp_path}; source {here}/env.sh > /dev/null 2>&1; echo \"Q=$QUEUE_FILE\""
+    assert subprocess.run(["bash", "-c", cmd], capture_output=True, text=True).stdout.strip() == "Q="
+    (tmp_path / "control" / "queue_name").write_text("8gs\n")
+    out = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True).stdout.strip()
+    assert out == f"Q={os.path.dirname(here)}/tasks/queue_8gs.txt"
 
 
 def test_queue_profiles_select_v259z137(tmp_path, monkeypatch):   # [v2.5.9z137] --select copies one profile; a bad name is refused

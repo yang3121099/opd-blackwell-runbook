@@ -1,6 +1,6 @@
 # Remote-node task queue, version 2. newnode-v2, profile 4g: 2-4 GPUs (or 4 under 80 GB), P0 in parallel, then P1-a
 # Written by scripts/queue_profiles.py (lab WO-001; v3 workflow 7.2) from tasks/queue_newnode_v1.txt + its new rows: edit the
-# generator, not this file. Profiles 1g / 4g / 4g80 / 8g / 8g80; at T0, before cold_start.sh: `python3 scripts/queue_profiles.py
+# generator, not this file. Profiles 1g / 4g / 4g80 / 8g / 8g80 (+ the split pair 1gs / 8gs, z139); at T0, before cold_start.sh: `python3 scripts/queue_profiles.py
 # --select <profile>` copies tasks/queue_<profile>.txt to tasks/queue.txt (one commit, main + hf). Under 80 GB: no 4B / 8B training.
 # Stages: p0a gates, p0b same-machine anchors, p0c TERM4 (NRL8K, 8B think), p0d / p0dr Q-091 training / readings, p0e / p0er Q-090
 # training / readings, p0f Q-074i, p0g Q-075c, p0x the 1.7B chain's AIME 32K anchor, p1a 2 x 2 beyond arms, p1b Q-074e (8B, 4 GPUs),

@@ -111,6 +111,9 @@ export B300_PTXAS="nvidia-cuda-nvcc-cu12==12.9.86"
 gpu_cap() { nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -1; }
 ptxas_rel() { [ -x "${1:-}" ] && "$1" --version 2>/dev/null | sed -n 's/.*release \([0-9.]*\),.*/\1/p'; }
 if [ -f $OPD_ROOT/triton.env ]; then source $OPD_ROOT/triton.env; fi
+# [z139] a node's own queue: control/queue_name = <profile> -> tasks/queue_<profile>.txt for every queue reader (run_tasks.sh,
+# run_eval.sh, term_probe.sh, cold_start.sh, heartbeat.sh, control.py); without the file tasks/queue.txt as before
+if [ -s $OPD_ROOT/control/queue_name ]; then export QUEUE_FILE=$RUNBOOK/tasks/queue_$(tr -cd 'A-Za-z0-9_' < $OPD_ROOT/control/queue_name).txt; fi
 # v2.4 (ops-1): variables set remotely with `setenv` (control.py; whitelisted keys only), sourced last
 if [ -f $OPD_ROOT/control.env ]; then source $OPD_ROOT/control.env; fi
 # v2.5.7i: a probe's own settings (PROBE_ENV="KEY=VAL ...", set by fa_speed.sh for its variants) win over control.env.

@@ -178,7 +178,8 @@ def commits_last_hour():   # [v2.5.9z124c] remote.commits_last_hour (transfers.j
         return None
 live = live_tasks()
 tasks = {}; stale = []
-queue = open(os.path.join(runbook, "tasks", "queue.txt")).read() if os.path.exists(os.path.join(runbook, "tasks", "queue.txt")) else ""
+_qf = os.environ.get("QUEUE_FILE") or os.path.join(runbook, "tasks", "queue.txt")   # [z139]
+queue = open(_qf).read() if os.path.exists(_qf) else ""
 queue_defs = "\n".join(l for l in queue.splitlines() if not l.lstrip().startswith("#"))   # [v2.5.9o] stage lines only: a name in a comment is no entry
 def in_queue(name):   # [v2.5.9m] "name:dep" entries count too (a task waiting on a dependency was missed and called stale)
     return re.search(r"(^|\s)" + re.escape(name) + r"(\s|$|:)", queue_defs, re.M) is not None
@@ -317,7 +318,7 @@ PY
   if dr_on && [ -d "$(dirname "$(dr_root)")" ]; then
     DS=$(dr_root)/state; mkdir -p $DS
     for f in hf_repos.txt paths.env models.env control.env control/heartbeat_sec; do [ -f $OPD_ROOT/$f ] && cp -p $OPD_ROOT/$f $DS/$(basename $f); done
-    cp -p $RUNBOOK/tasks/queue.txt $DS/queue.txt 2> /dev/null; git -C $RUNBOOK rev-parse HEAD > $DS/runbook_head 2> /dev/null; date -u +%FT%TZ > $DS/utc
+    cp -p ${QUEUE_FILE:-$RUNBOOK/tasks/queue.txt} $DS/queue.txt 2> /dev/null; git -C $RUNBOOK rev-parse HEAD > $DS/runbook_head 2> /dev/null; date -u +%FT%TZ > $DS/utc
   fi
   # first-arm comparison with the reference H100 run, uploaded once when E10b-P2 has reached step 10
   if [ ! -f $OPD_ROOT/logs/.compare_uploaded ] && python $RUNBOOK/scripts/compare_first_arm.py >/dev/null 2>&1; then

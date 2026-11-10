@@ -84,6 +84,13 @@ PROFILES = {
     "8g": P0_PARALLEL + ["p1a", "p2f", "p2g"],
     "8g80": P0_PARALLEL + ["p1a", "p1b", "p2f", "p2h", "p2g"],
 }
+# [z139] (the lead 11-10) two machines at once, each with its own disk and runs/: a 1 x H200 that has run p0a and is in p0c, and an
+# 8 x H200. 1gs = the 1-GPU box's share (the readings of historical weights, which need no new training); 8gs = 8g80 without those
+# stages (every new training and its readings on one machine). Together they are 8g80's stages, only p0a (the local gates) on both.
+# The 8-GPU node reads tasks/queue_8gs.txt through control/queue_name (env.sh exports QUEUE_FILE); the 1-GPU node keeps queue.txt.
+SHARE_1G = ["p0a", "p0c", "p0f", "p0g", "p0x"]
+PROFILES["1gs"] = SHARE_1G
+PROFILES["8gs"] = [s for s in PROFILES["8g80"] if s == "p0a" or s not in SHARE_1G]
 # each stage's starts pulled ahead (#fetch, from T0 + 8 min): the source's 14 lines plus the 1.7B chain's s50, in stage order
 FETCH = {
     "p0a": ["E10b-P5/global_step_150", "E10b-P5tail/global_step_50"],
@@ -107,7 +114,7 @@ ROW_KINDS = ("#eval", "#pair", "#budget", "#term", "#gpus", "#steptime")
 HEADER = """\
 # Remote-node task queue, version 2. newnode-v2, profile {p}: {what}
 # Written by scripts/queue_profiles.py (lab WO-001; v3 workflow 7.2) from tasks/queue_newnode_v1.txt + its new rows: edit the
-# generator, not this file. Profiles 1g / 4g / 4g80 / 8g / 8g80; at T0, before cold_start.sh: `python3 scripts/queue_profiles.py
+# generator, not this file. Profiles 1g / 4g / 4g80 / 8g / 8g80 (+ the split pair 1gs / 8gs, z139); at T0, before cold_start.sh: `python3 scripts/queue_profiles.py
 # --select <profile>` copies tasks/queue_<profile>.txt to tasks/queue.txt (one commit, main + hf). Under 80 GB: no 4B / 8B training.
 # Stages: p0a gates, p0b same-machine anchors, p0c TERM4 (NRL8K, 8B think), p0d / p0dr Q-091 training / readings, p0e / p0er Q-090
 # training / readings, p0f Q-074i, p0g Q-075c, p0x the 1.7B chain's AIME 32K anchor, p1a 2 x 2 beyond arms, p1b Q-074e (8B, 4 GPUs),
@@ -124,7 +131,9 @@ WHAT = {"1g": "one GPU (B200 default, profiles/140g.env), P0 in series with the 
         "4g": "2-4 GPUs (or 4 under 80 GB), P0 in parallel, then P1-a",
         "4g80": "4 x 80 GB, P0 in parallel, then P1-a and P1-b (8B on 4 GPUs)",
         "8g": "8 GPUs under 80 GB, P0 + P1-a, then P2 without 4B training",
-        "8g80": "8 x 80 GB, P0 + P1-a, P1-b on 4 GPUs, P2 fills idle GPUs"}
+        "8g80": "8 x 80 GB, P0 + P1-a, P1-b on 4 GPUs, P2 fills idle GPUs",
+        "1gs": "one GPU beside an 8gs node: gates, P0-c, the historical-weight readings P0-f / P0-g / P0-x",
+        "8gs": "8 x >= 80 GB beside a 1gs node (control/queue_name = 8gs): 8g80 without P0-c / f / g / x"}
 
 
 def source():

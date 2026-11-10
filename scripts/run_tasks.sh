@@ -22,7 +22,8 @@ source "$(dirname "$0")/env.sh"
 # setup has marked it ready (control/venv_ready; tasks inherit this loop's python), the control venv before (dispatch is frozen then)
 if [ -f $OPD_ROOT/venv-ctl/bin/activate ] && [ ! -f $OPD_ROOT/control/venv_ready ]; then source $OPD_ROOT/venv-ctl/bin/activate; else source $OPD_ROOT/venv/bin/activate; fi
 NGPU=$(nvidia-smi --query-gpu=index --format=csv,noheader 2>/dev/null | wc -l)
-Q=$RUNBOOK/tasks/queue.txt; last_pull=0; CDIR=$OPD_ROOT/control; mkdir -p $CDIR
+Q=${QUEUE_FILE:-$RUNBOOK/tasks/queue.txt}; last_pull=0;   # [z139]
+CDIR=$OPD_ROOT/control; mkdir -p $CDIR
 SELF_SHA=$(cat "$RUNBOOK/scripts/run_tasks.sh" "$RUNBOOK/scripts/env.sh" | sha1sum | cut -c1-12)
 echo "RUN_TASKS_START $(date -u +%T) sha $SELF_SHA"; echo $SELF_SHA > $CDIR/run_tasks.sha
 paused() { [ -f $OPD_ROOT/runs/$1/.paused ]; }

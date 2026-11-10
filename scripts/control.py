@@ -1493,7 +1493,7 @@ def fetch_names(qpath=None):
     Qwen/<name> -> <name>, dataset:<owner>/<name> -> <owner>__<name>, result:runs/<run>/global_step_<n>/actor/huggingface ->
     result_<run>_s<n>; a line fetch_pass skips is not listed."""
     out = {}
-    for line in _read(qpath or os.path.join(RUNBOOK, "tasks", "queue.txt")).splitlines():
+    for line in _read(qpath or os.environ.get("QUEUE_FILE") or os.path.join(RUNBOOK, "tasks", "queue.txt")).splitlines():   # [z139]
         p = line.split()
         if len(p) < 2 or p[0] != "#fetch":
             continue
