@@ -2132,7 +2132,7 @@ def test_newnode_v2_profiles_v259z137(env):
         w = l.split()
         if len(w) >= 3 and not l.startswith("#") and w[1] == "open":
             v1.update({s.split(":")[0]: s for s in w[2:]})
-    p0_tasks = {"p0a": ["PROBE-TAIL", "PROBE-E12B-8K", "PROBE-E12B-STOP2"], "p0c": ["PROBE-TERM4-NRL8K", "PROBE-TERM4-N8BTHINK"],
+    p0_tasks = {"p0a": ["PROBE-TAIL", "PROBE-E12B-8K", "PROBE-E12B-STOP2"], "p0c": ["PROBE-TERM4-NRL8K", "PROBE-TERM4-N8BTHINK", "PROBE-TERM4-NP5H200"],
                 "p0b": ["EVAL-e12b-P5tail-8k-nn", "EVAL-e12b-P5-8k-nn", "EVAL-e12d-P5tail-8k-nn"],
                 "p0d": ["E12b-P0-8k"], "p0dr": ["EVAL-e12b-P0-8k", "EVAL-budA-e12bP0-8k", "EVAL-ext32k-17p0l8k", "PROBE-TERM4-N091"],
                 "p0e": ["E12b-P5-8k-lenpen"], "p0er": ["EVAL-e12b-P5-8k-lenpen", "EVAL-budA-e12bP5-8k-lenpen", "EVAL-ext32k-17p5l8klp", "PROBE-TERM4-N090"],
@@ -2181,7 +2181,7 @@ def test_newnode_v2_profiles_v259z137(env):
     L, _, _ = _profile_queue("8g80")
     assert "#term PROBE-TERM4-N8BTHINK 8B_P0think Qwen/Qwen3-8B EVAL-budA-8Bthink/budA8B_think_math500_T0.6_32k_math500_think_t0.6.jsonl think" in L
     _, _, s8 = _profile_queue("8g80")
-    assert set(v1) <= set(s8) and len(s8) == len(v1) + 4                         # 8g80 = all of v1 + the four new tasks
+    assert set(v1) <= set(s8) and len(s8) == len(v1) + 5                         # 8g80 = all of v1 + the five new tasks ([z144] + NP5H200)
 
 
 def test_split_pair_1gs_8gs_z139():   # [z139] two machines: together 8g80's stages, only the gates on both; 8gs keeps every training

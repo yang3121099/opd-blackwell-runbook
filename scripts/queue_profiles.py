@@ -28,7 +28,7 @@ STAGES = {
     # P0-a the local gates (PROBE-TAIL = the canary); PROBE-E12B-STOP2 = Q-090's reward smoke
     "p0a": ["src:PROBE-TAIL", "src:PROBE-E12B-8K", "src:PROBE-E12B-STOP2"],
     # P0-c audit FAIL-1: the 1.7B 8K RL-only arm's CSR; + the 8B base model's thinking-mode TERM4 (scoring only, its 32K gens in -pub)
-    "p0c": ["src:PROBE-TERM4-NRL8K", "PROBE-TERM4-N8BTHINK"],
+    "p0c": ["src:PROBE-TERM4-NRL8K", "PROBE-TERM4-N8BTHINK", "PROBE-TERM4-NP5H200"],   # [z144] + the chain arm start E10b-P5 s150 on an H200 (Fable 11-11: NRL8K paired on one machine)
     # P0-b same-machine anchors: the 1.7B chain s50 and the 1.7B RL-only s50 at 16K T0.6 / T1.0, the 4B chain s50 at 16K (table 1's CI)
     "p0b": ["EVAL-e12b-P5tail-8k-nn:E12b-P5tail-8k", "EVAL-e12b-P5-8k-nn:E12b-P5-8k", "src:EVAL-e12d-P5tail-8k-nn"],
     # P0-d Q-091 E12b-P0-8k + its readings (research_program 3s)
@@ -69,7 +69,7 @@ P0_PARALLEL = ["p0a", "p0d", "p0e", "p0c", "p0b", "p0dr", "p0er", "p0f", "p0g", 
 # 32K avg@16 0.7-1.6 h a benchmark, budA 32K 0.6-1.2 h; trainings 50 steps on one card from the H800-era 5 h at ~1.9x the H800's
 # generation speed; gates from v3's 1.5 H800 GPU-h). Written as a comment over each stage; env-probe's step time replaces them.
 EST = {"PROBE-TAIL": 0.3, "PROBE-E12B-8K": 0.3, "PROBE-E12B-STOP2": 0.3, "E12b-P0-8k": 3.0, "PROBE-TERM4-NRL8K": 1.0,
-       "PROBE-TERM4-N8BTHINK": 0.3, "EVAL-e12b-P5tail-8k-nn": 1.2, "EVAL-e12b-P5-8k-nn": 1.2, "EVAL-e12d-P5tail-8k-nn": 0.5,
+       "PROBE-TERM4-N8BTHINK": 0.3, "PROBE-TERM4-NP5H200": 0.5, "EVAL-e12b-P5tail-8k-nn": 1.2, "EVAL-e12b-P5-8k-nn": 1.2, "EVAL-e12d-P5tail-8k-nn": 0.5,
        "E12b-P5-8k-lenpen": 3.0, "EVAL-e12b-P0-8k": 1.2, "EVAL-budA-e12bP0-8k": 1.0, "EVAL-ext32k-17p0l8k": 1.5, "PROBE-TERM4-N091": 0.3,
        "EVAL-e12b-P5-8k-lenpen": 1.0, "EVAL-budA-e12bP5-8k-lenpen": 0.8, "EVAL-ext32k-17p5l8klp": 1.3, "PROBE-TERM4-N090": 0.3,
        "EVAL-e12d-P5tail-8k-s43-nn": 1.5, "EVAL-ext32k-4Bp5tail8k-s43-nn": 1.3, "EVAL-budA-e12dP5tail-8k-s43-nn": 0.6,
@@ -112,6 +112,7 @@ NEW_ROWS = """\
 #eval EVAL-ext32k-17p5tail8k-nn ext32k17_E12bP5tail8k_s50_aime24_T0.6 result:runs/E12b-P5tail-8k/global_step_50/actor/huggingface aime24 16 0.6 32768
 #eval EVAL-ext32k-17p5tail8k-nn ext32k17_E12bP5tail8k_s50_aime25_T0.6 result:runs/E12b-P5tail-8k/global_step_50/actor/huggingface aime25 16 0.6 32768
 #term PROBE-TERM4-N8BTHINK 8B_P0think Qwen/Qwen3-8B EVAL-budA-8Bthink/budA8B_think_math500_T0.6_32k_math500_think_t0.6.jsonl think
+#term PROBE-TERM4-NP5H200 17_P5s150 result:runs/E10b-P5/global_step_150/actor/huggingface gen
 """
 ROW_KINDS = ("#eval", "#pair", "#budget", "#term", "#gpus", "#steptime")
 HEADER = """\

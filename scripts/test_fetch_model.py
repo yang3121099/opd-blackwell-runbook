@@ -340,3 +340,27 @@ def test_coldstart_models_use_the_local_copy(old, monkeypatch, tmp_path):
     monkeypatch.setattr(huggingface_hub, "snapshot_download", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no Hub snapshot")))
     assert CH.cmd_models(str(m), str(tmp_path / "done.txt"), str(tmp_path / "models")) == 0
     assert seen == [("Qwen/Qwen3-8B", "", str(tmp_path / "models" / "Qwen3-8B"))]
+
+
+def test_backoff_still_finds_the_local_copy_z144(hub, monkeypatch, tmp_path, capsys):   # [z144] Fable 11-11: us-1 idle 25 min
+    """In the HF 429 backoff a complete local copy (its .fetch_ok) is returned as cached before any repository is tried; without
+    the local copy the backoff still skips our repositories (no Hub call)."""
+    r = F.fetch("o/r", "runs/X/global_step_50/actor/huggingface", str(tmp_path))
+    assert r["ok"] and not r.get("cached")
+    hub["calls"].clear()
+    fake = types.SimpleNamespace(repos=lambda: ["o/r"], backoff_left=lambda: 600, note_429=lambda: None)
+    monkeypatch.setitem(sys.modules, "remote", fake)
+    monkeypatch.setattr(sys, "argv", ["fetch_model.py", "o/r", "runs/X/global_step_50/actor/huggingface", str(tmp_path)])
+    try:
+        F.main()
+    except SystemExit:
+        pass
+    out = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert out["ok"] and out["cached"] and hub["calls"] == []
+    monkeypatch.setattr(sys, "argv", ["fetch_model.py", "o/r", "runs/Y/global_step_50/actor/huggingface", str(tmp_path)])
+    try:
+        F.main()
+    except SystemExit:
+        pass
+    out = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert not out["ok"] and out["errors"][0]["error"] == "Backoff429" and hub["calls"] == []

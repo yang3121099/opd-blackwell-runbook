@@ -243,9 +243,9 @@ def parallel_download(repo, path, size, local, ep):
                               log=lambda m: print(f"PAR_FETCH {path}: {m}", file=sys.stderr, flush=True))
 
 
-def fetch(repo, prefix, local):
-    from huggingface_hub import HfApi, hf_hub_download
-    from huggingface_hub import constants as K
+def cached(prefix, local):
+    """The local copy complete by its .fetch_ok record (every file there with its size): {"ok", "cached", "files"}, else None.
+    [z144] also asked before any repository, so a node in the HF 429 backoff still finds what it has (Fable 11-11)."""
     prefix = prefix.strip("/")
     ok_file = os.path.join(local, prefix + ".fetch_ok") if single_file(prefix) else os.path.join(local, prefix, ".fetch_ok")
     if os.path.isfile(ok_file):
@@ -255,6 +255,17 @@ def fetch(repo, prefix, local):
                 return {"ok": True, "cached": True, "files": len(files)}
         except (ValueError, KeyError, TypeError):
             pass
+    return None
+
+
+def fetch(repo, prefix, local):
+    from huggingface_hub import HfApi, hf_hub_download
+    from huggingface_hub import constants as K
+    prefix = prefix.strip("/")
+    ok_file = os.path.join(local, prefix + ".fetch_ok") if single_file(prefix) else os.path.join(local, prefix, ".fetch_ok")
+    c = cached(prefix, local)
+    if c:
+        return c
     errors, t0, got, seeded = [], time.time(), 0, None
     for ep in ENDPOINTS:
         tok = None if ep.rstrip("/") == "https://huggingface.co" else False   # HF_TOKEN goes to huggingface.co only, never to a mirror
@@ -400,7 +411,11 @@ def main():
     except Exception:
         RM, ours = None, set()
     r = {"ok": False}
-    for rp in [x for x in repo.split(",") if x]:
+    reps = [x for x in repo.split(",") if x]
+    c = cached(prefix, local)   # [z144] (us-1 idle 25 min, 11-11: the 429 backoff skipped our repositories before the local check)
+    if c:
+        r, rp, reps, tried = c, reps[0] if reps else repo, [], [reps[0] if reps else repo]
+    for rp in reps:
         if RM and rp in ours and RM.backoff_left() > 0:
             tried.append(rp); errs.append({"endpoint": "https://huggingface.co", "attempt": 0, "error": "Backoff429", "detail": f"{int(RM.backoff_left())} s left"})
             continue
