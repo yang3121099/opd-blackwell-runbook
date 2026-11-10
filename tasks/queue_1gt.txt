@@ -1,0 +1,66 @@
+# Remote-node task queue, version 2. newnode-v2, profile 1gt: one GPU beside a 1gs node (control/queue_name = 1gt): 1g's trainings and their readings (P0-d / e / b / dr / er, P1-a)
+# Written by scripts/queue_profiles.py (lab WO-001; v3 workflow 7.2) from tasks/queue_newnode_v1.txt + its new rows: edit the
+# generator, not this file. Profiles 1g / 4g / 4g80 / 8g / 8g80 (+ the split pair 1gs / 8gs, z139); at T0, before cold_start.sh: `python3 scripts/queue_profiles.py
+# --select <profile>` copies tasks/queue_<profile>.txt to tasks/queue.txt (one commit, main + hf). Under 80 GB: no 4B / 8B training.
+# Stages: p0a gates, p0b same-machine anchors, p0c TERM4 (NRL8K, 8B think), p0d / p0dr Q-091 training / readings, p0e / p0er Q-090
+# training / readings, p0f Q-074i, p0g Q-075c, p0x the 1.7B chain's AIME 32K anchor, p1a 2 x 2 beyond arms, p1b Q-074e (8B, 4 GPUs),
+# p2f Q-074f, p2h Q-074h, p2g Q-074g; "# <stage> ~N B200 GPU-h" over each stage. Open stages start in file order, one task per free
+# GPU set; a waiting multi-GPU task holds the GPUs as they free.
+# Memory keys: one card >= 140 GB (B200 ~180 GB) -> bootstrap.sh --profile 140g, or those export lines into $OPD_ROOT/control.env by
+# hand before setup (Fable 11-03: GC=0, LOGP_MB=4, VLLM_UTIL=0.5 on the B300 numerics); 80 GB cards -> --profile 80g.
+# Hard conditions of every arm (as in v1): its starts local (.fetch_ok; the #fetch block), its local gate PASS (the deps), stage open;
+# a multi-GPU arm only after the running ones show 5 steps without OOM and a median step <= 2 x its #steptime.
+# -nn names (Fable 11-03): the lost H800 may still upload under the old names; before T0 the executor checks -pub once: an original's
+# s50 .done already there -> pause the -nn row and point its readings back at the original (a one-word diff, pre-approved).
+version: 2
+# p0a ~0.9 B200 GPU-h: PROBE-TAIL 0.3, PROBE-E12B-8K 0.3, PROBE-E12B-STOP2 0.3
+p0a        open   PROBE-TAIL PROBE-E12B-8K PROBE-E12B-STOP2
+# p0d ~3.0 B200 GPU-h: E12b-P0-8k 3
+p0d        open   E12b-P0-8k:PROBE-E12B-8K
+# p0b ~2.9 B200 GPU-h: EVAL-e12b-P5tail-8k-nn 1.2, EVAL-e12b-P5-8k-nn 1.2, EVAL-e12d-P5tail-8k-nn 0.5
+p0b        open   EVAL-e12b-P5tail-8k-nn:E12b-P5tail-8k EVAL-e12b-P5-8k-nn:E12b-P5-8k EVAL-e12d-P5tail-8k-nn:E12d-P5tail-8k
+# p0e ~3.0 B200 GPU-h: E12b-P5-8k-lenpen 3
+p0e        open   E12b-P5-8k-lenpen:PROBE-E12B-8K+PROBE-E12B-STOP2+E10b-P5
+# p0dr ~4.0 B200 GPU-h: EVAL-e12b-P0-8k 1.2, EVAL-budA-e12bP0-8k 1, EVAL-ext32k-17p0l8k 1.5, PROBE-TERM4-N091 0.3
+p0dr       open   EVAL-e12b-P0-8k:E12b-P0-8k EVAL-budA-e12bP0-8k:E12b-P0-8k EVAL-ext32k-17p0l8k:E12b-P0-8k PROBE-TERM4-N091:EVAL-e12b-P0-8k
+# p0er ~3.4 B200 GPU-h: EVAL-e12b-P5-8k-lenpen 1, EVAL-budA-e12bP5-8k-lenpen 0.8, EVAL-ext32k-17p5l8klp 1.3, PROBE-TERM4-N090 0.3
+p0er       open   EVAL-e12b-P5-8k-lenpen:E12b-P5-8k-lenpen EVAL-budA-e12bP5-8k-lenpen:E12b-P5-8k-lenpen EVAL-ext32k-17p5l8klp:E12b-P5-8k-lenpen PROBE-TERM4-N090:EVAL-e12b-P5-8k-lenpen
+# p1a ~10.6 B200 GPU-h: PROBE-FRET 0.5, E10b-P5fret 2.5, E10b-P5topd 2.5, E10b-P5fret-topd 2.5, EVAL-e10b-P5fret 0.7, EVAL-e10b-P5topd 0.7, EVAL-e10b-P5fret-topd 0.7, PROBE-TERM4-FRET 0.5
+p1a        open   PROBE-FRET E10b-P5fret:PROBE-FRET E10b-P5topd:PROBE-FRET E10b-P5fret-topd:PROBE-FRET EVAL-e10b-P5fret:E10b-P5fret EVAL-e10b-P5topd:E10b-P5topd EVAL-e10b-P5fret-topd:E10b-P5fret-topd PROBE-TERM4-FRET:EVAL-e10b-P5fret+EVAL-e10b-P5topd+EVAL-e10b-P5fret-topd
+
+#steptime E10b-P5fret 180
+#steptime E10b-P5topd 180
+#steptime E10b-P5fret-topd 180
+
+#fetch result:runs/E10b-P5/global_step_150/actor/huggingface
+#fetch result:runs/E10b-P5tail/global_step_50/actor/huggingface
+#fetch result:runs/E12b-P5tail-8k/global_step_50/actor/huggingface
+#fetch result:runs/E12d-P5tail-8k/global_step_50/actor/huggingface
+
+#eval EVAL-e10b-P5fret e10b_P5fret_s50_math500_T0.6 result:runs/E10b-P5fret/global_step_50/actor/huggingface math500 4 0.6
+#pair EVAL-e10b-P5fret e10b_P5fret_s50_math500_T0.6 archive:runs/e10/e10_P5_1.7B_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#eval EVAL-e10b-P5topd e10b_P5topd_s50_math500_T0.6 result:runs/E10b-P5topd/global_step_50/actor/huggingface math500 4 0.6
+#pair EVAL-e10b-P5topd e10b_P5topd_s50_math500_T0.6 archive:runs/e10/e10_P5_1.7B_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#eval EVAL-e10b-P5fret-topd e10b_P5fret-topd_s50_math500_T0.6 result:runs/E10b-P5fret-topd/global_step_50/actor/huggingface math500 4 0.6
+#pair EVAL-e10b-P5fret-topd e10b_P5fret-topd_s50_math500_T0.6 archive:runs/e10/e10_P5_1.7B_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#term PROBE-TERM4-FRET 17_P5s50 yang31210999/opd-lab-ckpts/runs/E10-P5-1.7B-lr3e-6-s50/global_step_50/actor/huggingface archive:runs/e10/e10_P5_1.7B_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#term PROBE-TERM4-FRET 17_P5fret result:runs/E10b-P5fret/global_step_50/actor/huggingface EVAL-e10b-P5fret/e10b_P5fret_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#term PROBE-TERM4-FRET 17_P5topd result:runs/E10b-P5topd/global_step_50/actor/huggingface EVAL-e10b-P5topd/e10b_P5topd_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#term PROBE-TERM4-FRET 17_P5fret-topd result:runs/E10b-P5fret-topd/global_step_50/actor/huggingface EVAL-e10b-P5fret-topd/e10b_P5fret-topd_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#eval EVAL-e12b-P0-8k e12b_P0-8k_s50_math500_T0.6 result:runs/E12b-P0-8k/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-e12b-P0-8k e12b_P0-8k_s50_math500_T1.0 result:runs/E12b-P0-8k/global_step_50/actor/huggingface math500 4 1.0
+#eval EVAL-e12b-P5-8k-lenpen e12b_P5-8k-lenpen_s50_math500_T0.6 result:runs/E12b-P5-8k-lenpen/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-e12b-P5-8k-lenpen e12b_P5-8k-lenpen_s50_math500_T1.0 result:runs/E12b-P5-8k-lenpen/global_step_50/actor/huggingface math500 4 1.0
+#eval EVAL-budA-e12bP0-8k budAe12bP0-8k_s50_math500_T0.6_32k result:runs/E12b-P0-8k/global_step_50/actor/huggingface math500 4 0.6 32768
+#eval EVAL-budA-e12bP5-8k-lenpen budAe12bP5-8k-lenpen_s50_math500_T0.6_32k result:runs/E12b-P5-8k-lenpen/global_step_50/actor/huggingface math500 4 0.6 32768
+#eval EVAL-ext32k-17p0l8k ext32k17_E12bP0l8k_s50_aime24_T0.6 result:runs/E12b-P0-8k/global_step_50/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-17p0l8k ext32k17_E12bP0l8k_s50_aime25_T0.6 result:runs/E12b-P0-8k/global_step_50/actor/huggingface aime25 16 0.6 32768
+#eval EVAL-ext32k-17p5l8klp ext32k17_E12bP5l8klp_s50_aime24_T0.6 result:runs/E12b-P5-8k-lenpen/global_step_50/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-17p5l8klp ext32k17_E12bP5l8klp_s50_aime25_T0.6 result:runs/E12b-P5-8k-lenpen/global_step_50/actor/huggingface aime25 16 0.6 32768
+#term PROBE-TERM4-N091 17_P0l8k result:runs/E12b-P0-8k/global_step_50/actor/huggingface EVAL-e12b-P0-8k/e12b_P0-8k_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#term PROBE-TERM4-N090 17_P5l8klp result:runs/E12b-P5-8k-lenpen/global_step_50/actor/huggingface EVAL-e12b-P5-8k-lenpen/e12b_P5-8k-lenpen_s50_math500_T0.6_math500_no_think_t0.6.jsonl
+#eval EVAL-e12d-P5tail-8k-nn e12d_P5tail-8k_s50_math500_T0.6 result:runs/E12d-P5tail-8k/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-e12b-P5tail-8k-nn e12b_P5tail-8k_s50_math500_T0.6 result:runs/E12b-P5tail-8k/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-e12b-P5tail-8k-nn e12b_P5tail-8k_s50_math500_T1.0 result:runs/E12b-P5tail-8k/global_step_50/actor/huggingface math500 4 1.0
+#eval EVAL-e12b-P5-8k-nn e12b_P5-8k_s50_math500_T0.6 result:runs/E12b-P5-8k/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-e12b-P5-8k-nn e12b_P5-8k_s50_math500_T1.0 result:runs/E12b-P5-8k/global_step_50/actor/huggingface math500 4 1.0

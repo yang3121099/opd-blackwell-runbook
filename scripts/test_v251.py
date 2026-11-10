@@ -2122,7 +2122,7 @@ def test_newnode_v2_profiles_v259z137(env):
     assert QP.main(["--check"]) == 0, "tasks/queue_<profile>.txt is stale: run python3 scripts/queue_profiles.py"
     live = open(os.path.join(repo, "tasks", "queue.txt")).read()
     assert live in [open(os.path.join(repo, "tasks", f"queue_{p}.txt")).read() for p in QP.PROFILES]
-    assert set(QP.PROFILES) == {"1g", "4g", "4g80", "8g", "8g80", "1gs", "8gs"}   # [z139] + the split pair (own test)
+    assert set(QP.PROFILES) == {"1g", "4g", "4g80", "8g", "8g80", "1gs", "8gs", "1gt"}   # [z139] + the split pair (own test)
     # [11-09 21:5x the lead: self-paid GPUs, no idle] one GPU: the base-start Q-091 training right after the gates, the readings between
     order = {"1g": ["p0a", "p0d", "p0c", "p0b", "p0e", "p0dr", "p0er", "p0f", "p0g", "p0x", "p1a"],
              "4g": ["p0a", "p0d", "p0e", "p0c", "p0b", "p0dr", "p0er", "p0f", "p0g", "p0x", "p1a"]}
@@ -2198,6 +2198,15 @@ def test_split_pair_1gs_8gs_z139():   # [z139] two machines: together 8g80's sta
     assert all(d in tb for t in tb for d in tb[t] if d in newtrains)              # a new training's readings run where it trains
     text = QP.render("8gs")
     assert "#gpus E12e-P5tail-8k-nn 4" in text and "PROBE-TERM4-NRL8K" not in text and "EVAL-e10d-P5tail-nn" not in text
+
+
+def test_split_pair_1gs_1gt_z142():   # [z142] two 1-GPU machines: together 1g's stages, only the gates on both, no multi-GPU row
+    import queue_profiles as QP
+    a, b = QP.PROFILES["1gs"], QP.PROFILES["1gt"]
+    assert set(a) | set(b) == set(QP.PROFILES["1g"]) and set(a) & set(b) == {"p0a"}
+    assert [s for s in QP.PROFILES["1g"] if s in b] == b
+    text = QP.render("1gt")
+    assert "#gpus" not in text and "E12b-P0-8k" in text and "E10b-P5fret" in text and "EVAL-e10d-P5tail-nn" not in text
 
 
 def test_queue_file_from_control_queue_name_z139(tmp_path):   # [z139] env.sh: control/queue_name -> QUEUE_FILE; without it unset
