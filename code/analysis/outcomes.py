@@ -4,6 +4,11 @@ raw generations are gone.
 
   reading   a gen_eval jsonl -> one line per sample: {"id", "s", "ok", "n", "trunc", "box", "answer_norm"} (problem id, sample,
             correct, tokens, ended at the length limit, holds a complete \\boxed{}, the final answer - answer_norm below)
+            [z145] (Fable 11-11 D8: the restatement after the student's own </think> is redundant) + two cut readings per sample:
+            "nc" tokens before the first </think> (None: none written), "okc" graded on the text cut there (its last box; no </think>:
+            the full answer), "nfb" tokens up to the end of the first complete box (None: no box), "okfb" graded on the text cut there.
+            Token counts are exact: </think> is one token in token_ids; the box end is mapped through the tokenizer's byte pieces
+            (--tokenizer, default $OPD_ROOT/models/Qwen3-1.7B; without one, or when text != the decoded ids, nfb stays None).
   rollouts  a verl rollout dump (<run>/rollouts/<step>.jsonl: input, output, score, step) -> one line per response: {"step", "key",
             "score", "chars", "box", "n", "answer_norm"} (key = diff_labels.key: sha1 of the last user message; n = tokens, with
             --tokenizer)
@@ -63,14 +68,93 @@ def key(rendered):
     return hashlib.sha1((users[-1] if users else (rendered or "")).encode("utf-8")).hexdigest()[:16]
 
 
-def reading(src, out):
+CLOSE = "</think>"
+CLOSE_ID = 151668   # Qwen3's </think>, one added token (the tokenizer's id wins when one is given)
+
+
+def byte_pieces(tok):
+    """[z145] token id -> its bytes in the decoded text (byte-level BPE; added / special tokens as their literal text)."""
+    try:
+        from transformers.models.gpt2.tokenization_gpt2 import bytes_to_unicode
+    except Exception:
+        return None
+    dec = {v: k for k, v in bytes_to_unicode().items()}
+    added = set(getattr(tok, "added_tokens_decoder", {}) or {})
+    cache = {}
+    def piece(i):
+        if i not in cache:
+            t = tok.convert_ids_to_tokens(int(i))
+            cache[i] = t.encode("utf-8") if (i in added or t is None or any(ch not in dec for ch in t)) else bytes(dec[ch] for ch in t)
+        return cache[i]
+    return piece
+
+
+def token_at(text, ids, char_end, piece):
+    """[z145] tokens up to and including the one that holds text[char_end - 1], exactly; None when the pieces do not rebuild text."""
+    if piece is None or not ids:
+        return None
+    tb = text.encode("utf-8"); target, buf = len(text[:char_end].encode("utf-8")), bytearray()
+    for k, i in enumerate(ids):   # the prefix must rebuild the text byte for byte (trailing tokens such as EOS may follow)
+        buf += piece(i)
+        if len(buf) >= target:
+            return k + 1 if bytes(buf[:target]) == tb[:target] else None
+    return None
+
+
+def cut_fields(r, piece=None, grade=None, close_id=CLOSE_ID):
+    """[z145] {"nc", "okc", "nfb", "okfb"} of one gen_eval record (Fable 11-11 D8)."""
+    t, ids, gold, ok = r.get("text") or "", r.get("token_ids") or [], r.get("gold"), r.get("correct")
+    def g(x):
+        if grade is None:
+            return None
+        try:
+            v = grade(x, gold)
+            return bool(v[0] if isinstance(v, tuple) else v)
+        except Exception:
+            return False
+    c = t.find(CLOSE)
+    nc = ids.index(close_id) if close_id in ids else None
+    if c < 0:
+        nc, okc = None, ok
+    else:
+        if nc is None:   # written as pieces, not the one token: map the character position
+            k = token_at(t, ids, c + len(CLOSE), piece); nc = None if k is None else max(0, k - 1)
+        okc = g(t[:c])
+    e = box_end(t)
+    nfb, okfb = (token_at(t, ids, e, piece), g(t[:e])) if e >= 0 else (None, False if grade else None)
+    return {"nc": nc, "okc": okc, "nfb": nfb, "okfb": okfb}
+
+
+def reading(src, out, piece=None, grade=None, close_id=CLOSE_ID):
     n = 0
     with open(out + ".tmp", "w") as f:
         for r in rows(src):
-            f.write(json.dumps({"id": r.get("pid"), "s": r.get("sample"), "ok": r.get("correct"), "n": r.get("n_tokens"),
-                                "trunc": r.get("finish_reason") == "length", "box": box_end(r.get("text") or "") >= 0,
-                                "answer_norm": answer_norm(r.get("text"))}) + "\n"); n += 1
+            d = {"id": r.get("pid"), "s": r.get("sample"), "ok": r.get("correct"), "n": r.get("n_tokens"),
+                 "trunc": r.get("finish_reason") == "length", "box": box_end(r.get("text") or "") >= 0,
+                 "answer_norm": answer_norm(r.get("text"))}
+            d.update(cut_fields(r, piece, grade, close_id))
+            f.write(json.dumps(d) + "\n"); n += 1
     os.replace(out + ".tmp", out); return n
+
+
+def reading_tools(tokenizer=None):
+    """[z145] (piece, grade, close_id) for the CLI: the tokenizer (default $OPD_ROOT/models/Qwen3-1.7B) and gen_eval.grade, each
+    None when not loadable (the fields that need it stay None)."""
+    name = tokenizer or os.path.join(os.environ.get("OPD_ROOT", ""), "models", "Qwen3-1.7B")
+    piece, close_id = None, CLOSE_ID
+    try:
+        from transformers import AutoTokenizer
+        tok = AutoTokenizer.from_pretrained(name)
+        piece = byte_pieces(tok); cid = tok.convert_tokens_to_ids(CLOSE)
+        close_id = cid if isinstance(cid, int) and cid >= 0 else CLOSE_ID
+    except Exception:
+        pass
+    try:
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "eval"))
+        from gen_eval import grade
+    except Exception:
+        grade = None
+    return piece, grade, close_id
 
 
 def rollouts(src, out, count=None):
@@ -130,9 +214,10 @@ def main(argv=None):
     ap = argparse.ArgumentParser(); ap.add_argument("cmd"); ap.add_argument("args", nargs="+")
     ap.add_argument("--tokenizer"); ap.add_argument("--tiers"); ap.add_argument("--tasks")
     a = ap.parse_args(argv)
-    count = tokenizer_count(a.tokenizer) if a.tokenizer else None
+    count = tokenizer_count(a.tokenizer) if a.tokenizer and a.cmd != "reading" else None
     if a.cmd == "reading":
-        print(f"OUTCOMES {reading(*a.args)} lines")
+        piece, grade, cid = reading_tools(a.tokenizer)
+        print(f"OUTCOMES {reading(*a.args, piece=piece, grade=grade, close_id=cid)} lines")
     elif a.cmd == "rollouts":
         print(f"OUTCOMES {rollouts(*a.args, count)} lines")
     elif a.cmd == "backfill":

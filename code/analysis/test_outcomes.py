@@ -21,13 +21,19 @@ def lines(p):
     return [json.loads(l) for l in open(p)]
 
 
+def base(p):   # [z145] the pre-z145 fields (the CLI also writes the cut fields: nc, okc, nfb, okfb)
+    return [{k: v for k, v in d.items() if k not in ("nc", "okc", "nfb", "okfb")} for d in lines(p)]
+
+
 def test_reading_outcomes_keep_no_text(tmp_path):
     src = write(tmp_path / "r.jsonl", [{"pid": "math500-0", "sample": 0, "correct": True, "n_tokens": 120, "finish_reason": "stop", "text": "so \\boxed{4}", "token_ids": [1, 2]},
                                        {"pid": "math500-0", "sample": 1, "correct": False, "n_tokens": 16384, "finish_reason": "length", "text": "still going"}])
     out = str(tmp_path / "r.outcomes.jsonl")
     assert O.reading(src, out) == 2
-    assert lines(out) == [{"id": "math500-0", "s": 0, "ok": True, "n": 120, "trunc": False, "box": True, "answer_norm": "4"},
-                          {"id": "math500-0", "s": 1, "ok": False, "n": 16384, "trunc": True, "box": False, "answer_norm": None}]
+    assert lines(out) == [{"id": "math500-0", "s": 0, "ok": True, "n": 120, "trunc": False, "box": True, "answer_norm": "4",
+                           "nc": None, "okc": True, "nfb": None, "okfb": None},   # [z145] no tokenizer / grader here: the cut fields stay None
+                          {"id": "math500-0", "s": 1, "ok": False, "n": 16384, "trunc": True, "box": False, "answer_norm": None,
+                           "nc": None, "okc": False, "nfb": None, "okfb": None}]
     assert "boxed" not in open(out).read() and "still going" not in open(out).read() and "so " not in open(out).read()
 
 
@@ -92,7 +98,7 @@ def test_run_queue_eval_writes_outcomes_for_finished_readings(tmp_path):   # the
     r = subprocess.run(["bash", "-c", block], env=dict(os.environ, OUT=str(out), RUNBOOK=rb), capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
     assert sorted(p.name for p in out.glob("*.outcomes.jsonl")) == ["a_math500_no_think_t0.6.outcomes.jsonl"]
-    assert lines(out / "a_math500_no_think_t0.6.outcomes.jsonl") == [{"id": "math500-0", "s": 0, "ok": True, "n": 9, "trunc": False, "box": True, "answer_norm": "1"}]
+    assert base(out / "a_math500_no_think_t0.6.outcomes.jsonl") == [{"id": "math500-0", "s": 0, "ok": True, "n": 9, "trunc": False, "box": True, "answer_norm": "1"}]
     assert sh.count("grep -Ev '\\.(forced|outcomes)\\.jsonl$'") == 3                # the readers never pick an outcomes file (ERE: BSD grep too)
 
 
@@ -111,10 +117,28 @@ def test_e11b_and_adhoc_readings_write_outcomes_too(tmp_path):   # [v2.5.9z103] 
         r = subprocess.run(["bash", "-c", block], env=dict(os.environ, OUT=str(out), RUNBOOK=rb), capture_output=True, text=True)
         assert r.returncode == 0, r.stderr
         assert sorted(p.name for p in out.glob("*.outcomes.jsonl")) == ["e11b_P2_math500_T0.6_math500_no_think_t0.6.outcomes.jsonl"]
-        assert lines(out / "e11b_P2_math500_T0.6_math500_no_think_t0.6.outcomes.jsonl") == [
+        assert base(out / "e11b_P2_math500_T0.6_math500_no_think_t0.6.outcomes.jsonl") == [
             {"id": "math500-3", "s": 1, "ok": False, "n": 16384, "trunc": True, "box": False, "answer_norm": None}]
         r2 = subprocess.run(["bash", "-c", block], env=dict(os.environ, OUT=str(out), RUNBOOK=rb), capture_output=True, text=True)
         assert r2.returncode == 0 and len(list(out.glob("*.outcomes.jsonl"))) == 1               # a second pass keeps what it wrote
     ev = open(os.path.join(rb, "scripts", "run_eval.sh")).read()
     assert ev.count("grep -Ev '\\.(forced|outcomes)\\.jsonl$'") == 3                         # REF, SC and the pairs' reading
 
+
+
+def test_reading_cut_fields_z145(tmp_path):   # [z145] Fable 11-11 D8: </think> and first-box cuts, exact token counts
+    toks = {1: b"x=", 2: b"\\boxed{3}", 3: b" so ", 4: b"\\boxed{4}", 5: b" ok", O.CLOSE_ID: b"</think>", 7: b" recap \\boxed{4}"}
+    piece = lambda i: toks[i]
+    def rec(ids, gold="4", ok=True):
+        return {"pid": "p", "sample": 0, "correct": ok, "n_tokens": len(ids), "finish_reason": "stop", "gold": gold,
+                "token_ids": ids, "text": b"".join(toks[i] for i in ids).decode()}
+    def grade(text, gold):
+        i = text.rfind("\\boxed{"); return (i >= 0 and text[i + 7:text.index("}", i)] == gold), None
+    src = write(tmp_path / "g.jsonl", [rec([1, 2, 3, 4, 5, O.CLOSE_ID, 7]), rec([1, 4, 7]), rec([1, 3, 5], ok=False)])
+    out = str(tmp_path / "g.outcomes.jsonl")
+    O.reading(src, out, piece=piece, grade=grade)
+    a, b, c = lines(out)
+    assert (a["nc"], a["okc"], a["nfb"], a["okfb"]) == (5, True, 2, False)   # 5 tokens before </think>; the first box (3) is wrong
+    assert (b["nc"], b["okc"], b["nfb"], b["okfb"]) == (None, True, 2, True)  # no </think>: okc is the full answer
+    assert (c["nc"], c["okc"], c["nfb"], c["okfb"]) == (None, False, None, False)
+    assert O.token_at("ab", [1], 1, lambda i: b"zzz") is None                # pieces that do not rebuild the text: no count
