@@ -158,6 +158,7 @@ chk "Hugging Face: the token writes to the private repository (a probe under sta
 chk "control plane on one local disk (runbook, control/, logs/; not a network filesystem)" "python3 $RB/scripts/coldstart_check.py localdisk $RB $OPD/control $OPD/logs"
 [ -f $Y ] && chk "node $NODE reused: its last status is older than 2 h" "python3 $RB/scripts/coldstart_check.py silent $DONE.utc 2"
 chk "GitHub: the runbook remote answers" "timeout 60 git -C $RB ls-remote -q origin HEAD"
+chk "models: no unfinished download (*.aria2 under models/)" "[ -z \"\$(find $OPD/models -name '*.aria2' 2> /dev/null | head -1)\" ]"   # [z140] the 8B shard 4, 11-10
 chk "venv: torch, vllm, verl" "$OPD/venv/bin/python -c 'import torch, vllm, verl'"
 chk "venv-fa: flash_attn" "$OPD/venv-fa/bin/python -c 'import flash_attn'"
 if [ -z "$ONLY" ]; then if [ -f $OPD/control/no_vl ]; then echo "SKIP venv-vl: vllm, transformers (control/no_vl)" >> $H   # [z138]

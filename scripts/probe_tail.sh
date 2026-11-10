@@ -164,6 +164,10 @@ hooks = rd(rt).count("# [opd-variants patch v2] [v2.5.9n] tail-swap OPD")
 if hooks != 1:
     why.append(f"the installed ray_trainer.py holds the hook {hooks} times")
 tot = lambda k: sum(m.get(k, 0) for m in steps.values())
+if not smx and tot("tail/swapped") > 0 and all(m.get("tail/delta_mean", 0) == 0 for m in steps.values() if m.get("tail/swapped", 0) > 0):
+    # [z140] (the lead 11-10: the 1 x H200's canary passed with delta 0.0 on a teacher whose shard 4 was an unfinished aria2 download;
+    # H800 0.17, B300 0.039, 8 x H200 0.15) the two readings agree exactly on every swapped token: the swap is inert
+    why.append("the teacher's two readings agree exactly on every swapped token (delta 0 on every step): a broken teacher (an unfinished shard?) or an inert template switch")
 summ = {"rows": tot("tail/rows"), "rows_box_share": round(tot("tail/rows_box") / max(tot("tail/rows"), 1), 4),
         "swapped_frac_mean": round(tot("tail/swapped_frac") / max(len(steps), 1), 4),
         "delta_mean": round(sum(m.get("tail/delta_mean", 0) * m.get("tail/swapped", 0) for m in steps.values()) / max(tot("tail/swapped"), 1), 4)}

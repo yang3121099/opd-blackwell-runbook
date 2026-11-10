@@ -17,7 +17,7 @@ echo "run_arm $* SMOKE=$SMOKE STEPS=$SMOKE_STEPS PROBE_TASK=$PROBE_TASK" >> $CAL
 d=$OPD_ROOT/runs/$PROBE_TASK; mkdir -p $d
 printf "task: $2\nteacher: Qwen/Qwen3-8B (ref; think-template=1; param_offload=1)${FAKE_CFG-; tail-swapped: the non-thinking reading after the first box (opd_tailswap.py)}${FAKE_CFG2:-}\n" > $d/config.yaml
 for i in $(seq ${FAKE_LOGSTEPS:-$SMOKE_STEPS}); do
-  echo "(TaskRunner pid=1) step:$i - critic/score/mean:${FAKE_SCORE:-0.55} - tail/rows:128.0 - tail/rows_box:${FAKE_BOX:-80.0} - tail/swapped:${FAKE_SW:-9000.0} - tail/swapped_frac:0.02 - tail/delta_mean:1.5 - tail/lp_think_finite:1.0 - tail/lp_plain_finite:${FAKE_FIN:-1.0} - tail/violations:${FAKE_VIOL:-0.0}${FAKE_BUDM:+ - $FAKE_BUDM} - timing_s/step:400" >> $d/train.log
+  echo "(TaskRunner pid=1) step:$i - critic/score/mean:${FAKE_SCORE:-0.55} - tail/rows:128.0 - tail/rows_box:${FAKE_BOX:-80.0} - tail/swapped:${FAKE_SW:-9000.0} - tail/swapped_frac:0.02 - tail/delta_mean:${FAKE_DELTA:-1.5} - tail/lp_think_finite:1.0 - tail/lp_plain_finite:${FAKE_FIN:-1.0} - tail/violations:${FAKE_VIOL:-0.0}${FAKE_BUDM:+ - $FAKE_BUDM} - timing_s/step:400" >> $d/train.log
   echo '{"rows": 128, "swapped": 9000}' >> $d/tailswap.jsonl
 done
 [ "${FAKE_NOHOOK:-0}" = 1 ] || echo "$HOOKMARK" >> $FAKE_RT
@@ -39,6 +39,7 @@ ok "unit-test failure is FAIL, no smoke" '[ "$(res "v[\"result\"]")" = FAIL ] &&
 cd $SRC; rm -rf $T
 check() { ok "$1" '[ "$(res "v[\"result\"]")" = FAIL ] && [[ "$(res "v[\"reason\"]")" == *"'"$2"'"* ]]'; }
 setup; FAKE_FIN=0.0 bash $T/rb/scripts/probe_tail.sh 3 > /dev/null 2>&1; check "a non-finite reading is FAIL" "a reading not finite"; cd $SRC; rm -rf $T
+setup; FAKE_DELTA=0.0 bash $T/rb/scripts/probe_tail.sh 3 > /dev/null 2>&1; check "[z140] delta 0 on every step (an inert swap, a broken teacher) is FAIL" "agree exactly on every swapped token"; cd $SRC; rm -rf $T
 setup; FAKE_VIOL=2.0 bash $T/rb/scripts/probe_tail.sh 3 > /dev/null 2>&1; check "a swap at or before a box is FAIL" "swaps at or before a box"; cd $SRC; rm -rf $T
 setup; FAKE_SW=0.0 bash $T/rb/scripts/probe_tail.sh 3 > /dev/null 2>&1; check "nothing swapped is FAIL" "no position was swapped"; cd $SRC; rm -rf $T
 setup; FAKE_BOX=0.0 FAKE_SW=0.0 bash $T/rb/scripts/probe_tail.sh 3 > /dev/null 2>&1; check "no box is FAIL" "no response with a complete box"; cd $SRC; rm -rf $T
