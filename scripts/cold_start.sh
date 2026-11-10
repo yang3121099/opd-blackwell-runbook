@@ -131,7 +131,7 @@ else
   ( fa ) & P2=$!
   P3=; P4=
   if [ -z "$ONLY" ]; then
-    ( bash $RB/scripts/build_venv_vl.sh > $OPD/logs/coldstart_vl.log 2>&1 ) & P3=$!
+    [ -f $OPD/control/no_vl ] || { ( bash $RB/scripts/build_venv_vl.sh > $OPD/logs/coldstart_vl.log 2>&1 ) & P3=$!; }   # [z138] control/no_vl: a program without VLM work
     ( bash $RB/scripts/build_venv_ifeval.sh > $OPD/logs/coldstart_ifeval.log 2>&1 ) & P4=$!
   else echo "venv-vl, venv-ifeval not built (--only $ONLY)" | tee -a $LOG; fi
   wait $P1 $P2 $P3 $P4; cat $OPD/logs/coldstart_models.log | tee -a $LOG
@@ -159,7 +159,8 @@ chk "control plane on one local disk (runbook, control/, logs/; not a network fi
 chk "GitHub: the runbook remote answers" "timeout 60 git -C $RB ls-remote -q origin HEAD"
 chk "venv: torch, vllm, verl" "$OPD/venv/bin/python -c 'import torch, vllm, verl'"
 chk "venv-fa: flash_attn" "$OPD/venv-fa/bin/python -c 'import flash_attn'"
-if [ -z "$ONLY" ]; then chk "venv-vl: vllm, transformers" "$OPD/venv-vl/bin/python -c 'import vllm, transformers'"
+if [ -z "$ONLY" ]; then if [ -f $OPD/control/no_vl ]; then echo "SKIP venv-vl: vllm, transformers (control/no_vl)" >> $H   # [z138]
+  else chk "venv-vl: vllm, transformers" "$OPD/venv-vl/bin/python -c 'import vllm, transformers'"; fi
   chk "venv-ifeval: langdetect" "$OPD/venv-ifeval/bin/python -c 'import langdetect'"
 else skp "venv-vl: vllm, transformers"; skp "venv-ifeval: langdetect"; fi
 V2="grep -q 'G2 PASS' $OPD/logs/verify.log && grep -q 'VLLM PASS' $OPD/logs/verify.log && grep -q 'SMOKE PASS' $OPD/logs/verify.log"

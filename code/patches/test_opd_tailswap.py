@@ -45,6 +45,21 @@ def test_swap_torch():
     assert out[0].tolist() == [-1.0, -1.0, -0.5, -0.5, -0.5] and st["swapped"] == 4 and st["violations"] == 0
 
 
+def _unpatched(rt):
+    """The unpatched trainer: the .orig patch_file kept, else [z138] the file at its git checkout's HEAD (apply_patches.py
+    patches with keep_orig=False, so a fresh node has no .orig: PROBE-TAIL fail1 on the H200, 11-10)."""
+    if os.path.exists(rt + ".orig"):
+        return open(rt + ".orig").read()
+    import subprocess
+    real = os.path.realpath(rt)
+    top = subprocess.run(["git", "-C", os.path.dirname(real), "rev-parse", "--show-toplevel"], capture_output=True, text=True)
+    if top.returncode:
+        return None
+    r = subprocess.run(["git", "-C", top.stdout.strip(), "show", "HEAD:" + os.path.relpath(real, top.stdout.strip())],
+                       capture_output=True, text=True)
+    return r.stdout if r.returncode == 0 and r.stdout else None
+
+
 def test_hook_text_on_the_real_trainer():   # GOPD_RAY_TRAINER=<G-OPD's ray_trainer.py> (the node: the installed one)
     import lensel_patch as LP
     import tailswap_patch as P
@@ -52,8 +67,9 @@ def test_hook_text_on_the_real_trainer():   # GOPD_RAY_TRAINER=<G-OPD's ray_trai
     if not rt:
         return
     src = open(rt).read()
-    if (P.MARK in src or LP.MARK in src) and os.path.exists(rt + ".orig"):   # [v2.5.9z80] an arm patched the installed file already
-        src = open(rt + ".orig").read()                                       # (PROBE-TAIL-BUD 10-24): the unpatched copy patch_file kept
+    if P.MARK in src or LP.MARK in src:   # [v2.5.9z80] an arm patched the installed file already (PROBE-TAIL-BUD 10-24)
+        src = _unpatched(rt)
+        assert src is not None, f"{rt} is patched and neither {rt}.orig nor its git HEAD copy exists"
     for base in (src, LP.patch_text(src)[0] if LP.MARK not in src else src):   # alone and with the length-selection hook
         new, changed = P.patch_text(base)
         assert changed and new.count(P.MARK) == 1
