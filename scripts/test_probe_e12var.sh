@@ -38,6 +38,12 @@ if [[ $2 == E12c-P5-8k || $2 == E12c-P5-16k || $2 == E12e-P5self-8k || $2 == E12
   for i in 1 2 3; do echo "(TaskRunner pid=1) step:$i - response_length/mean:$((5000 + i)) - critic/score/mean:0.4" >> $d/train.log; done
   exit 0
 fi
+if [ $2 = E12b-P0think-8k ]; then   # [z146] (Q-093) FAKE_THINK_CLOSED of 4 step-1 rollouts close </think>
+  printf "task: E12b-P0think-8k\nstart: /m17\nvariant: 8k\nchat_template: enable_thinking=${FAKE_THINK:-True}\nmax_response_length: 8192\n" > $d/config.yaml
+  for i in 1 2 3; do echo "(TaskRunner pid=1) step:$i - response_length/mean:$((7000 + i)) - critic/score/mean:0.3" >> $d/train.log; done
+  mkdir -p $d/rollouts; for k in 1 2 3 4; do if [ $k -le ${FAKE_THINK_CLOSED:-3} ]; then echo '{"input": "q", "output": "<think>x</think> \\boxed{1}", "score": 1.0}'; else echo '{"input": "q", "output": "<think>x x x", "score": 0.0}'; fi; done > $d/rollouts/1.jsonl
+  exit 0
+fi
 if [ $2 = E12b-P5-16k ]; then   # [v2.5.8h]
   printf "task: E12b-P5-16k\nstart: $S\nvariant: 16k\nmax_response_length: ${FAKE_MAXR:-16384}\n" > $d/config.yaml
   for i in 1 2 3; do echo "(TaskRunner pid=1) step:$i - response_length/mean:$((9000 + i)) - critic/score/mean:0.5" >> $d/train.log; done
@@ -193,4 +199,15 @@ r3setup; FAKE_R3_ALGO="GRPO 64x8" bash $T/rb/scripts/probe_e12var.sh 2 r3 > /dev
 r3setup; FAKE_R3_HOOK="" bash $T/rb/scripts/probe_e12var.sh 2 r3 > /dev/null 2>&1; r3fail "[v2.5.9w] r3: no hook install before the smoke is FAIL" "vardrop_patch.py did not run"; rm -rf $T
 r3setup; printf 'x = 1\n' > $T/py/verl/trainer/ppo/ray_trainer.py; bash $T/rb/scripts/probe_e12var.sh 2 r3 > /dev/null 2>&1; r3fail "[v2.5.9w] r3: the unit tests fail on a ray_trainer.py without the anchors (no smoke)" "r3 unit tests"; ok "[v2.5.9w] r3: no smoke after failed unit tests" '! grep -q "^run_e12" $CALLS'; rm -rf $T
 unset PYTHONPATH
+# [z146] (Q-093) p0think: PROBE-E12B-P0THINK smokes E12b-P0think-8k; PASS needs 8192, enable_thinking=True and >= 0.1 of step-1 rollouts closing </think>
+thres() { python3 -c "import json, sys; print(json.load(open(sys.argv[1])).get(sys.argv[2], ''))" $T/root/runs/PROBE-E12B-P0THINK/report.json "$1"; }
+setup; bash $T/rb/scripts/probe_e12var.sh 2 p0think > /dev/null 2>&1
+ok "[z146] p0think PASS: the arm's own 3-step smoke, 0.750 of step-1 rollouts close </think>" '[ "$(thres result)" = PASS ] && [[ "$(thres reason)" == *"0.750 of step-1 rollouts close </think>"* ]] && grep -q "run_e12 2 E12b-P0think-8k SMOKE=1 STEPS=3 PROBE_TASK=PROBE-E12B-P0THINK-smoke" $CALLS'
+rm -rf $T; setup; FAKE_THINK=False bash $T/rb/scripts/probe_e12var.sh 2 p0think > /dev/null 2>&1
+ok "[z146] p0think: a config without enable_thinking=True is FAIL" '[ "$(thres result)" = FAIL ] && [[ "$(thres reason)" == *"enable_thinking=True"* ]]'
+rm -rf $T; setup; FAKE_THINK_CLOSED=0 bash $T/rb/scripts/probe_e12var.sh 2 p0think > /dev/null 2>&1
+ok "[z146] p0think: no rollout closing </think> (the non-thinking template) is FAIL" '[ "$(thres result)" = FAIL ] && [[ "$(thres reason)" == *"only 0.000 of the step-1 rollouts"* ]]'
+rm -rf $T; setup; PEV_LADDER=E12c bash $T/rb/scripts/probe_e12var.sh 2 p0think > /dev/null 2>&1; rpe=$?
+ok "[z146] p0think is an E12b variant only" '[ $rpe = 2 ]'
+rm -rf $T
 [ $fails = 0 ] && echo "PROBE_E12VAR_TEST PASS ($n checks)" || echo "PROBE_E12VAR_TEST FAIL ($fails of $n)"

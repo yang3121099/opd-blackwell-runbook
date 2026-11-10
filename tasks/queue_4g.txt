@@ -21,10 +21,10 @@ p0d        open   E12b-P0-8k:PROBE-E12B-8K
 p0e        open   E12b-P5-8k-lenpen:PROBE-E12B-8K+PROBE-E12B-STOP2+E10b-P5
 # p0c ~1.8 B200 GPU-h: PROBE-TERM4-NRL8K 1, PROBE-TERM4-N8BTHINK 0.3, PROBE-TERM4-NP5H200 0.5
 p0c        open   PROBE-TERM4-NRL8K PROBE-TERM4-N8BTHINK PROBE-TERM4-NP5H200
-# p0b ~2.9 B200 GPU-h: EVAL-e12b-P5tail-8k-nn 1.2, EVAL-e12b-P5-8k-nn 1.2, EVAL-e12d-P5tail-8k-nn 0.5
-p0b        open   EVAL-e12b-P5tail-8k-nn:E12b-P5tail-8k EVAL-e12b-P5-8k-nn:E12b-P5-8k EVAL-e12d-P5tail-8k-nn:E12d-P5tail-8k
-# p0dr ~4.0 B200 GPU-h: EVAL-e12b-P0-8k 1.2, EVAL-budA-e12bP0-8k 1, EVAL-ext32k-17p0l8k 1.5, PROBE-TERM4-N091 0.3
-p0dr       open   EVAL-e12b-P0-8k:E12b-P0-8k EVAL-budA-e12bP0-8k:E12b-P0-8k EVAL-ext32k-17p0l8k:E12b-P0-8k PROBE-TERM4-N091:EVAL-e12b-P0-8k
+# p0b ~4.1 B200 GPU-h: EVAL-e12b-P5tail-8k-nn 1.2, EVAL-e12b-P5-8k-nn 1.2, EVAL-e12d-P5tail-8k-nn 0.5, EVAL-ext32k-4Bp5tail8k-nn 1.2
+p0b        open   EVAL-e12b-P5tail-8k-nn:E12b-P5tail-8k EVAL-e12b-P5-8k-nn:E12b-P5-8k EVAL-e12d-P5tail-8k-nn:E12d-P5tail-8k EVAL-ext32k-4Bp5tail8k-nn:E12d-P5tail-8k
+# p0dr ~5.0 B200 GPU-h: EVAL-e12b-P0-8k 1.2, EVAL-budA-e12bP0-8k 1, EVAL-ext32k-17p0l8k 1.5, PROBE-TERM4-N17P0H200 1, PROBE-TERM4-N091 0.3
+p0dr       open   EVAL-e12b-P0-8k:E12b-P0-8k EVAL-budA-e12bP0-8k:E12b-P0-8k EVAL-ext32k-17p0l8k:E12b-P0-8k PROBE-TERM4-N17P0H200 PROBE-TERM4-N091:EVAL-e12b-P0-8k
 # p0er ~3.4 B200 GPU-h: EVAL-e12b-P5-8k-lenpen 1, EVAL-budA-e12bP5-8k-lenpen 0.8, EVAL-ext32k-17p5l8klp 1.3, PROBE-TERM4-N090 0.3
 p0er       open   EVAL-e12b-P5-8k-lenpen:E12b-P5-8k-lenpen EVAL-budA-e12bP5-8k-lenpen:E12b-P5-8k-lenpen EVAL-ext32k-17p5l8klp:E12b-P5-8k-lenpen PROBE-TERM4-N090:EVAL-e12b-P5-8k-lenpen
 # p0f ~3.7 B200 GPU-h: EVAL-e12d-P5tail-8k-s43-nn 1.5, EVAL-ext32k-4Bp5tail8k-s43-nn 1.3, EVAL-budA-e12dP5tail-8k-s43-nn 0.6, PROBE-TERM4-N074I 0.3
@@ -101,3 +101,6 @@ p1a        open   PROBE-FRET E10b-P5fret:PROBE-FRET E10b-P5topd:PROBE-FRET E10b-
 #eval EVAL-ext32k-17p5tail8k-nn ext32k17_E12bP5tail8k_s50_aime25_T0.6 result:runs/E12b-P5tail-8k/global_step_50/actor/huggingface aime25 16 0.6 32768
 #term PROBE-TERM4-N8BTHINK 8B_P0think Qwen/Qwen3-8B EVAL-budA-8Bthink/budA8B_think_math500_T0.6_32k_math500_think_t0.6.jsonl think
 #term PROBE-TERM4-NP5H200 17_P5s150 result:runs/E10b-P5/global_step_150/actor/huggingface gen
+#eval EVAL-ext32k-4Bp5tail8k-nn ext32k4B_E12dP5tail8k_s50_aime24_T0.6 result:runs/E12d-P5tail-8k/global_step_50/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-4Bp5tail8k-nn ext32k4B_E12dP5tail8k_s50_aime25_T0.6 result:runs/E12d-P5tail-8k/global_step_50/actor/huggingface aime25 16 0.6 32768
+#term PROBE-TERM4-N17P0H200 17_P0 Qwen/Qwen3-1.7B gen

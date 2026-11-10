@@ -253,5 +253,14 @@ mkdir -p $T/base/root/runs/PROBE-E12B-STOP2; echo '{"result": "PASS"}' > $T/base
 z3=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P5-8k-lenpen 2>&1 | tail -2); z4=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P5-stop2 2>&1 | tail -2)
 ok "[z136] E12b-P5-8k-lenpen: from E10b-P5 s150, 50 steps, 8K, reward_stop2 cut at 8192; E12b-P5-stop2 keeps 4096" '[[ "$z3" == "DRYRUN_REWARD maxlen=8192"*"DRYRUN E12b-P5-8k-lenpen start=$S5 steps=50 "*"var=8k "*"reward=reward_stop2.py" ]] && [[ "$z4" == "DRYRUN_REWARD maxlen=4096"*"var=stop2 "*"reward=reward_stop2.py" ]]'
 ok "[z136] the lenpen config names its reward; task.sh routes both names to run_e12.sh" 'grep -q "^reward: reward_stop2.py at the 8K limit" $T/base/root/runs/E12b-P5-8k-lenpen/config.yaml && grep -q "E12b-P0-8k|E12b-P5-8k-lenpen) bash \$RUNBOOK/scripts/run_e12.sh" "$(dirname "$0")/task.sh"'
+# [z146] (Q-093) E12b-P0think-8k: E12b-P0-8k's recipe in the thinking template, its own gate in place of PROBE-E12B-8K, s25 / s50 up
+rm -f $T/base/root/runs/PROBE-E12B-P0THINK/report.json; ( DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P0think-8k > $T/q1 2>&1 ); rq1=$?
+ok "[z146] E12b-P0think-8k waits for PROBE-E12B-P0THINK (exit 3)" '[ $rq1 = 3 ] && grep -q "PROBE-E12B-P0THINK has not passed: E12b-P0think-8k not started" $T/q1'
+mkdir -p $T/base/root/runs/PROBE-E12B-P0THINK; echo '{"result": "PASS"}' > $T/base/root/runs/PROBE-E12B-P0THINK/report.json
+mv $T/base/root/runs/PROBE-E12B-8K/report.json $T/base/root/runs/PROBE-E12B-8K/r.json
+q2=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P0think-8k 2>&1 | tail -2); mv $T/base/root/runs/PROBE-E12B-8K/r.json $T/base/root/runs/PROBE-E12B-8K/report.json
+ok "[z146] E12b-P0think-8k: from the base, 50 steps, s25 / s50 up, 8K, the plain reward, enable_thinking=True (PROBE-E12B-8K not needed)" '[[ "$q2" == "DRYRUN_THINK enable_thinking=True"*"DRYRUN E12b-P0think-8k start=$T/m17 steps=50 "*"upload=25,50 "*"var=8k "*"reward=reward_mathverify.py" ]] && grep -q "^chat_template: enable_thinking=True$" $T/base/root/runs/E12b-P0think-8k/config.yaml'
+q3=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P0-8k 2>&1)
+ok "[z146] the other arms keep the non-thinking template (E12b-P0-8k, E12b-P5-8k-lenpen)" '! [[ "$q3" == *DRYRUN_THINK* ]] && grep -q "^chat_template: enable_thinking=False$" $T/base/root/runs/E12b-P0-8k/config.yaml && grep -q "^chat_template: enable_thinking=False$" $T/base/root/runs/E12b-P5-8k-lenpen/config.yaml'
 rm -rf $T
 [ $fails = 0 ] && echo "DR_TEST PASS ($n checks)" || echo "DR_TEST FAIL ($fails of $n)"

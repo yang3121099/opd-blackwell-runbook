@@ -26,7 +26,7 @@
 #       vardrop.jsonl has every group (kept ones with a spread); the config names reinforce_plus_plus_baseline 128x8.
 set -uo pipefail
 G=$1; VAR=$2; source "$(dirname "$0")/env.sh"
-case $VAR in kl|stop|stop2|8k|16k|r3) ;; *) echo "unknown variant $VAR"; exit 2;; esac   # [v2.5.8c] stop; [v2.5.8h] 8k / 16k; [v2.5.9f] stop2
+case $VAR in kl|stop|stop2|8k|16k|r3|p0think) ;; *) echo "unknown variant $VAR"; exit 2;; esac   # [v2.5.8c] stop; [v2.5.8h] 8k / 16k; [v2.5.9f] stop2
 # [v2.5.9z85] (Q-077) PEV_LADDER=E12c: PROBE-E12C-8K / -16K, the same smoke of the 0.6B window arm E12c-P5-<8k|16k> (the 1.7B one by default)
 L=${PEV_LADDER:-E12b}; case $L:$VAR in E12b:*|E12c:8k|E12c:16k|E12d:16k|E12e:8k|E12e:16k) ;; *) echo "unknown ladder / variant $L $VAR"; exit 2;; esac   # [v2.5.9z97] E12e:16k (Q-074j)
 T=PROBE-$(echo $L | tr a-z A-Z)-$(echo $VAR | tr a-z A-Z); D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; mkdir -p $D
@@ -89,6 +89,7 @@ rm -rf $OPD_ROOT/runs/$T-smoke
 ARM=$L-P5-$VAR; [ $L = E12e ] && ARM=$L-P5self-$VAR   # [v2.5.9z91] (Q-081) PEV_LADDER=E12e: PROBE-E12E-8K smokes E12e-P5self-8k on its four GPUs (#gpus 4)
 [ $L:$VAR = E12d:16k ] && ARM=E12d-P5tail-16k   # [v2.5.9z113] (Q-074h, Fable 11-01 06:3x UTC) PROBE-E12D-16K smokes Q-074h's arm itself on its four GPUs (the 1.7B 16K gate peaked at 80.4 of 81.6 GB)
 [ $L:$VAR = E12e:16k ] && ARM=E12e-P5tail-16k   # [v2.5.9z97] (Q-074j) PROBE-E12E-16K smokes the arm itself (there is no 8B P5self 16K arm), from E10e-P5tail s50 on four GPUs
+[ $L:$VAR = E12b:p0think ] && ARM=E12b-P0think-8k   # [z146] (Q-093) PROBE-E12B-P0THINK smokes the arm itself: the base in the thinking template at 8K
 SMOKE=1 SMOKE_STEPS=${PEV_STEPS:-3} PROBE_TASK=$T-smoke bash $RUNBOOK/scripts/run_e12.sh $G $ARM > $D/smoke.out 2>&1; rc=$?   # [v2.5.9z85] $L
 kill $MP 2> /dev/null
 mkdir -p $D/smoke; cp $OPD_ROOT/runs/$T-smoke/train.log $OPD_ROOT/runs/$T-smoke/config.yaml $D/smoke/ 2> /dev/null
@@ -298,6 +299,30 @@ PY
   KG=$(python3 -c "import json, sys; s = json.load(open(sys.argv[1]))['by_step']; print('/'.join(f\"{v['kept_groups']:.0f}\" for _, v in sorted(s.items(), key=lambda x: int(x[0]))))" $D/r3_by_step.json)
   ZV=$(python3 -c "import json, sys; s = json.load(open(sys.argv[1]))['by_step']; print('/'.join(f\"{v['zero_var_frac']:.2f}\" for _, v in sorted(s.items(), key=lambda x: int(x[0]))))" $D/r3_by_step.json)
   finish PASS "${PEV_STEPS:-3}-step smoke ok, peak ${peak} MiB; kept groups by step $KG of ${PEV_R3_GROUPS:-128} (zero-variance share $ZV); rows, the whitening, the rollout dump and vardrop.jsonl checked"
+fi
+if [ $VAR = p0think ]; then   # [z146] (Q-093) the limit, the template switch, and the rollouts really in the thinking mode
+  grep -q "^max_response_length: 8192$" $D/smoke/config.yaml || finish FAIL "the smoke's config does not name max_response_length 8192"
+  grep -q "^chat_template: enable_thinking=True$" $D/smoke/config.yaml || finish FAIL "the smoke's config does not name enable_thinking=True"
+  cp $OPD_ROOT/runs/$T-smoke/rollouts/1.jsonl $D/smoke/rollouts_1.jsonl 2> /dev/null
+  TF=$(python3 - "$D/smoke/rollouts_1.jsonl" <<'PY'
+import json, sys
+n = k = 0
+try:
+    for line in open(sys.argv[1]):
+        try:
+            o = json.loads(line).get("output", "")
+        except ValueError:
+            continue
+        n += 1; k += "</think>" in str(o)
+except OSError:
+    pass
+print(f"{k / n:.3f}" if n else "none")
+PY
+)
+  [ "$TF" != none ] || finish FAIL "no step-1 rollout dump to check the template"
+  python3 -c "import sys; sys.exit(0 if float(sys.argv[1]) >= ${PEV_THINK_MIN:-0.1} else 1)" $TF || finish FAIL "only $TF of the step-1 rollouts close a </think> (thinking template not in effect?)"
+  LENS=$(grep -oE "response_length/mean:[0-9.]+" $D/smoke/train.log | cut -d: -f2 | xargs | tr ' ' '/')
+  finish PASS "${PEV_STEPS:-3}-step smoke ok at the 8192 limit in the thinking template, peak ${peak} MiB, $TF of step-1 rollouts close </think>, response_length/mean by step ${LENS:-none}"
 fi
 if [ $VAR = 8k ] || [ $VAR = 16k ]; then   # [v2.5.8h]
   N=$(( ${VAR%k} * 1024 ))

@@ -1,4 +1,4 @@
-# Remote-node task queue, version 2. newnode-v2, profile 1gt: one GPU beside a 1gs node (control/queue_name = 1gt): 1g's trainings and their readings (P0-d / e / b / dr / er, P1-a)
+# Remote-node task queue, version 2. newnode-v2, profile 1gt: one GPU beside a 1gs node (control/queue_name = 1gt): 1g's trainings and their readings (P0-d / e / b / dr / er, Q-093, P1-a)
 # Written by scripts/queue_profiles.py (lab WO-001; v3 workflow 7.2) from tasks/queue_newnode_v1.txt + its new rows: edit the
 # generator, not this file. Profiles 1g / 4g / 4g80 / 8g / 8g80 (+ the split pair 1gs / 8gs, z139); at T0, before cold_start.sh: `python3 scripts/queue_profiles.py
 # --select <profile>` copies tasks/queue_<profile>.txt to tasks/queue.txt (one commit, main + hf). Under 80 GB: no 4B / 8B training.
@@ -17,14 +17,16 @@ version: 2
 p0a        open   PROBE-TAIL PROBE-E12B-8K PROBE-E12B-STOP2
 # p0d ~3.0 B200 GPU-h: E12b-P0-8k 3
 p0d        open   E12b-P0-8k:PROBE-E12B-8K
-# p0b ~2.9 B200 GPU-h: EVAL-e12b-P5tail-8k-nn 1.2, EVAL-e12b-P5-8k-nn 1.2, EVAL-e12d-P5tail-8k-nn 0.5
-p0b        open   EVAL-e12b-P5tail-8k-nn:E12b-P5tail-8k EVAL-e12b-P5-8k-nn:E12b-P5-8k EVAL-e12d-P5tail-8k-nn:E12d-P5tail-8k
+# p0b ~4.1 B200 GPU-h: EVAL-e12b-P5tail-8k-nn 1.2, EVAL-e12b-P5-8k-nn 1.2, EVAL-e12d-P5tail-8k-nn 0.5, EVAL-ext32k-4Bp5tail8k-nn 1.2
+p0b        open   EVAL-e12b-P5tail-8k-nn:E12b-P5tail-8k EVAL-e12b-P5-8k-nn:E12b-P5-8k EVAL-e12d-P5tail-8k-nn:E12d-P5tail-8k EVAL-ext32k-4Bp5tail8k-nn:E12d-P5tail-8k
 # p0e ~3.0 B200 GPU-h: E12b-P5-8k-lenpen 3
 p0e        open   E12b-P5-8k-lenpen:PROBE-E12B-8K+PROBE-E12B-STOP2+E10b-P5
-# p0dr ~4.0 B200 GPU-h: EVAL-e12b-P0-8k 1.2, EVAL-budA-e12bP0-8k 1, EVAL-ext32k-17p0l8k 1.5, PROBE-TERM4-N091 0.3
-p0dr       open   EVAL-e12b-P0-8k:E12b-P0-8k EVAL-budA-e12bP0-8k:E12b-P0-8k EVAL-ext32k-17p0l8k:E12b-P0-8k PROBE-TERM4-N091:EVAL-e12b-P0-8k
+# p0dr ~5.0 B200 GPU-h: EVAL-e12b-P0-8k 1.2, EVAL-budA-e12bP0-8k 1, EVAL-ext32k-17p0l8k 1.5, PROBE-TERM4-N17P0H200 1, PROBE-TERM4-N091 0.3
+p0dr       open   EVAL-e12b-P0-8k:E12b-P0-8k EVAL-budA-e12bP0-8k:E12b-P0-8k EVAL-ext32k-17p0l8k:E12b-P0-8k PROBE-TERM4-N17P0H200 PROBE-TERM4-N091:EVAL-e12b-P0-8k
 # p0er ~3.4 B200 GPU-h: EVAL-e12b-P5-8k-lenpen 1, EVAL-budA-e12bP5-8k-lenpen 0.8, EVAL-ext32k-17p5l8klp 1.3, PROBE-TERM4-N090 0.3
 p0er       open   EVAL-e12b-P5-8k-lenpen:E12b-P5-8k-lenpen EVAL-budA-e12bP5-8k-lenpen:E12b-P5-8k-lenpen EVAL-ext32k-17p5l8klp:E12b-P5-8k-lenpen PROBE-TERM4-N090:EVAL-e12b-P5-8k-lenpen
+# p1q ~11.6 B200 GPU-h: PROBE-E12B-P0THINK 0.5, E12b-P0think-8k 4.5, EVAL-e12b-P0think-8k 1.8, PROBE-TERM4-N093 0.3, EVAL-budA-e12bP0think-8k 1.5, EVAL-ext32k-17p0think8k 3
+p1q        open   PROBE-E12B-P0THINK E12b-P0think-8k:PROBE-E12B-P0THINK EVAL-e12b-P0think-8k:E12b-P0think-8k PROBE-TERM4-N093:EVAL-e12b-P0think-8k EVAL-budA-e12bP0think-8k:E12b-P0think-8k EVAL-ext32k-17p0think8k:E12b-P0think-8k
 # p1a ~10.6 B200 GPU-h: PROBE-FRET 0.5, E10b-P5fret 2.5, E10b-P5topd 2.5, E10b-P5fret-topd 2.5, EVAL-e10b-P5fret 0.7, EVAL-e10b-P5topd 0.7, EVAL-e10b-P5fret-topd 0.7, PROBE-TERM4-FRET 0.5
 p1a        open   PROBE-FRET E10b-P5fret:PROBE-FRET E10b-P5topd:PROBE-FRET E10b-P5fret-topd:PROBE-FRET EVAL-e10b-P5fret:E10b-P5fret EVAL-e10b-P5topd:E10b-P5topd EVAL-e10b-P5fret-topd:E10b-P5fret-topd PROBE-TERM4-FRET:EVAL-e10b-P5fret+EVAL-e10b-P5topd+EVAL-e10b-P5fret-topd
 
@@ -64,3 +66,12 @@ p1a        open   PROBE-FRET E10b-P5fret:PROBE-FRET E10b-P5topd:PROBE-FRET E10b-
 #eval EVAL-e12b-P5tail-8k-nn e12b_P5tail-8k_s50_math500_T1.0 result:runs/E12b-P5tail-8k/global_step_50/actor/huggingface math500 4 1.0
 #eval EVAL-e12b-P5-8k-nn e12b_P5-8k_s50_math500_T0.6 result:runs/E12b-P5-8k/global_step_50/actor/huggingface math500 4 0.6
 #eval EVAL-e12b-P5-8k-nn e12b_P5-8k_s50_math500_T1.0 result:runs/E12b-P5-8k/global_step_50/actor/huggingface math500 4 1.0
+#eval EVAL-ext32k-4Bp5tail8k-nn ext32k4B_E12dP5tail8k_s50_aime24_T0.6 result:runs/E12d-P5tail-8k/global_step_50/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-4Bp5tail8k-nn ext32k4B_E12dP5tail8k_s50_aime25_T0.6 result:runs/E12d-P5tail-8k/global_step_50/actor/huggingface aime25 16 0.6 32768
+#term PROBE-TERM4-N17P0H200 17_P0 Qwen/Qwen3-1.7B gen
+#eval EVAL-e12b-P0think-8k e12b_P0think-8k_s50_math500_T0.6 result:runs/E12b-P0think-8k/global_step_50/actor/huggingface math500 4 0.6 16384 think
+#eval EVAL-e12b-P0think-8k e12b_P0think-8k_s50_math500_T1.0 result:runs/E12b-P0think-8k/global_step_50/actor/huggingface math500 4 1.0 16384 think
+#term PROBE-TERM4-N093 17_P0think8k result:runs/E12b-P0think-8k/global_step_50/actor/huggingface EVAL-e12b-P0think-8k/e12b_P0think-8k_s50_math500_T0.6_math500_think_t0.6.jsonl think
+#eval EVAL-budA-e12bP0think-8k budAe12bP0think-8k_s50_math500_T0.6_32k result:runs/E12b-P0think-8k/global_step_50/actor/huggingface math500 4 0.6 32768 think
+#eval EVAL-ext32k-17p0think8k ext32k17_E12bP0think8k_s50_aime24_T0.6 result:runs/E12b-P0think-8k/global_step_50/actor/huggingface aime24 16 0.6 32768 think
+#eval EVAL-ext32k-17p0think8k ext32k17_E12bP0think8k_s50_aime25_T0.6 result:runs/E12b-P0think-8k/global_step_50/actor/huggingface aime25 16 0.6 32768 think

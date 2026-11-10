@@ -44,9 +44,13 @@ VAR=""; case $A in P5-kl|P5-stop|P5-stop2|P5-8k|P5-16k|P5-r3|P5-16k-kl) VAR=${A#
 [ "$A" = P5-16k-s43 ] && { VAR=16k; A=P5-s43; }   # [v2.5.9z84] (Q-076) E12d-P5-16k-s43: E12d-P5-16k's recipe from E10d-P5-s43 s150 (the 4B 16K window's second start), #gpus 4
 [ "$A" = P5-8k-s43 ] && { VAR=8k; A=P5-s43; }   # [v2.5.9z77] (Q-071; Fable 10-24 08:2x Beijing) E12d-P5-8k-s43: E12d-P5-8k's recipe from E10d-P5-s43 s150 (the second start; data.seed 4242 as every E12)
 [ "$A" = P5-prog-up ] && VAR=8k   # [v2.5.9z43] (Q-058) the grow-window arm: the 8K recipe (its gate PROBE-E12B-8K too)
-LENPEN=0
+LENPEN=0; THINK=False
 [ "$A" = P0-8k ] && { VAR=8k; A=P0; }   # [v2.5.9z136] (Q-091, research_program 3s) E12b-P0-8k: the 8K recipe from the base, no distillation
-[ "$A" = P5-8k-lenpen ] && { VAR=8k; A=P5; LENPEN=1; }   # [v2.5.9z136] (Q-090, 3s) E12b-P5-8k-lenpen: the 8K recipe from E10b-P5 s150 with reward_stop2 (a length control baseline)
+[ "$A" = P5-8k-lenpen ] && { VAR=8k; A=P5; LENPEN=1; }
+# [z146] (Q-093, Fable D10 11-11 02:06 Beijing; lab/registry/Q-093.md) E12b-P0think-8k: E12b-P0-8k's recipe (the base, 8K, 50 steps) in the
+# thinking template: the rollouts and the validation with enable_thinking=True (every other arm keeps False); its own gate PROBE-E12B-P0THINK
+# (a 3-step smoke of this arm: the thinking answers are long), in place of PROBE-E12B-8K
+[ "$A" = P0think-8k ] && { VAR=8k; A=P0; THINK=True; }   # [v2.5.9z136] (Q-090, 3s) E12b-P5-8k-lenpen: the 8K recipe from E10b-P5 s150 with reward_stop2 (a length control baseline)
 # [v2.5.8h] (Runming 10-20 17:5x UTC via the reviewer, Q-028: the 4K limit costs too much): E12b-P5-8k / -16k = E12b-P5 with
 # max_response_length 8192 / 16384 and what the length forces: flash-attn with remove-padding (an SDPA micro-batch is
 # padded to its longest sequence), a token budget of at least prompt + response, vLLM batching above the model length
@@ -57,6 +61,7 @@ if [ -n "$VAR" ] && [ "${SMOKE:-0}" != 1 ]; then
   [ $LADDER = E12c ] && GATES="$GATES PROBE-E12C-$(echo $VAR | tr a-z A-Z)"   # [v2.5.9z85] (Q-077) the 0.6B window arms' own smokes too
   [ $LADDER = E12e ] && GATES="$GATES PROBE-E12E-$(echo $VAR | tr a-z A-Z)"   # [v2.5.9z91] (Q-081) and the 8B four-GPU smoke
   [ $LENPEN = 1 ] && GATES="$GATES PROBE-E12B-STOP2"   # [v2.5.9z136] the reward function's smoke too
+  [ $THINK = True ] && GATES=PROBE-E12B-P0THINK   # [z146] the arm's own smoke (8K in the thinking template)
   for P in $GATES; do grep -q '"result": "PASS"' $OPD_ROOT/runs/$P/report.json 2> /dev/null || { echo "$P has not passed: $T$NN not started"; exit 3; }; done
 fi
 SRC=E10b; [ $LADDER = E12d ] && SRC=E10d   # v2.5.7o: the preparation run a start comes from
@@ -178,6 +183,7 @@ task: $T$NN
 start: $START
 algo: $([ "$VAR" = r3 ] && echo "reinforce_plus_plus_baseline (group mean, batch whitening) ${TBS}x8, zero-variance groups dropped before the update (at most ${R3_KEEP_GROUPS:-64} groups kept, opd_vardrop.py; seed OPD_SEED ${OPD_SEED:-1234} x 100003 + step)" || echo "GRPO 64x8"), $((MAXR / 1024))K, T=1.0, lr 1e-6, clip 0.2/0.28, $(case $VAR in kl|16k-kl) echo "KL loss 0.01 low_var_kl to the start (reference = $START)";; *) echo "KL 0";; esac), mini-batch 16, data.seed 4242, $STEPS steps
 variant: ${VAR:-none}
+chat_template: enable_thinking=$THINK
 max_response_length: $MAXR
 reward: $([ $LENPEN = 1 ] && echo "reward_stop2.py at the 8K limit (Q-090 length control)" || case $VAR in (stop) echo "reward_stop.py (1 if correct, +0.5 if every box agrees and the response ends within 64 tokens after the first box)";; (stop2) echo "reward_stop2.py (correct x (1 + 0.5 x clip(1 - tail / 1024, 0, 1)), tail = tokens after the first box, a cut response counts 1024)";; (*) echo reward_mathverify.py;; esac)   # [v2.5.8c] [v2.5.9f] [v2.5.9z136]
 attention: $ATTN (use_remove_padding=$RMPAD)
@@ -210,6 +216,7 @@ case $T in E12d-P5tail-8k-s43|E12e-P5tail-16k) UW=25,$STEPS;; esac   # [v2.5.9z9
 [ $T = E12d-P5tail-8k ] && UW=25,$STEPS   # [v2.5.9z90] (Q-074b) as E12d-P5-8k: s25 and s50 up (z86: saved every 25 steps)
 case $T in E12b-P5-16k-s44|E12d-P5-16k-s43) UW=25,$STEPS;; esac   # [v2.5.9z84] (Q-076) as the 16K arms: s25 and s50 up
 case $T in E12c-P5-8k|E12c-P5-16k) UW=25,$STEPS;; esac   # [v2.5.9z85] (Q-077) as the 1.7B / 4B window arms: s25 and s50 up
+[ $T = E12b-P0think-8k ] && UW=25,$STEPS   # [z146] (Q-093) s25 and s50 up
 [ -n "$CONT" ] && UW=25   # [v2.5.9z129] the continued arm's last save (= the chain's s50)
 # [v2.5.9z86] (fix; found 10-25 16:5x UTC: EVAL-e12b-P5tail-8k's s25 weights did not exist) with DR off (seq 545, 10-24) the save
 # interval above fell to the final step, so an arm uploading s25 (UW=25,...) saved no s25 checkpoint; the save interval is
@@ -230,6 +237,7 @@ export OPD_VARDROP= OPD_VARDROP_LOG=; [ "$VAR" = r3 ] && export OPD_VARDROP=1 OP
 [ "${DRYRUN:-0}" = 1 ] && [ -n "$NN" ] && echo "DRYRUN_NN name=$NAME recipe=$T start=$SRUN s$SS steps=$STEPS train=$(basename $TRAINF) uw=$UW"   # [v2.5.9z129] tests
 [ "${DRYRUN:-0}" = 1 ] && [ -n "$PROG" ] && echo "DRYRUN_PROG train=$(basename $TRAINF) from=$SRUN s$SS"   # [v2.5.9z43] tests
 [ "${DRYRUN:-0}" = 1 ] && [ -n "${OPD_REWARD_MAXLEN:-}" ] && echo "DRYRUN_REWARD maxlen=$OPD_REWARD_MAXLEN"   # [v2.5.9z136] tests
+[ "${DRYRUN:-0}" = 1 ] && [ $THINK = True ] && echo "DRYRUN_THINK enable_thinking=$THINK"   # [z146] tests
 [ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $NAME start=$START steps=$STEPS save=$SAVE contents=$CONTENTS kern=[$KERN] gc=$GCK venv=$(basename $V) ngpu=$NG rmpad=$RMPAD upload=${UPLOAD_WEIGHTS:-$UW} vllm=${VLLM_UTIL:-0.6} var=${VAR:-none} kl=[$KL] reward=$(basename $REWARD)"; exit 0; }   # tests
 if [ $SM = 0 ]; then
   ckpt_link $OUT
@@ -246,7 +254,7 @@ python3 -m verl.trainer.main_ppo \
   data.train_files=$TRAINF data.val_files=$OPD_ROOT/data/math500_100.parquet \
   data.train_batch_size=$TBS data.max_prompt_length=1024 data.max_response_length=$MAXR \
   data.filter_overlong_prompts=True data.truncation=error data.shuffle=True data.seed=4242 data.return_raw_chat=True \
-  +data.apply_chat_template_kwargs.enable_thinking=False \
+  +data.apply_chat_template_kwargs.enable_thinking=$THINK \
   actor_rollout_ref.model.path=$START +actor_rollout_ref.model.override_config.attn_implementation=$ATTN \
   actor_rollout_ref.model.use_remove_padding=$RMPAD actor_rollout_ref.model.enable_gradient_checkpointing=$GCK \
   actor_rollout_ref.actor.optim.lr=1e-6 actor_rollout_ref.actor.optim.lr_warmup_steps_ratio=0.0 \
