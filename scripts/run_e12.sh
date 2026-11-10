@@ -153,6 +153,11 @@ unset OPD_VARIANT
 if python -c "import flash_attn" 2>/dev/null; then RMPAD=True; ATTN=flash_attention_2; TOK=16384; else RMPAD=False; ATTN=sdpa; TOK=6144; fi
 # [v2.5.8h] a long limit: the dynamic token budget holds one whole sequence (verl requires it), a fixed micro-batch is not used
 [ $MAXR -gt 4096 ] && { TOK=$(( MAXR + 1024 > TOK ? MAXR + 1024 : TOK )); MAX_TOK_GPU=$TOK; FIXED_MICRO_BSZ=; }
+# [z143] (Fable / the lead 11-11: Q-091 E12b-P0-8k, 3 x OOM at step 0, "Tried to allocate 46.37 GiB" in entropy_from_logits) SDPA
+# pads every sequence to the limit, so a dynamic bin of ~10 short answers is 10 x 8192 x 151936 x 4 B; the 8K gate passed only because
+# the P5 start writes ~7.5K answers (one per bin). Without remove-padding a long limit takes a fixed micro-batch instead (E12B_MICRO,
+# default 2 up to 8K, 1 beyond): gradient accumulation over the same mini-batch, the loss unchanged; flash-attn keeps the token budget.
+[ $MAXR -gt 4096 ] && [ $RMPAD = False ] && FIXED_MICRO_BSZ=${E12B_MICRO:-$([ $MAXR -gt 8192 ] && echo 1 || echo 2)}
 VBT=$(( MAXR + 1024 > 16384 ? MAXR + 1024 : 16384 ))   # [v2.5.8h] vLLM max_num_batched_tokens >= the model length
 # v2.5.4a: as run_arm.sh, FIXED_MICRO_BSZ=<n> (setenv, or set by task.sh after an out-of-memory failure) uses n sequences per
 # micro-batch in the update and the log-probs instead of the token budget (without flash-attn every sequence is padded to
