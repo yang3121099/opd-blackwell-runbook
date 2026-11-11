@@ -1325,7 +1325,7 @@ def test_prog_wiring_v259z43():   # [v2.5.9z43] task.sh routes the three names, 
     line = next(x for x in rt.splitlines() if x.startswith("cpu_task() {"))
     out = subprocess.run(["bash", "-c", line + "\nfor t in PROBE-PROG PROBE-MIXP E12b-P5-prog EVAL-x; do cpu_task $t && printf \"$t \"; done"], capture_output=True, text=True).stdout
     assert out == "PROBE-PROG PROBE-MIXP "
-    assert "        E12b-P5-prog|E12b-P5-prog-up) env KEEP_BF16=0 UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-25} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh" in rt
+    assert "        E12b-P5-prog|E12b-P5-prog-up) env KEEP_BF16=${KEEP_BF16:-1} UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-25} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh" in rt   # [z153] bf16 kept
 
 
 def test_queue_prog_stage_before_diff4b_v259z43():   # [v2.5.9z43] ops-lead: Q-058 before diff4b, after b259z41o; every task of the stage has rows or a branch
@@ -2397,3 +2397,9 @@ def test_s43_chain_frontier_rows_z152c():   # [z152c] the chain's s25 / s50 on a
     rows = [l.split() for l in L if l.startswith("#eval EVAL-e12b-P5tail-8k-s43-s")]
     assert [r[3] for r in rows] == ["result:runs/E12b-P5tail-8k-s43/global_step_25/actor/huggingface",
                                     "result:runs/E12b-P5tail-8k-s43/global_step_50/actor/huggingface"] and all(r[4:7] == ["math500", "4", "0.6"] for r in rows)
+
+
+def test_upload_final_sh_z153():   # [z153] the shell stub test of upload_sync.sh's final-step rule and the 11-11 reading race
+    import subprocess
+    r = subprocess.run(["bash", os.path.join(HERE, "test_upload_final.sh")], capture_output=True, text=True, timeout=300)
+    assert "UPLOAD_FINAL_TEST PASS" in r.stdout, r.stdout[-2000:] + r.stderr[-2000:]

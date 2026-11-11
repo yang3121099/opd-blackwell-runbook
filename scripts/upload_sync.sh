@@ -8,7 +8,7 @@
 # younger than 120 s when the run finishes). v2.1 fixed both: before, shards were skipped and the last checkpoint lost.
 # v2.4 (Runming's save rule): after the bf16 copy is uploaded the local fp32 HF weights are deleted (KEEP_LOCAL_HF=0,
 # now the default) and the bf16 copy stays in <ckpt>/actor/huggingface_bf16 for an evaluation on this machine
-# (KEEP_BF16=1; run_e12.sh passes 0). On every run (not only SPOT=1; [v2.5.8] comment corrected, checked 10-19) the
+# (KEEP_BF16=1; [z153] run_e12.sh / run_tasks.sh no longer pass 0: the bf16 copy is the readings' first local pick). On every run (not only SPOT=1; [v2.5.8] comment corrected, checked 10-19) the
 # resume files (*.pt) of every step older than the newest checkpoint are deleted, so one resume state stays. UPLOAD_WEIGHTS (v2.4): which steps' weights go to the result
 # repository: a comma list (run_arm.sh / run_e12.sh pass the last step), or all; a step not in it gets no bf16 copy,
 # its fp32 HF weights are deleted (unless KEEP_LOCAL_HF=1) and it is marked .not_uploaded.
@@ -71,6 +71,16 @@ for l in lines[seen:]:
 open(seen_f, "w").write(str(len(lines)))
 PY
 }
+# [z153] (11-11, twice: a reading's vLLM load lost its weights mid-way) the run's FINAL step keeps its local fp32 HF weights whatever
+# KEEP_LOCAL_HF says: the readings start about a minute after .done (run_queue_eval.sh LOCAL_FIRST reads the local save) and, with
+# PUBLIC_UPLOADS=0, the uploaded copy is only held (remote.py defer_weight), not fetchable. Final = "steps:" in config.yaml; without it,
+# once the run has finished, its newest step. Earlier steps keep the old rule (fp32 deleted after the bf16 copy), so disk stays bounded.
+final_step() { local f; f=$(sed -n 's/^steps:[[:space:]]*\([0-9][0-9]*\).*/\1/p' $RUN/config.yaml 2> /dev/null | head -1)
+  [ -n "$f" ] && { echo $f; return 0; }
+  grep -q '^finished:' $RUN/config.yaml 2> /dev/null && echo "$latest"; return 0; }
+drop_fp32() {   # <step dir> <step>: the fp32 HF weights go, unless KEEP_LOCAL_HF=1 or it is the final step
+  [ "${KEEP_LOCAL_HF:-0}" = 0 ] || return 0
+  if [ "$2" = "$(final_step)" ]; then echo "KEPT_FINAL_HF $TASK step $2"; else rm -f $1/actor/huggingface/*.safetensors; fi; }
 [ "$DRY" = 1 ] || python $RUNBOOK/scripts/remote.py check || { echo "UPLOAD_STOP: backend not usable (token or repo missing?)"; exit 1; }
 echo "UPLOAD_SETTINGS $(date -u +%FT%TZ) $TASK UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-all} KEEP_LOCAL_HF=${KEEP_LOCAL_HF:-0} KEEP_BF16=${KEEP_BF16:-1} DRY=$DRY"   # [v2.5.8]
 while true; do
@@ -82,7 +92,7 @@ while true; do
     pend=1
     [ $(( $(date +%s) - $(stat -c %Y $(ls -t $h/*.safetensors | head -1)) )) -gt 120 ] || continue
     case ",${UPLOAD_WEIGHTS:-all}," in *",all,"*|*",$s,"*) ;; *)
-      [ "${KEEP_LOCAL_HF:-0}" = 0 ] && rm -f $h/*.safetensors; touch $d/.uploaded $d/.not_uploaded; echo "NOT_UPLOADED $TASK step $s (UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-all})"; continue;; esac
+      drop_fp32 $d $s; touch $d/.uploaded $d/.not_uploaded; echo "NOT_UPLOADED $TASK step $s (UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-all})"; continue;; esac
     rm -rf $d/.bf16; python $RUNBOOK/scripts/to_bf16.py $h $d/.bf16 || { echo "BF16_FAIL $TASK $s"; continue; }
     if [ "$DRY" = 1 ]; then
       touch $d/.uploaded; new=1; echo "UP_DRY $TASK step $s: bf16 copy in $d/.bf16 ($(ls $d/.bf16/*.safetensors | wc -l) weight file(s))"
@@ -92,7 +102,7 @@ while true; do
       [ -n "${ARCHIVE_ROOT:-}" ] && mkdir -p $ARCHIVE_ROOT/opd-archive/$TASK && rm -rf $ARCHIVE_ROOT/opd-archive/$TASK/global_step_$s \
         && cp -r $d/.bf16 $ARCHIVE_ROOT/opd-archive/$TASK/global_step_$s && echo "ARCHIVED $TASK step $s in $ARCHIVE_ROOT/opd-archive"
       if [ "${KEEP_BF16:-1}" = 1 ]; then rm -rf $d/actor/huggingface_bf16; mv $d/.bf16 $d/actor/huggingface_bf16; else rm -rf $d/.bf16; fi
-      [ "${KEEP_LOCAL_HF:-0}" = 0 ] && rm -f $h/*.safetensors
+      drop_fp32 $d $s   # [z153]
     else echo "UP_FAIL $TASK step $s (retried next cycle)"; fi
   done
   [ $new = 1 ] && printf 'train.log\nconfig.yaml\n' >> $RUN/.up_due   # [v2.5.9z52]

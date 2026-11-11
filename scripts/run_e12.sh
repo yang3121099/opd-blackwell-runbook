@@ -184,6 +184,7 @@ task: $T$NN
 start: $START
 algo: $([ "$VAR" = r3 ] && echo "reinforce_plus_plus_baseline (group mean, batch whitening) ${TBS}x8, zero-variance groups dropped before the update (at most ${R3_KEEP_GROUPS:-64} groups kept, opd_vardrop.py; seed OPD_SEED ${OPD_SEED:-1234} x 100003 + step)" || echo "GRPO 64x8"), $((MAXR / 1024))K, T=1.0, lr 1e-6, clip 0.2/0.28, $(case $VAR in kl|16k-kl) echo "KL loss 0.01 low_var_kl to the start (reference = $START)";; *) echo "KL 0";; esac), mini-batch 16, data.seed 4242, $STEPS steps
 variant: ${VAR:-none}
+steps: $STEPS
 chat_template: enable_thinking=$THINK
 max_response_length: $MAXR
 reward: $([ $LENPEN = 1 ] && echo "reward_stop2.py at the 8K limit (Q-090 length control)" || case $VAR in (stop) echo "reward_stop.py (1 if correct, +0.5 if every box agrees and the response ends within 64 tokens after the first box)";; (stop2) echo "reward_stop2.py (correct x (1 + 0.5 x clip(1 - tail / 1024, 0, 1)), tail = tokens after the first box, a cut response counts 1024)";; (*) echo reward_mathverify.py;; esac)   # [v2.5.8c] [v2.5.9f] [v2.5.9z136]
@@ -244,7 +245,7 @@ export OPD_VARDROP= OPD_VARDROP_LOG=; [ "$VAR" = r3 ] && export OPD_VARDROP=1 OP
 if [ $SM = 0 ]; then
   ckpt_link $OUT
   dr_restore $OUT || echo "DR_RESTORE_FAILED $T"; dr_start_sync $OUT   # v2.5.7
-  pgrep -f "upload_syn[c].sh $OUT\$" >/dev/null || KEEP_BF16=0 UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-$UW} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OUT > $OUT/upload.log 2>&1 < /dev/null &
+  pgrep -f "upload_syn[c].sh $OUT\$" >/dev/null || KEEP_BF16=${KEEP_BF16:-1} UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-$UW} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OUT > $OUT/upload.log 2>&1 < /dev/null &
 fi
 if [ "$VAR" = r3 ]; then python $RUNBOOK/code/patches/vardrop_patch.py || { echo "VARDROP_PATCH_FAILED $T"; exit 1; }; fi   # [v2.5.9w] idempotent
 cd $OPD_ROOT/G-OPD/verl
