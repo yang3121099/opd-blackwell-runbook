@@ -28,8 +28,8 @@ set -uo pipefail
 G=$1; VAR=$2; source "$(dirname "$0")/env.sh"
 case $VAR in kl|stop|stop2|8k|16k|r3|p0think) ;; *) echo "unknown variant $VAR"; exit 2;; esac   # [v2.5.8c] stop; [v2.5.8h] 8k / 16k; [v2.5.9f] stop2
 # [v2.5.9z85] (Q-077) PEV_LADDER=E12c: PROBE-E12C-8K / -16K, the same smoke of the 0.6B window arm E12c-P5-<8k|16k> (the 1.7B one by default)
-L=${PEV_LADDER:-E12b}; case $L:$VAR in E12b:*|E12c:8k|E12c:16k|E12d:16k|E12d:p0think|E12e:8k|E12e:16k) ;; *) echo "unknown ladder / variant $L $VAR"; exit 2;; esac   # [v2.5.9z97] E12e:16k (Q-074j)
-T=PROBE-$(echo $L | tr a-z A-Z)-$(echo $VAR | tr a-z A-Z); D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; mkdir -p $D
+L=${PEV_LADDER:-E12b}; case $L:$VAR in E12b:*|E12c:8k|E12c:16k|E12d:16k|E12d:p0think|E12e:8k|E12e:16k|E12e:p0think) ;; *) echo "unknown ladder / variant $L $VAR"; exit 2;; esac   # [v2.5.9z97] E12e:16k (Q-074j)
+T=PROBE-$(echo $L | tr a-z A-Z)-$(echo $VAR | tr a-z A-Z); [[ ${PEV_NAME:-} =~ ^PROBE-E12[BCDE]-[A-Z0-9-]+$ ]] && T=$PEV_NAME; D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; mkdir -p $D   # [z154] PEV_NAME: a second name for the same smoke (PROBE-E12B-P0THINK-8G)
 [ -f $D/.done ] && { echo "TASK_ALREADY_DONE $T"; exit 0; }
 rm -f $D/mem.csv   # [v2.5.9z11] this run's memory samples only (a rerun keeps the directory: PROBE-STOPMERGE's 4th peak was the 2nd run's)
 step() { echo "PROBE_E12VAR $(date -u +%T) $*" | tee -a $LOG; }
@@ -90,7 +90,9 @@ ARM=$L-P5-$VAR; [ $L = E12e ] && ARM=$L-P5self-$VAR   # [v2.5.9z91] (Q-081) PEV_
 [ $L:$VAR = E12d:16k ] && ARM=E12d-P5tail-16k   # [v2.5.9z113] (Q-074h, Fable 11-01 06:3x UTC) PROBE-E12D-16K smokes Q-074h's arm itself on its four GPUs (the 1.7B 16K gate peaked at 80.4 of 81.6 GB)
 [ $L:$VAR = E12e:16k ] && ARM=E12e-P5tail-16k   # [v2.5.9z97] (Q-074j) PROBE-E12E-16K smokes the arm itself (there is no 8B P5self 16K arm), from E10e-P5tail s50 on four GPUs
 [ $L:$VAR = E12d:p0think ] && ARM=E12d-P0think-8k   # [z149] (Q-093b) the 4B arm on its four GPUs (#gpus 4)
+[ $L:$VAR = E12e:p0think ] && ARM=E12e-P0think-8k   # [z154] (Q-093c) the 8B arm on its eight GPUs
 [ $L:$VAR = E12b:p0think ] && ARM=E12b-P0think-8k   # [z146] (Q-093) PROBE-E12B-P0THINK smokes the arm itself: the base in the thinking template at 8K
+[[ ${PEV_ARM:-} =~ ^E12[bcde]-P0think-8k(-s43)?$ ]] && ARM=$PEV_ARM   # [z154] PROBE-E12B-P0THINK-8G smokes E12b-P0think-8k-s43 itself
 SMOKE=1 SMOKE_STEPS=${PEV_STEPS:-3} PROBE_TASK=$T-smoke bash $RUNBOOK/scripts/run_e12.sh $G $ARM > $D/smoke.out 2>&1; rc=$?   # [v2.5.9z85] $L
 kill $MP 2> /dev/null
 mkdir -p $D/smoke; cp $OPD_ROOT/runs/$T-smoke/train.log $OPD_ROOT/runs/$T-smoke/config.yaml $D/smoke/ 2> /dev/null

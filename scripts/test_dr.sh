@@ -268,5 +268,15 @@ q5=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0,1,2,3 E12d-P0think-8k 2>&1 | tail 
 ok "[z149] E12d-P0think-8k: from the 4B base, 50 steps, s25 / s50 up, 8K, enable_thinking=True, venv-fa, four GPUs" '[[ "$q5" == "DRYRUN_THINK enable_thinking=True"*"DRYRUN E12d-P0think-8k start=$T/m4 steps=50 "*"venv=venv-fa "*"ngpu=4 "*"upload=25,50 "*"var=8k "* ]] && grep -q "^chat_template: enable_thinking=True$" $T/base/root/runs/E12d-P0think-8k/config.yaml'
 q3=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P0-8k 2>&1)
 ok "[z146] the other arms keep the non-thinking template (E12b-P0-8k, E12b-P5-8k-lenpen)" '! [[ "$q3" == *DRYRUN_THINK* ]] && grep -q "^chat_template: enable_thinking=False$" $T/base/root/runs/E12b-P0-8k/config.yaml && grep -q "^chat_template: enable_thinking=False$" $T/base/root/runs/E12b-P5-8k-lenpen/config.yaml'
+# [z154] (Q-093c / Q-093-s43) E12e-P0think-8k from Qwen3-8B (TEACHER), SAVE 5, s25 / s50 up, its own gate; E12b-P0think-8k-s43: data.seed 43
+echo "export TEACHER=$T/m8" >> $T/rb/scripts/env.sh
+( DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0,1,2,3,4,5,6,7 E12e-P0think-8k > $T/q4 2>&1 ); rq4=$?
+ok "[z154] E12e-P0think-8k waits for PROBE-E12E-P0THINK (exit 3)" '[ $rq4 = 3 ] && grep -q "PROBE-E12E-P0THINK has not passed: E12e-P0think-8k not started" $T/q4'
+mkdir -p $T/base/root/runs/PROBE-E12E-P0THINK $T/base/root/runs/PROBE-E12B-P0THINK-8G; for g in PROBE-E12E-P0THINK PROBE-E12B-P0THINK-8G; do echo '{"result": "PASS"}' > $T/base/root/runs/$g/report.json; done
+q5=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0,1,2,3,4,5,6,7 E12e-P0think-8k 2>&1 | tail -2)
+ok "[z154] E12e-P0think-8k: Qwen3-8B, 50 steps, save 5, s25 / s50 up, 8 GPUs, venv-fa, thinking, data.seed 4242" '[[ "$q5" == "DRYRUN_THINK enable_thinking=True data_seed=4242"*"DRYRUN E12e-P0think-8k start=$T/m8 steps=50 save=5 "*"venv=venv-fa ngpu=8 "*"upload=25,50 "*"var=8k "* ]]'
+( DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0,1,2,3,4,5,6,7 E12b-P0think-8k-s43 > $T/q6 2>&1 ); q6=$(tail -2 $T/q6)
+ok "[z154] E12b-P0think-8k-s43: the 1.7B base, 50 steps, s25 / s50 up, data.seed 43 (config too); the other arms keep 4242" '[[ "$q6" == "DRYRUN_THINK enable_thinking=True data_seed=43"*"DRYRUN E12b-P0think-8k-s43 start=$T/m17 steps=50 "*"ngpu=8 "*"upload=25,50 "* ]] && grep -q "^data_seed: 43$" $T/base/root/runs/E12b-P0think-8k-s43/config.yaml && grep -q "^data_seed: 4242$" $T/base/root/runs/E12b-P0-8k/config.yaml && grep -q "data.seed=\$DSEED" $SRC/scripts/run_e12.sh'
+ok "[z154 on z153] both new arms' config.yaml name steps: 50 (upload_sync's final-step rule)" 'grep -q "^steps: 50$" $T/base/root/runs/E12e-P0think-8k/config.yaml && grep -q "^steps: 50$" $T/base/root/runs/E12b-P0think-8k-s43/config.yaml'
 rm -rf $T
 [ $fails = 0 ] && echo "DR_TEST PASS ($n checks)" || echo "DR_TEST FAIL ($fails of $n)"

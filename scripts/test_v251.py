@@ -1690,7 +1690,7 @@ def test_run_and_rerun_accept_v259z97(env):   # [v2.5.9z97] (Q-074i / Q-074j; re
     assert ts.index("  E12d-P5tail-8k-s43) ") < ts.index("  E12d-*) ")
     assert "PROBE-E12E-16K$" in ts.split("\n")[9]                                                   # a #gpus list is allowed
     pe = open(os.path.join(here, "probe_e12var.sh")).read()
-    assert "E12e:16k) ;;" in pe and "[ $L:$VAR = E12e:16k ] && ARM=E12e-P5tail-16k" in pe
+    assert ("E12e:16k) ;;" in pe or "E12e:16k|E12e:p0think) ;;" in pe) and "[ $L:$VAR = E12e:16k ] && ARM=E12e-P5tail-16k" in pe
     q = open(os.path.join(os.path.dirname(here), "tasks", "queue_archive_20261101.txt")).read()
     for g in ("#gpus E12d-P5tail-8k-s43 2", "#gpus E12e-P5tail-16k 4", "#gpus PROBE-E12E-16K 4"):
         assert f"\n{g}\n" in q
@@ -2181,14 +2181,14 @@ def test_newnode_v2_profiles_v259z137(env):
     L, _, _ = _profile_queue("8g80")
     assert "#term PROBE-TERM4-N8BTHINK 8B_P0think Qwen/Qwen3-8B EVAL-budA-8Bthink/budA8B_think_math500_T0.6_32k_math500_think_t0.6.jsonl think" in L
     _, _, s8 = _profile_queue("8g80")
-    assert set(v1) <= set(s8) and len(s8) == len(v1) + 30                        # 8g80 = all of v1 + the new tasks ([z144] + NP5H200; [z146] + N17P0H200, the 4B AIME pair; [z149] + p1q4's six; [z150] + p1q's ten; [z152] + five p1q rows)
+    assert set(v1) <= set(s8) and len(s8) == len(v1) + 33                        # 8g80 = all of v1 + the new tasks ([z144] + NP5H200; [z146] + N17P0H200, the 4B AIME pair; [z149] + p1q4's six; [z150] + p1q's ten; [z152] + five p1q rows; [z154] + Q-093b's three references)
 
 
 def test_split_pair_1gs_8gs_z139():   # [z139] two machines: together 8g80's stages, only the gates on both; 8gs keeps every training
     import queue_profiles as QP
     a, b = QP.PROFILES["1gs"], QP.PROFILES["8gs"]
-    assert set(a) | set(b) == set(QP.PROFILES["8g80"]) and set(a) & set(b) == {"p0a"} and a[0] == b[0] == "p0a"
-    assert [s for s in QP.PROFILES["8g80"] if s in b] == b                       # 8g80's order
+    assert set(a) | set(b) == set(QP.PROFILES["8g80"]) | {"p1q8", "p1qs43"} and set(a) & set(b) == {"p0a"}   # [z154] two 8gs-only stages and a[0] == b[0] == "p0a"
+    assert [s for s in QP.PROFILES["8g80"] if s in b] + ["p1q8", "p1qs43"] == b  # 8g80's order ([z154] + the two 8gs-only stages last)
     spec, _ = QP.source()
     ta = {x.split(":")[0] for st in a for x in QP.stage_specs(st, spec)}
     assert not [t for t in ta if re.match(r"E1\d", t)]                          # no training on the 1-GPU box
@@ -2261,7 +2261,8 @@ def test_q093_thinking_arm_z146(env):   # [z146] (Q-093, Fable D10) the p1q stag
     assert "  PROBE-E12B-P0THINK) bash $RUNBOOK/scripts/probe_e12var.sh $G p0think;;" in task
     e12 = open(os.path.join(here, "run_e12.sh")).read()
     assert e12.count("+data.apply_chat_template_kwargs.enable_thinking=$THINK") == 1 and "enable_thinking=False" not in e12
-    assert e12.count("THINK=True") == 1 and '[ "$A" = P0think-8k ] && { VAR=8k; A=P0; THINK=True; }' in e12   # the switch: this arm only
+    assert e12.count("THINK=True") == 2 and '[ "$A" = P0think-8k ] && { VAR=8k; A=P0; THINK=True; }' in e12   # [z154] + P0think-8k-s43 (the same arm, seed 43)
+    assert '[ "$A" = P0think-8k-s43 ] && { VAR=8k; A=P0; THINK=True; DSEED=43; }' in e12   # the switch: this arm only
 
 
 def test_b200_references_z148(env):   # [z148] (Fable 13:5x) Q-090 / Q-093 on B200s from s25: their references re-read on a B200, 1g / 1gt only
@@ -2296,8 +2297,9 @@ def test_q093b_4b_thinking_arm_z149(env):   # [z149] (Q-093b, Fable 14:2x) p1q4 
     L, stages, spec = _profile_queue("8gs")
     i = next(i for i, l in enumerate(L) if l.startswith("p1q4 "))
     assert L[i].split()[2:] == ["PROBE-E12D-P0THINK", "E12d-P0think-8k:PROBE-E12D-P0THINK", "EVAL-e12d-P0think-8k:E12d-P0think-8k",
-                                "PROBE-TERM4-N093B:EVAL-e12d-P0think-8k", "EVAL-budA-e12dP0think-8k:E12d-P0think-8k",
-                                "EVAL-ext32k-4p0think8k:E12d-P0think-8k"]
+                                "PROBE-TERM4-N093B:EVAL-e12d-P0think-8k",
+                                "EVAL-e12d-P5tail-8k-nn-b2:E12d-P5tail-8k", "EVAL-think16k-4Bbase-b2", "PROBE-TERM4-N4BTHB2:EVAL-think16k-4Bbase-b2",   # [z154]
+                                "EVAL-budA-e12dP0think-8k:E12d-P0think-8k", "EVAL-ext32k-4p0think8k:E12d-P0think-8k"]
     assert "#gpus E12d-P0think-8k 8" in L and "#gpus PROBE-E12D-P0THINK 8" in L   # [z151] 8 on 8gs (4 on 4g80 / 8g80: test_8gs_trainings_on_8_gpus_others_4_z151)
     ev = [l.split() for l in L if l.startswith("#eval ") and "E12d-P0think" in l]
     assert len(ev) == 5 and all(r[-1] == "think" for r in ev)
@@ -2403,3 +2405,45 @@ def test_upload_final_sh_z153():   # [z153] the shell stub test of upload_sync.s
     import subprocess
     r = subprocess.run(["bash", os.path.join(HERE, "test_upload_final.sh")], capture_output=True, text=True, timeout=300)
     assert "UPLOAD_FINAL_TEST PASS" in r.stdout, r.stdout[-2000:] + r.stderr[-2000:]
+
+def test_q093c_q093s43_z154(env):   # [z154] (lab/registry/Q-093c.md; Fable D25) Q-093c and Q-093-s43 on 8gs only, 8 GPUs each with their gates; Q-093b's references
+    import queue_profiles as QP
+    for p, st in QP.PROFILES.items():
+        assert ("p1q8" in st) == (p == "8gs") and ("p1qs43" in st) == (p == "8gs"), p
+    L, stages, spec = _profile_queue("8gs")
+    assert spec["E12e-P0think-8k"] == ["PROBE-E12E-P0THINK"] and spec["E12b-P0think-8k-s43"] == ["PROBE-E12B-P0THINK-8G"]
+    assert spec["PROBE-E12E-P0THINK"] == [] and spec["PROBE-E12B-P0THINK-8G"] == []
+    g = {l.split()[1]: l.split()[2] for l in L if l.startswith("#gpus ")}
+    assert all(g[t] == "8" for t in ("PROBE-E12E-P0THINK", "E12e-P0think-8k", "PROBE-E12B-P0THINK-8G", "E12b-P0think-8k-s43"))
+    st = {l.split()[1]: l.split()[2] for l in L if l.startswith("#steptime ")}
+    assert st["E12e-P0think-8k"] == "195" and "E12b-P0think-8k-s43" in st
+    p1q8 = next(l for l in L if l.startswith("p1q8 ")).split()[2:]
+    assert [x.split(":")[0] for x in p1q8] == ["PROBE-E12E-P0THINK", "E12e-P0think-8k", "EVAL-e12e-P0think-8k", "PROBE-TERM4-N093C",
+                                              "EVAL-think16k-8Bbase-b2", "PROBE-TERM4-N8BTHB2", "EVAL-budA-e12eP0think-8k", "EVAL-ext32k-8p0think8k",
+                                              "EVAL-ext32k-8Bthink-b2"]
+    assert spec["EVAL-ext32k-8Bthink-b2"] == ["E12e-P0think-8k"] and spec["PROBE-TERM4-N8BTHB2"] == ["EVAL-think16k-8Bbase-b2"]   # Fable D26
+    assert "#eval EVAL-think16k-8Bbase-b2 base8_think16k_b2_math500_T0.6 Qwen/Qwen3-8B math500 4 0.6 16384 think" in L   # the ad hoc names, unchanged
+    assert "#eval EVAL-ext32k-8Bthink-b2 ext32k8_base8think_b2_aime24_T0.6 Qwen/Qwen3-8B aime24 16 0.6 32768 think" in L
+    assert "#eval EVAL-ext32k-8Bthink-b2 ext32k8_base8think_b2_aime25_T0.6 Qwen/Qwen3-8B aime25 16 0.6 32768 think" in L
+    s43 = next(l for l in L if l.startswith("p1qs43 ")).split()[2:]
+    assert [x.split(":")[0] for x in s43][-1] == "EVAL-ext32k-17p5tail8k-oc" and spec["EVAL-ext32k-17p5tail8k-oc"] == ["E12b-P5tail-8k"]
+    assert "EVAL-e12b-P5tail-8k-s43-s50-b2" in spec                               # the s43 chain's s50 reference (p1q, on 8gs too)
+    ev = {}
+    for l in L:
+        if l.startswith("#eval "):
+            ev.setdefault(l.split()[1], []).append(l.split())
+    for t in ("EVAL-e12e-P0think-8k", "EVAL-budA-e12eP0think-8k", "EVAL-ext32k-8p0think8k", "EVAL-think16k-8Bbase-b2", "EVAL-think16k-4Bbase-b2",
+              "EVAL-e12b-P0think-8k-s43", "EVAL-budA-e12bP0think-8k-s43", "EVAL-ext32k-17p0think8k-s43"):
+        assert ev[t] and all(r[-1] == "think" for r in ev[t]), t                   # thinking-mode readings
+    assert all(r[3] == "result:runs/E12e-P0think-8k/global_step_50/actor/huggingface" for t in ("EVAL-e12e-P0think-8k", "EVAL-budA-e12eP0think-8k", "EVAL-ext32k-8p0think8k") for r in ev[t])
+    assert {r[4] for r in ev["EVAL-ext32k-17p5tail8k-oc"]} == {"aime24", "aime25"} and all(r[-1] == "32768" for r in ev["EVAL-ext32k-17p5tail8k-oc"])
+    p1q4 = next(l for l in L if l.startswith("p1q4 ")).split()[2:]
+    assert [x.split(":")[0] for x in p1q4][4:7] == ["EVAL-e12d-P5tail-8k-nn-b2", "EVAL-think16k-4Bbase-b2", "PROBE-TERM4-N4BTHB2"]
+    terms = [l for l in L if l.startswith("#term PROBE-TERM4-N093C ") or l.startswith("#term PROBE-TERM4-N093S43 ") or l.startswith("#term PROBE-TERM4-N8BTHB2 ") or l.startswith("#term PROBE-TERM4-N4BTHB2 ")]
+    assert len(terms) == 4 and all(t.split()[-1] == "think" for t in terms)
+    task = open(os.path.join(HERE, "task.sh")).read()
+    multi = re.search(r"\[\[ \$T =~ (\^\(.*?\)) \]\] \|\| \{ echo \"\$T takes one GPU", task).group(1)
+    assert all(re.match(multi, t) for t in ("PROBE-E12E-P0THINK", "PROBE-E12B-P0THINK-8G", "E12e-P0think-8k", "E12b-P0think-8k-s43"))
+    for k, t in enumerate(("PROBE-E12E-P0THINK", "E12e-P0think-8k", "PROBE-E12B-P0THINK-8G", "E12b-P0think-8k-s43", "PROBE-TERM4-N093C",
+                           "PROBE-TERM4-N093S43", "PROBE-TERM4-N8BTHB2", "PROBE-TERM4-N4BTHB2", "EVAL-ext32k-17p5tail8k-oc", "EVAL-ext32k-8Bthink-b2")):
+        assert env.c.v_run([t], 1900 + k)[0] == "accepted", t

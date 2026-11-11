@@ -7,7 +7,7 @@ set -uo pipefail
 source "$(dirname "$0")/env.sh"; G=$1; T=$2
 # [v2.5.9a] G = one GPU, cpu, or a list a,b (a #gpus task, run_tasks.sh): a list only for the trainings and PROBE-2GPU
 [[ $G =~ ^([0-9]+(,[0-9]+){0,7}|cpu)$ ]] || { echo "bad gpu $G"; exit 2; }   # [z151] up to 8 GPUs (was 4)
-case $G in *,*) [[ $T =~ ^(E10[bcde]-|PROBE-MODE$|PROBE-E12D-16K$|PROBE-E12D-P0THINK$|E12[bcde]-|PROBE-2GPU$|PROBE-8B$|PROBE-E12E-8K$|PROBE-E12E-16K$|PROBE-TAIL-8B$) ]] || { echo "$T takes one GPU (got $G)"; exit 2; };; esac   # [z151] the Q-093b gate (z149 left it out)
+case $G in *,*) [[ $T =~ ^(E10[bcde]-|PROBE-MODE$|PROBE-E12D-16K$|PROBE-E12D-P0THINK$|PROBE-E12E-P0THINK$|PROBE-E12B-P0THINK-8G$|E12[bcde]-|PROBE-2GPU$|PROBE-8B$|PROBE-E12E-8K$|PROBE-E12E-16K$|PROBE-TAIL-8B$) ]] || { echo "$T takes one GPU (got $G)"; exit 2; };; esac   # [z151] the Q-093b gate (z149 left it out)
 # v2.5.4a: a task whose previous attempt ran out of GPU memory (run_tasks.sh writes runs/<task>/.oom) gets FIXED_MICRO_BSZ=4
 # for its own retries, unless the key is set already; nothing else changes
 [ -f $OPD_ROOT/runs/$T/.oom ] && [ -z "${FIXED_MICRO_BSZ:-}" ] && { export FIXED_MICRO_BSZ=4; echo "OOM_RETRY $T with FIXED_MICRO_BSZ=4"; }
@@ -61,7 +61,8 @@ case $T in
   E12b-P5-prog) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z43] (Q-058) the 4K recipe from E12b-P5-8k s25 (shrink the window)
   E12b-P5-prog-up) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z43] (Q-058) the 8K recipe from E12b-P5-s44 s25 (grow the window)
   E12b-P0-8k|E12b-P5-8k-lenpen) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z136] (Q-091 / Q-090, research_program 3s) the no-distillation and the length-control 8K baselines, one GPU each; above E12b-*
-  E12b-P0think-8k|E12d-P0think-8k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [z149] (Q-093b) the 4B arm, #gpus 4
+  E12b-P0think-8k|E12d-P0think-8k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;
+  E12e-P0think-8k|E12b-P0think-8k-s43) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [z154] (Q-093c / Q-093-s43, Fable D25) 8 GPUs each on 8gs   # [z149] (Q-093b) the 4B arm, #gpus 4
   #   # [z146] (Q-093, Fable D10) E12b-P0-8k's recipe in the thinking template; above E12b-*
   E12b-P5tail-8k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z84a] (Q-074) the 8K RL arm from E10b-P5tail s50 (the method's chain); [v2.5.9z84b] above E12b-*, which took it first (exit 2, no log line)
   E12b-P5-16k-s44) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z84] (Q-076) the 1.7B 16K arm from E10b-P5-s44 s150, #gpus 2; [v2.5.9z84b] above E12b-*
@@ -94,7 +95,9 @@ case $T in
   PROBE-P2SELF) bash $RUNBOOK/scripts/probe_p2self.sh $G;;   # v2.5.7zg (Q-019): the P2 self-teacher's gate
   PROBE-E12C) bash $RUNBOOK/scripts/probe_e12c.sh $G;;   # [v2.5.8a] (Q-023): the gate of E12c (a 3-step smoke of E12c-P0)
   PROBE-E12B-KL) bash $RUNBOOK/scripts/probe_e12var.sh $G kl;;   # [v2.5.8b] (Q-020): the gate of E12b-P5-kl
-  PROBE-E12D-P0THINK) PEV_LADDER=E12d bash $RUNBOOK/scripts/probe_e12var.sh $G p0think;;   # [z149] (Q-093b): the 4B arm's 4-GPU 3-step smoke
+  PROBE-E12D-P0THINK) PEV_LADDER=E12d bash $RUNBOOK/scripts/probe_e12var.sh $G p0think;;
+  PROBE-E12E-P0THINK) PEV_LADDER=E12e bash $RUNBOOK/scripts/probe_e12var.sh $G p0think;;   # [z154] (Q-093c) the 8B arm's 3-step smoke on its GPUs
+  PROBE-E12B-P0THINK-8G) PEV_NAME=PROBE-E12B-P0THINK-8G PEV_ARM=E12b-P0think-8k-s43 bash $RUNBOOK/scripts/probe_e12var.sh $G p0think;;   # [z154] (Q-093-s43) its 3-step smoke on 8 GPUs   # [z149] (Q-093b): the 4B arm's 4-GPU 3-step smoke
   PROBE-E12B-P0THINK) bash $RUNBOOK/scripts/probe_e12var.sh $G p0think;;   # [z146] (Q-093): the gate of E12b-P0think-8k
   PROBE-E12B-STOP2) bash $RUNBOOK/scripts/probe_e12var.sh $G stop2;;   # [v2.5.9f] (T1): the gate of E12b-P5-stop2
   PROBE-E12B-R3) bash $RUNBOOK/scripts/probe_e12var.sh $G r3;;   # [v2.5.9w] (Q-039) the gate of E12b-P5-r3

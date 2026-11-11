@@ -50,7 +50,12 @@ LENPEN=0; THINK=False
 # [z146] (Q-093, Fable D10 11-11 02:06 Beijing; lab/registry/Q-093.md) E12b-P0think-8k: E12b-P0-8k's recipe (the base, 8K, 50 steps) in the
 # thinking template: the rollouts and the validation with enable_thinking=True (every other arm keeps False); its own gate PROBE-E12B-P0THINK
 # (a 3-step smoke of this arm: the thinking answers are long), in place of PROBE-E12B-8K
-[ "$A" = P0think-8k ] && { VAR=8k; A=P0; THINK=True; }   # [v2.5.9z136] (Q-090, 3s) E12b-P5-8k-lenpen: the 8K recipe from E10b-P5 s150 with reward_stop2 (a length control baseline)
+[ "$A" = P0think-8k ] && { VAR=8k; A=P0; THINK=True; }
+# [z154] (lab/registry/Q-093c.md, Fable D25 11-12 06:0x / 06:1x) E12e-P0think-8k = Q-093c: the same parse on the 8B ladder (the base Qwen3-8B,
+# thinking template, 8K, 50 steps, data from position 0, the 8B chain's RL hyperparameters), SAVE 5, s25 / s50 up (s50 registered), gate
+# PROBE-E12E-P0THINK (8 GPUs). E12b-P0think-8k-s43 = Q-093-s43: Q-093 with data.seed 43 (from the base there is no start to vary, so the
+# RL data order is the seed; every other E12 keeps 4242), gate PROBE-E12B-P0THINK-8G (the same smoke on its 8 GPUs)
+DSEED=4242; [ "$A" = P0think-8k-s43 ] && { VAR=8k; A=P0; THINK=True; DSEED=43; }   # [v2.5.9z136] (Q-090, 3s) E12b-P5-8k-lenpen: the 8K recipe from E10b-P5 s150 with reward_stop2 (a length control baseline)
 # [v2.5.8h] (Runming 10-20 17:5x UTC via the reviewer, Q-028: the 4K limit costs too much): E12b-P5-8k / -16k = E12b-P5 with
 # max_response_length 8192 / 16384 and what the length forces: flash-attn with remove-padding (an SDPA micro-batch is
 # padded to its longest sequence), a token budget of at least prompt + response, vLLM batching above the model length
@@ -63,6 +68,8 @@ if [ -n "$VAR" ] && [ "${SMOKE:-0}" != 1 ]; then
   [ $LENPEN = 1 ] && GATES="$GATES PROBE-E12B-STOP2"   # [v2.5.9z136] the reward function's smoke too
   [ $THINK = True ] && GATES=PROBE-E12B-P0THINK   # [z146] the arm's own smoke (8K in the thinking template)
   [ $THINK = True ] && [ $LADDER = E12d ] && GATES=PROBE-E12D-P0THINK   # [z149] (Q-093b) the 4B arm's own 4-GPU smoke
+  [ $THINK = True ] && [ $LADDER = E12e ] && GATES=PROBE-E12E-P0THINK   # [z154] (Q-093c) the 8B arm's own 8-GPU smoke
+  [ $T = E12b-P0think-8k-s43 ] && GATES=PROBE-E12B-P0THINK-8G   # [z154] (Q-093-s43) its own 8-GPU smoke
   for P in $GATES; do grep -q '"result": "PASS"' $OPD_ROOT/runs/$P/report.json 2> /dev/null || { echo "$P has not passed: $T$NN not started"; exit 3; }; done
 fi
 SRC=E10b; [ $LADDER = E12d ] && SRC=E10d   # v2.5.7o: the preparation run a start comes from
@@ -105,7 +112,7 @@ OUT=$OPD_ROOT/runs/$NAME; mkdir -p $OUT/rollouts
 [ -f $OUT/.done ] && exit 0
 if [ $SM != 1 ] && declare -F rollouts_link > /dev/null; then rollouts_link $OUT; fi   # [v2.5.9z48] a new run's rollouts on $CKPT_ROOT (env.sh)
 case $A in
-  P0) START=$STUDENT_17B; [ $LADDER = E12d ] && START=$STUDENT_4B; [ $LADDER = E12c ] && START=$STUDENT_06B;;   # [v2.5.8a] E12c
+  P0) START=$STUDENT_17B; [ $LADDER = E12d ] && START=$STUDENT_4B; [ $LADDER = E12c ] && START=$STUDENT_06B; [ $LADDER = E12e ] && START=$TEACHER;;   # [z154] E12e: Qwen3-8B   # [v2.5.8a] E12c
   P1) START=$OPD_ROOT/runs/SFT-P1/ckpt/global_step_$(cat $OPD_ROOT/runs/SFT-P1/final_step)/huggingface;;
   *)  START=$OPD_ROOT/runs/$SRUN/ckpt/global_step_$SS/actor/huggingface_bf16   # [v2.5.8a] $SRUN / $SS   # v2.4: the fp32 copy is not kept;
        has_weights $START || START=${START%_bf16};;                                 # bf16 start (deviation: weight rounding)
@@ -186,6 +193,7 @@ algo: $([ "$VAR" = r3 ] && echo "reinforce_plus_plus_baseline (group mean, batch
 variant: ${VAR:-none}
 steps: $STEPS
 chat_template: enable_thinking=$THINK
+data_seed: $DSEED
 max_response_length: $MAXR
 reward: $([ $LENPEN = 1 ] && echo "reward_stop2.py at the 8K limit (Q-090 length control)" || case $VAR in (stop) echo "reward_stop.py (1 if correct, +0.5 if every box agrees and the response ends within 64 tokens after the first box)";; (stop2) echo "reward_stop2.py (correct x (1 + 0.5 x clip(1 - tail / 1024, 0, 1)), tail = tokens after the first box, a cut response counts 1024)";; (*) echo reward_mathverify.py;; esac)   # [v2.5.8c] [v2.5.9f] [v2.5.9z136]
 attention: $ATTN (use_remove_padding=$RMPAD)
@@ -198,6 +206,7 @@ CFG
 # v2.4 save rule: dedicated node = HF weights at the last step only (queue v2 has no intermediate E12b reading; set
 # SAVE=<n> when one is registered), uploaded as bf16 and not kept locally (no local E12b evaluation); SPOT=1 also saves
 # the resume state every 20 steps and keeps only the newest. Checkpoints on $CKPT_ROOT (v2.4).
+[ $T = E12e-P0think-8k ] && [ -z "${SAVE:-}" ] && SAVE=5   # [z154] (Q-093c) every 5 steps, as the 8B chain's RL segment
 if [ "${SPOT:-0}" = 1 ]; then CONTENTS="['model','optimizer','extra','hf_model']"; SAVE=${SAVE:-20}
 elif dr_on; then CONTENTS="['model','optimizer','extra','hf_model']"; SAVE=${SAVE:-${DR_EVERY:-25}}   # v2.5.7: resume state for dr_sync.sh
 else CONTENTS="['hf_model']"; SAVE=${SAVE:-$STEPS}; fi
@@ -220,6 +229,7 @@ case $T in E12b-P5-16k-s44|E12d-P5-16k-s43) UW=25,$STEPS;; esac   # [v2.5.9z84] 
 case $T in E12c-P5-8k|E12c-P5-16k) UW=25,$STEPS;; esac   # [v2.5.9z85] (Q-077) as the 1.7B / 4B window arms: s25 and s50 up
 [ $T = E12b-P0think-8k ] && UW=25,$STEPS   # [z146] (Q-093) s25 and s50 up
 [ $T = E12d-P0think-8k ] && UW=25,$STEPS   # [z149] (Q-093b) s25 and s50 up
+case $T in E12e-P0think-8k|E12b-P0think-8k-s43) UW=25,$STEPS;; esac   # [z154] s25 kept (up / held), s50 the registered step
 [ -n "$CONT" ] && UW=25   # [v2.5.9z129] the continued arm's last save (= the chain's s50)
 # [v2.5.9z86] (fix; found 10-25 16:5x UTC: EVAL-e12b-P5tail-8k's s25 weights did not exist) with DR off (seq 545, 10-24) the save
 # interval above fell to the final step, so an arm uploading s25 (UW=25,...) saved no s25 checkpoint; the save interval is
@@ -240,7 +250,7 @@ export OPD_VARDROP= OPD_VARDROP_LOG=; [ "$VAR" = r3 ] && export OPD_VARDROP=1 OP
 [ "${DRYRUN:-0}" = 1 ] && [ -n "$NN" ] && echo "DRYRUN_NN name=$NAME recipe=$T start=$SRUN s$SS steps=$STEPS train=$(basename $TRAINF) uw=$UW"   # [v2.5.9z129] tests
 [ "${DRYRUN:-0}" = 1 ] && [ -n "$PROG" ] && echo "DRYRUN_PROG train=$(basename $TRAINF) from=$SRUN s$SS"   # [v2.5.9z43] tests
 [ "${DRYRUN:-0}" = 1 ] && [ -n "${OPD_REWARD_MAXLEN:-}" ] && echo "DRYRUN_REWARD maxlen=$OPD_REWARD_MAXLEN"   # [v2.5.9z136] tests
-[ "${DRYRUN:-0}" = 1 ] && [ $THINK = True ] && echo "DRYRUN_THINK enable_thinking=$THINK"   # [z146] tests
+[ "${DRYRUN:-0}" = 1 ] && [ $THINK = True ] && echo "DRYRUN_THINK enable_thinking=$THINK data_seed=$DSEED"   # [z146] tests; [z154] the seed
 [ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $NAME start=$START steps=$STEPS save=$SAVE contents=$CONTENTS kern=[$KERN] gc=$GCK venv=$(basename $V) ngpu=$NG rmpad=$RMPAD upload=${UPLOAD_WEIGHTS:-$UW} vllm=${VLLM_UTIL:-0.6} var=${VAR:-none} kl=[$KL] reward=$(basename $REWARD)"; exit 0; }   # tests
 if [ $SM = 0 ]; then
   ckpt_link $OUT
@@ -256,7 +266,7 @@ python3 -m verl.trainer.main_ppo \
   actor_rollout_ref.rollout.calculate_log_probs=true \
   data.train_files=$TRAINF data.val_files=$OPD_ROOT/data/math500_100.parquet \
   data.train_batch_size=$TBS data.max_prompt_length=1024 data.max_response_length=$MAXR \
-  data.filter_overlong_prompts=True data.truncation=error data.shuffle=True data.seed=4242 data.return_raw_chat=True \
+  data.filter_overlong_prompts=True data.truncation=error data.shuffle=True data.seed=$DSEED data.return_raw_chat=True \
   +data.apply_chat_template_kwargs.enable_thinking=$THINK \
   actor_rollout_ref.model.path=$START +actor_rollout_ref.model.override_config.attn_implementation=$ATTN \
   actor_rollout_ref.model.use_remove_padding=$RMPAD actor_rollout_ref.model.enable_gradient_checkpointing=$GCK \

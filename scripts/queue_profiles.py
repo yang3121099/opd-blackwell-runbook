@@ -60,7 +60,8 @@ STAGES = {
             "EVAL-e12b-P0think-8k:E12b-P0think-8k", "PROBE-TERM4-N093:EVAL-e12b-P0think-8k",
             "EVAL-think16k-17base-b2", "PROBE-TERM4-N17THB2:EVAL-think16k-17base-b2",
             # [z152d] (Fable 18:2x) CONDITIONAL, kept out of every share KEEP (paused): Q-093 s25 here and the s43 chain's s25 / s50 below are read
-            # only if Q-093's 16K length ratio to the chain falls outside [0.85, 1.15] (registry Q-093 判读补充); the lead resumes them then
+            # only if Q-093's 16K length ratio to the chain falls outside [0.85, 1.15] (registry Q-093 判读补充); the lead resumes them then.
+            # [z154] (Fable D25) the s43 chain's s50 row is unconditional now: Q-093-s43's same-machine reference
             "EVAL-e12b-P0think-8k-s25:E12b-P0think-8k", "PROBE-TERM4-N093FT:EVAL-think16k-17base-b2+E12b-P0think-8k",
             "EVAL-e12b-P5tail-8k-nn-b2:E12b-P5tail-8k", "EVAL-e12b-P5-8k-nn-b2:E12b-P5-8k",
             # [z152c] (Q-093 判读补充: the chain's s25 point; seed 42 never saved s25, so the s43 chain's s25 and s50 on a B200, pending Fable)
@@ -77,7 +78,25 @@ STAGES = {
     # [z149] (Q-093b, Fable 14:2x; lab/registry/Q-093b.md) Q-093's recipe on the 4B base: the thinking template, 8K GRPO, 50 steps, four GPUs
     # on venv-fa; its 4-GPU gate, the arm, then the 16K readings and the TERM4 first, budA 32K and AIME 32K last (80 GB profiles only)
     "p1q4": ["PROBE-E12D-P0THINK", "E12d-P0think-8k:PROBE-E12D-P0THINK", "EVAL-e12d-P0think-8k:E12d-P0think-8k",
-             "PROBE-TERM4-N093B:EVAL-e12d-P0think-8k", "EVAL-budA-e12dP0think-8k:E12d-P0think-8k", "EVAL-ext32k-4p0think8k:E12d-P0think-8k"],
+             "PROBE-TERM4-N093B:EVAL-e12d-P0think-8k",
+             # [z154] (Q-093c.md 读数; Fable D25) Q-093b's same-machine references after its own 16K + TERM4: the 4B chain s50 16K and the
+             # 4B base thinking 16K + its TERM4, re-read beside it
+             "EVAL-e12d-P5tail-8k-nn-b2:E12d-P5tail-8k", "EVAL-think16k-4Bbase-b2", "PROBE-TERM4-N4BTHB2:EVAL-think16k-4Bbase-b2",
+             "EVAL-budA-e12dP0think-8k:E12d-P0think-8k", "EVAL-ext32k-4p0think8k:E12d-P0think-8k"],
+    # [z154] Q-093c (lab/registry/Q-093c.md; Fable D25 06:1x) E12e-P0think-8k: the 8B base, thinking template, 8K GRPO, 50 steps from data
+    # position 0, all 8 GPUs; its gate, the arm, its 16K + TERM4, the same-machine 8B base thinking 16K + TERM4, budA, AIME last
+    "p1q8": ["PROBE-E12E-P0THINK", "E12e-P0think-8k:PROBE-E12E-P0THINK", "EVAL-e12e-P0think-8k:E12e-P0think-8k",
+             "PROBE-TERM4-N093C:EVAL-e12e-P0think-8k", "EVAL-think16k-8Bbase-b2", "PROBE-TERM4-N8BTHB2:EVAL-think16k-8Bbase-b2",
+             "EVAL-budA-e12eP0think-8k:E12e-P0think-8k", "EVAL-ext32k-8p0think8k:E12e-P0think-8k",
+             # [z154] (Fable D26) the 8B base thinking AIME 32K on the same machine; after the training (a reference never blocks it).
+             # EVAL-think16k-8Bbase-b2 and this one keep the names of the lead's ad hoc runs on me-8a, so their .done is seen
+             "EVAL-ext32k-8Bthink-b2:E12e-P0think-8k"],
+    # [z154] Q-093-s43: E12b-P0think-8k with data.seed 43, all 8 GPUs (its own 8-GPU gate); its 16K + TERM4, then budA / AIME; the chain s43's
+    # s50 reference is p1q's EVAL-e12b-P5tail-8k-s43-s50-b2 (unconditional since D25); + the seed-42 chain s50's AIME 32K with z145
+    # outcomes, to pair with Q-093's AIME
+    "p1qs43": ["PROBE-E12B-P0THINK-8G", "E12b-P0think-8k-s43:PROBE-E12B-P0THINK-8G", "EVAL-e12b-P0think-8k-s43:E12b-P0think-8k-s43",
+               "PROBE-TERM4-N093S43:EVAL-e12b-P0think-8k-s43", "EVAL-budA-e12bP0think-8k-s43:E12b-P0think-8k-s43",
+               "EVAL-ext32k-17p0think8k-s43:E12b-P0think-8k-s43", "EVAL-ext32k-17p5tail8k-oc:E12b-P5tail-8k"],
     # P1-b Q-074e the 8B chain from s25 (4 x 80 GB)
     "p1b": ["src:PROBE-E12E-8K", "src:E12e-P5tail-8k-nn", "src:EVAL-e12e-P5tail-8k-nn", "src:EVAL-budA-e12eP5tail-8k-nn",
             "src:EVAL-ext32k-8Bp5tail8k-nn", "src:PROBE-TERM4-N074E"],
@@ -115,7 +134,12 @@ EST = {"PROBE-TAIL": 0.3, "PROBE-E12B-8K": 0.3, "PROBE-E12B-STOP2": 0.3, "E12b-P
        "EVAL-budA-e12dP0think-8k": 1.6, "EVAL-ext32k-4p0think8k": 3.0,
        "EVAL-n5-17think": 1.3, "EVAL-n5-4Bthink": 1.9, "EVAL-n5-17think-aime": 1.5, "EVAL-n5-4Bthink-aime": 2.2, "EVAL-n5-4Binst2507": 0.4,
        "EVAL-e12b-P0think-8k-s25": 1.0, "PROBE-TERM4-N093FT": 0.3, "EVAL-e12b-P5-8k-nn-b2": 1.2, "PROBE-TERM4-NN2S0": 0.3, "PROBE-TERM4-N090FT": 0.3,
-       "EVAL-e12b-P5tail-8k-s43-s25-b2": 0.7, "EVAL-e12b-P5tail-8k-s43-s50-b2": 0.7}   # [z146] Q-093: thinking answers fill the 8K window (training ~1.5 x Q-091)   # P1-a arms: #steptime 180 s x 50 steps
+       "EVAL-e12b-P5tail-8k-s43-s25-b2": 0.7, "EVAL-e12b-P5tail-8k-s43-s50-b2": 0.7,
+       "EVAL-e12d-P5tail-8k-nn-b2": 1.0, "EVAL-think16k-4Bbase-b2": 1.5, "PROBE-TERM4-N4BTHB2": 0.4,   # [z154] Q-093b's references
+       "PROBE-E12E-P0THINK": 1.2, "E12e-P0think-8k": 22.0, "EVAL-e12e-P0think-8k": 2.0, "PROBE-TERM4-N093C": 0.5, "EVAL-think16k-8Bbase-b2": 1.5,
+       "PROBE-TERM4-N8BTHB2": 0.5, "EVAL-budA-e12eP0think-8k": 2.0, "EVAL-ext32k-8p0think8k": 3.0,   # [z154] Q-093c: 50 x 195 s x 8 GPUs
+       "PROBE-E12B-P0THINK-8G": 0.8, "E12b-P0think-8k-s43": 16.0, "EVAL-e12b-P0think-8k-s43": 1.8, "PROBE-TERM4-N093S43": 0.3,
+       "EVAL-budA-e12bP0think-8k-s43": 1.5, "EVAL-ext32k-17p0think8k-s43": 3.0, "EVAL-ext32k-17p5tail8k-oc": 1.5, "EVAL-ext32k-8Bthink-b2": 3.0}   # [z146] Q-093: thinking answers fill the 8K window (training ~1.5 x Q-091)   # P1-a arms: #steptime 180 s x 50 steps
 PROFILES = {
     "1g": P0_SERIAL + ["pn5", "p1q", "p1a"],   # [z152] N5 after P0 (1gt inherits it, 1gs does not)   # [z146] Q-093 after P0, before P1-a (1gt inherits it; 1gs does not: a 1gs / 1gt pair shares the gates only)
     "4g": P0_PARALLEL + ["p1a"],
@@ -130,7 +154,7 @@ PROFILES = {
 # The 8-GPU node reads tasks/queue_8gs.txt through control/queue_name (env.sh exports QUEUE_FILE); the 1-GPU node keeps queue.txt.
 SHARE_1G = ["p0a", "p0c", "p0f", "p0g", "p0x"]
 PROFILES["1gs"] = SHARE_1G
-PROFILES["8gs"] = [s for s in PROFILES["8g80"] if s == "p0a" or s not in SHARE_1G]
+PROFILES["8gs"] = [s for s in PROFILES["8g80"] if s == "p0a" or s not in SHARE_1G] + ["p1q8", "p1qs43"]   # [z154] 8-GPU-only stages
 # [z142] (the lead 11-10: the 8 x H200 reclaimed, a second 1 x H200 back) 1gt = the 1-GPU trainings and their readings beside a 1gs node:
 # 1g without the 1gs stages (p0d, p0e, p0b, p0dr, p0er, P1-a); with 1gs it is 1g's stages, only p0a on both
 PROFILES["1gt"] = [s for s in PROFILES["1g"] if s == "p0a" or s not in SHARE_1G]
@@ -196,11 +220,40 @@ NEW_ROWS = """\
 #term PROBE-TERM4-N090FT 17_P5l8klp-on-P5text result:runs/E12b-P5-8k-lenpen/global_step_50/actor/huggingface PROBE-TERM4-NP5B2/gen/term_17_P5s150_math500_no_think_t0.6.jsonl
 #eval EVAL-e12b-P5tail-8k-s43-s25-b2 e12b_P5tail-8k-s43_s25_b2_math500_T0.6 result:runs/E12b-P5tail-8k-s43/global_step_25/actor/huggingface math500 4 0.6
 #eval EVAL-e12b-P5tail-8k-s43-s50-b2 e12b_P5tail-8k-s43_s50_b2_math500_T0.6 result:runs/E12b-P5tail-8k-s43/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-e12d-P5tail-8k-nn-b2 e12d_P5tail-8k_s50_b2_math500_T0.6 result:runs/E12d-P5tail-8k/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-e12d-P5tail-8k-nn-b2 e12d_P5tail-8k_s50_b2_math500_T1.0 result:runs/E12d-P5tail-8k/global_step_50/actor/huggingface math500 4 1.0
+#eval EVAL-think16k-4Bbase-b2 base4_think16k_b2_math500_T0.6 Qwen/Qwen3-4B math500 4 0.6 16384 think
+#term PROBE-TERM4-N4BTHB2 4B_base_think Qwen/Qwen3-4B EVAL-think16k-4Bbase-b2/base4_think16k_b2_math500_T0.6_math500_think_t0.6.jsonl think
+#gpus PROBE-E12E-P0THINK 8
+#gpus E12e-P0think-8k 8
+#steptime E12e-P0think-8k 195
+#eval EVAL-e12e-P0think-8k e12e_P0think-8k_s50_math500_T0.6 result:runs/E12e-P0think-8k/global_step_50/actor/huggingface math500 4 0.6 16384 think
+#eval EVAL-e12e-P0think-8k e12e_P0think-8k_s50_math500_T1.0 result:runs/E12e-P0think-8k/global_step_50/actor/huggingface math500 4 1.0 16384 think
+#term PROBE-TERM4-N093C 8B_P0think8k result:runs/E12e-P0think-8k/global_step_50/actor/huggingface EVAL-e12e-P0think-8k/e12e_P0think-8k_s50_math500_T0.6_math500_think_t0.6.jsonl think
+#eval EVAL-think16k-8Bbase-b2 base8_think16k_b2_math500_T0.6 Qwen/Qwen3-8B math500 4 0.6 16384 think
+#term PROBE-TERM4-N8BTHB2 8B_base_think Qwen/Qwen3-8B EVAL-think16k-8Bbase-b2/base8_think16k_b2_math500_T0.6_math500_think_t0.6.jsonl think
+#eval EVAL-budA-e12eP0think-8k budAe12eP0think-8k_s50_math500_T0.6_32k result:runs/E12e-P0think-8k/global_step_50/actor/huggingface math500 4 0.6 32768 think
+#eval EVAL-ext32k-8p0think8k ext32k8B_E12eP0think8k_s50_aime24_T0.6 result:runs/E12e-P0think-8k/global_step_50/actor/huggingface aime24 16 0.6 32768 think
+#eval EVAL-ext32k-8p0think8k ext32k8B_E12eP0think8k_s50_aime25_T0.6 result:runs/E12e-P0think-8k/global_step_50/actor/huggingface aime25 16 0.6 32768 think
+#eval EVAL-ext32k-8Bthink-b2 ext32k8_base8think_b2_aime24_T0.6 Qwen/Qwen3-8B aime24 16 0.6 32768 think
+#eval EVAL-ext32k-8Bthink-b2 ext32k8_base8think_b2_aime25_T0.6 Qwen/Qwen3-8B aime25 16 0.6 32768 think
+#gpus PROBE-E12B-P0THINK-8G 8
+#gpus E12b-P0think-8k-s43 8
+#steptime E12b-P0think-8k-s43 120
+#eval EVAL-e12b-P0think-8k-s43 e12b_P0think-8k-s43_s50_math500_T0.6 result:runs/E12b-P0think-8k-s43/global_step_50/actor/huggingface math500 4 0.6 16384 think
+#eval EVAL-e12b-P0think-8k-s43 e12b_P0think-8k-s43_s50_math500_T1.0 result:runs/E12b-P0think-8k-s43/global_step_50/actor/huggingface math500 4 1.0 16384 think
+#term PROBE-TERM4-N093S43 17_P0think8ks43 result:runs/E12b-P0think-8k-s43/global_step_50/actor/huggingface EVAL-e12b-P0think-8k-s43/e12b_P0think-8k-s43_s50_math500_T0.6_math500_think_t0.6.jsonl think
+#eval EVAL-budA-e12bP0think-8k-s43 budAe12bP0think-8ks43_s50_math500_T0.6_32k result:runs/E12b-P0think-8k-s43/global_step_50/actor/huggingface math500 4 0.6 32768 think
+#eval EVAL-ext32k-17p0think8k-s43 ext32k17_E12bP0think8ks43_s50_aime24_T0.6 result:runs/E12b-P0think-8k-s43/global_step_50/actor/huggingface aime24 16 0.6 32768 think
+#eval EVAL-ext32k-17p0think8k-s43 ext32k17_E12bP0think8ks43_s50_aime25_T0.6 result:runs/E12b-P0think-8k-s43/global_step_50/actor/huggingface aime25 16 0.6 32768 think
+#eval EVAL-ext32k-17p5tail8k-oc ext32k17_E12bP5tail8k_s50oc_aime24_T0.6 result:runs/E12b-P5tail-8k/global_step_50/actor/huggingface aime24 16 0.6 32768
+#eval EVAL-ext32k-17p5tail8k-oc ext32k17_E12bP5tail8k_s50oc_aime25_T0.6 result:runs/E12b-P5tail-8k/global_step_50/actor/huggingface aime25 16 0.6 32768
 """
 ROW_KINDS = ("#eval", "#pair", "#budget", "#term", "#gpus", "#steptime")
 # [z151] (Fable D12 11-11 16:3x) per-profile GPU counts: on 8gs (the me-west1 8 x B200s) each long training and its gate take all
 # 8 GPUs, one training per machine (P1-b on one, Q-093b on the other); the other profiles keep the source's 4
-GPUS_BY_PROFILE = {"8gs": {"PROBE-E12E-8K": 8, "E12e-P5tail-8k-nn": 8, "PROBE-E12D-P0THINK": 8, "E12d-P0think-8k": 8}}
+GPUS_BY_PROFILE = {"8gs": {"PROBE-E12E-8K": 8, "E12e-P5tail-8k-nn": 8, "PROBE-E12D-P0THINK": 8, "E12d-P0think-8k": 8,
+                           "PROBE-E12E-P0THINK": 8, "E12e-P0think-8k": 8, "PROBE-E12B-P0THINK-8G": 8, "E12b-P0think-8k-s43": 8}}   # [z154]
 HEADER = """\
 # Remote-node task queue, version 2. newnode-v2, profile {p}: {what}
 # Written by scripts/queue_profiles.py (lab WO-001; v3 workflow 7.2) from tasks/queue_newnode_v1.txt + its new rows: edit the
