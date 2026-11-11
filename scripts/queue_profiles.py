@@ -159,6 +159,9 @@ NEW_ROWS = """\
 #eval EVAL-ext32k-4p0think8k ext32k4_E12dP0think8k_s50_aime25_T0.6 result:runs/E12d-P0think-8k/global_step_50/actor/huggingface aime25 16 0.6 32768 think
 """
 ROW_KINDS = ("#eval", "#pair", "#budget", "#term", "#gpus", "#steptime")
+# [z151] (Fable D12 11-11 16:3x) per-profile GPU counts: on 8gs (the me-west1 8 x B200s) each long training and its gate take all
+# 8 GPUs, one training per machine (P1-b on one, Q-093b on the other); the other profiles keep the source's 4
+GPUS_BY_PROFILE = {"8gs": {"PROBE-E12E-8K": 8, "E12e-P5tail-8k-nn": 8, "PROBE-E12D-P0THINK": 8, "E12d-P0think-8k": 8}}
 HEADER = """\
 # Remote-node task queue, version 2. newnode-v2, profile {p}: {what}
 # Written by scripts/queue_profiles.py (lab WO-001; v3 workflow 7.2) from tasks/queue_newnode_v1.txt + its new rows: edit the
@@ -214,7 +217,9 @@ def render(p):
         out.append(f"{st:<10} open   " + " ".join(ss))
     have = set(tasks)
     out.append("")
-    out += [r for r in rows if r.split()[0] in ("#gpus", "#steptime") and r.split()[1] in have]
+    g8 = GPUS_BY_PROFILE.get(p, {})
+    out += [f"#gpus {r.split()[1]} {g8[r.split()[1]]}" if r.split()[0] == "#gpus" and r.split()[1] in g8 else r
+            for r in rows if r.split()[0] in ("#gpus", "#steptime") and r.split()[1] in have]
     out.append("")
     seen = []
     for st in PROFILES[p]:

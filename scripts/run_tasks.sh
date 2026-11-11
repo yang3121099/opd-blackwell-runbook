@@ -143,7 +143,9 @@ free_gpus() { for i in $(seq 0 $((NGPU-1))); do
 # queue (n 1-4, default 1): the task gets n GPUs, passed as a,b (task.sh accepts a list for the trainings and PROBE-2GPU;
 # run_e12.sh / run_arm.sh: CUDA_VISIBLE_DEVICES=a,b, trainer.n_gpus_per_node=n, one vLLM engine per rank). A verl FSDP
 # checkpoint is sharded by world size: a #gpus task resumes only with the same n.
-gpus_of() { local n; n=$(awk -v t="$1" '$1 == "#gpus" && $2 == t {print $3}' "$Q" | tail -1); [[ $n =~ ^[1-4]$ ]] && echo $n || echo 1; }
+# [z151] (Fable D12 11-11: one training on all 8 B200s) n 1-8; `export GPUS_MAX=<m>` in control.env caps every n at once (read on each
+# call): the fall-back to 4 when an 8-GPU gate fails, without a runbook change
+gpus_of() { local n m; n=$(awk -v t="$1" '$1 == "#gpus" && $2 == t {print $3}' "$Q" | tail -1); [[ $n =~ ^[1-8]$ ]] || n=1; m=$(cenv GPUS_MAX 8); [ $n -gt $m ] && [ $m -ge 1 ] && n=$m; echo $n; }
 # take_gpus <task>: G = its first n free GPUs (a,b), dropped from FREE. With too few free GPUs a multi-GPU task holds the
 # free ones (FREE emptied: the later tasks of this pass get none) in turns of GPUS_HOLD_MIN (default 30) minutes from its
 # first wait: held for one turn, released to the later tasks for the next, and so on, so neither side waits for ever.

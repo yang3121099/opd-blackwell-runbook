@@ -36,8 +36,8 @@ p2f        open   PROBE-E12C-8K EVAL-e12c-P5-8k:E12c-P5-8k+EVAL-e10c-P5-fix4+EVA
 p2h        open   PROBE-E12B-16K PROBE-E12D-16K E12d-P5tail-16k:PROBE-E12D-16K+PROBE-E12B-16K+E10d-P5tail EVAL-e12d-P5tail-16k:E12d-P5tail-16k+EVAL-e12d-P5-16k+EVAL-e10d-P5tail EVAL-budA-e12dP5tail-16k:E12d-P5tail-16k+EVAL-budA-4B+EVAL-budA-e10dP5tail+EVAL-budA-e12dP5-16k EVAL-ext32k-4Bp5tail16k:E12d-P5tail-16k+EVAL-ext32k-4Bp5l16k+EVAL-ext32k-4Bp5tail PROBE-TERM4-N074H:EVAL-e12d-P5tail-16k
 p2g        open   E10b-P5tail-s44:PROBE-TAIL E12b-P5tail-8k-s44:PROBE-E12B-8K+E10b-P5tail-s44 EVAL-tail-s44:E10b-P5tail-s44+EVAL-tail+EVAL-tail-s43 EVAL-ext32k-17tail-s44:E10b-P5tail-s44+EVAL-ext32k-17tail+EVAL-ext32k-17tail-s43 EVAL-e12b-P5tail-8k-s44:E12b-P5tail-8k-s44+EVAL-e12b-P5tail-8k+EVAL-tail-s44 EVAL-budA-e12bP5tail-8k-s44:E12b-P5tail-8k-s44+EVAL-budA-e12bP5tail-8k+EVAL-tail-s44 EVAL-ext32k-17p5tail8k-s44:E12b-P5tail-8k-s44+EVAL-ext32k-17p5tail8k+EVAL-ext32k-17tail-s44
 
-#gpus PROBE-E12E-8K 4
-#gpus E12e-P5tail-8k-nn 4
+#gpus PROBE-E12E-8K 8
+#gpus E12e-P5tail-8k-nn 8
 #gpus PROBE-E12D-16K 4
 #gpus E12d-P5tail-16k 4
 #gpus E12c-P5tail-8k-nn 4
@@ -51,8 +51,8 @@ p2g        open   E10b-P5tail-s44:PROBE-TAIL E12b-P5tail-8k-s44:PROBE-E12B-8K+E1
 #steptime E10b-P5fret 180
 #steptime E10b-P5topd 180
 #steptime E10b-P5fret-topd 180
-#gpus PROBE-E12D-P0THINK 4
-#gpus E12d-P0think-8k 4
+#gpus PROBE-E12D-P0THINK 8
+#gpus E12d-P0think-8k 8
 
 #fetch result:runs/E10b-P5/global_step_150/actor/huggingface
 #fetch result:runs/E10b-P5tail/global_step_50/actor/huggingface

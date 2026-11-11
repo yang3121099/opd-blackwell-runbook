@@ -2197,7 +2197,7 @@ def test_split_pair_1gs_8gs_z139():   # [z139] two machines: together 8g80's sta
     newtrains = trains | {t for st in a for x in QP.stage_specs(st, spec) for t in [x.split(":")[0]] if re.match(r"E1\d", t)}
     assert all(d in tb for t in tb for d in tb[t] if d in newtrains)              # a new training's readings run where it trains
     text = QP.render("8gs")
-    assert "#gpus E12e-P5tail-8k-nn 4" in text and "PROBE-TERM4-NRL8K" not in text and "EVAL-e10d-P5tail-nn" not in text
+    assert "#gpus E12e-P5tail-8k-nn 8" in text and "PROBE-TERM4-NRL8K" not in text and "EVAL-e10d-P5tail-nn" not in text
 
 
 def test_split_pair_1gs_1gt_z142():   # [z142] two 1-GPU machines: together 1g's stages, only the gates on both, no multi-GPU row
@@ -2294,8 +2294,51 @@ def test_q093b_4b_thinking_arm_z149(env):   # [z149] (Q-093b, Fable 14:2x) p1q4 
     assert L[i].split()[2:] == ["PROBE-E12D-P0THINK", "E12d-P0think-8k:PROBE-E12D-P0THINK", "EVAL-e12d-P0think-8k:E12d-P0think-8k",
                                 "PROBE-TERM4-N093B:EVAL-e12d-P0think-8k", "EVAL-budA-e12dP0think-8k:E12d-P0think-8k",
                                 "EVAL-ext32k-4p0think8k:E12d-P0think-8k"]
-    assert "#gpus E12d-P0think-8k 4" in L and "#gpus PROBE-E12D-P0THINK 4" in L
+    assert "#gpus E12d-P0think-8k 8" in L and "#gpus PROBE-E12D-P0THINK 8" in L   # [z151] 8 on 8gs (4 on 4g80 / 8g80: test_8gs_trainings_on_8_gpus_others_4_z151)
     ev = [l.split() for l in L if l.startswith("#eval ") and "E12d-P0think" in l]
     assert len(ev) == 5 and all(r[-1] == "think" for r in ev)
     for k, t in enumerate(("E12d-P0think-8k", "PROBE-E12D-P0THINK", "PROBE-TERM4-N093B")):
         assert env.c.v_run([t], 1700 + k)[0] == "accepted", t
+
+
+@pytest.mark.parametrize("row,cap,want", [("#gpus A 8", None, "8"), ("#gpus A 8", "4", "4"), ("#gpus A 2", "4", "2"), ("#gpus A 9", None, "1"),
+                                          ("", None, "1"), ("#gpus A 8", "x", "8"), ("#gpus A 8", "0", "8")])
+def test_gpus_of_up_to_8_and_gpus_max_z151(tmp_path, row, cap, want):   # [z151] (Fable D12) 8-GPU trainings; GPUS_MAX caps without a push
+    src = os.path.join(HERE, "run_tasks.sh")
+    (tmp_path / "control.env").write_text(f"export GPUS_MAX={cap}\n" if cap is not None else "# none\n")
+    (tmp_path / "q").write_text(row + "\n")
+    import subprocess as sp
+    script = (f'Q={tmp_path}/q OPD_ROOT={tmp_path}\n'
+              f'eval "$(sed -n \'/^gpus_of() {{/p\' {src})"; eval "$(sed -n \'/^cenv() {{/p\' {src})"\n'
+              'gpus_of A')
+    out = sp.run(["bash", "-c", script], capture_output=True, text=True)
+    assert out.stdout.strip() == want, (out.stdout, out.stderr)
+
+
+def test_8gs_trainings_on_8_gpus_others_4_z151():   # [z151] only the 8gs profile changes; the source rows stay 4
+    import queue_profiles as qp
+    t8 = qp.render("8gs")
+    for t in ("PROBE-E12E-8K", "E12e-P5tail-8k-nn", "PROBE-E12D-P0THINK", "E12d-P0think-8k"):
+        assert f"\n#gpus {t} 8\n" in t8, t
+        for p in ("4g80", "8g80"):
+            assert f"\n#gpus {t} 4\n" in qp.render(p), (p, t)
+    assert "\n#gpus E12c-P5tail-8k-nn 4\n" in t8 and "\n#gpus E12b-P5tail-8k-s44 4\n" in t8
+    assert open(qp.path("8gs")).read() == t8
+
+
+def test_task_sh_takes_a_gpu_list_for_the_q093b_gate_z151():   # [z151] z149 gave PROBE-E12D-P0THINK #gpus 4 but task.sh refused a list
+    import subprocess as sp
+    ts = open(os.path.join(HERE, "task.sh")).read()
+    line = [l for l in ts.splitlines() if l.startswith("case $G in *,*)")][0]
+    rx = line.split("[[ $T =~ ")[1].split(" ]]")[0]
+    for t, ok in (("PROBE-E12D-P0THINK", True), ("E12d-P0think-8k", True), ("PROBE-E12E-8K", True), ("EVAL-x", False)):
+        r = sp.run(["bash", "-c", f'T={t}; [[ $T =~ {rx} ]]'])
+        assert (r.returncode == 0) == ok, t
+
+
+def test_task_sh_gpu_list_up_to_8_z151():   # [z151] task.sh refused a list of more than 4 GPUs before its #gpus check
+    import subprocess as sp
+    line = [l for l in open(os.path.join(HERE, "task.sh")).read().splitlines() if l.startswith("[[ $G =~ ")][0]
+    rx = line.split("[[ $G =~ ")[1].split(" ]]")[0]
+    for g, ok in (("0,1,2,3,4,5,6,7", True), ("0,1,2,3", True), ("3", True), ("cpu", True), ("0,1,2,3,4,5,6,7,8", False), ("0,,1", False)):
+        assert (sp.run(["bash", "-c", f'G={g}; [[ $G =~ {rx} ]]']).returncode == 0) == ok, g
