@@ -260,6 +260,12 @@ mkdir -p $T/base/root/runs/PROBE-E12B-P0THINK; echo '{"result": "PASS"}' > $T/ba
 mv $T/base/root/runs/PROBE-E12B-8K/report.json $T/base/root/runs/PROBE-E12B-8K/r.json
 q2=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P0think-8k 2>&1 | tail -2); mv $T/base/root/runs/PROBE-E12B-8K/r.json $T/base/root/runs/PROBE-E12B-8K/report.json
 ok "[z146] E12b-P0think-8k: from the base, 50 steps, s25 / s50 up, 8K, the plain reward, enable_thinking=True (PROBE-E12B-8K not needed)" '[[ "$q2" == "DRYRUN_THINK enable_thinking=True"*"DRYRUN E12b-P0think-8k start=$T/m17 steps=50 "*"upload=25,50 "*"var=8k "*"reward=reward_mathverify.py" ]] && grep -q "^chat_template: enable_thinking=True$" $T/base/root/runs/E12b-P0think-8k/config.yaml'
+# [z149] (Q-093b) E12d-P0think-8k: the 4B base in the thinking template, its own 4-GPU gate, s25 / s50 up, venv-fa
+rm -f $T/base/root/runs/PROBE-E12D-P0THINK/report.json; ( DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0,1,2,3 E12d-P0think-8k > $T/q4 2>&1 ); rq4=$?
+ok "[z149] E12d-P0think-8k waits for PROBE-E12D-P0THINK (exit 3)" '[ $rq4 = 3 ] && grep -q "PROBE-E12D-P0THINK has not passed: E12d-P0think-8k not started" $T/q4'
+mkdir -p $T/base/root/runs/PROBE-E12D-P0THINK; echo '{"result": "PASS"}' > $T/base/root/runs/PROBE-E12D-P0THINK/report.json
+q5=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0,1,2,3 E12d-P0think-8k 2>&1 | tail -2)
+ok "[z149] E12d-P0think-8k: from the 4B base, 50 steps, s25 / s50 up, 8K, enable_thinking=True, venv-fa, four GPUs" '[[ "$q5" == "DRYRUN_THINK enable_thinking=True"*"DRYRUN E12d-P0think-8k start=$T/m4 steps=50 "*"venv=venv-fa "*"ngpu=4 "*"upload=25,50 "*"var=8k "* ]] && grep -q "^chat_template: enable_thinking=True$" $T/base/root/runs/E12d-P0think-8k/config.yaml'
 q3=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0 E12b-P0-8k 2>&1)
 ok "[z146] the other arms keep the non-thinking template (E12b-P0-8k, E12b-P5-8k-lenpen)" '! [[ "$q3" == *DRYRUN_THINK* ]] && grep -q "^chat_template: enable_thinking=False$" $T/base/root/runs/E12b-P0-8k/config.yaml && grep -q "^chat_template: enable_thinking=False$" $T/base/root/runs/E12b-P5-8k-lenpen/config.yaml'
 rm -rf $T

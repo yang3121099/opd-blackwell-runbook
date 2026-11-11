@@ -2126,7 +2126,7 @@ def test_newnode_v2_profiles_v259z137(env):
     # [11-09 21:5x the lead: self-paid GPUs, no idle] one GPU: the base-start Q-091 training right after the gates, the readings between
     order = {"1g": ["p0a", "p0d", "p0c", "p0b", "p0e", "p0dr", "p0er", "p0f", "p0g", "p0x", "p1q", "p1a"],   # [z146] Q-093 before P1-a
              "4g": ["p0a", "p0d", "p0e", "p0c", "p0b", "p0dr", "p0er", "p0f", "p0g", "p0x", "p1a"]}
-    order["4g80"] = order["4g"] + ["p1b"]; order["8g"] = order["4g"] + ["p2f", "p2g"]; order["8g80"] = order["4g"] + ["p1b", "p2f", "p2h", "p2g"]
+    order["4g80"] = order["4g"] + ["p1b", "p1q4"]; order["8g"] = order["4g"] + ["p2f", "p2g"]; order["8g80"] = order["4g"] + ["p1b", "p1q4", "p2f", "p2h", "p2g"]   # [z149] p1q4
     v1 = {}
     for l in open(os.path.join(repo, "tasks", "queue_newnode_v1.txt")).read().split("\n"):
         w = l.split()
@@ -2181,7 +2181,7 @@ def test_newnode_v2_profiles_v259z137(env):
     L, _, _ = _profile_queue("8g80")
     assert "#term PROBE-TERM4-N8BTHINK 8B_P0think Qwen/Qwen3-8B EVAL-budA-8Bthink/budA8B_think_math500_T0.6_32k_math500_think_t0.6.jsonl think" in L
     _, _, s8 = _profile_queue("8g80")
-    assert set(v1) <= set(s8) and len(s8) == len(v1) + 7                         # 8g80 = all of v1 + the new tasks ([z144] + NP5H200; [z146] + N17P0H200, the 4B AIME pair)
+    assert set(v1) <= set(s8) and len(s8) == len(v1) + 13                        # 8g80 = all of v1 + the new tasks ([z144] + NP5H200; [z146] + N17P0H200, the 4B AIME pair; [z149] + p1q4's six)
 
 
 def test_split_pair_1gs_8gs_z139():   # [z139] two machines: together 8g80's stages, only the gates on both; 8gs keeps every training
@@ -2280,3 +2280,22 @@ def test_b200_references_z148(env):   # [z148] (Fable 13:5x) Q-090 / Q-093 on B2
     assert "#term PROBE-TERM4-NP5B2 17_P5s150 result:runs/E10b-P5/global_step_150/actor/huggingface gen" in L
     for k, t in enumerate(new):
         assert env.c.v_run([t], 1600 + k)[0] == "accepted", t
+
+
+def test_q093b_4b_thinking_arm_z149(env):   # [z149] (Q-093b, Fable 14:2x) p1q4 on the 80 GB profiles after P1-b; four GPUs; both names accepted
+    import queue_profiles as QP
+    for p in QP.PROFILES:
+        st = QP.PROFILES[p]
+        assert ("p1q4" in st) == (p in ("4g80", "8g80", "8gs")), p
+        if "p1q4" in st:
+            assert st.index("p1q4") == st.index("p1b") + 1, p
+    L, stages, spec = _profile_queue("8gs")
+    i = next(i for i, l in enumerate(L) if l.startswith("p1q4 "))
+    assert L[i].split()[2:] == ["PROBE-E12D-P0THINK", "E12d-P0think-8k:PROBE-E12D-P0THINK", "EVAL-e12d-P0think-8k:E12d-P0think-8k",
+                                "PROBE-TERM4-N093B:EVAL-e12d-P0think-8k", "EVAL-budA-e12dP0think-8k:E12d-P0think-8k",
+                                "EVAL-ext32k-4p0think8k:E12d-P0think-8k"]
+    assert "#gpus E12d-P0think-8k 4" in L and "#gpus PROBE-E12D-P0THINK 4" in L
+    ev = [l.split() for l in L if l.startswith("#eval ") and "E12d-P0think" in l]
+    assert len(ev) == 5 and all(r[-1] == "think" for r in ev)
+    for k, t in enumerate(("E12d-P0think-8k", "PROBE-E12D-P0THINK", "PROBE-TERM4-N093B")):
+        assert env.c.v_run([t], 1700 + k)[0] == "accepted", t

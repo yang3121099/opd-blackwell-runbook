@@ -38,8 +38,8 @@ if [[ $2 == E12c-P5-8k || $2 == E12c-P5-16k || $2 == E12e-P5self-8k || $2 == E12
   for i in 1 2 3; do echo "(TaskRunner pid=1) step:$i - response_length/mean:$((5000 + i)) - critic/score/mean:0.4" >> $d/train.log; done
   exit 0
 fi
-if [ $2 = E12b-P0think-8k ]; then   # [z146] (Q-093) FAKE_THINK_CLOSED of 4 step-1 rollouts close </think>
-  printf "task: E12b-P0think-8k\nstart: /m17\nvariant: 8k\nchat_template: enable_thinking=${FAKE_THINK:-True}\nmax_response_length: 8192\n" > $d/config.yaml
+if [ $2 = E12b-P0think-8k ] || [ $2 = E12d-P0think-8k ]; then   # [z146] (Q-093) FAKE_THINK_CLOSED of 4 step-1 rollouts close </think>; [z149] the 4B arm
+  printf "task: $2\nstart: /m17\nvariant: 8k\nchat_template: enable_thinking=${FAKE_THINK:-True}\nmax_response_length: 8192\n" > $d/config.yaml
   for i in 1 2 3; do echo "(TaskRunner pid=1) step:$i - response_length/mean:$((7000 + i)) - critic/score/mean:0.3" >> $d/train.log; done
   mkdir -p $d/rollouts; for k in 1 2 3 4; do if [ $k -le ${FAKE_THINK_CLOSED:-3} ]; then echo '{"input": "q", "output": "<think>x</think> \\boxed{1}", "score": 1.0}'; else echo '{"input": "q", "output": "<think>x x x", "score": 0.0}'; fi; done > $d/rollouts/1.jsonl
   exit 0
@@ -207,6 +207,9 @@ rm -rf $T; setup; FAKE_THINK=False bash $T/rb/scripts/probe_e12var.sh 2 p0think 
 ok "[z146] p0think: a config without enable_thinking=True is FAIL" '[ "$(thres result)" = FAIL ] && [[ "$(thres reason)" == *"enable_thinking=True"* ]]'
 rm -rf $T; setup; FAKE_THINK_CLOSED=0 bash $T/rb/scripts/probe_e12var.sh 2 p0think > /dev/null 2>&1
 ok "[z146] p0think: no rollout closing </think> (the non-thinking template) is FAIL" '[ "$(thres result)" = FAIL ] && [[ "$(thres reason)" == *"only 0.000 of the step-1 rollouts"* ]]'
+rm -rf $T; setup; PEV_LADDER=E12d bash $T/rb/scripts/probe_e12var.sh 2,3,4,5 p0think > /dev/null 2>&1
+thres4() { python3 -c "import json, sys; print(json.load(open(sys.argv[1])).get(sys.argv[2], ''))" $T/root/runs/PROBE-E12D-P0THINK/report.json "$1"; }
+ok "[z149] PEV_LADDER=E12d p0think: PROBE-E12D-P0THINK smokes E12d-P0think-8k on its four GPUs" '[ "$(thres4 result)" = PASS ] && grep -q "run_e12 2,3,4,5 E12d-P0think-8k" $T/calls'
 rm -rf $T; setup; PEV_LADDER=E12c bash $T/rb/scripts/probe_e12var.sh 2 p0think > /dev/null 2>&1; rpe=$?
 ok "[z146] p0think is an E12b variant only" '[ $rpe = 2 ]'
 rm -rf $T

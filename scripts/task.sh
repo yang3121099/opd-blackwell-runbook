@@ -61,7 +61,8 @@ case $T in
   E12b-P5-prog) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z43] (Q-058) the 4K recipe from E12b-P5-8k s25 (shrink the window)
   E12b-P5-prog-up) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z43] (Q-058) the 8K recipe from E12b-P5-s44 s25 (grow the window)
   E12b-P0-8k|E12b-P5-8k-lenpen) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z136] (Q-091 / Q-090, research_program 3s) the no-distillation and the length-control 8K baselines, one GPU each; above E12b-*
-  E12b-P0think-8k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [z146] (Q-093, Fable D10) E12b-P0-8k's recipe in the thinking template; above E12b-*
+  E12b-P0think-8k|E12d-P0think-8k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [z149] (Q-093b) the 4B arm, #gpus 4
+  #   # [z146] (Q-093, Fable D10) E12b-P0-8k's recipe in the thinking template; above E12b-*
   E12b-P5tail-8k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z84a] (Q-074) the 8K RL arm from E10b-P5tail s50 (the method's chain); [v2.5.9z84b] above E12b-*, which took it first (exit 2, no log line)
   E12b-P5-16k-s44) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z84] (Q-076) the 1.7B 16K arm from E10b-P5-s44 s150, #gpus 2; [v2.5.9z84b] above E12b-*
   E12b-*)  [[ $T =~ ^E12b-(P0|P1|$ARMS|P5-s4[34]|P2-s43|P5self|P5self-s43|P5-kl|P5-stop|P5-stop2|P5-8k|P5-16k|P5-r3|P5-16k-kl)$ ]] || exit 2; bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # v2.5.6j: P5-s43; v2.5.7n: P5-s44; v2.5.7o: P2-s43; [v2.5.8a] P5self; [v2.5.8b] P5-kl; [v2.5.8c] P5-stop; [v2.5.9f] P5-stop2
@@ -93,6 +94,7 @@ case $T in
   PROBE-P2SELF) bash $RUNBOOK/scripts/probe_p2self.sh $G;;   # v2.5.7zg (Q-019): the P2 self-teacher's gate
   PROBE-E12C) bash $RUNBOOK/scripts/probe_e12c.sh $G;;   # [v2.5.8a] (Q-023): the gate of E12c (a 3-step smoke of E12c-P0)
   PROBE-E12B-KL) bash $RUNBOOK/scripts/probe_e12var.sh $G kl;;   # [v2.5.8b] (Q-020): the gate of E12b-P5-kl
+  PROBE-E12D-P0THINK) PEV_LADDER=E12d bash $RUNBOOK/scripts/probe_e12var.sh $G p0think;;   # [z149] (Q-093b): the 4B arm's 4-GPU 3-step smoke
   PROBE-E12B-P0THINK) bash $RUNBOOK/scripts/probe_e12var.sh $G p0think;;   # [z146] (Q-093): the gate of E12b-P0think-8k
   PROBE-E12B-STOP2) bash $RUNBOOK/scripts/probe_e12var.sh $G stop2;;   # [v2.5.9f] (T1): the gate of E12b-P5-stop2
   PROBE-E12B-R3) bash $RUNBOOK/scripts/probe_e12var.sh $G r3;;   # [v2.5.9w] (Q-039) the gate of E12b-P5-r3

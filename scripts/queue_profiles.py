@@ -59,6 +59,10 @@ STAGES = {
     # P1-a the 2 x 2 beyond arms + readings + TERM4
     "p1a": ["src:PROBE-FRET", "src:E10b-P5fret", "src:E10b-P5topd", "src:E10b-P5fret-topd", "src:EVAL-e10b-P5fret", "src:EVAL-e10b-P5topd",
             "src:EVAL-e10b-P5fret-topd", "src:PROBE-TERM4-FRET"],
+    # [z149] (Q-093b, Fable 14:2x; lab/registry/Q-093b.md) Q-093's recipe on the 4B base: the thinking template, 8K GRPO, 50 steps, four GPUs
+    # on venv-fa; its 4-GPU gate, the arm, then the 16K readings and the TERM4 first, budA 32K and AIME 32K last (80 GB profiles only)
+    "p1q4": ["PROBE-E12D-P0THINK", "E12d-P0think-8k:PROBE-E12D-P0THINK", "EVAL-e12d-P0think-8k:E12d-P0think-8k",
+             "PROBE-TERM4-N093B:EVAL-e12d-P0think-8k", "EVAL-budA-e12dP0think-8k:E12d-P0think-8k", "EVAL-ext32k-4p0think8k:E12d-P0think-8k"],
     # P1-b Q-074e the 8B chain from s25 (4 x 80 GB)
     "p1b": ["src:PROBE-E12E-8K", "src:E12e-P5tail-8k-nn", "src:EVAL-e12e-P5tail-8k-nn", "src:EVAL-budA-e12eP5tail-8k-nn",
             "src:EVAL-ext32k-8Bp5tail8k-nn", "src:PROBE-TERM4-N074E"],
@@ -91,13 +95,15 @@ EST = {"PROBE-TAIL": 0.3, "PROBE-E12B-8K": 0.3, "PROBE-E12B-STOP2": 0.3, "E12b-P
        "EVAL-ext32k-4Bp5tail8k-nn": 1.2, "PROBE-TERM4-N17P0H200": 1.0,   # [z146] the 4B AIME pair (B300 ~0.6 h a benchmark); gen + score
        "PROBE-E12B-P0THINK": 0.5, "E12b-P0think-8k": 4.5, "EVAL-e12b-P0think-8k": 1.8, "PROBE-TERM4-N093": 0.3,
        "EVAL-budA-e12bP0think-8k": 1.5, "EVAL-ext32k-17p0think8k": 3.0,
-       "EVAL-e12b-P5tail-8k-nn-b2": 1.2, "EVAL-think16k-17base-b2": 1.0, "PROBE-TERM4-N17THB2": 0.3, "PROBE-TERM4-NP5B2": 0.5}   # [z146] Q-093: thinking answers fill the 8K window (training ~1.5 x Q-091)   # P1-a arms: #steptime 180 s x 50 steps
+       "EVAL-e12b-P5tail-8k-nn-b2": 1.2, "EVAL-think16k-17base-b2": 1.0, "PROBE-TERM4-N17THB2": 0.3, "PROBE-TERM4-NP5B2": 0.5,
+       "PROBE-E12D-P0THINK": 0.6, "E12d-P0think-8k": 7.5, "EVAL-e12d-P0think-8k": 2.0, "PROBE-TERM4-N093B": 0.4,   # [z149] Q-093b (H200 x 4)
+       "EVAL-budA-e12dP0think-8k": 1.6, "EVAL-ext32k-4p0think8k": 3.0}   # [z146] Q-093: thinking answers fill the 8K window (training ~1.5 x Q-091)   # P1-a arms: #steptime 180 s x 50 steps
 PROFILES = {
     "1g": P0_SERIAL + ["p1q", "p1a"],   # [z146] Q-093 after P0, before P1-a (1gt inherits it; 1gs does not: a 1gs / 1gt pair shares the gates only)
     "4g": P0_PARALLEL + ["p1a"],
-    "4g80": P0_PARALLEL + ["p1a", "p1b"],
+    "4g80": P0_PARALLEL + ["p1a", "p1b", "p1q4"],   # [z149] Q-093b after P1-b
     "8g": P0_PARALLEL + ["p1a", "p2f", "p2g"],
-    "8g80": P0_PARALLEL + ["p1a", "p1b", "p2f", "p2h", "p2g"],
+    "8g80": P0_PARALLEL + ["p1a", "p1b", "p1q4", "p2f", "p2h", "p2g"],   # [z149] Q-093b after P1-b
 }
 # [z139] (the lead 11-10) two machines at once, each with its own disk and runs/: a 1 x H200 that has run p0a and is in p0c, and an
 # 8 x H200. 1gs = the 1-GPU box's share (the readings of historical weights, which need no new training); 8gs = 8g80 without those
@@ -142,6 +148,14 @@ NEW_ROWS = """\
 #eval EVAL-think16k-17base-b2 base17_think16k_b2_math500_T0.6 Qwen/Qwen3-1.7B math500 4 0.6 16384 think
 #term PROBE-TERM4-N17THB2 17_base_think Qwen/Qwen3-1.7B EVAL-think16k-17base-b2/base17_think16k_b2_math500_T0.6_math500_think_t0.6.jsonl think
 #term PROBE-TERM4-NP5B2 17_P5s150 result:runs/E10b-P5/global_step_150/actor/huggingface gen
+#gpus PROBE-E12D-P0THINK 4
+#gpus E12d-P0think-8k 4
+#eval EVAL-e12d-P0think-8k e12d_P0think-8k_s50_math500_T0.6 result:runs/E12d-P0think-8k/global_step_50/actor/huggingface math500 4 0.6 16384 think
+#eval EVAL-e12d-P0think-8k e12d_P0think-8k_s50_math500_T1.0 result:runs/E12d-P0think-8k/global_step_50/actor/huggingface math500 4 1.0 16384 think
+#term PROBE-TERM4-N093B 4_P0think8k result:runs/E12d-P0think-8k/global_step_50/actor/huggingface EVAL-e12d-P0think-8k/e12d_P0think-8k_s50_math500_T0.6_math500_think_t0.6.jsonl think
+#eval EVAL-budA-e12dP0think-8k budAe12dP0think-8k_s50_math500_T0.6_32k result:runs/E12d-P0think-8k/global_step_50/actor/huggingface math500 4 0.6 32768 think
+#eval EVAL-ext32k-4p0think8k ext32k4_E12dP0think8k_s50_aime24_T0.6 result:runs/E12d-P0think-8k/global_step_50/actor/huggingface aime24 16 0.6 32768 think
+#eval EVAL-ext32k-4p0think8k ext32k4_E12dP0think8k_s50_aime25_T0.6 result:runs/E12d-P0think-8k/global_step_50/actor/huggingface aime25 16 0.6 32768 think
 """
 ROW_KINDS = ("#eval", "#pair", "#budget", "#term", "#gpus", "#steptime")
 HEADER = """\
