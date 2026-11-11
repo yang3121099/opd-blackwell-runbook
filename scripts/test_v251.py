@@ -2126,7 +2126,7 @@ def test_newnode_v2_profiles_v259z137(env):
     # [11-09 21:5x the lead: self-paid GPUs, no idle] one GPU: the base-start Q-091 training right after the gates, the readings between
     order = {"1g": ["p0a", "p0d", "p0c", "p0b", "p0e", "p0dr", "p0er", "p0f", "p0g", "p0x", "p1q", "p1a"],   # [z146] Q-093 before P1-a
              "4g": ["p0a", "p0d", "p0e", "p0c", "p0b", "p0dr", "p0er", "p0f", "p0g", "p0x", "p1a"]}
-    order["4g80"] = order["4g"] + ["p1b", "p1q4"]; order["8g"] = order["4g"] + ["p2f", "p2g"]; order["8g80"] = order["4g"] + ["p1b", "p1q4", "p2f", "p2h", "p2g"]   # [z149] p1q4
+    order["4g80"] = order["4g"] + ["p1b", "p1q4"]; order["8g"] = order["4g"] + ["p2f", "p2g"]; order["8g80"] = order["4g"] + ["p1b", "p1q4", "p1q", "p2f", "p2h", "p2g"]   # [z149] p1q4; [z150] p1q
     v1 = {}
     for l in open(os.path.join(repo, "tasks", "queue_newnode_v1.txt")).read().split("\n"):
         w = l.split()
@@ -2181,7 +2181,7 @@ def test_newnode_v2_profiles_v259z137(env):
     L, _, _ = _profile_queue("8g80")
     assert "#term PROBE-TERM4-N8BTHINK 8B_P0think Qwen/Qwen3-8B EVAL-budA-8Bthink/budA8B_think_math500_T0.6_32k_math500_think_t0.6.jsonl think" in L
     _, _, s8 = _profile_queue("8g80")
-    assert set(v1) <= set(s8) and len(s8) == len(v1) + 13                        # 8g80 = all of v1 + the new tasks ([z144] + NP5H200; [z146] + N17P0H200, the 4B AIME pair; [z149] + p1q4's six)
+    assert set(v1) <= set(s8) and len(s8) == len(v1) + 23                        # 8g80 = all of v1 + the new tasks ([z144] + NP5H200; [z146] + N17P0H200, the 4B AIME pair; [z149] + p1q4's six; [z150] + p1q's ten)
 
 
 def test_split_pair_1gs_8gs_z139():   # [z139] two machines: together 8g80's stages, only the gates on both; 8gs keeps every training
@@ -2237,8 +2237,8 @@ def test_q093_thinking_arm_z146(env):   # [z146] (Q-093, Fable D10) the p1q stag
     here = os.path.dirname(os.path.abspath(__file__))
     for p in QP.PROFILES:
         st = QP.PROFILES[p]
-        assert ("p1q" in st) == (p in ("1g", "1gt")), p                          # not in 1gs: a 1gs / 1gt pair shares the gates only
-        if "p1q" in st:
+        assert ("p1q" in st) == (p in ("1g", "1gt", "8g80", "8gs")), p           # not in 1gs: a 1gs / 1gt pair shares the gates only; [z150] the 8 x B200
+        if "p1q" in st and p in ("1g", "1gt"):
             assert st.index("p1q") == st.index("p1a") - 1 and all(st.index(s) < st.index("p1q") for s in st if s.startswith("p0")), p
     L, stages, spec = _profile_queue("1gt")
     i = next(i for i, l in enumerate(L) if l.startswith("p1q "))
@@ -2268,7 +2268,7 @@ def test_b200_references_z148(env):   # [z148] (Fable 13:5x) Q-090 / Q-093 on B2
     for p in QP.PROFILES:
         L, stages, spec = _profile_queue(p)
         txt = "\n".join(L)
-        assert all((t in txt) == (p in ("1g", "1gt")) for t in new), p        # in the p1q stage only
+        assert all((t in txt) == (p in ("1g", "1gt", "8g80", "8gs")) for t in new), p   # in the p1q stage only ([z150] also on the 80 GB 8-GPU profiles)
     L, stages, spec = _profile_queue("1g")
     p1q = next(l for l in L if l.startswith("p1q ")).split()[2:]
     arm = p1q.index("E12b-P0think-8k:PROBE-E12B-P0THINK")

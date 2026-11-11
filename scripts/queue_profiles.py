@@ -103,7 +103,8 @@ PROFILES = {
     "4g": P0_PARALLEL + ["p1a"],
     "4g80": P0_PARALLEL + ["p1a", "p1b", "p1q4"],   # [z149] Q-093b after P1-b
     "8g": P0_PARALLEL + ["p1a", "p2f", "p2g"],
-    "8g80": P0_PARALLEL + ["p1a", "p1b", "p1q4", "p2f", "p2h", "p2g"],   # [z149] Q-093b after P1-b
+    "8g80": P0_PARALLEL + ["p1a", "p1b", "p1q4", "p1q", "p2f", "p2h", "p2g"],   # [z149] Q-093b after P1-b; [z150] p1q too (an 8 x B200 reads
+    # Q-090 / Q-093 and their B200 references beside P1-b: Fable 11-11 15:5x; the share keeps the rows, the 1.7B arm stays paused there)
 }
 # [z139] (the lead 11-10) two machines at once, each with its own disk and runs/: a 1 x H200 that has run p0a and is in p0c, and an
 # 8 x H200. 1gs = the 1-GPU box's share (the readings of historical weights, which need no new training); 8gs = 8g80 without those
