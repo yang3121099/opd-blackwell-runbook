@@ -142,8 +142,9 @@ except Exception: print('math500')" "${RP%.jsonl}.metrics.json" 2> /dev/null); F
   [ -f $OUT/$STEM.forced.json ] && { echo "FORCED_DONE_ALREADY $STEM"; continue; }
   resolve_model "$FMODEL" || { echo "FORCED_MODEL_MISSING $FR: $FMODEL"; ok=0; continue; }
   gpu_wait_free $G || { python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1; gpu_wait_free $G 120; }   # [v2.5.8]
+  # [z152d] (Fable 11-11 18:2x) the forced continuation samples as the queue's readings do (T 0.6, top_p 0.95, top_k 0; forced_stop.py's own default is top_k 20)
   CUDA_VISIBLE_DEVICES=$G python $RUNBOOK/code/eval/forced_stop.py --model $M --jsonl "$RP" --bench $FB --mode $FMODE --force_preset budB \
-    --max_new 32 --budgets 2048,4096,8192,16384,32768 --out $OUT/$STEM.forced.json --samples $OUT/$STEM.forced.jsonl >> $OUT/forced.log 2>&1 \
+    --max_new 32 --budgets 2048,4096,8192,16384,32768 --out $OUT/$STEM.forced.json --samples $OUT/$STEM.forced.jsonl --top_k 0 >> $OUT/forced.log 2>&1 \
     && echo "FORCED_DONE $STEM" || { echo "FORCED_FAIL $STEM (see forced.log)"; ok=0; rm -f $OUT/$STEM.forced.json; }
   python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true
 done <<< "$(awk -v t="$T" '$1 == "#forced" && $2 == t {print $3, $4, $5}' "$Q")"

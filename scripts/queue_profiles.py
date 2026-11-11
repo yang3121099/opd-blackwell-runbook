@@ -59,6 +59,8 @@ STAGES = {
     "p1q": ["PROBE-E12B-P0THINK", "E12b-P0think-8k:PROBE-E12B-P0THINK",
             "EVAL-e12b-P0think-8k:E12b-P0think-8k", "PROBE-TERM4-N093:EVAL-e12b-P0think-8k",
             "EVAL-think16k-17base-b2", "PROBE-TERM4-N17THB2:EVAL-think16k-17base-b2",
+            # [z152d] (Fable 18:2x) CONDITIONAL, kept out of every share KEEP (paused): Q-093 s25 here and the s43 chain's s25 / s50 below are read
+            # only if Q-093's 16K length ratio to the chain falls outside [0.85, 1.15] (registry Q-093 判读补充); the lead resumes them then
             "EVAL-e12b-P0think-8k-s25:E12b-P0think-8k", "PROBE-TERM4-N093FT:EVAL-think16k-17base-b2+E12b-P0think-8k",
             "EVAL-e12b-P5tail-8k-nn-b2:E12b-P5tail-8k", "EVAL-e12b-P5-8k-nn-b2:E12b-P5-8k",
             # [z152c] (Q-093 判读补充: the chain's s25 point; seed 42 never saved s25, so the s43 chain's s25 and s50 on a B200, pending Fable)
