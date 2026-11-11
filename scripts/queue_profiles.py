@@ -61,6 +61,8 @@ STAGES = {
             "EVAL-think16k-17base-b2", "PROBE-TERM4-N17THB2:EVAL-think16k-17base-b2",
             "EVAL-e12b-P0think-8k-s25:E12b-P0think-8k", "PROBE-TERM4-N093FT:EVAL-think16k-17base-b2+E12b-P0think-8k",
             "EVAL-e12b-P5tail-8k-nn-b2:E12b-P5tail-8k", "EVAL-e12b-P5-8k-nn-b2:E12b-P5-8k",
+            # [z152c] (Q-093 判读补充: the chain's s25 point; seed 42 never saved s25, so the s43 chain's s25 and s50 on a B200, pending Fable)
+            "EVAL-e12b-P5tail-8k-s43-s25-b2:E12b-P5tail-8k-s43", "EVAL-e12b-P5tail-8k-s43-s50-b2:E12b-P5tail-8k-s43",
             "PROBE-TERM4-NP5B2", "PROBE-TERM4-NN2S0:PROBE-TERM4-NP5B2", "PROBE-TERM4-N090FT:PROBE-TERM4-NP5B2+E12b-P5-8k-lenpen",
             "EVAL-budA-e12bP0think-8k:E12b-P0think-8k", "EVAL-ext32k-17p0think8k:E12b-P0think-8k"],
     # [z152] N5 (lab/registry/N5.md; Fable D13 / D15, the lead 11-11 17:4x: en-2 first) the same-machine frontier: the thinking mode
@@ -110,7 +112,8 @@ EST = {"PROBE-TAIL": 0.3, "PROBE-E12B-8K": 0.3, "PROBE-E12B-STOP2": 0.3, "E12b-P
        "PROBE-E12D-P0THINK": 0.6, "E12d-P0think-8k": 7.5, "EVAL-e12d-P0think-8k": 2.0, "PROBE-TERM4-N093B": 0.4,   # [z149] Q-093b (H200 x 4)
        "EVAL-budA-e12dP0think-8k": 1.6, "EVAL-ext32k-4p0think8k": 3.0,
        "EVAL-n5-17think": 1.3, "EVAL-n5-4Bthink": 1.9, "EVAL-n5-17think-aime": 1.5, "EVAL-n5-4Bthink-aime": 2.2, "EVAL-n5-4Binst2507": 0.4,
-       "EVAL-e12b-P0think-8k-s25": 1.0, "PROBE-TERM4-N093FT": 0.3, "EVAL-e12b-P5-8k-nn-b2": 1.2, "PROBE-TERM4-NN2S0": 0.3, "PROBE-TERM4-N090FT": 0.3}   # [z146] Q-093: thinking answers fill the 8K window (training ~1.5 x Q-091)   # P1-a arms: #steptime 180 s x 50 steps
+       "EVAL-e12b-P0think-8k-s25": 1.0, "PROBE-TERM4-N093FT": 0.3, "EVAL-e12b-P5-8k-nn-b2": 1.2, "PROBE-TERM4-NN2S0": 0.3, "PROBE-TERM4-N090FT": 0.3,
+       "EVAL-e12b-P5tail-8k-s43-s25-b2": 0.7, "EVAL-e12b-P5tail-8k-s43-s50-b2": 0.7}   # [z146] Q-093: thinking answers fill the 8K window (training ~1.5 x Q-091)   # P1-a arms: #steptime 180 s x 50 steps
 PROFILES = {
     "1g": P0_SERIAL + ["pn5", "p1q", "p1a"],   # [z152] N5 after P0 (1gt inherits it, 1gs does not)   # [z146] Q-093 after P0, before P1-a (1gt inherits it; 1gs does not: a 1gs / 1gt pair shares the gates only)
     "4g": P0_PARALLEL + ["p1a"],
@@ -189,6 +192,8 @@ NEW_ROWS = """\
 #eval EVAL-e12b-P5-8k-nn-b2 e12b_P5-8k_s50_b2_math500_T1.0 result:runs/E12b-P5-8k/global_step_50/actor/huggingface math500 4 1.0
 #term PROBE-TERM4-NN2S0 17_P5tail-on-P5text result:runs/E10b-P5tail/global_step_50/actor/huggingface PROBE-TERM4-NP5B2/gen/term_17_P5s150_math500_no_think_t0.6.jsonl
 #term PROBE-TERM4-N090FT 17_P5l8klp-on-P5text result:runs/E12b-P5-8k-lenpen/global_step_50/actor/huggingface PROBE-TERM4-NP5B2/gen/term_17_P5s150_math500_no_think_t0.6.jsonl
+#eval EVAL-e12b-P5tail-8k-s43-s25-b2 e12b_P5tail-8k-s43_s25_b2_math500_T0.6 result:runs/E12b-P5tail-8k-s43/global_step_25/actor/huggingface math500 4 0.6
+#eval EVAL-e12b-P5tail-8k-s43-s50-b2 e12b_P5tail-8k-s43_s50_b2_math500_T0.6 result:runs/E12b-P5tail-8k-s43/global_step_50/actor/huggingface math500 4 0.6
 """
 ROW_KINDS = ("#eval", "#pair", "#budget", "#term", "#gpus", "#steptime")
 # [z151] (Fable D12 11-11 16:3x) per-profile GPU counts: on 8gs (the me-west1 8 x B200s) each long training and its gate take all

@@ -2181,7 +2181,7 @@ def test_newnode_v2_profiles_v259z137(env):
     L, _, _ = _profile_queue("8g80")
     assert "#term PROBE-TERM4-N8BTHINK 8B_P0think Qwen/Qwen3-8B EVAL-budA-8Bthink/budA8B_think_math500_T0.6_32k_math500_think_t0.6.jsonl think" in L
     _, _, s8 = _profile_queue("8g80")
-    assert set(v1) <= set(s8) and len(s8) == len(v1) + 28                        # 8g80 = all of v1 + the new tasks ([z144] + NP5H200; [z146] + N17P0H200, the 4B AIME pair; [z149] + p1q4's six; [z150] + p1q's ten; [z152] + five p1q rows)
+    assert set(v1) <= set(s8) and len(s8) == len(v1) + 30                        # 8g80 = all of v1 + the new tasks ([z144] + NP5H200; [z146] + N17P0H200, the 4B AIME pair; [z149] + p1q4's six; [z150] + p1q's ten; [z152] + five p1q rows)
 
 
 def test_split_pair_1gs_8gs_z139():   # [z139] two machines: together 8g80's stages, only the gates on both; 8gs keeps every training
@@ -2247,6 +2247,7 @@ def test_q093_thinking_arm_z146(env):   # [z146] (Q-093, Fable D10) the p1q stag
                                 "EVAL-think16k-17base-b2", "PROBE-TERM4-N17THB2:EVAL-think16k-17base-b2",   # [z148] the B200 references
                                 "EVAL-e12b-P0think-8k-s25:E12b-P0think-8k", "PROBE-TERM4-N093FT:EVAL-think16k-17base-b2+E12b-P0think-8k",
                                 "EVAL-e12b-P5tail-8k-nn-b2:E12b-P5tail-8k", "EVAL-e12b-P5-8k-nn-b2:E12b-P5-8k",
+                                "EVAL-e12b-P5tail-8k-s43-s25-b2:E12b-P5tail-8k-s43", "EVAL-e12b-P5tail-8k-s43-s50-b2:E12b-P5tail-8k-s43",   # [z152c]
                                 "PROBE-TERM4-NP5B2", "PROBE-TERM4-NN2S0:PROBE-TERM4-NP5B2", "PROBE-TERM4-N090FT:PROBE-TERM4-NP5B2+E12b-P5-8k-lenpen",
                                 "EVAL-budA-e12bP0think-8k:E12b-P0think-8k", "EVAL-ext32k-17p0think8k:E12b-P0think-8k"]   # budA / AIME last
     assert not [l for l in L if l.startswith("#gpus ")]
@@ -2277,7 +2278,7 @@ def test_b200_references_z148(env):   # [z148] (Fable 13:5x) Q-090 / Q-093 on B2
     assert p1q[arm + 1:arm + 3] == ["EVAL-e12b-P0think-8k:E12b-P0think-8k", "PROBE-TERM4-N093:EVAL-e12b-P0think-8k"]
     assert arm + 2 < p1q.index("EVAL-think16k-17base-b2") < p1q.index("EVAL-e12b-P5tail-8k-nn-b2:E12b-P5tail-8k") < p1q.index("PROBE-TERM4-NP5B2")
     assert p1q.index("PROBE-TERM4-NP5B2") < p1q.index("EVAL-budA-e12bP0think-8k:E12b-P0think-8k")
-    ev = [l.split() for l in L if l.startswith("#eval ") and "-b2 " in l and "P5-8k-nn-b2" not in l]
+    ev = [l.split() for l in L if l.startswith("#eval ") and "-b2 " in l and "P5-8k-nn-b2" not in l and "-s43-s" not in l]
     assert len(ev) == 3 and {r[6] for r in ev} == {"0.6", "1.0"} and [r for r in ev if r[1] == "EVAL-think16k-17base-b2"][0][-2:] == ["16384", "think"]
     assert "#term PROBE-TERM4-N17THB2 17_base_think Qwen/Qwen3-1.7B EVAL-think16k-17base-b2/base17_think16k_b2_math500_T0.6_math500_think_t0.6.jsonl think" in L
     assert "#term PROBE-TERM4-NP5B2 17_P5s150 result:runs/E10b-P5/global_step_150/actor/huggingface gen" in L
@@ -2387,3 +2388,12 @@ def test_fixed_text_rows_z152(env):   # [z152] (WO-005; D12-C / D15) Q-093 s25, 
     assert _re.fullmatch(r"[A-Za-z0-9._-]+/(gen/)?[A-Za-z0-9._-]+\.jsonl", gen) and not _re.fullmatch(r"[A-Za-z0-9._-]+/(gen/)?[A-Za-z0-9._-]+\.jsonl", "a/up/gen/x.jsonl")
     for k, t in enumerate(new):
         assert env.c.v_run([t], 1800 + k)[0] == "accepted", t
+
+
+def test_s43_chain_frontier_rows_z152c():   # [z152c] the chain's s25 / s50 on a B200 from the s43 chain (seed 42 has no s25), after the -b2 references
+    import queue_profiles as QP
+    L, stages, spec = _profile_queue("1g")
+    assert spec["EVAL-e12b-P5tail-8k-s43-s25-b2"] == ["E12b-P5tail-8k-s43"] and spec["EVAL-e12b-P5tail-8k-s43-s50-b2"] == ["E12b-P5tail-8k-s43"]
+    rows = [l.split() for l in L if l.startswith("#eval EVAL-e12b-P5tail-8k-s43-s")]
+    assert [r[3] for r in rows] == ["result:runs/E12b-P5tail-8k-s43/global_step_25/actor/huggingface",
+                                    "result:runs/E12b-P5tail-8k-s43/global_step_50/actor/huggingface"] and all(r[4:7] == ["math500", "4", "0.6"] for r in rows)
