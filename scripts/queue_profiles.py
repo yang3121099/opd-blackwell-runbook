@@ -56,6 +56,10 @@ STAGES = {
             "EVAL-e12b-P5tail-8k-nn-b2:E12b-P5tail-8k", "EVAL-think16k-17base-b2", "PROBE-TERM4-N17THB2:EVAL-think16k-17base-b2",
             "PROBE-TERM4-NP5B2", "EVAL-e12b-P0think-8k:E12b-P0think-8k",
             "PROBE-TERM4-N093:EVAL-e12b-P0think-8k", "EVAL-budA-e12bP0think-8k:E12b-P0think-8k", "EVAL-ext32k-17p0think8k:E12b-P0think-8k"],
+    # [z152] N5 (lab/registry/N5.md; Fable D13 / D15, the lead 11-11 17:4x: en-2 first) the same-machine frontier: the thinking mode
+    # at 16K on MATH-500 (n 4) and AIME24 / 25 (n 16), 1.7B and 4B, each forced to answer at 2K / 4K / 8K / 16K (#forced, forced_stop.py
+    # budB, on the task's own reading); the 4B Instruct-2507 point at 16K. All zero-training readings, one GPU each, the en H200s
+    "pn5": ["EVAL-n5-17think", "EVAL-n5-4Bthink", "EVAL-n5-17think-aime", "EVAL-n5-4Bthink-aime", "EVAL-n5-4Binst2507"],
     # P1-a the 2 x 2 beyond arms + readings + TERM4
     "p1a": ["src:PROBE-FRET", "src:E10b-P5fret", "src:E10b-P5topd", "src:E10b-P5fret-topd", "src:EVAL-e10b-P5fret", "src:EVAL-e10b-P5topd",
             "src:EVAL-e10b-P5fret-topd", "src:PROBE-TERM4-FRET"],
@@ -97,9 +101,10 @@ EST = {"PROBE-TAIL": 0.3, "PROBE-E12B-8K": 0.3, "PROBE-E12B-STOP2": 0.3, "E12b-P
        "EVAL-budA-e12bP0think-8k": 1.5, "EVAL-ext32k-17p0think8k": 3.0,
        "EVAL-e12b-P5tail-8k-nn-b2": 1.2, "EVAL-think16k-17base-b2": 1.0, "PROBE-TERM4-N17THB2": 0.3, "PROBE-TERM4-NP5B2": 0.5,
        "PROBE-E12D-P0THINK": 0.6, "E12d-P0think-8k": 7.5, "EVAL-e12d-P0think-8k": 2.0, "PROBE-TERM4-N093B": 0.4,   # [z149] Q-093b (H200 x 4)
-       "EVAL-budA-e12dP0think-8k": 1.6, "EVAL-ext32k-4p0think8k": 3.0}   # [z146] Q-093: thinking answers fill the 8K window (training ~1.5 x Q-091)   # P1-a arms: #steptime 180 s x 50 steps
+       "EVAL-budA-e12dP0think-8k": 1.6, "EVAL-ext32k-4p0think8k": 3.0,
+       "EVAL-n5-17think": 1.3, "EVAL-n5-4Bthink": 1.9, "EVAL-n5-17think-aime": 1.5, "EVAL-n5-4Bthink-aime": 2.2, "EVAL-n5-4Binst2507": 0.4}   # [z146] Q-093: thinking answers fill the 8K window (training ~1.5 x Q-091)   # P1-a arms: #steptime 180 s x 50 steps
 PROFILES = {
-    "1g": P0_SERIAL + ["p1q", "p1a"],   # [z146] Q-093 after P0, before P1-a (1gt inherits it; 1gs does not: a 1gs / 1gt pair shares the gates only)
+    "1g": P0_SERIAL + ["pn5", "p1q", "p1a"],   # [z152] N5 after P0 (1gt inherits it, 1gs does not)   # [z146] Q-093 after P0, before P1-a (1gt inherits it; 1gs does not: a 1gs / 1gt pair shares the gates only)
     "4g": P0_PARALLEL + ["p1a"],
     "4g80": P0_PARALLEL + ["p1a", "p1b", "p1q4"],   # [z149] Q-093b after P1-b
     "8g": P0_PARALLEL + ["p1a", "p2f", "p2g"],
@@ -157,6 +162,19 @@ NEW_ROWS = """\
 #eval EVAL-budA-e12dP0think-8k budAe12dP0think-8k_s50_math500_T0.6_32k result:runs/E12d-P0think-8k/global_step_50/actor/huggingface math500 4 0.6 32768 think
 #eval EVAL-ext32k-4p0think8k ext32k4_E12dP0think8k_s50_aime24_T0.6 result:runs/E12d-P0think-8k/global_step_50/actor/huggingface aime24 16 0.6 32768 think
 #eval EVAL-ext32k-4p0think8k ext32k4_E12dP0think8k_s50_aime25_T0.6 result:runs/E12d-P0think-8k/global_step_50/actor/huggingface aime25 16 0.6 32768 think
+#eval EVAL-n5-17think n5_17think_math500_T0.6 Qwen/Qwen3-1.7B math500 4 0.6 16384 think
+#forced EVAL-n5-17think n5_17think_math500_T0.6 Qwen/Qwen3-1.7B think
+#eval EVAL-n5-4Bthink n5_4Bthink_math500_T0.6 local:models/Qwen3-4B math500 4 0.6 16384 think
+#forced EVAL-n5-4Bthink n5_4Bthink_math500_T0.6 local:models/Qwen3-4B think
+#eval EVAL-n5-17think-aime n5_17think_aime24_T0.6 Qwen/Qwen3-1.7B aime24 16 0.6 16384 think
+#eval EVAL-n5-17think-aime n5_17think_aime25_T0.6 Qwen/Qwen3-1.7B aime25 16 0.6 16384 think
+#forced EVAL-n5-17think-aime n5_17think_aime24_T0.6 Qwen/Qwen3-1.7B think
+#forced EVAL-n5-17think-aime n5_17think_aime25_T0.6 Qwen/Qwen3-1.7B think
+#eval EVAL-n5-4Bthink-aime n5_4Bthink_aime24_T0.6 local:models/Qwen3-4B aime24 16 0.6 16384 think
+#eval EVAL-n5-4Bthink-aime n5_4Bthink_aime25_T0.6 local:models/Qwen3-4B aime25 16 0.6 16384 think
+#forced EVAL-n5-4Bthink-aime n5_4Bthink_aime24_T0.6 local:models/Qwen3-4B think
+#forced EVAL-n5-4Bthink-aime n5_4Bthink_aime25_T0.6 local:models/Qwen3-4B think
+#eval EVAL-n5-4Binst2507 n5_4Binst2507_math500_T0.6 local:models/Qwen3-4B-Instruct-2507 math500 4 0.6 16384 no_think
 """
 ROW_KINDS = ("#eval", "#pair", "#budget", "#term", "#gpus", "#steptime")
 # [z151] (Fable D12 11-11 16:3x) per-profile GPU counts: on 8gs (the me-west1 8 x B200s) each long training and its gate take all

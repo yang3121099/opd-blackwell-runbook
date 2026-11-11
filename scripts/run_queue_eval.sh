@@ -132,13 +132,17 @@ while read -r FR FMODEL FMODE; do
   [ -n "$FR" ] || continue
   RP=$(ref_path "$FR"); [ -n "$RP" ] || { echo "FORCED_REF_REFUSED $FR"; continue; }
   [ -f "$RP" ] && [ -f "${RP%.jsonl}.metrics.json" ] || { echo "FORCED_SKIPPED $FR (no finished reading)"; ok=0; continue; }
-  python -c "import sys; sys.path.insert(0, sys.argv[1]); import control_rules as R; R.check_eval_args([sys.argv[2], 'math500', '1', '0.6', '16384', sys.argv[3]])" \
-    "$RUNBOOK/scripts" "$FMODEL" "$FMODE" || { echo "FORCED_REFUSED $FR: $FMODEL $FMODE"; ok=0; continue; }
+  # [z152] (N5, lab/registry/N5.md) the reading's own benchmark (its .metrics.json "bench"; AIME readings too), math500 when unnamed
+  FB=$(python3 -c "import json, sys
+try: print(json.load(open(sys.argv[1])).get('bench') or 'math500')
+except Exception: print('math500')" "${RP%.jsonl}.metrics.json" 2> /dev/null); FB=${FB:-math500}
+  python -c "import sys; sys.path.insert(0, sys.argv[1]); import control_rules as R; R.check_eval_args([sys.argv[2], sys.argv[4], '1', '0.6', '16384', sys.argv[3]])" \
+    "$RUNBOOK/scripts" "$FMODEL" "$FMODE" "$FB" || { echo "FORCED_REFUSED $FR: $FMODEL $FMODE $FB"; ok=0; continue; }
   STEM=$(basename "${RP%.jsonl}")
   [ -f $OUT/$STEM.forced.json ] && { echo "FORCED_DONE_ALREADY $STEM"; continue; }
   resolve_model "$FMODEL" || { echo "FORCED_MODEL_MISSING $FR: $FMODEL"; ok=0; continue; }
   gpu_wait_free $G || { python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1; gpu_wait_free $G 120; }   # [v2.5.8]
-  CUDA_VISIBLE_DEVICES=$G python $RUNBOOK/code/eval/forced_stop.py --model $M --jsonl "$RP" --bench math500 --mode $FMODE --force_preset budB \
+  CUDA_VISIBLE_DEVICES=$G python $RUNBOOK/code/eval/forced_stop.py --model $M --jsonl "$RP" --bench $FB --mode $FMODE --force_preset budB \
     --max_new 32 --budgets 2048,4096,8192,16384,32768 --out $OUT/$STEM.forced.json --samples $OUT/$STEM.forced.jsonl >> $OUT/forced.log 2>&1 \
     && echo "FORCED_DONE $STEM" || { echo "FORCED_FAIL $STEM (see forced.log)"; ok=0; rm -f $OUT/$STEM.forced.json; }
   python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true

@@ -25,6 +25,8 @@ p0e        open   E12b-P5-8k-lenpen:PROBE-E12B-8K+PROBE-E12B-STOP2+E10b-P5
 p0dr       open   EVAL-e12b-P0-8k:E12b-P0-8k EVAL-budA-e12bP0-8k:E12b-P0-8k EVAL-ext32k-17p0l8k:E12b-P0-8k PROBE-TERM4-N17P0H200 PROBE-TERM4-N091:EVAL-e12b-P0-8k
 # p0er ~3.4 B200 GPU-h: EVAL-e12b-P5-8k-lenpen 1, EVAL-budA-e12bP5-8k-lenpen 0.8, EVAL-ext32k-17p5l8klp 1.3, PROBE-TERM4-N090 0.3
 p0er       open   EVAL-e12b-P5-8k-lenpen:E12b-P5-8k-lenpen EVAL-budA-e12bP5-8k-lenpen:E12b-P5-8k-lenpen EVAL-ext32k-17p5l8klp:E12b-P5-8k-lenpen PROBE-TERM4-N090:EVAL-e12b-P5-8k-lenpen
+# pn5 ~7.3 B200 GPU-h: EVAL-n5-17think 1.3, EVAL-n5-4Bthink 1.9, EVAL-n5-17think-aime 1.5, EVAL-n5-4Bthink-aime 2.2, EVAL-n5-4Binst2507 0.4
+pn5        open   EVAL-n5-17think EVAL-n5-4Bthink EVAL-n5-17think-aime EVAL-n5-4Bthink-aime EVAL-n5-4Binst2507
 # p1q ~14.6 B200 GPU-h: PROBE-E12B-P0THINK 0.5, E12b-P0think-8k 4.5, EVAL-e12b-P5tail-8k-nn-b2 1.2, EVAL-think16k-17base-b2 1, PROBE-TERM4-N17THB2 0.3, PROBE-TERM4-NP5B2 0.5, EVAL-e12b-P0think-8k 1.8, PROBE-TERM4-N093 0.3, EVAL-budA-e12bP0think-8k 1.5, EVAL-ext32k-17p0think8k 3
 p1q        open   PROBE-E12B-P0THINK E12b-P0think-8k:PROBE-E12B-P0THINK EVAL-e12b-P5tail-8k-nn-b2:E12b-P5tail-8k EVAL-think16k-17base-b2 PROBE-TERM4-N17THB2:EVAL-think16k-17base-b2 PROBE-TERM4-NP5B2 EVAL-e12b-P0think-8k:E12b-P0think-8k PROBE-TERM4-N093:EVAL-e12b-P0think-8k EVAL-budA-e12bP0think-8k:E12b-P0think-8k EVAL-ext32k-17p0think8k:E12b-P0think-8k
 # p1a ~10.6 B200 GPU-h: PROBE-FRET 0.5, E10b-P5fret 2.5, E10b-P5topd 2.5, E10b-P5fret-topd 2.5, EVAL-e10b-P5fret 0.7, EVAL-e10b-P5topd 0.7, EVAL-e10b-P5fret-topd 0.7, PROBE-TERM4-FRET 0.5
@@ -80,3 +82,16 @@ p1a        open   PROBE-FRET E10b-P5fret:PROBE-FRET E10b-P5topd:PROBE-FRET E10b-
 #eval EVAL-think16k-17base-b2 base17_think16k_b2_math500_T0.6 Qwen/Qwen3-1.7B math500 4 0.6 16384 think
 #term PROBE-TERM4-N17THB2 17_base_think Qwen/Qwen3-1.7B EVAL-think16k-17base-b2/base17_think16k_b2_math500_T0.6_math500_think_t0.6.jsonl think
 #term PROBE-TERM4-NP5B2 17_P5s150 result:runs/E10b-P5/global_step_150/actor/huggingface gen
+#eval EVAL-n5-17think n5_17think_math500_T0.6 Qwen/Qwen3-1.7B math500 4 0.6 16384 think
+#forced EVAL-n5-17think n5_17think_math500_T0.6 Qwen/Qwen3-1.7B think
+#eval EVAL-n5-4Bthink n5_4Bthink_math500_T0.6 local:models/Qwen3-4B math500 4 0.6 16384 think
+#forced EVAL-n5-4Bthink n5_4Bthink_math500_T0.6 local:models/Qwen3-4B think
+#eval EVAL-n5-17think-aime n5_17think_aime24_T0.6 Qwen/Qwen3-1.7B aime24 16 0.6 16384 think
+#eval EVAL-n5-17think-aime n5_17think_aime25_T0.6 Qwen/Qwen3-1.7B aime25 16 0.6 16384 think
+#forced EVAL-n5-17think-aime n5_17think_aime24_T0.6 Qwen/Qwen3-1.7B think
+#forced EVAL-n5-17think-aime n5_17think_aime25_T0.6 Qwen/Qwen3-1.7B think
+#eval EVAL-n5-4Bthink-aime n5_4Bthink_aime24_T0.6 local:models/Qwen3-4B aime24 16 0.6 16384 think
+#eval EVAL-n5-4Bthink-aime n5_4Bthink_aime25_T0.6 local:models/Qwen3-4B aime25 16 0.6 16384 think
+#forced EVAL-n5-4Bthink-aime n5_4Bthink_aime24_T0.6 local:models/Qwen3-4B think
+#forced EVAL-n5-4Bthink-aime n5_4Bthink_aime25_T0.6 local:models/Qwen3-4B think
+#eval EVAL-n5-4Binst2507 n5_4Binst2507_math500_T0.6 local:models/Qwen3-4B-Instruct-2507 math500 4 0.6 16384 no_think

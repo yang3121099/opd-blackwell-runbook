@@ -160,11 +160,14 @@ version: 2
 #forced EVAL-bb EVAL-e12b-P5/e12b_P5.jsonl Qwen/Qwen3-1.7B no_think
 #forced EVAL-bb EVAL-e12b-P0/gone.jsonl Qwen/Qwen3-1.7B no_think
 #forced EVAL-bb bb_think Qwen/Qwen3-1.7B sideways
+#forced EVAL-bb EVAL-e12b-P5/e12b_P5aime.jsonl Qwen/Qwen3-1.7B think
 EOF
+: > $T/root/runs/EVAL-e12b-P5/e12b_P5aime.jsonl; echo '{"bench": "aime25", "max_tokens": 16384}' > $T/root/runs/EVAL-e12b-P5/e12b_P5aime.metrics.json
 bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-bb > $T/out6 2>&1
 O=$T/root/runs/EVAL-bb
 ok "mode think passed to gen_eval, a bad mode refused" 'grep -q "^gen_eval .*--mode think .*--max_tokens 32768 .*--tag bb_think " $CALLS && ! grep -q "tag bb_bad" $CALLS && grep -q "REFUSED bb_bad" $T/out6'
 ok "#forced: own tag (think) and a runs/ reading (no_think), budB, 32 tokens; missing reading and bad mode refused, no .done" 'grep -q "^forced --model $T/m17 --jsonl $O/bb_think_math500_no_think_t0.6.jsonl --bench math500 --mode think --force_preset budB --max_new 32 --budgets 2048,4096,8192,16384,32768 --out $O/bb_think_math500_no_think_t0.6.forced.json --samples $O/bb_think_math500_no_think_t0.6.forced.jsonl" $CALLS && grep -q "^forced --model $T/m17 --jsonl $T/root/runs/EVAL-e12b-P5/e12b_P5.jsonl .*--mode no_think .*--out $O/e12b_P5.forced.json" $CALLS && grep -q "FORCED_SKIPPED EVAL-e12b-P0/gone.jsonl" $T/out6 && grep -q "FORCED_REFUSED bb_think: Qwen/Qwen3-1.7B sideways" $T/out6 && [ ! -f $O/.done ]'
+ok "[z152] (N5) #forced takes the reading's own bench from its metrics (aime25); math500 when the metrics name none" 'grep -q "^forced --model $T/m17 --jsonl $T/root/runs/EVAL-e12b-P5/e12b_P5aime.jsonl --bench aime25 --mode think " $CALLS && grep -q "^forced --model $T/m17 --jsonl $T/root/runs/EVAL-e12b-P5/e12b_P5.jsonl --bench math500 " $CALLS'
 mkdir -p $T/rb/code/analysis; printf 'import sys, os; open(os.environ["CALLS"], "a").write("budget " + " ".join(sys.argv[1:]) + "\\n")\n' > $T/rb/code/analysis/budget_curve.py
 : > $O/bb_think_math500_no_think_t0.6.forced.jsonl; echo "#budget EVAL-bb bc bb_think" >> $T/rb/tasks/queue.txt
 : > $CALLS; bash $T/rb/scripts/run_queue_eval.sh 2 EVAL-bb > $T/out7 2>&1

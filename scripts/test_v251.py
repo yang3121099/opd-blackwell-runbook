@@ -2124,7 +2124,7 @@ def test_newnode_v2_profiles_v259z137(env):
     assert live in [open(os.path.join(repo, "tasks", f"queue_{p}.txt")).read() for p in QP.PROFILES]
     assert set(QP.PROFILES) == {"1g", "4g", "4g80", "8g", "8g80", "1gs", "8gs", "1gt"}   # [z139] + the split pair (own test)
     # [11-09 21:5x the lead: self-paid GPUs, no idle] one GPU: the base-start Q-091 training right after the gates, the readings between
-    order = {"1g": ["p0a", "p0d", "p0c", "p0b", "p0e", "p0dr", "p0er", "p0f", "p0g", "p0x", "p1q", "p1a"],   # [z146] Q-093 before P1-a
+    order = {"1g": ["p0a", "p0d", "p0c", "p0b", "p0e", "p0dr", "p0er", "p0f", "p0g", "p0x", "pn5", "p1q", "p1a"],   # [z146] Q-093 before P1-a; [z152] N5 first
              "4g": ["p0a", "p0d", "p0e", "p0c", "p0b", "p0dr", "p0er", "p0f", "p0g", "p0x", "p1a"]}
     order["4g80"] = order["4g"] + ["p1b", "p1q4"]; order["8g"] = order["4g"] + ["p2f", "p2g"]; order["8g80"] = order["4g"] + ["p1b", "p1q4", "p1q", "p2f", "p2h", "p2g"]   # [z149] p1q4; [z150] p1q
     v1 = {}
@@ -2342,3 +2342,25 @@ def test_task_sh_gpu_list_up_to_8_z151():   # [z151] task.sh refused a list of m
     rx = line.split("[[ $G =~ ")[1].split(" ]]")[0]
     for g, ok in (("0,1,2,3,4,5,6,7", True), ("0,1,2,3", True), ("3", True), ("cpu", True), ("0,1,2,3,4,5,6,7,8", False), ("0,,1", False)):
         assert (sp.run(["bash", "-c", f'G={g}; [[ $G =~ {rx} ]]']).returncode == 0) == ok, g
+
+
+def test_n5_forced_frontier_z152(env):   # [z152] (N5, lab/registry/N5.md) the en frontier rows: 1g / 1gt only, one GPU, each task forced on its own reading
+    import queue_profiles as QP
+    for p, st in QP.PROFILES.items():
+        assert ("pn5" in st) == (p in ("1g", "1gt")), p                          # a 1gs / 1gt pair shares the gates only
+    L, stages, spec = _profile_queue("1gt")
+    i = next(i for i, l in enumerate(L) if l.startswith("pn5 "))
+    tasks = ["EVAL-n5-17think", "EVAL-n5-4Bthink", "EVAL-n5-17think-aime", "EVAL-n5-4Bthink-aime", "EVAL-n5-4Binst2507"]
+    assert L[i].split()[2:] == tasks and L[i - 1].startswith("# pn5 ~")         # no deps: zero-training readings
+    ev = {t: [l.split() for l in L if l.startswith("#eval " + t + " ")] for t in tasks}
+    fo = {t: [l.split() for l in L if l.startswith("#forced " + t + " ")] for t in tasks}
+    for t in tasks[:4]:
+        assert ev[t] and all(r[-1] == "think" and r[-2] == "16384" and r[6] == "0.6" for r in ev[t]), t
+        assert [r[2] for r in fo[t]] == [r[2] for r in ev[t]] and all(r[3] == ev[t][0][3] and r[4] == "think" for r in fo[t]), t   # each own reading, its model
+    assert {r[4] for t in tasks[2:4] for r in ev[t]} == {"aime24", "aime25"} and all(r[5] == "16" for t in tasks[2:4] for r in ev[t])
+    assert {r[4] for t in tasks[:2] for r in ev[t]} == {"math500"} and all(r[5] == "4" for t in tasks[:2] for r in ev[t])
+    assert ev["EVAL-n5-4Binst2507"] == [["#eval", "EVAL-n5-4Binst2507", "n5_4Binst2507_math500_T0.6", "local:models/Qwen3-4B-Instruct-2507",
+                                         "math500", "4", "0.6", "16384", "no_think"]] and not fo["EVAL-n5-4Binst2507"]
+    assert not [l for l in L if l.startswith("#gpus ")]
+    for k, t in enumerate(tasks):
+        assert env.c.v_run([t], 1700 + k)[0] == "accepted", t
