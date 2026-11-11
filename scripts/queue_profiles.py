@@ -220,6 +220,7 @@ NEW_ROWS = """\
 #term PROBE-TERM4-N090FT 17_P5l8klp-on-P5text result:runs/E12b-P5-8k-lenpen/global_step_50/actor/huggingface PROBE-TERM4-NP5B2/gen/term_17_P5s150_math500_no_think_t0.6.jsonl
 #eval EVAL-e12b-P5tail-8k-s43-s25-b2 e12b_P5tail-8k-s43_s25_b2_math500_T0.6 result:runs/E12b-P5tail-8k-s43/global_step_25/actor/huggingface math500 4 0.6
 #eval EVAL-e12b-P5tail-8k-s43-s50-b2 e12b_P5tail-8k-s43_s50_b2_math500_T0.6 result:runs/E12b-P5tail-8k-s43/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-e12b-P5tail-8k-s43-s50-b2 e12b_P5tail-8k-s43_s50_b2_math500_T1.0 result:runs/E12b-P5tail-8k-s43/global_step_50/actor/huggingface math500 4 1.0
 #eval EVAL-e12d-P5tail-8k-nn-b2 e12d_P5tail-8k_s50_b2_math500_T0.6 result:runs/E12d-P5tail-8k/global_step_50/actor/huggingface math500 4 0.6
 #eval EVAL-e12d-P5tail-8k-nn-b2 e12d_P5tail-8k_s50_b2_math500_T1.0 result:runs/E12d-P5tail-8k/global_step_50/actor/huggingface math500 4 1.0
 #eval EVAL-think16k-4Bbase-b2 base4_think16k_b2_math500_T0.6 Qwen/Qwen3-4B math500 4 0.6 16384 think

@@ -2398,7 +2398,9 @@ def test_s43_chain_frontier_rows_z152c():   # [z152c] the chain's s25 / s50 on a
     assert spec["EVAL-e12b-P5tail-8k-s43-s25-b2"] == ["E12b-P5tail-8k-s43"] and spec["EVAL-e12b-P5tail-8k-s43-s50-b2"] == ["E12b-P5tail-8k-s43"]
     rows = [l.split() for l in L if l.startswith("#eval EVAL-e12b-P5tail-8k-s43-s")]
     assert [r[3] for r in rows] == ["result:runs/E12b-P5tail-8k-s43/global_step_25/actor/huggingface",
-                                    "result:runs/E12b-P5tail-8k-s43/global_step_50/actor/huggingface"] and all(r[4:7] == ["math500", "4", "0.6"] for r in rows)
+                                    "result:runs/E12b-P5tail-8k-s43/global_step_50/actor/huggingface",
+                                    "result:runs/E12b-P5tail-8k-s43/global_step_50/actor/huggingface"]   # [z154b] s50 at T0.6 and T1.0
+    assert [r[4:7] for r in rows] == [["math500", "4", "0.6"], ["math500", "4", "0.6"], ["math500", "4", "1.0"]]
 
 
 def test_upload_final_sh_z153():   # [z153] the shell stub test of upload_sync.sh's final-step rule and the 11-11 reading race
@@ -2447,3 +2449,9 @@ def test_q093c_q093s43_z154(env):   # [z154] (lab/registry/Q-093c.md; Fable D25)
     for k, t in enumerate(("PROBE-E12E-P0THINK", "E12e-P0think-8k", "PROBE-E12B-P0THINK-8G", "E12b-P0think-8k-s43", "PROBE-TERM4-N093C",
                            "PROBE-TERM4-N093S43", "PROBE-TERM4-N8BTHB2", "PROBE-TERM4-N4BTHB2", "EVAL-ext32k-17p5tail8k-oc", "EVAL-ext32k-8Bthink-b2")):
         assert env.c.v_run([t], 1900 + k)[0] == "accepted", t
+
+
+def test_s43_chain_s50_ref_has_t10_z154b():   # [z154b] (Fable 11-12 06:3x, registry Q-093c criterion T) the s43 chain's s50 B200 reference at T1.0 too
+    import queue_profiles as qp
+    t = qp.render("8gs")
+    assert "e12b_P5tail-8k-s43_s50_b2_math500_T0.6 " in t and "e12b_P5tail-8k-s43_s50_b2_math500_T1.0 " in t
