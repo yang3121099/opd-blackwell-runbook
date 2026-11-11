@@ -56,6 +56,11 @@ SH
 #!/usr/bin/env bash
 [ "$2" = good ] && echo "$W  \$1" || echo "0000000000000000000000000000000000000000000000000000000000000000  \$1"
 SH
+  if [ "${5:-}" = stale ]; then   # [z147] a venv-fa copied before (template / earlier probe) whose activate still names the venv by its logical path
+    mkdir -p $T/root/venv-fa/bin; cp $T/root/venv/bin/python $T/root/venv-fa/bin/python
+    printf 'VIRTUAL_ENV="%s"\nexport PATH="%s/bin:$PATH"\n' "$T/root/venv" "$T/root/venv" > $T/root/venv-fa/bin/activate
+    printf '#!%s/bin/python\n' "$T/root/venv" > $T/root/venv-fa/bin/ray; printf '#!%s/bin/python\n' "$T/root/venv-ctl" > $T/root/venv-fa/bin/other
+  fi
   [ "${5:-}" = nopip ] && [ "${6:-}" = uv ] && cat > $T/bin/uv <<SH
 #!/usr/bin/env bash
 echo "uv \$*" >> \$CALLS; touch $T/root/venv-fa/.fa_installed
@@ -73,6 +78,7 @@ SH
     busythenfree) check busythenfree '[[ "$R" == PASS*" 3 True" ]]' "result=$R";;
     nopip_uv) check nopip_uv '[[ "$R" == PASS*" 3 True" ]] && grep -q "^uv pip install --python $T/root/venv-fa/bin/python --no-deps --offline" $CALLS && ! grep -q "^pip " $CALLS' "result=$R";;
     nopip_ensure) check nopip_ensure '[[ "$R" == PASS*" 3 True" ]] && grep -q "^ensurepip" $CALLS && grep -q "^pip " $CALLS' "result=$R";;
+    stale) check stale '[[ "$R" == PASS*" 3 True" ]] && grep -q "relocating in place" $T/out && grep -q "^VIRTUAL_ENV=\"$T/root/venv-fa\"" $T/root/venv-fa/bin/activate && grep -q "^#!$T/root/venv-fa/bin/python" $T/root/venv-fa/bin/ray && grep -q "^#!$T/root/venv-ctl/bin/python" $T/root/venv-fa/bin/other' "result=$R";;
     busy) check busy '[[ "$R" == FAIL\ gpu* ]] && [ ! -d $T/root/venv-fa ]' "result=$R";;
   esac
   [ -d $T/root/venv-fa ] && [ "$(readlink -f $T/root/venv-fa)" = "$(readlink -f $T/root/venv)" ] && { echo "  FAIL [$1] venv-fa is the venv in use"; fails=$((fails + 1)); }
@@ -85,4 +91,5 @@ one busythenfree good 2.8.0+cu128 busy3   # busy for 3 checks, then free: the pr
 one busy good 2.8.0+cu128 40000
 one nopip_uv good 2.8.0+cu128 0 nopip uv        # v2.5.5: a uv-built venv without pip, uv on PATH
 one nopip_ensure good 2.8.0+cu128 0 nopip       # without pip and without uv: ensurepip first
-[ $fails = 0 ] && echo "FA_PROBE_TEST PASS (7 cases)" || echo "FA_PROBE_TEST FAIL ($fails)"
+one stale good 2.8.0+cu128 0 stale              # [z147] an unrelocated venv-fa is relocated in place (venv-ctl untouched)
+[ $fails = 0 ] && echo "FA_PROBE_TEST PASS (8 cases)" || echo "FA_PROBE_TEST FAIL ($fails)"

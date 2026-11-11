@@ -61,23 +61,41 @@ read URL SHA NAME <<< "$(python3 $RUNBOOK/scripts/fa_probe.py wheel "$ABI")"
 [ -n "${NAME:-}" ] || finish FAIL "no pinned wheel for ABI $ABI"
 puts wheel "$NAME"
 
+# [z147] relocate_bin <bin dir> <new prefix> <old prefix>...: every old prefix, as a whole path (not a prefix of a longer name
+# such as venv-fa or venv-ctl), becomes the new one in the text files of bin/ (activate scripts, entry-point shebangs)
+relocate_bin() {
+  python3 - "$@" <<'PY'
+import os, re, sys
+d, new, olds = sys.argv[1], sys.argv[2].encode(), [o.encode() for o in sys.argv[3:] if o and o != sys.argv[2]]
+n = 0
+for f in os.listdir(d):   # text files only; binaries and symlinks stay
+    p = os.path.join(d, f)
+    if os.path.islink(p) or not os.path.isfile(p):
+        continue
+    b = open(p, "rb").read()
+    if b"\0" in b[:4096]:
+        continue
+    c = b
+    for o in olds:
+        c = re.sub(re.escape(o) + rb"(?![A-Za-z0-9._-])", new, c)
+    if c != b:
+        open(p, "wb").write(c); n += 1
+print(f"relocated {n} files")
+PY
+}
 # 2. copy + relocate the venv
 if [ ! -x $VF/bin/python ]; then
   step "copying the venv in use to venv-fa"
   rm -rf "$VF.tmp"; cp -a "$SRC" "$VF.tmp" || finish FAIL "venv copy failed"
-  python3 - "$VF.tmp/bin" "$SRC" "$VF" <<'PY' || finish FAIL "venv relocation failed"
-import os, sys
-d, old, new = sys.argv[1:4]
-for n in os.listdir(d):   # text files only (activate scripts, entry-point shebangs); binaries and symlinks stay
-    p = os.path.join(d, n)
-    if os.path.islink(p) or not os.path.isfile(p):
-        continue
-    b = open(p, "rb").read()
-    if b"\0" in b[:4096] or old.encode() not in b:
-        continue
-    open(p, "wb").write(b.replace(old.encode(), new.encode()))
-PY
+  relocate_bin "$VF.tmp/bin" "$VF" "$SRC" "$OPD_ROOT/venv" || finish FAIL "venv relocation failed"
   mv "$VF.tmp" "$VF" || finish FAIL "venv move failed"
+fi
+# [z147] (H200 nodes 11-11: venv-fa's activate and shebangs still named the venv, so VENV=fa / E12B_FA=1 ran SDPA): a venv-fa
+# whose activate does not put its own python first is relocated in place, from the path its activate names
+if [ "$(bash -c "source $VF/bin/activate && command -v python" 2>/dev/null)" != "$VF/bin/python" ]; then
+  OLDVE=$(sed -n "s/^ *VIRTUAL_ENV=[\"']\{0,1\}\([^\"']*\)[\"']\{0,1\} *$/\1/p" $VF/bin/activate | head -1)
+  step "venv-fa not relocated (activate names ${OLDVE:-?}): relocating in place"
+  relocate_bin "$VF/bin" "$VF" ${OLDVE:+"$OLDVE"} "$SRC" "$OPD_ROOT/venv" || finish FAIL "venv in-place relocation failed"
 fi
 [ "$(readlink -f $VF)" != "$SRC" ] || finish FAIL "venv-fa resolves to the venv in use"
 PFX=$($VF/bin/python -c "import sys; print(sys.prefix)" 2>/dev/null)
