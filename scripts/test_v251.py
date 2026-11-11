@@ -2242,7 +2242,10 @@ def test_q093_thinking_arm_z146(env):   # [z146] (Q-093, Fable D10) the p1q stag
             assert st.index("p1q") == st.index("p1a") - 1 and all(st.index(s) < st.index("p1q") for s in st if s.startswith("p0")), p
     L, stages, spec = _profile_queue("1gt")
     i = next(i for i, l in enumerate(L) if l.startswith("p1q "))
-    assert L[i].split()[2:] == ["PROBE-E12B-P0THINK", "E12b-P0think-8k:PROBE-E12B-P0THINK", "EVAL-e12b-P0think-8k:E12b-P0think-8k",
+    assert L[i].split()[2:] == ["PROBE-E12B-P0THINK", "E12b-P0think-8k:PROBE-E12B-P0THINK",
+                                "EVAL-e12b-P5tail-8k-nn-b2:E12b-P5tail-8k", "EVAL-think16k-17base-b2",   # [z148] the B200 references
+                                "PROBE-TERM4-N17THB2:EVAL-think16k-17base-b2", "PROBE-TERM4-NP5B2",
+                                "EVAL-e12b-P0think-8k:E12b-P0think-8k",
                                 "PROBE-TERM4-N093:EVAL-e12b-P0think-8k", "EVAL-budA-e12bP0think-8k:E12b-P0think-8k",
                                 "EVAL-ext32k-17p0think8k:E12b-P0think-8k"]       # 16K and TERM4 first
     assert not [l for l in L if l.startswith("#gpus ")]
@@ -2257,3 +2260,23 @@ def test_q093_thinking_arm_z146(env):   # [z146] (Q-093, Fable D10) the p1q stag
     e12 = open(os.path.join(here, "run_e12.sh")).read()
     assert e12.count("+data.apply_chat_template_kwargs.enable_thinking=$THINK") == 1 and "enable_thinking=False" not in e12
     assert e12.count("THINK=True") == 1 and '[ "$A" = P0think-8k ] && { VAR=8k; A=P0; THINK=True; }' in e12   # the switch: this arm only
+
+
+def test_b200_references_z148(env):   # [z148] (Fable 13:5x) Q-090 / Q-093 on B200s from s25: their references re-read on a B200, 1g / 1gt only
+    import queue_profiles as QP
+    new = ["EVAL-e12b-P5tail-8k-nn-b2", "EVAL-think16k-17base-b2", "PROBE-TERM4-N17THB2", "PROBE-TERM4-NP5B2"]
+    for p in QP.PROFILES:
+        L, stages, spec = _profile_queue(p)
+        txt = "\n".join(L)
+        assert all((t in txt) == (p in ("1g", "1gt")) for t in new), p        # in the p1q stage only
+    L, stages, spec = _profile_queue("1g")
+    p1q = next(l for l in L if l.startswith("p1q ")).split()[2:]
+    arm = p1q.index("E12b-P0think-8k:PROBE-E12B-P0THINK")
+    assert [p1q.index(x) for x in ("EVAL-e12b-P5tail-8k-nn-b2:E12b-P5tail-8k", "PROBE-TERM4-NP5B2")] == [arm + 1, arm + 4]
+    assert p1q.index("EVAL-e12b-P0think-8k:E12b-P0think-8k") == arm + 5                # after the arm, before its own readings
+    ev = [l.split() for l in L if l.startswith("#eval ") and "-b2 " in l]
+    assert len(ev) == 3 and {r[6] for r in ev} == {"0.6", "1.0"} and [r for r in ev if r[1] == "EVAL-think16k-17base-b2"][0][-2:] == ["16384", "think"]
+    assert "#term PROBE-TERM4-N17THB2 17_base_think Qwen/Qwen3-1.7B EVAL-think16k-17base-b2/base17_think16k_b2_math500_T0.6_math500_think_t0.6.jsonl think" in L
+    assert "#term PROBE-TERM4-NP5B2 17_P5s150 result:runs/E10b-P5/global_step_150/actor/huggingface gen" in L
+    for k, t in enumerate(new):
+        assert env.c.v_run([t], 1600 + k)[0] == "accepted", t

@@ -49,7 +49,12 @@ STAGES = {
     "p0x": ["EVAL-ext32k-17p5tail8k-nn:E12b-P5tail-8k"],
     # [z146] Q-093 (Fable D10; lab/registry/Q-093.md): 8K GRPO in the thinking template from the base; its gate, the arm, then the
     # 16K readings and the TERM4 first, budA 32K and AIME 32K last; one GPU (no #gpus line)
-    "p1q": ["PROBE-E12B-P0THINK", "E12b-P0think-8k:PROBE-E12B-P0THINK", "EVAL-e12b-P0think-8k:E12b-P0think-8k",
+    # [z148] (Fable 13:5x; registry rows_20261111 13:5x) Q-090 / Q-093 moved to B200s at s25 (Runming 12:4x / 13:0x): their pairing
+    # references re-read on a B200 - the chain s50 16K, the 1.7B base thinking 16K (Q-093's start) and its TERM4, E10b-P5 s150's
+    # TERM4 (Q-090's start); after the arm, before its own readings; each B200 keeps its own rows (the others paused there)
+    "p1q": ["PROBE-E12B-P0THINK", "E12b-P0think-8k:PROBE-E12B-P0THINK",
+            "EVAL-e12b-P5tail-8k-nn-b2:E12b-P5tail-8k", "EVAL-think16k-17base-b2", "PROBE-TERM4-N17THB2:EVAL-think16k-17base-b2",
+            "PROBE-TERM4-NP5B2", "EVAL-e12b-P0think-8k:E12b-P0think-8k",
             "PROBE-TERM4-N093:EVAL-e12b-P0think-8k", "EVAL-budA-e12bP0think-8k:E12b-P0think-8k", "EVAL-ext32k-17p0think8k:E12b-P0think-8k"],
     # P1-a the 2 x 2 beyond arms + readings + TERM4
     "p1a": ["src:PROBE-FRET", "src:E10b-P5fret", "src:E10b-P5topd", "src:E10b-P5fret-topd", "src:EVAL-e10b-P5fret", "src:EVAL-e10b-P5topd",
@@ -85,7 +90,8 @@ EST = {"PROBE-TAIL": 0.3, "PROBE-E12B-8K": 0.3, "PROBE-E12B-STOP2": 0.3, "E12b-P
        "EVAL-e10b-P5topd": 0.7, "EVAL-e10b-P5fret-topd": 0.7, "PROBE-TERM4-FRET": 0.5,
        "EVAL-ext32k-4Bp5tail8k-nn": 1.2, "PROBE-TERM4-N17P0H200": 1.0,   # [z146] the 4B AIME pair (B300 ~0.6 h a benchmark); gen + score
        "PROBE-E12B-P0THINK": 0.5, "E12b-P0think-8k": 4.5, "EVAL-e12b-P0think-8k": 1.8, "PROBE-TERM4-N093": 0.3,
-       "EVAL-budA-e12bP0think-8k": 1.5, "EVAL-ext32k-17p0think8k": 3.0}   # [z146] Q-093: thinking answers fill the 8K window (training ~1.5 x Q-091)   # P1-a arms: #steptime 180 s x 50 steps
+       "EVAL-budA-e12bP0think-8k": 1.5, "EVAL-ext32k-17p0think8k": 3.0,
+       "EVAL-e12b-P5tail-8k-nn-b2": 1.2, "EVAL-think16k-17base-b2": 1.0, "PROBE-TERM4-N17THB2": 0.3, "PROBE-TERM4-NP5B2": 0.5}   # [z146] Q-093: thinking answers fill the 8K window (training ~1.5 x Q-091)   # P1-a arms: #steptime 180 s x 50 steps
 PROFILES = {
     "1g": P0_SERIAL + ["p1q", "p1a"],   # [z146] Q-093 after P0, before P1-a (1gt inherits it; 1gs does not: a 1gs / 1gt pair shares the gates only)
     "4g": P0_PARALLEL + ["p1a"],
@@ -131,6 +137,11 @@ NEW_ROWS = """\
 #eval EVAL-budA-e12bP0think-8k budAe12bP0think-8k_s50_math500_T0.6_32k result:runs/E12b-P0think-8k/global_step_50/actor/huggingface math500 4 0.6 32768 think
 #eval EVAL-ext32k-17p0think8k ext32k17_E12bP0think8k_s50_aime24_T0.6 result:runs/E12b-P0think-8k/global_step_50/actor/huggingface aime24 16 0.6 32768 think
 #eval EVAL-ext32k-17p0think8k ext32k17_E12bP0think8k_s50_aime25_T0.6 result:runs/E12b-P0think-8k/global_step_50/actor/huggingface aime25 16 0.6 32768 think
+#eval EVAL-e12b-P5tail-8k-nn-b2 e12b_P5tail-8k_s50_b2_math500_T0.6 result:runs/E12b-P5tail-8k/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-e12b-P5tail-8k-nn-b2 e12b_P5tail-8k_s50_b2_math500_T1.0 result:runs/E12b-P5tail-8k/global_step_50/actor/huggingface math500 4 1.0
+#eval EVAL-think16k-17base-b2 base17_think16k_b2_math500_T0.6 Qwen/Qwen3-1.7B math500 4 0.6 16384 think
+#term PROBE-TERM4-N17THB2 17_base_think Qwen/Qwen3-1.7B EVAL-think16k-17base-b2/base17_think16k_b2_math500_T0.6_math500_think_t0.6.jsonl think
+#term PROBE-TERM4-NP5B2 17_P5s150 result:runs/E10b-P5/global_step_150/actor/huggingface gen
 """
 ROW_KINDS = ("#eval", "#pair", "#budget", "#term", "#gpus", "#steptime")
 HEADER = """\
