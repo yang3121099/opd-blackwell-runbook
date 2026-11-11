@@ -2181,7 +2181,7 @@ def test_newnode_v2_profiles_v259z137(env):
     L, _, _ = _profile_queue("8g80")
     assert "#term PROBE-TERM4-N8BTHINK 8B_P0think Qwen/Qwen3-8B EVAL-budA-8Bthink/budA8B_think_math500_T0.6_32k_math500_think_t0.6.jsonl think" in L
     _, _, s8 = _profile_queue("8g80")
-    assert set(v1) <= set(s8) and len(s8) == len(v1) + 23                        # 8g80 = all of v1 + the new tasks ([z144] + NP5H200; [z146] + N17P0H200, the 4B AIME pair; [z149] + p1q4's six; [z150] + p1q's ten)
+    assert set(v1) <= set(s8) and len(s8) == len(v1) + 28                        # 8g80 = all of v1 + the new tasks ([z144] + NP5H200; [z146] + N17P0H200, the 4B AIME pair; [z149] + p1q4's six; [z150] + p1q's ten; [z152] + five p1q rows)
 
 
 def test_split_pair_1gs_8gs_z139():   # [z139] two machines: together 8g80's stages, only the gates on both; 8gs keeps every training
@@ -2243,14 +2243,15 @@ def test_q093_thinking_arm_z146(env):   # [z146] (Q-093, Fable D10) the p1q stag
     L, stages, spec = _profile_queue("1gt")
     i = next(i for i, l in enumerate(L) if l.startswith("p1q "))
     assert L[i].split()[2:] == ["PROBE-E12B-P0THINK", "E12b-P0think-8k:PROBE-E12B-P0THINK",
-                                "EVAL-e12b-P5tail-8k-nn-b2:E12b-P5tail-8k", "EVAL-think16k-17base-b2",   # [z148] the B200 references
-                                "PROBE-TERM4-N17THB2:EVAL-think16k-17base-b2", "PROBE-TERM4-NP5B2",
-                                "EVAL-e12b-P0think-8k:E12b-P0think-8k",
-                                "PROBE-TERM4-N093:EVAL-e12b-P0think-8k", "EVAL-budA-e12bP0think-8k:E12b-P0think-8k",
-                                "EVAL-ext32k-17p0think8k:E12b-P0think-8k"]       # 16K and TERM4 first
+                                "EVAL-e12b-P0think-8k:E12b-P0think-8k", "PROBE-TERM4-N093:EVAL-e12b-P0think-8k",   # [z152] its own 16K + TERM4 first
+                                "EVAL-think16k-17base-b2", "PROBE-TERM4-N17THB2:EVAL-think16k-17base-b2",   # [z148] the B200 references
+                                "EVAL-e12b-P0think-8k-s25:E12b-P0think-8k", "PROBE-TERM4-N093FT:EVAL-think16k-17base-b2+E12b-P0think-8k",
+                                "EVAL-e12b-P5tail-8k-nn-b2:E12b-P5tail-8k", "EVAL-e12b-P5-8k-nn-b2:E12b-P5-8k",
+                                "PROBE-TERM4-NP5B2", "PROBE-TERM4-NN2S0:PROBE-TERM4-NP5B2", "PROBE-TERM4-N090FT:PROBE-TERM4-NP5B2+E12b-P5-8k-lenpen",
+                                "EVAL-budA-e12bP0think-8k:E12b-P0think-8k", "EVAL-ext32k-17p0think8k:E12b-P0think-8k"]   # budA / AIME last
     assert not [l for l in L if l.startswith("#gpus ")]
     ev = [l.split() for l in L if l.startswith("#eval ") and "P0think" in l]
-    assert len(ev) == 5 and all(r[-1] == "think" for r in ev) and {r[6] for r in ev} == {"0.6", "1.0"}
+    assert len(ev) == 6 and all(r[-1] == "think" for r in ev) and {r[6] for r in ev} == {"0.6", "1.0"}   # [z152] + the s25 16K row
     assert "#term PROBE-TERM4-N093 17_P0think8k result:runs/E12b-P0think-8k/global_step_50/actor/huggingface EVAL-e12b-P0think-8k/e12b_P0think-8k_s50_math500_T0.6_math500_think_t0.6.jsonl think" in L
     assert "#term PROBE-TERM4-N17P0H200 17_P0 Qwen/Qwen3-1.7B gen" in L
     for k, t in enumerate(("E12b-P0think-8k", "PROBE-E12B-P0THINK")):
@@ -2272,9 +2273,11 @@ def test_b200_references_z148(env):   # [z148] (Fable 13:5x) Q-090 / Q-093 on B2
     L, stages, spec = _profile_queue("1g")
     p1q = next(l for l in L if l.startswith("p1q ")).split()[2:]
     arm = p1q.index("E12b-P0think-8k:PROBE-E12B-P0THINK")
-    assert [p1q.index(x) for x in ("EVAL-e12b-P5tail-8k-nn-b2:E12b-P5tail-8k", "PROBE-TERM4-NP5B2")] == [arm + 1, arm + 4]
-    assert p1q.index("EVAL-e12b-P0think-8k:E12b-P0think-8k") == arm + 5                # after the arm, before its own readings
-    ev = [l.split() for l in L if l.startswith("#eval ") and "-b2 " in l]
+    # [z152] (Fable D12-C) the arm's own 16K + TERM4 first, then the B200 references (were: right after the arm)
+    assert p1q[arm + 1:arm + 3] == ["EVAL-e12b-P0think-8k:E12b-P0think-8k", "PROBE-TERM4-N093:EVAL-e12b-P0think-8k"]
+    assert arm + 2 < p1q.index("EVAL-think16k-17base-b2") < p1q.index("EVAL-e12b-P5tail-8k-nn-b2:E12b-P5tail-8k") < p1q.index("PROBE-TERM4-NP5B2")
+    assert p1q.index("PROBE-TERM4-NP5B2") < p1q.index("EVAL-budA-e12bP0think-8k:E12b-P0think-8k")
+    ev = [l.split() for l in L if l.startswith("#eval ") and "-b2 " in l and "P5-8k-nn-b2" not in l]
     assert len(ev) == 3 and {r[6] for r in ev} == {"0.6", "1.0"} and [r for r in ev if r[1] == "EVAL-think16k-17base-b2"][0][-2:] == ["16384", "think"]
     assert "#term PROBE-TERM4-N17THB2 17_base_think Qwen/Qwen3-1.7B EVAL-think16k-17base-b2/base17_think16k_b2_math500_T0.6_math500_think_t0.6.jsonl think" in L
     assert "#term PROBE-TERM4-NP5B2 17_P5s150 result:runs/E10b-P5/global_step_150/actor/huggingface gen" in L
@@ -2364,3 +2367,23 @@ def test_n5_forced_frontier_z152(env):   # [z152] (N5, lab/registry/N5.md) the e
     assert not [l for l in L if l.startswith("#gpus ")]
     for k, t in enumerate(tasks):
         assert env.c.v_run([t], 1700 + k)[0] == "accepted", t
+
+
+def test_fixed_text_rows_z152(env):   # [z152] (WO-005; D12-C / D15) Q-093 s25, the fixed-text TERM4 column, N2 step 0, the RL-only B200 re-read
+    import queue_profiles as QP
+    L, stages, spec = _profile_queue("1g")
+    new = {"EVAL-e12b-P0think-8k-s25": ["E12b-P0think-8k"], "PROBE-TERM4-N093FT": ["EVAL-think16k-17base-b2", "E12b-P0think-8k"],
+           "EVAL-e12b-P5-8k-nn-b2": ["E12b-P5-8k"], "PROBE-TERM4-NN2S0": ["PROBE-TERM4-NP5B2"],
+           "PROBE-TERM4-N090FT": ["PROBE-TERM4-NP5B2", "E12b-P5-8k-lenpen"]}
+    assert all(spec[t] == d for t, d in new.items())
+    gen = "PROBE-TERM4-NP5B2/gen/term_17_P5s150_math500_no_think_t0.6.jsonl"            # NP5B2's own generations (17_P5s150 ... gen)
+    assert "#term PROBE-TERM4-NP5B2 17_P5s150 result:runs/E10b-P5/global_step_150/actor/huggingface gen" in L
+    assert f"#term PROBE-TERM4-NN2S0 17_P5tail-on-P5text result:runs/E10b-P5tail/global_step_50/actor/huggingface {gen}" in L
+    assert f"#term PROBE-TERM4-N090FT 17_P5l8klp-on-P5text result:runs/E12b-P5-8k-lenpen/global_step_50/actor/huggingface {gen}" in L
+    assert [l.split()[-2:] for l in L if l.startswith("#eval EVAL-e12b-P0think-8k-s25 ")] == [["16384", "think"]]
+    assert {l.split()[6] for l in L if l.startswith("#eval EVAL-e12b-P5-8k-nn-b2 ")} == {"0.6", "1.0"}
+    assert "EVAL-e12b-P5-8k-nn:E12b-P5-8k" in next(l for l in L if l.startswith("p0b ")).split()   # the H200 reading keeps its name
+    import re as _re
+    assert _re.fullmatch(r"[A-Za-z0-9._-]+/(gen/)?[A-Za-z0-9._-]+\.jsonl", gen) and not _re.fullmatch(r"[A-Za-z0-9._-]+/(gen/)?[A-Za-z0-9._-]+\.jsonl", "a/up/gen/x.jsonl")
+    for k, t in enumerate(new):
+        assert env.c.v_run([t], 1800 + k)[0] == "accepted", t

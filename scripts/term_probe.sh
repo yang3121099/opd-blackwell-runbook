@@ -78,7 +78,7 @@ while read -r TAG MODEL GENS MODE; do
          [ -f $F ] && cp $F $D/up/gen/; SRC="generated here (EVAL-v1, not archived)";;
     archive:*.jsonl) P=${GENS#archive:}; F=$CKPT_ROOT/adhoc_models/$P
          [[ $P =~ ^[A-Za-z0-9._/-]+$ && $P != *..* ]] && fetch_ckpt "$P" || F=""; SRC="lab archive $P";;
-    *.jsonl) [[ $GENS =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+\.jsonl$ ]] && F=$OPD_ROOT/runs/$GENS || F=""; SRC="node runs/$GENS";;
+    *.jsonl) [[ $GENS =~ ^[A-Za-z0-9._-]+/(gen/)?[A-Za-z0-9._-]+\.jsonl$ && $GENS != *..* ]] && F=$OPD_ROOT/runs/$GENS || F=""; SRC="node runs/$GENS";;   # [z152] (N2 / D15) also <task>/gen/<file>.jsonl: another TERM4 task's own generations (fixed text)
     *) F=""; SRC="refused $GENS";;
   esac
   [ -n "$F" ] && [ -f "$F" ] || { step "GENERATIONS_MISSING $TAG: $GENS"; F=-; }

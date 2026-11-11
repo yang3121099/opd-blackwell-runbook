@@ -89,5 +89,10 @@ rm -f $T/root/runs/PROBE-TERM4/.done; : > $CALLS; : > $CALLS.tsv; FAKE_BACKOFF=4
 ok "[v2.5.9z52] the 429 backoff: WAIT_INPUTS, exit 1, no .done" '[ $rc = 1 ] && grep -q "^WAIT_INPUTS PROBE-TERM4: result:runs/E12b-Y/global_step_100/actor/huggingface not in (the HF 429 backoff lasts)$" $T/outbo && [ ! -f $T/root/runs/PROBE-TERM4/.done ]'
 : > $CALLS; : > $CALLS.tsv; FAKE_BACKOFF=0 bash $T/rb/scripts/term_probe.sh 3 PROBE-TERM4 > $T/outnb 2>&1
 ok "[v2.5.9z52] no backoff: a missing model as before" '! grep -q WAIT_INPUTS $T/outnb && grep -q "MODEL_MISSING 17_RLfar" $T/outnb'
+# [z152] (N2 step 0 / D15 fixed text) a #term row may read another TERM4 task's own generations, <task>/gen/<file>.jsonl; deeper or ".." paths stay refused
+mkdir -p $T/root/runs/PROBE-TERM4-NP5B2/gen; : > $T/root/runs/PROBE-TERM4-NP5B2/gen/term_17_P5s150_math500_no_think_t0.6.jsonl
+printf '#term PROBE-TERM4-NN2S0 17_P5tail-on-P5text Qwen/Qwen3-1.7B PROBE-TERM4-NP5B2/gen/term_17_P5s150_math500_no_think_t0.6.jsonl\n#term PROBE-TERM4-NN2S0 17_deep Qwen/Qwen3-1.7B PROBE-TERM4-NP5B2/up/gen/x.jsonl\n#term PROBE-TERM4-NN2S0 17_dots Qwen/Qwen3-1.7B PROBE-TERM4-NP5B2/gen/../x.jsonl\n' >> $T/rb/tasks/queue.txt
+: > $CALLS; : > $CALLS.tsv; bash $T/rb/scripts/term_probe.sh 3 PROBE-TERM4-NN2S0 > $T/outgen 2>&1
+ok "[z152] a <task>/gen/<file>.jsonl reading is a node runs/ input; up/gen and .. are not" 'grep -q "^17_P5tail-on-P5text	$T/m17	$T/root/runs/PROBE-TERM4-NP5B2/gen/term_17_P5s150_math500_no_think_t0.6.jsonl	" $CALLS.tsv && [ "$(awk -F"\t" "\$1 == \"17_deep\" || \$1 == \"17_dots\" {print \$3}" $CALLS.tsv | sort -u)" = "-" ]'
 rm -rf $T
 [ $fails = 0 ] && echo "TERM_PROBE_TEST PASS ($n checks)" || echo "TERM_PROBE_TEST FAIL ($fails of $n)"
