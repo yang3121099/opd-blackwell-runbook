@@ -18,10 +18,15 @@ Rules
 - automatic interval (WO-011 amendment, Fable 19:4x): once per run id the mirror reads the train log's first checkpoint write
   (verl's timing_s/save_checkpoint) against the median timing_s/step of the steps without a save so far, appends
   CKPT_COST <task> save S s step T s ratio R -> save_freq n to the train log and records n in $OPD_ROOT/control/ckpt_interval.json;
-  n = the smallest n >= 2 with S / (n x T) <= 0.15. run_e12.sh takes it at the next start / resume (verl's save_freq is fixed per process),
-  raised to the first n that divides every registered intermediate upload step; SAVE in control.env wins.
-CLI: python ckpt_lib.py mirror | prepare <task> <config.yaml> | space <task> <start model> | push <task> | pull <task> [step]
-     | interval <task> <steps> <upload steps, comma-separated>   (prints the save_freq to use, or nothing)
+  n = the smallest n >= 2 with S / (n x T) <= 0.16 (Fable A1 20:2x: 115 / 250 -> 3). run_e12.sh takes it at the next start / resume (verl's
+  save_freq is fixed per process); only the final step is guaranteed (verl saves it), the intermediate upload steps are not forced (the
+  registry uses the nearest checkpoint step) unless the arm sets CKPT_ALIGN=1: then n is raised to the first value dividing each of them.
+  SAVE in control.env wins.
+- final flush (z153's race, Fable's 8th node test): run_e12.sh calls `flush <task>` after the trainer exits and before finished: / .done,
+  so the final step is on the shared disk (where upload_sync and run_queue_eval LOCAL_FIRST look) before either sees the run as finished;
+  every mirror pass and the flush hold control/ckpt_mirror_pass.lock (one copier per step).
+CLI: python ckpt_lib.py mirror | flush <task> | prepare <task> <config.yaml> | space <task> <start model> | push <task> | pull <task> [step]
+     | interval <task> <steps> <upload steps, comma-separated>   (prints the save_freq to use, or nothing; CKPT_ALIGN=1 aligns)
 """
 import hashlib
 import json
@@ -229,8 +234,40 @@ def mirror_all(local_root, shared_root, runs_root, state=None):
             log("CKPT_COST_ERROR", task, type(e).__name__, e)
 
 
+class pass_lock:
+    """an exclusive flock on <OPD_ROOT>/control/ckpt_mirror_pass.lock for one mirror pass / flush (blocking)."""
+    def __init__(self, path):
+        self.path = path
+
+    def __enter__(self):
+        import fcntl
+        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        self.f = open(self.path, "a")
+        fcntl.flock(self.f, fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, *a):
+        self.f.close()
+
+
+def flush(task, local, shared, rid, lock_path, max_s=1800, every=10):
+    """mirror this task until the shared marker covers the local one and nothing is in flight; 0 = done, 1 = timeout / no run id."""
+    if rid is None:
+        log("CKPT_FLUSH_FAILED", task, "no run id"); return 1
+    t0 = time.time()
+    while True:
+        with pass_lock(lock_path):
+            sm = mirror_pass(task, local, shared, rid)
+        lm = marker(local)
+        if sm >= lm and not os.path.exists(os.path.join(shared, ".mirror_inflight")):
+            log(f"CKPT_FLUSH_OK {task} local {lm} shared {sm}"); return 0
+        if time.time() - t0 > max_s:
+            log(f"CKPT_FLUSH_TIMEOUT {task} local {lm} shared {sm} after {int(time.time() - t0)} s"); return 1
+        time.sleep(every)
+
+
 # ------------------------------------------------------------------------------------------------ automatic interval
-COST_CAP = 0.15
+COST_CAP = 0.16   # Fable A1 20:2x (was 0.15)
 _STEP = re.compile(r"(?:^|[ )])step:(\d+) - (.*)$")
 
 
@@ -303,11 +340,13 @@ def cost_pass(task, train_log, rid, state):
     return st[task]
 
 
-def interval_for(task, steps, uw, state):
-    """the save_freq run_e12.sh should use (recorded n aligned to the upload steps), or None."""
+def interval_for(task, steps, uw, state, align=False):
+    """the save_freq run_e12.sh should use (the recorded n; aligned to the intermediate upload steps only with align = CKPT_ALIGN=1), or None."""
     st = json.load(open(state)) if os.path.exists(state) else {}
     n = st.get(task, {}).get("save_freq")
-    return aligned_interval(int(n), steps, uw) if n else None
+    if not n:
+        return None
+    return aligned_interval(int(n), steps, uw) if align else int(n)
 
 
 # ------------------------------------------------------------------------------------------------ resume
@@ -450,8 +489,16 @@ def main(argv):
     env = os.environ
     local_root = env.get("CKPT_LOCAL", ""); shared_root = env.get("CKPT_ROOT", ""); runs = os.path.join(env.get("OPD_ROOT", ""), "runs")
     cmd = argv[0] if argv else ""
+    lock = os.path.join(env.get("OPD_ROOT", ""), "control", "ckpt_mirror_pass.lock")
     if cmd == "mirror":
-        return mirror_all(local_root, shared_root, runs) or 0
+        with pass_lock(lock):
+            return mirror_all(local_root, shared_root, runs) or 0
+    if cmd == "flush":
+        if not local_root:
+            return 0
+        task = argv[1]; cfg = os.path.join(runs, task, "config.yaml")
+        return flush(task, os.path.join(local_root, task, "ckpt"), os.path.join(shared_root, task, "ckpt"),
+                     run_id(cfg) if os.path.exists(cfg) else None, lock, int(env.get("CKPT_FLUSH_MAX_S", "1800")))
     if cmd == "prepare":
         task, cfg = argv[1], argv[2]
         return 0 if prepare(task, os.path.join(local_root, task, "ckpt"), os.path.join(shared_root, task, "ckpt"), run_id(cfg)) is not None else 1
@@ -463,7 +510,8 @@ def main(argv):
         return 0 if ok else 1
     if cmd == "interval":
         uw = [int(x) for x in argv[3].split(",") if x.strip().isdigit()] if len(argv) > 3 else []
-        n = interval_for(argv[1], int(argv[2]), uw, os.path.join(env.get("OPD_ROOT", ""), "control", "ckpt_interval.json"))
+        n = interval_for(argv[1], int(argv[2]), uw, os.path.join(env.get("OPD_ROOT", ""), "control", "ckpt_interval.json"),
+                        align=env.get("CKPT_ALIGN") == "1")
         if n:
             print(n)
         return 0

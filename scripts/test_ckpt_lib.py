@@ -212,13 +212,15 @@ def test_wiring_z155():   # run_e12 / run_tasks / loops / upload_sync: the local
     assert '[ -n "${CKPT_LOCAL:-}" ] || for d in $RUN/ckpt/global_step_*; do' in open(os.path.join(here, "upload_sync.sh")).read()
 
 
-def test_interval_rule():   # the smallest n >= 2 with save / (n x step) <= 0.15; tonight's 8B numbers (save 104-115 s, step 237-262 s)
+def test_interval_rule():   # the smallest n >= 2 with save / (n x step) <= 0.16 (Fable A1 20:2x); tonight's 8B numbers (save 104-115 s, step 237-262 s)
+    assert C.COST_CAP == 0.16
     assert C.raw_interval(104, 262) == 3 and C.raw_interval(110, 250) == 3
-    assert C.raw_interval(115, 250) == 4          # 115 / (3 x 250) = 0.153 > 0.15
-    assert C.raw_interval(115, 237) == 4
+    assert C.raw_interval(115, 250) == 3          # 115 / (3 x 250) = 0.153 <= 0.16 (it was 4 at 0.15)
+    assert C.raw_interval(115, 237) == 4          # 115 / (3 x 237) = 0.162 > 0.16
     assert C.raw_interval(10, 250) == 2           # never below 2
-    assert C.raw_interval(75, 250) == 2           # exactly 0.15 at n = 2 counts
-    assert C.raw_interval(300, 100) == 20
+    assert C.raw_interval(80, 250) == 2           # exactly 0.16 at n = 2 counts
+    assert C.raw_interval(81, 250) == 3
+    assert C.raw_interval(300, 100) == 19
     # aligned to the registered intermediate upload steps (s25 must exist): 3 -> 5; nothing in the way -> unchanged; impossible -> None
     assert C.aligned_interval(3, 50, [25, 50]) == 5
     assert C.aligned_interval(3, 50, [50]) == 3
@@ -239,7 +241,7 @@ def test_measure_from_the_train_log():
     assert C.measure(log_lines([(1, 300, None), (2, 250, None)])) is None            # no save yet
     assert C.measure(log_lines([(1, 400, 110)])) is None                            # a save, no plain step yet
     save, med, n = C.measure(log_lines([(1, 400, None), (2, 250, None), (3, 240, None), (4, 260, None), (5, 365, 115)]))
-    assert (save, med, n) == (115, 255, 4)                                         # median of 400/250/240/260 = 255; the save step excluded
+    assert (save, med, n) == (115, 255, 3)                                         # median of 400/250/240/260 = 255; the save step excluded
     save, med, n = C.measure(log_lines([(1, 262, None), (2, 237, None), (3, 250, None), (4, 350, 104)]))
     assert (save, med, n) == (104, 250, 3)
 
@@ -255,7 +257,8 @@ def test_cost_pass_once_per_run_and_interval_for(tmp_path, capsys):
     assert "CKPT_COST E12b-X" in capsys.readouterr().out
     n_lines = len(open(tl).read().splitlines())
     assert C.cost_pass("E12b-X", tl, "r1", st)["save_freq"] == 3 and len(open(tl).read().splitlines()) == n_lines   # once per run id
-    assert C.interval_for("E12b-X", 50, [25, 50], st) == 5 and C.interval_for("E12b-X", 50, [50], st) == 3
+    assert C.interval_for("E12b-X", 50, [25, 50], st) == 3                          # no alignment by default: only the final step guaranteed
+    assert C.interval_for("E12b-X", 50, [25, 50], st, align=True) == 5 and C.interval_for("E12b-X", 50, [50], st, align=True) == 3
     assert C.interval_for("other", 50, [50], st) is None
     # a new run id is measured again
     open(tl, "a").write("\n".join(log_lines([(1, 100, None), (2, 300, 10)])[1:]) + "\n")
@@ -267,11 +270,50 @@ def test_interval_cli_and_wiring(tmp_path):
     os.makedirs(tmp_path / "control")
     json.dump({"E12b-X": {"run_id": "r", "save_freq": 3}}, open(tmp_path / "control" / "ckpt_interval.json", "w"))
     here = os.path.dirname(os.path.abspath(__file__))
-    run = lambda *a: subprocess.run([sys.executable, os.path.join(here, "ckpt_lib.py"), "interval", *a], capture_output=True, text=True,
-                                    env={**os.environ, "OPD_ROOT": str(tmp_path)}).stdout.strip()
-    assert run("E12b-X", "50", "25,50") == "5" and run("E12b-X", "50", "50") == "3" and run("nope", "50", "50") == ""
+    env = {k: v for k, v in os.environ.items() if k != "CKPT_ALIGN"}
+    run = lambda *a, al=None: subprocess.run([sys.executable, os.path.join(here, "ckpt_lib.py"), "interval", *a], capture_output=True, text=True,
+                                             env={**env, "OPD_ROOT": str(tmp_path), **({"CKPT_ALIGN": al} if al else {})}).stdout.strip()
+    assert run("E12b-X", "50", "25,50") == "3" and run("E12b-X", "50", "25,50", al="0") == "3"   # CKPT_ALIGN unset / 0: no alignment
+    assert run("E12b-X", "50", "25,50", al="1") == "5" and run("E12b-X", "50", "50", al="1") == "3" and run("nope", "50", "50") == ""
     e12 = open(os.path.join(here, "run_e12.sh")).read()
     assert "SAVE_SET=${SAVE:-}" in e12 and e12.index("SAVE_SET=${SAVE:-}") < e12.index("[ $T = E12e-P0think-8k ] && [ -z \"${SAVE:-}\" ] && SAVE=5")
     i = e12.index("ckpt_lib.py interval $NAME $STEPS \"$UW\"")
     assert e12.index('SAVE=${UW%%,*}') < i < e12.index("trainer.save_freq=$SAVE")
     assert 'if [ -z "$SAVE_SET" ] && [ $SM = 0 ] && [ -n "${CKPT_LOCAL:-}" ] && [[ "$CONTENTS" == *optimizer* ]]; then' in e12
+
+
+def test_final_flush_before_done(tmp_path, capsys, monkeypatch):   # Fable's 8th condition: the final step on the shared disk before finished: / .done
+    L, S, lock = str(tmp_path / "local/T/ckpt"), str(tmp_path / "shared/T/ckpt"), str(tmp_path / "control/ckpt_mirror_pass.lock")
+    mkstep(L, 49); mkstep(L, 50); C.write_marker(L, 50)
+    assert C.flush("T", L, S, "rid", lock, max_s=5, every=0) == 0
+    assert C.marker(S) == 50 and os.path.isdir(os.path.join(S, "global_step_50", "actor", "huggingface"))   # where LOCAL_FIRST / upload_sync look
+    assert "CKPT_FLUSH_OK T local 50 shared 50" in capsys.readouterr().out
+    assert C.flush("T", L, S, "rid", lock, max_s=5, every=0) == 0                 # nothing left: immediate
+    assert C.flush("T", L, S, None, lock) == 1                                    # no run id: refused, logged
+    L2, S2 = str(tmp_path / "local/U/ckpt"), str(tmp_path / "shared/U/ckpt")
+    mkstep(L2, 50); C.write_marker(L2, 50)
+    monkeypatch.setattr(C, "verify", lambda d, m: ["broken"])
+    assert C.flush("U", L2, S2, "rid", lock, max_s=0, every=0) == 1               # a copy that never verifies: timeout, nothing named shared
+    assert C.marker(S2) == 0 and "CKPT_FLUSH_TIMEOUT U local 50 shared 0" in capsys.readouterr().out
+
+
+def test_flush_waits_for_a_running_pass(tmp_path):   # one copier per step: the flush blocks while another process holds the pass lock
+    import subprocess, time
+    lock = str(tmp_path / "control" / "ckpt_mirror_pass.lock"); os.makedirs(os.path.dirname(lock))
+    holder = subprocess.Popen([sys.executable, "-c", "import fcntl, sys, time; f = open(sys.argv[1], 'a'); fcntl.flock(f, fcntl.LOCK_EX); "
+                               "print('held', flush=True); time.sleep(1.5)", lock], stdout=subprocess.PIPE, text=True)
+    assert holder.stdout.readline().strip() == "held"
+    L, S = str(tmp_path / "local/T/ckpt"), str(tmp_path / "shared/T/ckpt")
+    mkstep(L, 3); C.write_marker(L, 3)
+    t0 = time.time()
+    assert C.flush("T", L, S, "rid", lock, max_s=10, every=0) == 0
+    assert time.time() - t0 >= 1.0 and C.marker(S) == 3
+    holder.wait()
+
+
+def test_flush_wiring_in_run_e12():
+    e12 = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "run_e12.sh")).read()
+    i = e12.index("ckpt_lib.py flush $NAME")
+    assert e12.index("trainer.default_local_dir=") < i < e12.index('LAST=$(grep -oE') < e12.index("touch $OUT/.done")
+    assert 'if [ $SM = 0 ] && [ -n "${CKPT_LOCAL:-}" ]; then' in e12[i - 200:i]
+    assert "CKPT_FLUSH_FAILED $NAME\"; exit 1; }" in e12[i:i + 400]

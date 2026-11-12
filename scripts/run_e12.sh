@@ -238,7 +238,8 @@ case $T in E12e-P0think-8k|E12b-P0think-8k-s43) UW=25,$STEPS;; esac   # [z154] s
 [ "$SAVE" = "$STEPS" ] && [ "${UW%%,*}" -lt "$STEPS" ] 2> /dev/null && SAVE=${UW%%,*}
 # [z155] (WO-011 amendment, Fable 19:4x) the automatic checkpoint interval: ckpt_mirror.sh measured this task's first checkpoint write
 # against its median step (CKPT_COST in the train log, n in control/ckpt_interval.json); from the next start / resume the save interval is
-# that n, raised to the first value dividing every intermediate upload step. Only with CKPT_LOCAL, a resume state in CONTENTS, no SAVE set.
+# that n (only the final step guaranteed; CKPT_ALIGN=1 raises n to divide every intermediate upload step). Only with CKPT_LOCAL, a resume
+# state in CONTENTS, no SAVE set.
 if [ -z "$SAVE_SET" ] && [ $SM = 0 ] && [ -n "${CKPT_LOCAL:-}" ] && [[ "$CONTENTS" == *optimizer* ]]; then
   AS=$(python3 $RUNBOOK/scripts/ckpt_lib.py interval $NAME $STEPS "$UW" 2> /dev/null)
   [ -n "$AS" ] && { echo "CKPT_INTERVAL $NAME save_freq $AS (default $SAVE)"; SAVE=$AS; }
@@ -309,6 +310,11 @@ python3 -m verl.trainer.main_ppo \
   trainer.n_gpus_per_node=$NG trainer.nnodes=1 trainer.save_freq=$SAVE trainer.test_freq=$TESTF trainer.resume_mode=auto \
   trainer.rollout_data_dir=$OUT/rollouts trainer.total_training_steps=$STEPS trainer.total_epochs=1 \
   trainer.default_local_dir=${CKDIR:-$OUT/ckpt} ${CKKEEP:-} 2>&1 | tee -a $OUT/train.log
+# [z155] (Fable A1 20:2x, 8th node test: no return of the z153 race) with CKPT_LOCAL the final step is copied to the shared disk (upload_sync's
+# and LOCAL_FIRST's place) before finished: / .done; a flush that fails ends the attempt as stopped (no finished:, upload_sync keeps waiting)
+if [ $SM = 0 ] && [ -n "${CKPT_LOCAL:-}" ]; then
+  python3 $RUNBOOK/scripts/ckpt_lib.py flush $NAME || { echo "stopped: $(date -u +%FT%TZ) CKPT_FLUSH_FAILED (the final step not on the shared disk)" >> $OUT/config.yaml; echo "CKPT_FLUSH_FAILED $NAME"; exit 1; }
+fi
 LAST=$(grep -oE "(^|[ )])step:[0-9]+ - " $OUT/train.log | tail -1 | grep -oE "[0-9]+")
 echo "completed_steps: ${LAST:-unknown}" >> $OUT/config.yaml
 if [ "${LAST:-0}" -ge $STEPS ]; then echo "finished: $(date -u +%FT%TZ)" >> $OUT/config.yaml; touch $OUT/.done
