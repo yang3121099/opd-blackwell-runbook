@@ -413,6 +413,7 @@ serve_requests() {   # v2.5: ad-hoc `run` / `eval` requests (control.py) on the 
 # removes the file. v2.6: this gate stays first in the round, before lanes_refresh / events_pass.
 frozen_round() {
   ensure_watchdog; ensure_uploader; ensure_loop gh_heartbeat
+  [ -n "${CKPT_LOCAL:-}" ] && ensure_loop ckpt_mirror   # [z155] the local -> shared checkpoint mirror, only with local checkpoints
   if [ "${PULL:-1}" = 1 ] && [ $(( $(date +%s) - last_pull )) -ge ${PULL_EVERY:-60} ]; then last_pull=$(date +%s); pull_and_control; fi
   [ "${DRY:-0}" = 1 ] && { echo "FROZEN dispatch frozen: control plane only"; return; }
   bash $RUNBOOK/scripts/loops.sh ensure heartbeat >> $OPD_ROOT/logs/loops.log 2>&1
@@ -430,6 +431,7 @@ while true; do
   ctrl_reopen   # [v2.5.9z71]
   if [ -f $CDIR/dispatch_frozen ]; then frozen_round; [ "${DRY:-0}" = 1 ] && break; nap ${POLL_FROZEN:-20}; continue; fi   # [v2.5.9z106]
   ensure_watchdog; ensure_uploader; ensure_loop gh_heartbeat   # [v2.5.9z54] the GitHub fallback heartbeat
+  [ -n "${CKPT_LOCAL:-}" ] && ensure_loop ckpt_mirror   # [z155]
   ensure_loop weights_replay   # [v2.5.9z62] the held weights to the public repository, one at a time
   if [ "${PULL:-1}" = 1 ] && [ $(( $(date +%s) - last_pull )) -ge ${PULL_EVERY:-60} ]; then last_pull=$(date +%s); pull_and_control; fi
   # v2.5 self-heal: the heartbeat loop runs the current heartbeat.sh (restarted when it died or the file changed), and every

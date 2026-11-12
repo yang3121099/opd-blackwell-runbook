@@ -106,7 +106,7 @@ while true; do
     else echo "UP_FAIL $TASK step $s (retried next cycle)"; fi
   done
   [ $new = 1 ] && printf 'train.log\nconfig.yaml\n' >> $RUN/.up_due   # [v2.5.9z52]
-  for d in $RUN/ckpt/global_step_*; do   # one resume state only: older steps lose their *.pt once a newer one is complete
+  [ -n "${CKPT_LOCAL:-}" ] || for d in $RUN/ckpt/global_step_*; do   # one resume state only: older steps lose their *.pt once a newer one is complete; [z155] with CKPT_LOCAL the mirror keeps 2 verified shared steps itself
     [ -d $d ] && [ "${d##*_}" -lt "$latest" ] && ls $d/actor/*.pt >/dev/null 2>&1 && rm -f $d/actor/*.pt && echo "PRUNED resume state $TASK step ${d##*_}"
   done
   # [v2.5.9g] Q-034 (E12b-P5-stop2 is paused if its zero-variance groups average > 80% over s1-s10): while an E12 run trains,

@@ -206,6 +206,7 @@ CFG
 # v2.4 save rule: dedicated node = HF weights at the last step only (queue v2 has no intermediate E12b reading; set
 # SAVE=<n> when one is registered), uploaded as bf16 and not kept locally (no local E12b evaluation); SPOT=1 also saves
 # the resume state every 20 steps and keeps only the newest. Checkpoints on $CKPT_ROOT (v2.4).
+SAVE_SET=${SAVE:-}   # [z155] SAVE from control.env / the environment: an explicit override of the automatic interval
 [ $T = E12e-P0think-8k ] && [ -z "${SAVE:-}" ] && SAVE=5   # [z154] (Q-093c) every 5 steps, as the 8B chain's RL segment
 if [ "${SPOT:-0}" = 1 ]; then CONTENTS="['model','optimizer','extra','hf_model']"; SAVE=${SAVE:-20}
 elif dr_on; then CONTENTS="['model','optimizer','extra','hf_model']"; SAVE=${SAVE:-${DR_EVERY:-25}}   # v2.5.7: resume state for dr_sync.sh
@@ -235,6 +236,13 @@ case $T in E12e-P0think-8k|E12b-P0think-8k-s43) UW=25,$STEPS;; esac   # [z154] s
 # interval above fell to the final step, so an arm uploading s25 (UW=25,...) saved no s25 checkpoint; the save interval is
 # now the first upload step whenever it defaulted to the final one (DR / SPOT / SAVE set and the smokes unchanged)
 [ "$SAVE" = "$STEPS" ] && [ "${UW%%,*}" -lt "$STEPS" ] 2> /dev/null && SAVE=${UW%%,*}
+# [z155] (WO-011 amendment, Fable 19:4x) the automatic checkpoint interval: ckpt_mirror.sh measured this task's first checkpoint write
+# against its median step (CKPT_COST in the train log, n in control/ckpt_interval.json); from the next start / resume the save interval is
+# that n, raised to the first value dividing every intermediate upload step. Only with CKPT_LOCAL, a resume state in CONTENTS, no SAVE set.
+if [ -z "$SAVE_SET" ] && [ $SM = 0 ] && [ -n "${CKPT_LOCAL:-}" ] && [[ "$CONTENTS" == *optimizer* ]]; then
+  AS=$(python3 $RUNBOOK/scripts/ckpt_lib.py interval $NAME $STEPS "$UW" 2> /dev/null)
+  [ -n "$AS" ] && { echo "CKPT_INTERVAL $NAME save_freq $AS (default $SAVE)"; SAVE=$AS; }
+fi
 # [v2.5.8b] the variant's settings (KL loss and its reference; the reward function)
 KL="actor_rollout_ref.actor.use_kl_loss=False"; REWARD=$RUNBOOK/code/train/reward_mathverify.py
 # [v2.5.8c] stop: the stop reward, counting the student's tokens (its start's tokenizer) against the 4K response limit
@@ -254,6 +262,19 @@ export OPD_VARDROP= OPD_VARDROP_LOG=; [ "$VAR" = r3 ] && export OPD_VARDROP=1 OP
 [ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $NAME start=$START steps=$STEPS save=$SAVE contents=$CONTENTS kern=[$KERN] gc=$GCK venv=$(basename $V) ngpu=$NG rmpad=$RMPAD upload=${UPLOAD_WEIGHTS:-$UW} vllm=${VLLM_UTIL:-0.6} var=${VAR:-none} kl=[$KL] reward=$(basename $REWARD)"; exit 0; }   # tests
 if [ $SM = 0 ]; then
   ckpt_link $OUT
+  # [z155] (lab WO-011) three-tier checkpoints: with CKPT_LOCAL the trainer writes to the local disk, scripts/ckpt_mirror.sh copies each new
+  # step to the shared one ($OUT/ckpt), HF only on demand (ckpt_lib.py push / pull). Before the trainer: the space guard (< 3 x the expected
+  # checkpoint free on the local disk -> no start, an event, WAIT_INPUTS: no attempt counted, nothing deleted) and the resume choice (this
+  # run's highest verified step, local > shared > HF-pulled, put in the local dir with the local marker). Unset: as before.
+  if [ -n "${CKPT_LOCAL:-}" ]; then
+    SP=$(python3 $RUNBOOK/scripts/ckpt_lib.py space $NAME "$START" 2>&1); echo "$SP"
+    if ! [[ "$SP" == CKPT_SPACE_OK* ]]; then
+      python3 $RUNBOOK/scripts/control.py event $NAME ckpt_space_low "$SP" > /dev/null 2>&1
+      echo "WAIT_INPUTS $T$NN: local checkpoint disk low ($SP)"; exit 1   # $T$NN = $NAME here (SM=0)
+    fi
+    python3 $RUNBOOK/scripts/ckpt_lib.py prepare $NAME $OUT/config.yaml || { echo "CKPT_PREPARE_FAILED $NAME"; exit 1; }
+    CKDIR=$CKPT_LOCAL/$NAME/ckpt; CKKEEP="++trainer.max_actor_ckpt_to_keep=2"
+  fi
   dr_restore $OUT || echo "DR_RESTORE_FAILED $T"; dr_start_sync $OUT   # v2.5.7
   pgrep -f "upload_syn[c].sh $OUT\$" >/dev/null || KEEP_BF16=${KEEP_BF16:-1} UPLOAD_WEIGHTS=${UPLOAD_WEIGHTS:-$UW} setsid nohup bash $RUNBOOK/scripts/upload_sync.sh $OUT > $OUT/upload.log 2>&1 < /dev/null &
 fi
@@ -287,7 +308,7 @@ python3 -m verl.trainer.main_ppo \
   trainer.logger='["console"]' trainer.project_name=opd-e10b trainer.experiment_name=$NAME \
   trainer.n_gpus_per_node=$NG trainer.nnodes=1 trainer.save_freq=$SAVE trainer.test_freq=$TESTF trainer.resume_mode=auto \
   trainer.rollout_data_dir=$OUT/rollouts trainer.total_training_steps=$STEPS trainer.total_epochs=1 \
-  trainer.default_local_dir=$OUT/ckpt 2>&1 | tee -a $OUT/train.log
+  trainer.default_local_dir=${CKDIR:-$OUT/ckpt} ${CKKEEP:-} 2>&1 | tee -a $OUT/train.log
 LAST=$(grep -oE "(^|[ )])step:[0-9]+ - " $OUT/train.log | tail -1 | grep -oE "[0-9]+")
 echo "completed_steps: ${LAST:-unknown}" >> $OUT/config.yaml
 if [ "${LAST:-0}" -ge $STEPS ]; then echo "finished: $(date -u +%FT%TZ)" >> $OUT/config.yaml; touch $OUT/.done

@@ -26,7 +26,7 @@ CDIR=$OPD_ROOT/control; mkdir -p $CDIR $OPD_ROOT/logs
 VERB=${1:-status}; WHICH=${2:-both}
 case $VERB in start|stop|restart|ensure|status) ;; *) echo "LOOPS usage: loops.sh start|stop|restart|ensure|status [heartbeat|run_tasks|both]"; exit 2;; esac
 case $WHICH in both) LS="heartbeat run_tasks";; heartbeat|run_tasks) LS=$WHICH;; *) echo "LOOPS usage: loop heartbeat, run_tasks or both"; exit 2;; esac
-[ $VERB = stop ] && [ $WHICH = both ] && LS="watchdog heartbeat run_tasks uploader gh_heartbeat weights_replay"   # [v2.5.9z133]
+[ $VERB = stop ] && [ $WHICH = both ] && LS="watchdog heartbeat run_tasks uploader gh_heartbeat weights_replay ckpt_mirror"   # [v2.5.9z133]; [z155] the checkpoint mirror
 RB_REAL=$(cd $RUNBOOK 2> /dev/null && pwd -P)   # macOS: /var is /private/var
 ev() { if [ "${LOOPS_SYNC_EV:-0}" = 1 ]; then python3 $RUNBOOK/scripts/control.py event node "$1" "$2" > /dev/null 2>&1   # the tests
   else command -v timeout > /dev/null && (timeout -k 10 60 python3 $RUNBOOK/scripts/control.py event node "$1" "$2" > /dev/null 2>&1 &); fi; }

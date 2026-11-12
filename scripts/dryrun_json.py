@@ -58,6 +58,7 @@ REFUSALS = [
     ("never", r"^WAIT_INPUTS (?P<task>\S+): (?P<what>a venv-vl python is running)$"),   # pgrep finds nothing in the sandbox
     ("backoff", r"^WAIT_INPUTS (?P<task>\S+): .* \(the HF 429 backoff lasts\)$"),   # the sandbox's backoff is 0: never here
     ("never", r"^WAIT_INPUTS (?P<task>\S+): (?P<what>venv-\S+ not built) \(\S+\)$"),   # the sandbox's venvs all exist: never here
+    ("never", r"^WAIT_INPUTS (?P<task>\S+): (?P<what>local checkpoint disk low) \(.*\)$"),   # [z155] only with CKPT_LOCAL: unset in the sandbox
     ("wait_other", r"^WAIT_INPUTS (?P<task>\S+): (?P<what>.*)$"),
 ]
 # gates whose check reads more than "result": PASS, and the files a gate's arms read beside its report (config.yaml lines);
