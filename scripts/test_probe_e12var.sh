@@ -38,7 +38,7 @@ if [[ $2 == E12c-P5-8k || $2 == E12c-P5-16k || $2 == E12e-P5self-8k || $2 == E12
   for i in 1 2 3; do echo "(TaskRunner pid=1) step:$i - response_length/mean:$((5000 + i)) - critic/score/mean:0.4" >> $d/train.log; done
   exit 0
 fi
-if [ $2 = E12b-P0think-8k ] || [ $2 = E12d-P0think-8k ] || [ $2 = E12e-P0think-8k ] || [ $2 = E12b-P0think-8k-s43 ]; then   # [z154] the 8B arm and the s43 arm too   # [z146] (Q-093) FAKE_THINK_CLOSED of 4 step-1 rollouts close </think>; [z149] the 4B arm
+if [ $2 = E12b-P0think-8k ] || [ $2 = E12d-P0think-8k ] || [ $2 = E12e-P0think-8k ] || [ $2 = E12b-P0think-8k-s43 ] || [ $2 = E12d-P0think-8k-s43 ]; then   # [z154] the 8B arm and the s43 arm too   # [z146] (Q-093) FAKE_THINK_CLOSED of 4 step-1 rollouts close </think>; [z149] the 4B arm
   printf "task: $2\nstart: /m17\nvariant: 8k\nchat_template: enable_thinking=${FAKE_THINK:-True}\nmax_response_length: 8192\n" > $d/config.yaml
   for i in 1 2 3; do echo "(TaskRunner pid=1) step:$i - response_length/mean:$((7000 + i)) - critic/score/mean:0.3" >> $d/train.log; done
   mkdir -p $d/rollouts; for k in 1 2 3 4; do if [ $k -le ${FAKE_THINK_CLOSED:-3} ]; then echo '{"input": "q", "output": "<think>x</think> \\boxed{1}", "score": 1.0}'; else echo '{"input": "q", "output": "<think>x x x", "score": 0.0}'; fi; done > $d/rollouts/1.jsonl
@@ -218,6 +218,8 @@ rm -rf $T; setup; PEV_LADDER=E12e bash $T/rb/scripts/probe_e12var.sh 0,1,2,3,4,5
 ok "[z154] PROBE-E12E-P0THINK: the 8B arm's smoke on its GPUs, the p0think checks" '[ "$(r8res PROBE-E12E-P0THINK result)" = PASS ] && grep -q "run_e12 0,1,2,3,4,5,6,7 E12e-P0think-8k SMOKE=1 STEPS=3 PROBE_TASK=PROBE-E12E-P0THINK-smoke" $CALLS'
 rm -rf $T; setup; PEV_NAME=PROBE-E12B-P0THINK-8G PEV_ARM=E12b-P0think-8k-s43 bash $T/rb/scripts/probe_e12var.sh 0,1,2,3,4,5,6,7 p0think > /dev/null 2>&1
 ok "[z154] PROBE-E12B-P0THINK-8G: its own report, smokes E12b-P0think-8k-s43, PROBE-E12B-P0THINK untouched" '[ "$(r8res PROBE-E12B-P0THINK-8G result)" = PASS ] && [ ! -e $T/root/runs/PROBE-E12B-P0THINK ] && grep -q "run_e12 0,1,2,3,4,5,6,7 E12b-P0think-8k-s43 SMOKE=1 STEPS=3 PROBE_TASK=PROBE-E12B-P0THINK-8G-smoke" $CALLS'
+rm -rf $T; setup; PEV_LADDER=E12d PEV_NAME=PROBE-E12D-P0THINK-8G PEV_ARM=E12d-P0think-8k-s43 bash $T/rb/scripts/probe_e12var.sh 0,1,2,3,4,5,6,7 p0think > /dev/null 2>&1
+ok "[z156] PROBE-E12D-P0THINK-8G: its own report, smokes E12d-P0think-8k-s43 on 8 GPUs, PROBE-E12D-P0THINK untouched" '[ "$(r8res PROBE-E12D-P0THINK-8G result)" = PASS ] && [ ! -e $T/root/runs/PROBE-E12D-P0THINK ] && grep -q "run_e12 0,1,2,3,4,5,6,7 E12d-P0think-8k-s43 SMOKE=1 STEPS=3 PROBE_TASK=PROBE-E12D-P0THINK-8G-smoke" $CALLS'
 rm -rf $T; setup; PEV_NAME="PROBE-X;rm" PEV_ARM="E12b-P5-kl" bash $T/rb/scripts/probe_e12var.sh 2 p0think > /dev/null 2>&1
 ok "[z154] a bad PEV_NAME / PEV_ARM is ignored (the default name and arm)" '[ -f $T/root/runs/PROBE-E12B-P0THINK/report.json ] && grep -q "run_e12 2 E12b-P0think-8k SMOKE=1" $CALLS'
 rm -rf $T

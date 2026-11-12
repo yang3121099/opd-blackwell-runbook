@@ -277,6 +277,12 @@ q5=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0,1,2,3,4,5,6,7 E12e-P0think-8k 2>&1
 ok "[z154] E12e-P0think-8k: Qwen3-8B, 50 steps, save 5, s25 / s50 up, 8 GPUs, venv-fa, thinking, data.seed 4242" '[[ "$q5" == "DRYRUN_THINK enable_thinking=True data_seed=4242"*"DRYRUN E12e-P0think-8k start=$T/m8 steps=50 save=5 "*"venv=venv-fa ngpu=8 "*"upload=25,50 "*"var=8k "* ]]'
 ( DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0,1,2,3,4,5,6,7 E12b-P0think-8k-s43 > $T/q6 2>&1 ); q6=$(tail -2 $T/q6)
 ok "[z154] E12b-P0think-8k-s43: the 1.7B base, 50 steps, s25 / s50 up, data.seed 43 (config too); the other arms keep 4242" '[[ "$q6" == "DRYRUN_THINK enable_thinking=True data_seed=43"*"DRYRUN E12b-P0think-8k-s43 start=$T/m17 steps=50 "*"ngpu=8 "*"upload=25,50 "* ]] && grep -q "^data_seed: 43$" $T/base/root/runs/E12b-P0think-8k-s43/config.yaml && grep -q "^data_seed: 4242$" $T/base/root/runs/E12b-P0-8k/config.yaml && grep -q "data.seed=\$DSEED" $SRC/scripts/run_e12.sh'
+# [z156] (Q-093b-s43, Fable D50) E12d-P0think-8k-s43: the 4B base, data.seed 43, s25 / s50 up, its own 8-GPU gate PROBE-E12D-P0THINK-8G
+( DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0,1,2,3,4,5,6,7 E12d-P0think-8k-s43 > $T/q7 2>&1 ); rq7=$?
+ok "[z156] E12d-P0think-8k-s43 waits for PROBE-E12D-P0THINK-8G (exit 3), not for Q-093b's gate" '[ $rq7 = 3 ] && grep -q "PROBE-E12D-P0THINK-8G has not passed: E12d-P0think-8k-s43 not started" $T/q7'
+mkdir -p $T/base/root/runs/PROBE-E12D-P0THINK-8G; echo '{"result": "PASS"}' > $T/base/root/runs/PROBE-E12D-P0THINK-8G/report.json
+( DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0,1,2,3,4,5,6,7 E12d-P0think-8k-s43 > $T/q8 2>&1 ); q8=$(tail -2 $T/q8)
+ok "[z156] E12d-P0think-8k-s43: the 4B base, 50 steps, 8 GPUs, venv-fa, s25 / s50 up, 8K, thinking, data.seed 43 (config too)" '[[ "$q8" == "DRYRUN_THINK enable_thinking=True data_seed=43"*"DRYRUN E12d-P0think-8k-s43 start=$T/m4 steps=50 "*"venv=venv-fa ngpu=8 "*"upload=25,50 "*"var=8k "* ]] && grep -q "^data_seed: 43$" $T/base/root/runs/E12d-P0think-8k-s43/config.yaml && grep -q "^steps: 50$" $T/base/root/runs/E12d-P0think-8k-s43/config.yaml'
 ok "[z154 on z153] both new arms' config.yaml name steps: 50 (upload_sync's final-step rule)" 'grep -q "^steps: 50$" $T/base/root/runs/E12e-P0think-8k/config.yaml && grep -q "^steps: 50$" $T/base/root/runs/E12b-P0think-8k-s43/config.yaml'
 rm -rf $T
 [ $fails = 0 ] && echo "DR_TEST PASS ($n checks)" || echo "DR_TEST FAIL ($fails of $n)"

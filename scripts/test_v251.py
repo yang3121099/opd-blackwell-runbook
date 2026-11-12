@@ -2187,8 +2187,8 @@ def test_newnode_v2_profiles_v259z137(env):
 def test_split_pair_1gs_8gs_z139():   # [z139] two machines: together 8g80's stages, only the gates on both; 8gs keeps every training
     import queue_profiles as QP
     a, b = QP.PROFILES["1gs"], QP.PROFILES["8gs"]
-    assert set(a) | set(b) == set(QP.PROFILES["8g80"]) | {"p1q8", "p1qs43"} and set(a) & set(b) == {"p0a"}   # [z154] two 8gs-only stages and a[0] == b[0] == "p0a"
-    assert [s for s in QP.PROFILES["8g80"] if s in b] + ["p1q8", "p1qs43"] == b  # 8g80's order ([z154] + the two 8gs-only stages last)
+    assert set(a) | set(b) == set(QP.PROFILES["8g80"]) | {"p1q8", "p1qs43", "p1q4s43"} and set(a) & set(b) == {"p0a"}   # [z154] two 8gs-only stages and a[0] == b[0] == "p0a"
+    assert [s for s in QP.PROFILES["8g80"] if s in b] + ["p1q8", "p1qs43", "p1q4s43"] == b  # [z156] p1q4s43; 8g80's order ([z154] + the two 8gs-only stages last)
     spec, _ = QP.source()
     ta = {x.split(":")[0] for st in a for x in QP.stage_specs(st, spec)}
     assert not [t for t in ta if re.match(r"E1\d", t)]                          # no training on the 1-GPU box
@@ -2301,7 +2301,7 @@ def test_q093b_4b_thinking_arm_z149(env):   # [z149] (Q-093b, Fable 14:2x) p1q4 
                                 "EVAL-e12d-P5tail-8k-nn-b2:E12d-P5tail-8k", "EVAL-think16k-4Bbase-b2", "PROBE-TERM4-N4BTHB2:EVAL-think16k-4Bbase-b2",   # [z154]
                                 "EVAL-budA-e12dP0think-8k:E12d-P0think-8k", "EVAL-ext32k-4p0think8k:E12d-P0think-8k"]
     assert "#gpus E12d-P0think-8k 8" in L and "#gpus PROBE-E12D-P0THINK 8" in L   # [z151] 8 on 8gs (4 on 4g80 / 8g80: test_8gs_trainings_on_8_gpus_others_4_z151)
-    ev = [l.split() for l in L if l.startswith("#eval ") and "E12d-P0think" in l]
+    ev = [l.split() for l in L if l.startswith("#eval ") and "E12d-P0think-8k/" in l]   # [z156] Q-093b's own (not -s43's)
     assert len(ev) == 5 and all(r[-1] == "think" for r in ev)
     for k, t in enumerate(("E12d-P0think-8k", "PROBE-E12D-P0THINK", "PROBE-TERM4-N093B")):
         assert env.c.v_run([t], 1700 + k)[0] == "accepted", t
@@ -2455,3 +2455,49 @@ def test_s43_chain_s50_ref_has_t10_z154b():   # [z154b] (Fable 11-12 06:3x, regi
     import queue_profiles as qp
     t = qp.render("8gs")
     assert "e12b_P5tail-8k-s43_s50_b2_math500_T0.6 " in t and "e12b_P5tail-8k-s43_s50_b2_math500_T1.0 " in t
+
+
+def test_q093b_s43_z156(env):   # [z156] (lab WO-012; Fable D50) Q-093b-s43 on 8gs only: its own 8-GPU gate, the arm, Q-093b's readings
+    import queue_profiles as QP
+    for p, st in QP.PROFILES.items():
+        assert ("p1q4s43" in st) == (p == "8gs"), p
+    L, stages, spec = _profile_queue("8gs")
+    st = next(l for l in L if l.startswith("p1q4s43 ")).split()
+    assert st[1] == "open"
+    names = [x.split(":")[0] for x in st[2:]]
+    assert names == ["PROBE-E12D-P0THINK-8G", "E12d-P0think-8k-s43", "EVAL-e12d-P0think-8k-s43", "PROBE-TERM4-N093BS43",
+                     "EVAL-budA-e12dP0think-8k-s43", "EVAL-ext32k-4p0think8k-s43"]   # gate and training before every single-GPU row
+    assert spec["PROBE-E12D-P0THINK-8G"] == [] and spec["E12d-P0think-8k-s43"] == ["PROBE-E12D-P0THINK-8G"]
+    assert spec["PROBE-TERM4-N093BS43"] == ["EVAL-e12d-P0think-8k-s43"]
+    assert all(spec[t] == ["E12d-P0think-8k-s43"] for t in ("EVAL-e12d-P0think-8k-s43", "EVAL-budA-e12dP0think-8k-s43", "EVAL-ext32k-4p0think8k-s43"))
+    g = {l.split()[1]: l.split()[2] for l in L if l.startswith("#gpus ")}
+    assert g["PROBE-E12D-P0THINK-8G"] == "8" and g["E12d-P0think-8k-s43"] == "8"
+    assert g["PROBE-E12D-P0THINK"] == "8" and g["E12d-P0think-8k"] == "8"   # Q-093b's own rows unchanged on 8gs
+    w = "result:runs/E12d-P0think-8k-s43/global_step_50/actor/huggingface"
+    ev = {}
+    for l in L:
+        if l.startswith("#eval ") or l.startswith("#term "):
+            ev.setdefault(l.split()[1], []).append(l.split())
+    assert [(r[4], r[6]) for r in ev["EVAL-e12d-P0think-8k-s43"]] == [("math500", "0.6"), ("math500", "1.0")]
+    assert all(r[7] == "16384" and r[-1] == "think" for r in ev["EVAL-e12d-P0think-8k-s43"])
+    assert [r[4] for r in ev["EVAL-ext32k-4p0think8k-s43"]] == ["aime24", "aime25"] and all(r[7] == "32768" for r in ev["EVAL-ext32k-4p0think8k-s43"])
+    assert ev["EVAL-budA-e12dP0think-8k-s43"][0][7] == "32768"
+    assert all(r[3] == w for t in ("EVAL-e12d-P0think-8k-s43", "EVAL-budA-e12dP0think-8k-s43", "EVAL-ext32k-4p0think8k-s43", "PROBE-TERM4-N093BS43")
+               for r in ev[t])
+    assert ev["PROBE-TERM4-N093BS43"][0][4] == "EVAL-e12d-P0think-8k-s43/e12d_P0think-8k-s43_s50_math500_T0.6_math500_think_t0.6.jsonl"
+    # the gate maps right: run_e12 names PROBE-E12D-P0THINK-8G for the s43 arm (Q-093b keeps PROBE-E12D-P0THINK), task.sh runs it on the
+    # list it gets with the s43 arm, and the control plane runs / reruns it
+    e12 = open(os.path.join(HERE, "run_e12.sh")).read()
+    assert "[ $T = E12d-P0think-8k-s43 ] && GATES=PROBE-E12D-P0THINK-8G" in e12
+    assert e12.index("[ $LADDER = E12d ] && GATES=PROBE-E12D-P0THINK ") < e12.index("[ $T = E12d-P0think-8k-s43 ] && GATES=PROBE-E12D-P0THINK-8G")
+    task = open(os.path.join(HERE, "task.sh")).read()
+    assert "PROBE-E12D-P0THINK-8G) PEV_LADDER=E12d PEV_NAME=PROBE-E12D-P0THINK-8G PEV_ARM=E12d-P0think-8k-s43 bash $RUNBOOK/scripts/probe_e12var.sh $G p0think;;" in task
+    assert task.index("  E12d-P0think-8k-s43) bash") < task.index("  E12d-*)")
+    multi = re.search(r"\[\[ \$T =~ (\^\(.*?\)) \]\] \|\| \{ echo \"\$T takes one GPU", task).group(1)
+    assert re.match(multi, "PROBE-E12D-P0THINK-8G") and re.match(multi, "E12d-P0think-8k-s43")
+    for k, t in enumerate(("PROBE-E12D-P0THINK-8G", "E12d-P0think-8k-s43", "PROBE-TERM4-N093BS43", "EVAL-e12d-P0think-8k-s43",
+                           "EVAL-budA-e12dP0think-8k-s43", "EVAL-ext32k-4p0think8k-s43")):
+        assert env.c.v_run([t], 1950 + k)[0] == "accepted", t
+    R.parse({"cmd": "rerun PROBE-E12D-P0THINK-8G", "reason": "t"})                # a failed gate can be rerun (rules regex)
+    ctl = open(os.path.join(HERE, "control.py")).read()
+    assert re.search(r"def v_rerun.*?re\.fullmatch\(r\"[^\"]*\|PROBE-E12D-P0THINK-8G\|", ctl, re.S)   # and control.py's own rerun list

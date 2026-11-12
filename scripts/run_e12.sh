@@ -70,6 +70,7 @@ if [ -n "$VAR" ] && [ "${SMOKE:-0}" != 1 ]; then
   [ $THINK = True ] && [ $LADDER = E12d ] && GATES=PROBE-E12D-P0THINK   # [z149] (Q-093b) the 4B arm's own 4-GPU smoke
   [ $THINK = True ] && [ $LADDER = E12e ] && GATES=PROBE-E12E-P0THINK   # [z154] (Q-093c) the 8B arm's own 8-GPU smoke
   [ $T = E12b-P0think-8k-s43 ] && GATES=PROBE-E12B-P0THINK-8G   # [z154] (Q-093-s43) its own 8-GPU smoke
+  [ $T = E12d-P0think-8k-s43 ] && GATES=PROBE-E12D-P0THINK-8G   # [z156] (Q-093b-s43, Fable D50) the 4B mirror: its own 8-GPU smoke (Q-093b's gate passed on 4 x B200)
   for P in $GATES; do grep -q '"result": "PASS"' $OPD_ROOT/runs/$P/report.json 2> /dev/null || { echo "$P has not passed: $T$NN not started"; exit 3; }; done
 fi
 SRC=E10b; [ $LADDER = E12d ] && SRC=E10d   # v2.5.7o: the preparation run a start comes from
@@ -230,7 +231,7 @@ case $T in E12b-P5-16k-s44|E12d-P5-16k-s43) UW=25,$STEPS;; esac   # [v2.5.9z84] 
 case $T in E12c-P5-8k|E12c-P5-16k) UW=25,$STEPS;; esac   # [v2.5.9z85] (Q-077) as the 1.7B / 4B window arms: s25 and s50 up
 [ $T = E12b-P0think-8k ] && UW=25,$STEPS   # [z146] (Q-093) s25 and s50 up
 [ $T = E12d-P0think-8k ] && UW=25,$STEPS   # [z149] (Q-093b) s25 and s50 up
-case $T in E12e-P0think-8k|E12b-P0think-8k-s43) UW=25,$STEPS;; esac   # [z154] s25 kept (up / held), s50 the registered step
+case $T in E12e-P0think-8k|E12b-P0think-8k-s43|E12d-P0think-8k-s43) UW=25,$STEPS;; esac   # [z156] Q-093b-s43 as Q-093b   # [z154] s25 kept (up / held), s50 the registered step
 [ -n "$CONT" ] && UW=25   # [v2.5.9z129] the continued arm's last save (= the chain's s50)
 # [v2.5.9z86] (fix; found 10-25 16:5x UTC: EVAL-e12b-P5tail-8k's s25 weights did not exist) with DR off (seq 545, 10-24) the save
 # interval above fell to the final step, so an arm uploading s25 (UW=25,...) saved no s25 checkpoint; the save interval is
