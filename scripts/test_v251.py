@@ -2187,8 +2187,8 @@ def test_newnode_v2_profiles_v259z137(env):
 def test_split_pair_1gs_8gs_z139():   # [z139] two machines: together 8g80's stages, only the gates on both; 8gs keeps every training
     import queue_profiles as QP
     a, b = QP.PROFILES["1gs"], QP.PROFILES["8gs"]
-    assert set(a) | set(b) == set(QP.PROFILES["8g80"]) | {"p1q8", "p1qs43", "p1q4s43"} and set(a) & set(b) == {"p0a"}   # [z154] two 8gs-only stages and a[0] == b[0] == "p0a"
-    assert [s for s in QP.PROFILES["8g80"] if s in b] + ["p1q8", "p1qs43", "p1q4s43"] == b  # [z156] p1q4s43; 8g80's order ([z154] + the two 8gs-only stages last)
+    assert set(a) | set(b) == set(QP.PROFILES["8g80"]) | {"p1q8", "p1qs43", "p1q4s43", "p1h2"} and set(a) & set(b) == {"p0a"}   # [z154] two 8gs-only stages and a[0] == b[0] == "p0a"
+    assert [s for s in QP.PROFILES["8g80"] if s in b] + ["p1q8", "p1qs43", "p1q4s43", "p1h2"] == b  # [z156] p1q4s43; [z156b] p1h2; 8g80's order ([z154] + the two 8gs-only stages last)
     spec, _ = QP.source()
     ta = {x.split(":")[0] for st in a for x in QP.stage_specs(st, spec)}
     assert not [t for t in ta if re.match(r"E1\d", t)]                          # no training on the 1-GPU box
@@ -2501,3 +2501,29 @@ def test_q093b_s43_z156(env):   # [z156] (lab WO-012; Fable D50) Q-093b-s43 on 8
     R.parse({"cmd": "rerun PROBE-E12D-P0THINK-8G", "reason": "t"})                # a failed gate can be rerun (rules regex)
     ctl = open(os.path.join(HERE, "control.py")).read()
     assert re.search(r"def v_rerun.*?re\.fullmatch\(r\"[^\"]*\|PROBE-E12D-P0THINK-8G\|", ctl, re.S)   # and control.py's own rerun list
+
+
+def test_h200_references_new_names_z156b(env):   # [z156b] (Fable 20:3x) H200 same-machine references under new names, 8gs only, no training dependency
+    import queue_profiles as QP
+    for p, st in QP.PROFILES.items():
+        assert ("p1h2" in st) == (p == "8gs"), p
+    L, stages, spec = _profile_queue("8gs")
+    st = next(l for l in L if l.startswith("p1h2 ")).split()
+    assert st[1] == "open" and [x.split(":")[0] for x in st[2:]] == ["EVAL-think16k-8Bbase-h2", "PROBE-TERM4-N8BTHH2", "EVAL-e12e-P5tail-8k-nn-h2"]
+    assert spec["EVAL-think16k-8Bbase-h2"] == [] and spec["EVAL-e12e-P5tail-8k-nn-h2"] == [] and spec["PROBE-TERM4-N8BTHH2"] == ["EVAL-think16k-8Bbase-h2"]
+    assert "#eval EVAL-think16k-8Bbase-h2 base8_think16k_h2_math500_T0.6 Qwen/Qwen3-8B math500 4 0.6 16384 think" in L
+    assert ("#term PROBE-TERM4-N8BTHH2 8B_base_think Qwen/Qwen3-8B EVAL-think16k-8Bbase-h2/base8_think16k_h2_math500_T0.6_math500_think_t0.6.jsonl"
+            " think") in L
+    w = "result:runs/E12e-P5tail-8k-nn/global_step_25/actor/huggingface"   # the -nn run's global_step_25 = the chain's s50 (run_e12.sh CONT)
+    ev = [l.split() for l in L if l.startswith("#eval EVAL-e12e-P5tail-8k-nn-h2 ")]
+    assert [(r[2], r[3], r[4], r[5], r[6]) for r in ev] == [("e12e_P5tail-8k_s50_h2_math500_T0.6", w, "math500", "4", "0.6"),
+                                                         ("e12e_P5tail-8k_s50_h2_math500_T1.0", w, "math500", "4", "1.0")]
+    assert all(len(r) == 7 for r in ev)                                            # 16K default, no_think, as the e12e_P5tail-8k_s50 rows
+    old = [l.split() for l in L if l.startswith("#eval EVAL-e12e-P5tail-8k-nn ") and "_s50_math500_" in l]
+    assert old and all(r[3] == w for r in old)                                     # the same weights as the existing s50 reading
+    # the B200 names keep their rows (nothing renamed) and no new tag collides with an existing one
+    assert "#eval EVAL-think16k-8Bbase-b2 base8_think16k_b2_math500_T0.6 Qwen/Qwen3-8B math500 4 0.6 16384 think" in L
+    tags = [l.split()[2] for l in L if l.startswith("#eval ")]
+    assert all(tags.count(t) == 1 for t in ("base8_think16k_h2_math500_T0.6", "e12e_P5tail-8k_s50_h2_math500_T0.6", "e12e_P5tail-8k_s50_h2_math500_T1.0"))
+    for k, t in enumerate(("EVAL-think16k-8Bbase-h2", "PROBE-TERM4-N8BTHH2", "EVAL-e12e-P5tail-8k-nn-h2")):
+        assert env.c.v_run([t], 1970 + k)[0] == "accepted", t
