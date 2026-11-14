@@ -18,7 +18,8 @@ printf "task: $2\nstudent: $S (no_think)\nteacher: ${FAKE_TEACHER:-$S} (ref; thi
 for i in $(seq 1 $SMOKE_STEPS); do echo "(TaskRunner pid=1) step:$i - timing_s/gen:100 - timing_s/update_actor:150 - timing_s/step:$([ $i = 1 ] && echo 600 || echo 330) - response_length/mean:3000" >> $d/train.log; done
 sleep ${FAKE_SLEEP:-0}; [ "${FAKE_OOM:-0}" = 1 ] && { echo "torch.OutOfMemoryError: CUDA out of memory" >> $d/train.log; exit 1; }; exit 0
 SH
-  printf '#!/usr/bin/env bash\necho ${FAKE_MEM:-150000}\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi
+  # [z158i] one line per GPU of an -i list, as the real nvidia-smi
+  printf '#!/usr/bin/env bash\nn=1; p=""; for a in "$@"; do [ "$p" = -i ] && n=$(echo "$a" | tr , "\\n" | grep -c .); p=$a; done\nfor k in $(seq $n); do echo ${FAKE_MEM:-150000}; done\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi
   export CALLS=$T/calls PATH=$T/bin:$PATH PSE_WAIT_STEP=0; : > $CALLS
 }
 res() { python3 -c "import json, sys; print(json.load(open(sys.argv[1])).get(sys.argv[2], ''))" $T/root/runs/PROBE-P5SELF/report.json "$1"; }
@@ -62,5 +63,10 @@ rm -rf $T
 setup
 FAKE_MEM=0 FAKE_TEACHER=/m/Qwen3-1.7B bash $T/rb/scripts/probe_p5self.sh 3 06b > /dev/null 2>&1
 ok "[v2.5.9v] 06b: a 1.7B teacher for the 0.6B student is FAIL" '[ "$(res6 result)" = FAIL ] && [[ "$(res6 reason)" == *"is not the student itself"* ]]'
+# [z158i] (Q-095 B's gate on 4 GPUs, 11-14 21:50Z: the empty check read four lines and never passed) a GPU list: the fullest GPU decides
+rm -rf $T; setup; FAKE_MEM=0 bash $T/rb/scripts/probe_p5self.sh 3,4,5,6 > /dev/null 2>&1
+ok "[z158i] a 4-GPU list: the start check passes, the smoke runs on 3,4,5,6, PASS, a single-number peak" '[ "$(res result)" = PASS ] && grep -q "^run_arm 3,4,5,6 E10b-P5self SMOKE=1" $CALLS && [ -z "$(cut -d, -f2 $T/root/runs/PROBE-P5SELF/mem.csv | grep -v -E "^[0-9]+$")" ]'
+rm -rf $T; setup; FAKE_MEM=5000 PSE_WAIT_STEP=0 bash $T/rb/scripts/probe_p5self.sh 3,4,5,6 > /dev/null 2>&1
+ok "[z158i] a 4-GPU list with a busy GPU: FAIL not empty" '[ "$(res result)" = FAIL ] && [[ "$(res reason)" == *"not empty after 180 s"* ]]'
 rm -rf $T
 [ $fails = 0 ] && echo "PROBE_P5SELF_TEST PASS ($n checks)" || echo "PROBE_P5SELF_TEST FAIL ($fails of $n)"

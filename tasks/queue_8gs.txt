@@ -87,6 +87,7 @@ p1q096b    open   E12b-P0think-8k-c100:PROBE-E12B-P0THINK-S44 EVAL-e12b-P0think-
 #gpus E12d-P0think-8k-s43 8
 #gpus E10b-P5q093t 4
 #gpus E10d-P5q093t 4
+#gpus PROBE-P5Q093T-4B 4
 #gpus PROBE-E12B-P0THINK-S44 4
 #gpus E12b-P0think-8k-s44 4
 #gpus PROBE-E12B-P0THINK-4K 4

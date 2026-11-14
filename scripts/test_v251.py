@@ -2623,7 +2623,8 @@ def test_q095_and_ood_z158c(env):   # [z158c] (Fable D94 / D96) Q-095 (P5self wi
     L, stages, spec = _profile_queue("8gs")
     assert spec["E10b-P5q093t"] == ["PROBE-P5Q093T"] and spec["E10d-P5q093t"] == ["PROBE-P5Q093T-4B"]
     assert spec["EVAL-e10b-P5self-b3"] == [] and spec["EVAL-e10d-P5self-b3"] == [] and spec["EVAL-ood-17q093-b3"] == []
-    assert "#gpus E10b-P5q093t 4" in L and "#gpus E10d-P5q093t 4" in L and not any(l.startswith("#gpus PROBE-P5Q093T") for l in L)
+    assert "#gpus E10b-P5q093t 4" in L and "#gpus E10d-P5q093t 4" in L and "#gpus PROBE-P5Q093T-4B 4" in L   # [z158i] the 4B gate on its arm's 4 GPUs (one B300: OOM at 269.9 GB)
+    assert not any(l.startswith("#gpus PROBE-P5Q093T ") for l in L)   # the 1.7B gate stays on one GPU
     for f in ("E12b-P0think-8k/global_step_50", "E10b-P5self/global_step_50", "E10d-P5self/global_step_50"):
         assert f"#fetch result:runs/{f}/actor/huggingface" in L, f
     assert "#fetch dataset:TIGER-Lab/MMLU-Pro" in L

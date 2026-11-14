@@ -49,12 +49,12 @@ PY
   step "$1 $2"; touch $D/.done; exit 0
 }
 for _w in $(seq 19); do
-  used=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $G 2>/dev/null | tr -d ' ')
+  used=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $G 2>/dev/null | tr -d ' ' | sort -n | tail -1)   # [z158i] the fullest of a GPU list (a,b,c,d)
   [ "${used:-1}" -le 1024 ] && break; [ $_w = 19 ] && finish FAIL "gpu $G not empty after 180 s"; sleep ${PSE_WAIT_STEP:-10}
 done
 step "start gpu=$G FIXED_MICRO_BSZ=${FIXED_MICRO_BSZ:-} VENV=${VENV:-}"
 # 2. the 3-step smoke
-( while true; do echo "$(date -u +%s),$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $G | tr -d ' ')" >> $D/mem.csv; sleep 5; done ) &
+( while true; do echo "$(date -u +%s),$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $G | tr -d ' ' | sort -n | tail -1)" >> $D/mem.csv; sleep 5; done ) &   # [z158i] peak = the fullest GPU
 MP=$!
 rm -rf $OPD_ROOT/runs/$T-smoke
 SMOKE=1 SMOKE_STEPS=${PSE_STEPS:-3} PROBE_TASK=$T-smoke bash $RUNBOOK/scripts/run_arm.sh $G $ARMT > $D/smoke.out 2>&1; rc=$?

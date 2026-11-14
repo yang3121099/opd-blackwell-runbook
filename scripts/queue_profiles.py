@@ -362,6 +362,7 @@ NEW_ROWS = """\
 #eval EVAL-ood-17q093-b3 ood_e12bP0think8k_s50_b3_mmlupro1k_T0.6 result:runs/E12b-P0think-8k/global_step_50/actor/huggingface mmlupro1k 4 0.6 16384 think
 #gpus E10b-P5q093t 4
 #gpus E10d-P5q093t 4
+#gpus PROBE-P5Q093T-4B 4
 #gpus PROBE-E12B-P0THINK-S44 4
 #gpus E12b-P0think-8k-s44 4
 #gpus PROBE-E12B-P0THINK-4K 4
