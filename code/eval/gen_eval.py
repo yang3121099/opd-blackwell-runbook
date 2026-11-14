@@ -8,6 +8,7 @@ Example:
       --n 4 --temperature 0.7 --top_p 0.8 --top_k 20 --max_tokens 16384 --out runs/g1
 """
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -283,10 +284,10 @@ def compute_metrics(args, rows, recs, gen_s):
 # arguments keeps every complete block, drops a block that was only partly written, and generates the rest; the last
 # block renames .part to <stem>.jsonl and writes the metrics exactly as an unchunked run does. Blocks never change size,
 # so every problem is generated in the same batch as in an uninterrupted chunked run.
-RESUME_KEYS = ["model", "bench", "mode", "n", "temperature", "top_p", "top_k", "max_tokens", "limit", "seed", "chunk", "prefill"]
+RESUME_KEYS = ["model", "bench", "mode", "n", "temperature", "top_p", "top_k", "max_tokens", "limit", "seed", "chunk", "prefill", "seed_mode"]
 # [z158d] keys added after readings were already running: a .meta written before a key existed still matches while the run uses
 # that key's default (a reading started at z158c resumes under z158d; a prefilled one never resumes an unprefilled .part)
-RESUME_DEFAULTS = {"prefill": ""}
+RESUME_DEFAULTS = {"prefill": "", "seed_mode": "shared"}   # [z158h] seed_mode
 
 
 def resume_state(part, meta, args, rows, K):
@@ -320,6 +321,16 @@ def resume_state(part, meta, args, rows, K):
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
     os.replace(part + ".tmp", part)
     return recs, float(m.get("gen_seconds_done", 0.0)) if blocks else 0.0
+
+
+def request_seeds(pids, base, n):
+    """[z158h] (Fable M1, lab/registry/M1_ci_calibration.md) seed_mode per_problem: each request's seed is a 31-bit hash of (seed base,
+    problem id); vLLM gives sample i the seed + i, so every problem and sample draws its own random stream. (shared, the default: every
+    request uses the base, so sample i of every problem shares one stream.) torch keeps the low 32 bits of a seed: the n per-sample seeds
+    of all problems must stay distinct mod 2**32."""
+    s = [int(hashlib.sha256(f"{base}:{p}".encode()).hexdigest()[:8], 16) & 0x7FFFFFFF for p in pids]
+    assert len({(x + i) % 2 ** 32 for x in s for i in range(n)}) == len(s) * n, "per-problem seeds collide"
+    return s
 
 
 def one_bos(tok, prompt):
@@ -371,7 +382,13 @@ def main():
     # these ids. Records keep the generated part only (text, n_tokens, grading); the metrics name the prefill and the share of samples
     # that write </think> themselves.
     ap.add_argument("--prefill", default="", help="comma-separated token ids prefilled after the template (not generated)")
+    # [z158h] (Fable M1) how request seeds are derived (shared = as before) and, for repeat readings, several seed bases read one after the
+    # other in this engine (one pass each, no blocks; outputs <stem>_s<base>.jsonl / .metrics.json)
+    ap.add_argument("--seed_mode", default="shared", choices=["shared", "per_problem"])
+    ap.add_argument("--seed_list", default="", help="comma-separated seed bases read in this engine one after the other (no blocks)")
     args = ap.parse_args()
+    if args.seed_list and not re.fullmatch(r"[0-9]+(,[0-9]+)*", args.seed_list):
+        raise SystemExit(f"--seed_list must be comma-separated integers, not {args.seed_list!r}")
     if args.prefill and not re.fullmatch(r"[0-9]+(,[0-9]+)*", args.prefill):
         raise SystemExit(f"--prefill must be comma-separated token ids, not {args.prefill!r}")
 
@@ -402,12 +419,28 @@ def main():
     final = os.path.join(args.out, stem + ".jsonl")
     llm = LLM(model=args.model, tensor_parallel_size=args.tp, gpu_memory_utilization=args.gpu_mem,
               max_model_len=model_len(args.model, args.max_tokens), seed=args.seed, trust_remote_code=True, dtype=args.dtype)
-    sp = SamplingParams(n=args.n, temperature=args.temperature, top_p=args.top_p,
-                        top_k=args.top_k if args.top_k > 0 else -1, max_tokens=args.max_tokens, seed=args.seed)
+    def sampling(base):   # [z158h] one SamplingParams (shared) or one per request (per_problem)
+        kw = dict(n=args.n, temperature=args.temperature, top_p=args.top_p, top_k=args.top_k if args.top_k > 0 else -1, max_tokens=args.max_tokens)
+        if args.seed_mode == "shared":
+            return SamplingParams(**kw, seed=base)
+        return [SamplingParams(**kw, seed=x) for x in request_seeds([r["pid"] for r in rows], base, args.n)]
+    if args.seed_list:   # [z158h] repeat readings in one engine
+        for base in [int(x) for x in args.seed_list.split(",")]:
+            t0 = time.time(); outs = llm.generate(prompts, sampling(base)); gen_s = time.time() - t0
+            recs = [make_record(r, si, c, args.mode) for r, o in zip(rows, outs) for si, c in enumerate(o.outputs)]
+            with open(os.path.join(args.out, f"{stem}_s{base}.jsonl"), "w") as f:
+                for rec in recs:
+                    f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            args.seed = base
+            m = compute_metrics(args, rows, recs, gen_s); m.update({"seed": base, "seed_mode": args.seed_mode})
+            json.dump(m, open(os.path.join(args.out, f"{stem}_s{base}.metrics.json"), "w"), indent=2)
+            print(json.dumps({"seed": base, "seed_mode": args.seed_mode, "avg_acc": m["avg_acc"], "mean_tokens": m["mean_tokens"]}), flush=True)
+        return
+    sp = sampling(args.seed)
     if args.chunk <= 0:
         t0 = time.time()
         outs = llm.generate(prompts, sp)
-        gen_s = time.time() - t0
+        gen_s = time.time() - t0   # (a per_problem list matches prompts one to one)
         recs = [make_record(r, si, c, args.mode) for r, o in zip(rows, outs) for si, c in enumerate(o.outputs)]
         with open(final, "w") as f:
             for rec in recs:
@@ -425,7 +458,7 @@ def main():
             print(f"RESUME {stem}: {done_rows}/{len(rows)} problems kept from {part}", flush=True)
         for b in range(done_rows, len(rows), K):
             t0 = time.time()
-            outs = llm.generate(prompts[b:b + K], sp)
+            outs = llm.generate(prompts[b:b + K], sp[b:b + K] if isinstance(sp, list) else sp)   # [z158h] per_problem: the block's own seeds
             gen_s += time.time() - t0
             block = [make_record(r, si, c, args.mode) for r, o in zip(rows[b:b + K], outs) for si, c in enumerate(o.outputs)]
             with open(part, "a") as f:
