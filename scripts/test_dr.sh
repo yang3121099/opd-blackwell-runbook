@@ -284,5 +284,13 @@ mkdir -p $T/base/root/runs/PROBE-E12D-P0THINK-8G; echo '{"result": "PASS"}' > $T
 ( DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0,1,2,3,4,5,6,7 E12d-P0think-8k-s43 > $T/q8 2>&1 ); q8=$(tail -2 $T/q8)
 ok "[z156] E12d-P0think-8k-s43: the 4B base, 50 steps, 8 GPUs, venv-fa, s25 / s50 up, 8K, thinking, data.seed 43 (config too)" '[[ "$q8" == "DRYRUN_THINK enable_thinking=True data_seed=43"*"DRYRUN E12d-P0think-8k-s43 start=$T/m4 steps=50 "*"venv=venv-fa ngpu=8 "*"upload=25,50 "*"var=8k "* ]] && grep -q "^data_seed: 43$" $T/base/root/runs/E12d-P0think-8k-s43/config.yaml && grep -q "^steps: 50$" $T/base/root/runs/E12d-P0think-8k-s43/config.yaml'
 ok "[z154 on z153] both new arms' config.yaml name steps: 50 (upload_sync's final-step rule)" 'grep -q "^steps: 50$" $T/base/root/runs/E12e-P0think-8k/config.yaml && grep -q "^steps: 50$" $T/base/root/runs/E12b-P0think-8k-s43/config.yaml'
+# [z158f] (Q-096 B) E12b-P0think-8k-c100: Q-093 s50 from its #fetch copy, 50 steps on the 50-step continuation file, s25 / s50 up, gate
+# PROBE-E12B-P0THINK-S44 (the same recipe on 4 GPUs); it waits (WAIT_INPUTS, the dry-run's adhoc_fetch form) while the start is not in
+mkdir -p $T/base/root/runs/PROBE-E12B-P0THINK-S44; echo '{"result": "PASS"}' > $T/base/root/runs/PROBE-E12B-P0THINK-S44/report.json
+c0=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0,1,2,3 E12b-P0think-8k-c100 2>&1 | tail -1)
+CS=$T/ck/adhoc_models/result/runs/E12b-P0think-8k/global_step_50/actor/huggingface; mkdir -p $CS; : > $CS/model.safetensors; : > $CS/.fetch_ok
+c1=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0,1,2,3 E12b-P0think-8k-c100 2>&1)
+ok "[z158f] c100 waits for Q-093 s50's #fetch copy" '[ "$c0" = "WAIT_INPUTS E12b-P0think-8k-c100: start needs Q-093 s50 (no local copy, no adhoc_models/result/runs/E12b-P0think-8k/global_step_50/actor/huggingface/.fetch_ok)" ]'
+ok "[z158f] c100: Q-093 s50, 50 steps, dapo_train_skip3200_s4242, s25 / s50 up, 8K, thinking, data.seed 4242, a continues: line" '[[ "$(echo "$c1" | tail -1)" == "DRYRUN E12b-P0think-8k-c100 start=$CS steps=50 "*"upload=25,50 "*"var=8k "* ]] && echo "$c1" | grep -q "^DRYRUN_C100 start=$CS steps=50 train=dapo_train_skip3200_s4242.parquet uw=25,50$" && echo "$c1" | grep -q "^DRYRUN_THINK enable_thinking=True data_seed=4242" && grep -q "^continues: E12b-P0think-8k s50 for 50 steps (weights only" $T/base/root/runs/E12b-P0think-8k-c100/config.yaml'
 rm -rf $T
 [ $fails = 0 ] && echo "DR_TEST PASS ($n checks)" || echo "DR_TEST FAIL ($fails of $n)"
