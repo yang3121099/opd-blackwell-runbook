@@ -350,7 +350,7 @@ def main():
     ap.add_argument("--max_tokens", type=int, default=16384)
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--tp", type=int, default=1)
-    ap.add_argument("--gpu_mem", type=float, default=0.90)
+    ap.add_argument("--gpu_mem", type=float, default=float(os.environ.get("EVAL_GPU_MEM", "0.90")))   # [z158a] EVAL_GPU_MEM: several engines per card / beside a training
     ap.add_argument("--seed", type=int, default=0)
     # runbook v2.5.7q: vLLM's dtype; auto (default, as before) follows the checkpoint's config. A training's own HF save is
     # fp32 (its upload is converted to bf16), so a reading of that save passes bfloat16 to be read as the upload would be

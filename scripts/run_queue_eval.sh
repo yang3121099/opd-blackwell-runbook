@@ -86,7 +86,7 @@ while read -r TAG MODEL BENCH N TEMP MAXT MODE; do
   if [ -n "$DS" ] && [ ! -f $OPD_ROOT/data/hf/$DS/.fetch_ok ]; then echo "WAIT_INPUTS $T: $DS not in (no .fetch_ok)"; exit 1; fi
   # [v2.5.9z16] an ifeval reading is graded in venv-ifeval: until BUILD-VENV-IFEVAL has built it, the task waits (nothing generated)
   if [ $BENCH = ifeval ] && [ ! -x $VIF/bin/python ]; then echo "WAIT_INPUTS $T: venv-ifeval not built (BUILD-VENV-IFEVAL)"; exit 1; fi
-  case $BENCH in aime24|aime25|amc23) K=10;; *) K=50;; esac
+  case $BENCH in aime24|aime25|amc23) K=${EVAL_CHUNK_AIME:-10};; *) K=${EVAL_CHUNK:-50};; esac   # [z158a] (Fable D95 / D98, B300 load) block size = the concurrent requests of one engine; a resumed reading keeps its block size (gen_eval RESUME_KEYS)
   gpu_wait_free $G || { python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1; gpu_wait_free $G 120; }   # [v2.5.8] the previous engine gone first
   echo "EVAL_START $(date -u +%T) $TAG"
   EV=$RUNBOOK/code/eval/gen_eval.py; PYE=python   # [v2.5.9z] the image benches: gen_eval_vl.py in venv-vl (same arguments and file names)

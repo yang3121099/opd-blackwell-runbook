@@ -2560,3 +2560,17 @@ def test_b300_references_new_names_z157(env):   # [z157] (Fable D87) B300 same-m
     assert all(tags.count(t) == 1 for t in tags if "_b3_" in t) and len([t for t in tags if "_b3_" in t]) == 11
     for k, t in enumerate(names):
         assert env.c.v_run([t], 1990 + k)[0] == "accepted", t
+
+
+def test_eval_load_knobs_z158a():   # [z158a] (Fable D95 / D98) the reading engine's block size and memory share from the environment, defaults unchanged
+    import subprocess
+    src = open(os.path.join(HERE, "run_queue_eval.sh")).read()
+    line = next(l for l in src.splitlines() if "case $BENCH in aime24|aime25|amc23) K=" in l)
+    for env, bench, want in (({}, "math500", "50"), ({}, "aime25", "10"), ({"EVAL_CHUNK": "250"}, "math500", "250"),
+                             ({"EVAL_CHUNK_AIME": "30"}, "aime24", "30"), ({"EVAL_CHUNK": "250"}, "aime24", "10")):
+        out = subprocess.run(["bash", "-c", f"BENCH={bench}; {line.split('#')[0]}; echo $K"], capture_output=True, text=True,
+                             env=dict(os.environ, **env)).stdout.strip()
+        assert out == want, (env, bench, out)
+    g = open(os.path.join(HERE, "..", "code", "eval", "gen_eval.py")).read()
+    assert 'default=float(os.environ.get("EVAL_GPU_MEM", "0.90"))' in g
+    assert '"chunk"' in g.split("RESUME_KEYS")[1].split("\n")[0]   # a resumed reading keeps its block size
