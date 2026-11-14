@@ -35,7 +35,8 @@ case $T in
   E12b-P5tail-8k-s44) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z93] (Q-074g) the 8K RL arm from E10b-P5tail-s44 s50, one GPU; above E12b-*
   E10b-P5tail-s43) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z41] (padding ruling 10-22) tail-swap, data.seed 43
   E10b-P5route-inv) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z45] (Q-063) route reversed: easy -> thinking teacher
-  E10b-P5selfroute) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z82] (Q-072) route with the probe's out-of-fold labels
+  E10b-P5selfroute) bash $RUNBOOK/scripts/run_arm.sh $G $T;;
+  E10b-P5q093t|E10d-P5q093t) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [z158c] (Q-095)   # [v2.5.9z82] (Q-072) route with the probe's out-of-fold labels
   E10b-P5mix60) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z47] mix with the thinking teacher on p = 0.6 of the prompts
   E16-X5|E16-X5e) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z46] (Q-057) a student without a thinking mode (Qwen2.5-Math-1.5B-Instruct <- R1-Distill-1.5B)
   E10b-P5-8k|E10b-P5smerge-8k) bash $RUNBOOK/scripts/run_arm.sh $G $T;;   # [v2.5.9z66] (Q-059) P5 / stop-merged P5 with 8K rollouts
@@ -113,6 +114,8 @@ case $T in
   PROBE-E12C-8K) PEV_LADDER=E12c bash $RUNBOOK/scripts/probe_e12var.sh $G 8k;;   # [v2.5.9z85] (Q-077): the gate of E12c-P5-8k
   PROBE-E12C-16K) PEV_LADDER=E12c bash $RUNBOOK/scripts/probe_e12var.sh $G 16k;;   # [v2.5.9z85] (Q-077): the gate of E12c-P5-16k
   PROBE-P5SELF-4B) bash $RUNBOOK/scripts/probe_p5self.sh $G 4b;;   # [v2.5.8e] the gate of E10d-P5self
+  PROBE-P5Q093T) bash $RUNBOOK/scripts/probe_p5self.sh $G q093t;;   # [z158c] (Q-095 A) its 3-step smoke on one GPU
+  PROBE-P5Q093T-4B) bash $RUNBOOK/scripts/probe_p5self.sh $G q093t4b;;   # [z158c] (Q-095 B)
   PROBE-P5SELF-06B) bash $RUNBOOK/scripts/probe_p5self.sh $G 06b;;   # [v2.5.9v] (Q-047) the gate of E10c-P5self
   PROBE-NET) bash $RUNBOOK/scripts/probe_net.sh $G;;   # [v2.5.9c] the routes to the model hubs (the CPU lane)
   PROBE-NET2) bash $RUNBOOK/scripts/probe_net2.sh $G;;   # [v2.5.9h] per-connection or per-host limit, parallel Range connections (the CPU lane)

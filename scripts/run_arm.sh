@@ -33,6 +33,10 @@ SELF=0; [ $TASK = E10b-P5self ] && { SELF=1; BASE=E10b-P5; }
 # [v2.5.8e] (reviewer 15:5x UTC 10-20): E10b-P5self-s43 = its second seed (data.seed 43, the seed parse above); E10d-P5self =
 # the same with the 4B student, whose own base (Qwen3-4B, thinking template) is the teacher; 50 steps, E10d's batching
 [ $TASK = E10b-P5self-s43 ] && { SELF=1; BASE=E10b-P5; }
+# [z158c] (Fable D94, lab/registry/Q-095.md) E10b-P5q093t / E10d-P5q093t = E10b-P5self / E10d-P5self with ONE change: the teacher is Q-093's s50
+# (E12b-P0think-8k global_step_50, the 1.7B direct window RL, read in the thinking template like P5self's teacher), fetched from the public
+# result repository (#fetch); gates PROBE-P5Q093T / PROBE-P5Q093T-4B (probe_p5self.sh q093t / q093t4b)
+Q093T=0; [ $TASK = E10b-P5q093t ] && { SELF=1; BASE=E10b-P5; Q093T=1; }
 # v2.5.7zg (Q-019, reviewer 17:0x UTC): E10b-P2self = P2 (non-thinking teacher prompt) with the teacher replaced by the
 # student's own base, the other cell of the 2x2 (teacher mode x teacher = self); 50 steps on venv-fa, gated by PROBE-P2SELF
 [ $TASK = E10b-P2self ] && { SELF=1; BASE=E10b-P2; }
@@ -54,7 +58,8 @@ POLISH=0; [ $TASK = E10c-P5-polish ] && { POLISH=1; BASE=E10b-P5; MODE=fix4; }
 # v2.5.7b (queue v3 V3-c5, the 4B probe): E10d-<P2|P5> = the E10b arm with the 4B student ($STUDENT_4B); gradient
 # checkpointing stays on for it (GC=0 was measured on 1.7B only), the batching is the node's (FIXED_MICRO_BSZ)
 SIZE=""; [[ $TASK =~ ^E10d-(P2|P5)(-s43)?$ ]] && { BASE=E10b-${BASH_REMATCH[1]}; SIZE=4B; }   # v2.5.7o: -s43 = data.seed 43
-[[ $TASK =~ ^E10d-P5self(-s43)?$ ]] && { BASE=E10b-P5; SIZE=4B; SELF=1; }   # [v2.5.8e]; [v2.5.9z77] (Q-070) -s43 = data.seed 43, its second start
+[[ $TASK =~ ^E10d-P5self(-s43)?$ ]] && { BASE=E10b-P5; SIZE=4B; SELF=1; }
+[ $TASK = E10d-P5q093t ] && { BASE=E10b-P5; SIZE=4B; SELF=1; Q093T=1; }   # [z158c] (Q-095 B) the 4B student, the same 1.7B teacher   # [v2.5.8e]; [v2.5.9z77] (Q-070) -s43 = data.seed 43, its second start
 # [v2.5.9z68] (Q-068, research_program 3c; Fable 10-23 15:1x UTC, Runming 23:0x Beijing: multi-GPU work for the main line) E10e-P5self =
 # P5self with the 8B student: Qwen3-8B on the non-thinking template taught by its own weights on the thinking template (P5's teacher
 # prompt); E10d's batching and lr, 50 steps, four GPUs (#gpus 4: FSDP over four ranks, one vLLM engine each, the teacher offloaded),
@@ -238,6 +243,8 @@ fi
 [ $T14 = 1 ] && { TEACHER=$TEACHER_14B; TEACHER_OFFLOAD=0; }   # v2.5.7p: a node-wide TEACHER_OFFLOAD does not reach it
 [ $T32 = 1 ] && { TEACHER=${TEACHER_32B:-$OPD_ROOT/models/Qwen3-32B}; TEACHER_OFFLOAD=1; }   # [v2.5.9z9] offloaded whatever the node's setting
 [ $SELF = 1 ] && { TEACHER=$STUDENT_17B; [ "$SIZE" = 4B ] && TEACHER=$STUDENT_4B; [ -n "$MODE" ] && TEACHER=$STUDENT_06B; [ "$SIZE" = 8B ] && TEACHER=$STUDENT; }   # v2.5.7v; [v2.5.8e] the 4B student's own base; [v2.5.9v] the 0.6B one's
+[ $Q093T = 1 ] && { TEACHER=$CKPT_ROOT/adhoc_models/result/runs/E12b-P0think-8k/global_step_50/actor/huggingface   # [z158c] (Q-095) after the SELF line
+  [ -f $TEACHER/config.json ] || { echo "Q095_TEACHER_MISSING $TEACHER (the #fetch of E12b-P0think-8k global_step_50 not local yet)"; exit 1; }; }
 [ $POLISH = 1 ] && TEACHER=$STUDENT_06B   # [v2.5.9u] the 0.6B base on its thinking template
 if [ -n "$XARM" ]; then   # [v2.5.8i] hub ids, resolved to the local HF cache after the venv is active
   STUDENT=${STUDENT_I2507:-Qwen/Qwen3-4B-Instruct-2507}; TEACHER=${TEACHER_T2507:-Qwen/Qwen3-4B-Thinking-2507}; [ $XARM = X2 ] && TEACHER=$STUDENT_4B

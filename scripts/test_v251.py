@@ -2187,8 +2187,8 @@ def test_newnode_v2_profiles_v259z137(env):
 def test_split_pair_1gs_8gs_z139():   # [z139] two machines: together 8g80's stages, only the gates on both; 8gs keeps every training
     import queue_profiles as QP
     a, b = QP.PROFILES["1gs"], QP.PROFILES["8gs"]
-    assert set(a) | set(b) == set(QP.PROFILES["8g80"]) | {"p1q8", "p1qs43", "p1q4s43", "p1h2", "p1b3", "p1b3q093", "p1qs44", "p1q096a"} and set(a) & set(b) == {"p0a"}   # [z154] two 8gs-only stages and a[0] == b[0] == "p0a"
-    assert [s for s in QP.PROFILES["8g80"] if s in b] + ["p1q8", "p1qs43", "p1q4s43", "p1h2", "p1b3", "p1b3q093", "p1qs44", "p1q096a"] == b  # [z156] p1q4s43; [z156b] p1h2; [z157] p1b3; 8g80's order ([z154] + the two 8gs-only stages last)
+    assert set(a) | set(b) == set(QP.PROFILES["8g80"]) | {"p1q8", "p1qs43", "p1q4s43", "p1h2", "p1b3", "p1b3q093", "p1qs44", "p1q096a", "p1q095", "p1q096c"} and set(a) & set(b) == {"p0a"}   # [z154] two 8gs-only stages and a[0] == b[0] == "p0a"
+    assert [s for s in QP.PROFILES["8g80"] if s in b] + ["p1q8", "p1qs43", "p1q4s43", "p1h2", "p1b3", "p1b3q093", "p1qs44", "p1q096a", "p1q095", "p1q096c"] == b  # [z156] p1q4s43; [z156b] p1h2; [z157] p1b3; 8g80's order ([z154] + the two 8gs-only stages last)
     spec, _ = QP.source()
     ta = {x.split(":")[0] for st in a for x in QP.stage_specs(st, spec)}
     assert not [t for t in ta if re.match(r"E1\d", t)]                          # no training on the 1-GPU box
@@ -2557,7 +2557,7 @@ def test_b300_references_new_names_z157(env):   # [z157] (Fable D87) B300 same-m
         assert len(a) == len(b) == 1 and a[0][2:4] == b[0][2:4] and a[0][5:] == b[0][5:], new
         assert a[0][4] == b[0][4].replace("-b2/", "-b3/").replace("_b2_", "_b3_"), new
     tags = [l.split()[2] for l in L if l.startswith("#eval ")]
-    assert all(tags.count(t) == 1 for t in tags if "_b3_" in t) and len([t for t in tags if "_b3_" in t]) == 13   # [z158b] + the two Q-093 s50 reread tags
+    assert all(tags.count(t) == 1 for t in tags if "_b3_" in t) and len([t for t in tags if "_b3_" in t]) == 24   # [z158b] + the two Q-093 s50 reread tags; [z158c] + 2 P5self rereads + 9 out-of-domain
     for k, t in enumerate(names):
         assert env.c.v_run([t], 1990 + k)[0] == "accepted", t
 
@@ -2614,3 +2614,33 @@ def test_new_17b_arms_z158b(env):   # [z158b] (Fable D95 / D96 / D98) Q-093-s44 
     for k, g in enumerate(("PROBE-E12B-P0THINK-S44", "PROBE-E12B-P0THINK-4K", "PROBE-E12B-P0THINK-16K")):
         import control_rules as R
         R.parse({"cmd": f"rerun {g}", "reason": "t"})
+
+
+def test_q095_and_ood_z158c(env):   # [z158c] (Fable D94 / D96) Q-095 (P5self with Q-093 s50 as the teacher) and Q-096 C (out-of-domain readings)
+    import queue_profiles as QP, re as _re
+    for p, st in QP.PROFILES.items():
+        assert all((x in st) == (p == "8gs") for x in ("p1q095", "p1q096c")), p
+    L, stages, spec = _profile_queue("8gs")
+    assert spec["E10b-P5q093t"] == ["PROBE-P5Q093T"] and spec["E10d-P5q093t"] == ["PROBE-P5Q093T-4B"]
+    assert spec["EVAL-e10b-P5self-b3"] == [] and spec["EVAL-e10d-P5self-b3"] == [] and spec["EVAL-ood-17q093-b3"] == []
+    assert "#gpus E10b-P5q093t 4" in L and "#gpus E10d-P5q093t 4" in L and not any(l.startswith("#gpus PROBE-P5Q093T") for l in L)
+    for f in ("E12b-P0think-8k/global_step_50", "E10b-P5self/global_step_50", "E10d-P5self/global_step_50"):
+        assert f"#fetch result:runs/{f}/actor/huggingface" in L, f
+    assert "#fetch dataset:TIGER-Lab/MMLU-Pro" in L
+    ev = {l.split()[1]: l.split() for l in L if l.startswith("#eval EVAL-e10") and ("q093t" in l or "-b3 " in l)}
+    assert ev["EVAL-e10b-P5q093t"][3:] == ["result:runs/E10b-P5q093t/global_step_50/actor/huggingface", "math500", "4", "0.6"]
+    assert ev["EVAL-e10d-P5self-b3"][3:] == ["result:runs/E10d-P5self/global_step_50/actor/huggingface", "math500", "4", "0.6"]
+    ood = [l.split() for l in L if l.startswith("#eval EVAL-ood-")]
+    assert len(ood) == 9 and {r[4] for r in ood} == {"olympiadbench", "minervamath", "mmlupro1k"}
+    assert all((r[-1] == "think") == (r[1] != "EVAL-ood-17chain-b3") for r in ood)   # the chain in its own non-thinking template
+    arm = open(os.path.join(HERE, "run_arm.sh")).read()
+    assert "[ $TASK = E10b-P5q093t ] && { SELF=1; BASE=E10b-P5; Q093T=1; }" in arm and "[ $TASK = E10d-P5q093t ] && { BASE=E10b-P5; SIZE=4B; SELF=1; Q093T=1; }" in arm
+    i_self = arm.index("[ $SELF = 1 ] && { TEACHER=$STUDENT_17B;"); i_q = arm.index("[ $Q093T = 1 ] && { TEACHER=$CKPT_ROOT/adhoc_models/result/runs/E12b-P0think-8k/global_step_50/actor/huggingface")
+    assert i_q > i_self   # the Q-095 teacher replaces P5self's
+    pr = open(os.path.join(HERE, "probe_p5self.sh")).read()
+    assert '[ "${2:-}" = q093t ] && { T=PROBE-P5Q093T; ARMT=E10b-P5q093t;' in pr and '[ "${2:-}" = q093t4b ] && { T=PROBE-P5Q093T-4B; ARMT=E10d-P5q093t;' in pr
+    assert 'is not Q-093 s50' in pr
+    names = ["PROBE-P5Q093T", "E10b-P5q093t", "EVAL-e10b-P5q093t", "PROBE-TERM4-N095A", "PROBE-P5Q093T-4B", "E10d-P5q093t", "EVAL-e10d-P5q093t",
+             "PROBE-TERM4-N095B", "EVAL-e10b-P5self-b3", "EVAL-e10d-P5self-b3", "EVAL-ood-17think-b3", "EVAL-ood-17chain-b3", "EVAL-ood-17q093-b3"]
+    for k, t in enumerate(names):
+        assert env.c.v_run([t], 2050 + k)[0] == "accepted", t

@@ -13,6 +13,8 @@ G=$1; source "$(dirname "$0")/env.sh"
 T=PROBE-P5SELF; ARMT=E10b-P5self; UPD=probe_p5self
 [ "${2:-}" = 4b ] && { T=PROBE-P5SELF-4B; ARMT=E10d-P5self; UPD=probe_p5self_4b; }   # [v2.5.8e]
 [ "${2:-}" = 06b ] && { T=PROBE-P5SELF-06B; ARMT=E10c-P5self; UPD=probe_p5self_06b; }   # [v2.5.9v]
+[ "${2:-}" = q093t ] && { T=PROBE-P5Q093T; ARMT=E10b-P5q093t; UPD=probe_p5q093t; }   # [z158c] (Q-095 A)
+[ "${2:-}" = q093t4b ] && { T=PROBE-P5Q093T-4B; ARMT=E10d-P5q093t; UPD=probe_p5q093t_4b; }   # [z158c] (Q-095 B)
 D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; mkdir -p $D
 [ -f $D/.done ] && { echo "TASK_ALREADY_DONE $T"; exit 0; }
 rm -f $D/mem.csv   # [v2.5.9z11] this run's memory samples only (a rerun keeps the directory: PROBE-STOPMERGE's 4th peak was the 2nd run's)
@@ -64,5 +66,6 @@ peak=$(cut -d, -f2 $D/mem.csv 2> /dev/null | sort -n | tail -1)
 grep -q "CUDA out of memory\|OutOfMemoryError" $D/smoke/train.log 2> /dev/null && finish FAIL "out of memory in the smoke"
 [ "${peak:-0}" -lt ${PSE_PEAK_MIB:-266240} ] || finish FAIL "peak ${peak} MiB >= 260 GB"
 S=$(sed -n 's/^student: \(.*\) (no_think)$/\1/p' $D/smoke/config.yaml); TT=$(sed -n 's/^teacher: \(.*\) (ref;.*$/\1/p' $D/smoke/config.yaml)   # [v2.5.8e]
-[ -n "$S" ] && [ "$S" = "$TT" ] || finish FAIL "the smoke's teacher ($TT) is not the student itself ($S)"
+case $ARMT in E10[bd]-P5q093t) case "$TT" in */result/runs/E12b-P0think-8k/global_step_50/actor/huggingface) ;; *) finish FAIL "the smoke's teacher ($TT) is not Q-093 s50";; esac;;   # [z158c]
+  *) [ -n "$S" ] && [ "$S" = "$TT" ] || finish FAIL "the smoke's teacher ($TT) is not the student itself ($S)";; esac
 finish PASS "${PSE_STEPS:-3}-step smoke ok, peak ${peak} MiB"
