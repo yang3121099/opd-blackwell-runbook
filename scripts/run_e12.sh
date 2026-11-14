@@ -59,7 +59,7 @@ DSEED=4242; [ "$A" = P0think-8k-s43 ] && { VAR=8k; A=P0; THINK=True; DSEED=43; }
 # [z158b] (Fable D95 / D96: lab/registry/Q-093c.md Q-093-s44, Q-096 A) E12b-P0think-8k-s44 = Q-093 with data.seed 44; E12b-P0think-4k /
 # E12b-P0think-16k = Q-093 with the training window 4K / 16K (MAXR 4096 / 16384), seed 4242; each with its own 3-step gate
 [ "$A" = P0think-8k-s44 ] && { VAR=8k; A=P0; THINK=True; DSEED=44; }
-[ "$A" = P0think-4k ] && { VAR=""; A=P0; THINK=True; }
+W4=""; [ "$A" = P0think-4k ] && { VAR=""; A=P0; THINK=True; W4=1; }   # [z158g] W4: 50 steps as Q-093 (VAR "" alone kept P0's 100)
 [ "$A" = P0think-16k ] && { VAR=16k; A=P0; THINK=True; }
 # [z158f] (Fable D96 / D99, lab/registry/Q-096.md B) E12b-P0think-8k-c100 = Q-093 continued from its s50 for 50 steps (s51-s100) with
 # the same recipe: weights only (Q-093 ran on one GPU, its sharded state cannot resume a 4-GPU run: Fable 02:3x), a fresh optimizer
@@ -150,6 +150,7 @@ case $VAR in 8k|16k|16k-kl) STEPS=${E12B_LONG_STEPS:-50};; r3) STEPS=${E12B_R3_S
 [ -n "$PROG" ] && STEPS=${PROG_STEPS:-25}   # [v2.5.9z43] 25 more steps (total s50)
 [ -n "$CONT" ] && STEPS=25   # [v2.5.9z129] s26-s50 of E12e-P5tail-8k
 [ -n "$C100" ] && STEPS=50   # [z158f] s51-s100 of Q-093
+[ -n "$W4" ] && STEPS=${E12B_LONG_STEPS:-50}   # [z158g] (Q-096 A: 50 steps, as Q-093; the 4K smoke's config named steps: 100)
 hf_backoff() { local s; s=$(python3 $RUNBOOK/scripts/remote.py backoff 2> /dev/null); [ "${s:-0}" -gt 0 ] 2> /dev/null; }   # [v2.5.9z52] the 429 backoff lasts
 [ $A = P0 ] || has_weights $START || ! hf_backoff || { echo "WAIT_INPUTS $T$NN: start checkpoint not in (the HF 429 backoff lasts)"; exit 1; }   # [v2.5.9z52] waiting, no attempt
 [ $A = P0 ] || has_weights $START || { echo "missing start checkpoint $START"; exit 1; }

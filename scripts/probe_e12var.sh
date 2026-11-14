@@ -304,7 +304,9 @@ PY
   finish PASS "${PEV_STEPS:-3}-step smoke ok, peak ${peak} MiB; kept groups by step $KG of ${PEV_R3_GROUPS:-128} (zero-variance share $ZV); rows, the whitening, the rollout dump and vardrop.jsonl checked"
 fi
 if [ $VAR = p0think ]; then   # [z146] (Q-093) the limit, the template switch, and the rollouts really in the thinking mode
-  grep -q "^max_response_length: 8192$" $D/smoke/config.yaml || finish FAIL "the smoke's config does not name max_response_length 8192"
+  # [z158g] (the 4K gate failed 11-14 19:38Z on this check) the window of the arm the gate smokes: 4K / 16K for Q-096 A, else 8K
+  N=8192; case $ARM in *-P0think-4k) N=4096;; *-P0think-16k) N=16384;; esac
+  grep -q "^max_response_length: $N$" $D/smoke/config.yaml || finish FAIL "the smoke's config does not name max_response_length $N"
   grep -q "^chat_template: enable_thinking=True$" $D/smoke/config.yaml || finish FAIL "the smoke's config does not name enable_thinking=True"
   cp $OPD_ROOT/runs/$T-smoke/rollouts/1.jsonl $D/smoke/rollouts_1.jsonl 2> /dev/null
   TF=$(python3 - "$D/smoke/rollouts_1.jsonl" <<'PY'
@@ -325,7 +327,7 @@ PY
   [ "$TF" != none ] || finish FAIL "no step-1 rollout dump to check the template"
   python3 -c "import sys; sys.exit(0 if float(sys.argv[1]) >= ${PEV_THINK_MIN:-0.1} else 1)" $TF || finish FAIL "only $TF of the step-1 rollouts close a </think> (thinking template not in effect?)"
   LENS=$(grep -oE "response_length/mean:[0-9.]+" $D/smoke/train.log | cut -d: -f2 | xargs | tr ' ' '/')
-  finish PASS "${PEV_STEPS:-3}-step smoke ok at the 8192 limit in the thinking template, peak ${peak} MiB, $TF of step-1 rollouts close </think>, response_length/mean by step ${LENS:-none}"
+  finish PASS "${PEV_STEPS:-3}-step smoke ok at the $N limit in the thinking template, peak ${peak} MiB, $TF of step-1 rollouts close </think>, response_length/mean by step ${LENS:-none}"
 fi
 if [ $VAR = 8k ] || [ $VAR = 16k ]; then   # [v2.5.8h]
   N=$(( ${VAR%k} * 1024 ))

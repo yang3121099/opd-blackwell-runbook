@@ -292,5 +292,9 @@ CS=$T/ck/adhoc_models/result/runs/E12b-P0think-8k/global_step_50/actor/huggingfa
 c1=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0,1,2,3 E12b-P0think-8k-c100 2>&1)
 ok "[z158f] c100 waits for Q-093 s50's #fetch copy" '[ "$c0" = "WAIT_INPUTS E12b-P0think-8k-c100: start needs Q-093 s50 (no local copy, no adhoc_models/result/runs/E12b-P0think-8k/global_step_50/actor/huggingface/.fetch_ok)" ]'
 ok "[z158f] c100: Q-093 s50, 50 steps, dapo_train_skip3200_s4242, s25 / s50 up, 8K, thinking, data.seed 4242, a continues: line" '[[ "$(echo "$c1" | tail -1)" == "DRYRUN E12b-P0think-8k-c100 start=$CS steps=50 "*"upload=25,50 "*"var=8k "* ]] && echo "$c1" | grep -q "^DRYRUN_C100 start=$CS steps=50 train=dapo_train_skip3200_s4242.parquet uw=25,50$" && echo "$c1" | grep -q "^DRYRUN_THINK enable_thinking=True data_seed=4242" && grep -q "^continues: E12b-P0think-8k s50 for 50 steps (weights only" $T/base/root/runs/E12b-P0think-8k-c100/config.yaml'
+# [z158g] (Q-096 A) E12b-P0think-4k: 50 steps as Q-093 (VAR "" alone kept P0's 100), s25 / s50 up, at 4K; the 16K arm 50 steps too
+mkdir -p $T/base/root/runs/PROBE-E12B-P0THINK-4K $T/base/root/runs/PROBE-E12B-P0THINK-16K; for g in PROBE-E12B-P0THINK-4K PROBE-E12B-P0THINK-16K; do echo '{"result": "PASS"}' > $T/base/root/runs/$g/report.json; done
+w4=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0,1,2,3 E12b-P0think-4k 2>&1 | tail -1); w16=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0,1,2,3 E12b-P0think-16k 2>&1 | tail -1)
+ok "[z158g] E12b-P0think-4k: 50 steps, s25 / s50 up; E12b-P0think-16k: 50 steps, var 16k" '[[ "$w4" == "DRYRUN E12b-P0think-4k start="*" steps=50 "*"upload=25,50 "* ]] && [[ "$w16" == "DRYRUN E12b-P0think-16k start="*" steps=50 "*"upload=25,50 "*"var=16k "* ]]'
 rm -rf $T
 [ $fails = 0 ] && echo "DR_TEST PASS ($n checks)" || echo "DR_TEST FAIL ($fails of $n)"

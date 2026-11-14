@@ -2597,7 +2597,7 @@ def test_new_17b_arms_z158b(env):   # [z158b] (Fable D95 / D96 / D98) Q-093-s44 
     assert [r[3] for r in rr] == ["result:runs/E12b-P0think-8k/global_step_50/actor/huggingface"] * 2
     run_e12 = open(os.path.join(HERE, "run_e12.sh")).read()
     assert '[ "$A" = P0think-8k-s44 ] && { VAR=8k; A=P0; THINK=True; DSEED=44; }' in run_e12
-    assert '[ "$A" = P0think-4k ] && { VAR=""; A=P0; THINK=True; }' in run_e12 and '[ "$A" = P0think-16k ] && { VAR=16k; A=P0; THINK=True; }' in run_e12
+    assert 'W4=""; [ "$A" = P0think-4k ] && { VAR=""; A=P0; THINK=True; W4=1; }' in run_e12 and '[ -n "$W4" ] && STEPS=${E12B_LONG_STEPS:-50}' in run_e12 and '[ "$A" = P0think-16k ] && { VAR=16k; A=P0; THINK=True; }' in run_e12
     task = open(os.path.join(HERE, "task.sh")).read()
     for g, a in (("S44", "E12b-P0think-8k-s44"), ("4K", "E12b-P0think-4k"), ("16K", "E12b-P0think-16k")):
         assert f"PROBE-E12B-P0THINK-{g}) PEV_NAME=PROBE-E12B-P0THINK-{g} PEV_ARM={a} bash" in task
