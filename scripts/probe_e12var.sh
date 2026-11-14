@@ -92,7 +92,7 @@ ARM=$L-P5-$VAR; [ $L = E12e ] && ARM=$L-P5self-$VAR   # [v2.5.9z91] (Q-081) PEV_
 [ $L:$VAR = E12d:p0think ] && ARM=E12d-P0think-8k   # [z149] (Q-093b) the 4B arm on its four GPUs (#gpus 4)
 [ $L:$VAR = E12e:p0think ] && ARM=E12e-P0think-8k   # [z154] (Q-093c) the 8B arm on its eight GPUs
 [ $L:$VAR = E12b:p0think ] && ARM=E12b-P0think-8k   # [z146] (Q-093) PROBE-E12B-P0THINK smokes the arm itself: the base in the thinking template at 8K
-[[ ${PEV_ARM:-} =~ ^E12[bcde]-P0think-8k(-s43)?$ ]] && ARM=$PEV_ARM   # [z154] PROBE-E12B-P0THINK-8G smokes E12b-P0think-8k-s43 itself
+[[ ${PEV_ARM:-} =~ ^E12[bcde]-P0think-(8k(-s4[34])?|4k|16k)$ ]] && ARM=$PEV_ARM   # [z158b] s44 / 4k / 16k   # [z154] PROBE-E12B-P0THINK-8G smokes E12b-P0think-8k-s43 itself
 SMOKE=1 SMOKE_STEPS=${PEV_STEPS:-3} PROBE_TASK=$T-smoke bash $RUNBOOK/scripts/run_e12.sh $G $ARM > $D/smoke.out 2>&1; rc=$?   # [v2.5.9z85] $L
 kill $MP 2> /dev/null
 mkdir -p $D/smoke; cp $OPD_ROOT/runs/$T-smoke/train.log $OPD_ROOT/runs/$T-smoke/config.yaml $D/smoke/ 2> /dev/null
