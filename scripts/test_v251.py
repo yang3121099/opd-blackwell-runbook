@@ -2187,8 +2187,8 @@ def test_newnode_v2_profiles_v259z137(env):
 def test_split_pair_1gs_8gs_z139():   # [z139] two machines: together 8g80's stages, only the gates on both; 8gs keeps every training
     import queue_profiles as QP
     a, b = QP.PROFILES["1gs"], QP.PROFILES["8gs"]
-    assert set(a) | set(b) == set(QP.PROFILES["8g80"]) | {"p1q8", "p1qs43", "p1q4s43", "p1h2"} and set(a) & set(b) == {"p0a"}   # [z154] two 8gs-only stages and a[0] == b[0] == "p0a"
-    assert [s for s in QP.PROFILES["8g80"] if s in b] + ["p1q8", "p1qs43", "p1q4s43", "p1h2"] == b  # [z156] p1q4s43; [z156b] p1h2; 8g80's order ([z154] + the two 8gs-only stages last)
+    assert set(a) | set(b) == set(QP.PROFILES["8g80"]) | {"p1q8", "p1qs43", "p1q4s43", "p1h2", "p1b3"} and set(a) & set(b) == {"p0a"}   # [z154] two 8gs-only stages and a[0] == b[0] == "p0a"
+    assert [s for s in QP.PROFILES["8g80"] if s in b] + ["p1q8", "p1qs43", "p1q4s43", "p1h2", "p1b3"] == b  # [z156] p1q4s43; [z156b] p1h2; [z157] p1b3; 8g80's order ([z154] + the two 8gs-only stages last)
     spec, _ = QP.source()
     ta = {x.split(":")[0] for st in a for x in QP.stage_specs(st, spec)}
     assert not [t for t in ta if re.match(r"E1\d", t)]                          # no training on the 1-GPU box
@@ -2527,3 +2527,36 @@ def test_h200_references_new_names_z156b(env):   # [z156b] (Fable 20:3x) H200 sa
     assert all(tags.count(t) == 1 for t in ("base8_think16k_h2_math500_T0.6", "e12e_P5tail-8k_s50_h2_math500_T0.6", "e12e_P5tail-8k_s50_h2_math500_T1.0"))
     for k, t in enumerate(("EVAL-think16k-8Bbase-h2", "PROBE-TERM4-N8BTHH2", "EVAL-e12e-P5tail-8k-nn-h2")):
         assert env.c.v_run([t], 1970 + k)[0] == "accepted", t
+
+
+def test_b300_references_new_names_z157(env):   # [z157] (Fable D87) B300 same-machine references under new names, 8gs only, no training dependency
+    import queue_profiles as QP
+    for p, st in QP.PROFILES.items():
+        assert ("p1b3" in st) == (p == "8gs"), p
+    L, stages, spec = _profile_queue("8gs")
+    st = next(l for l in L if l.startswith("p1b3 ")).split()
+    names = ["EVAL-e12d-P5tail-8k-nn-b3", "EVAL-think16k-4Bbase-b3", "PROBE-TERM4-N4BTHB3", "EVAL-e12e-P5tail-8k-nn-b3", "EVAL-think16k-8Bbase-b3",
+             "PROBE-TERM4-N8BTHB3", "EVAL-e12b-P5tail-8k-s43-s50-b3", "EVAL-think16k-17base-b3", "PROBE-TERM4-N17THB3", "EVAL-ext32k-8Bthink-b3"]
+    assert st[1] == "open" and [x.split(":")[0] for x in st[2:]] == names and names[-1].startswith("EVAL-ext32k")   # the AIME row last
+    for t in names:
+        assert spec[t] == ({"PROBE-TERM4-N4BTHB3": ["EVAL-think16k-4Bbase-b3"], "PROBE-TERM4-N8BTHB3": ["EVAL-think16k-8Bbase-b3"],
+                            "PROBE-TERM4-N17THB3": ["EVAL-think16k-17base-b3"]}.get(t, [])), t
+    # each -b3 row reads exactly what its -b2 / -h2 twin reads (same weights, data, n, T, length, template), only the tag differs
+    def rows(name):
+        return [l.split() for l in L if l.startswith(("#eval " + name + " ", "#term " + name + " "))]
+    for new, old in (("EVAL-e12d-P5tail-8k-nn-b3", "EVAL-e12d-P5tail-8k-nn-b2"), ("EVAL-think16k-4Bbase-b3", "EVAL-think16k-4Bbase-b2"),
+                     ("EVAL-e12e-P5tail-8k-nn-b3", "EVAL-e12e-P5tail-8k-nn-h2"), ("EVAL-think16k-8Bbase-b3", "EVAL-think16k-8Bbase-b2"),
+                     ("EVAL-e12b-P5tail-8k-s43-s50-b3", "EVAL-e12b-P5tail-8k-s43-s50-b2"), ("EVAL-think16k-17base-b3", "EVAL-think16k-17base-b2"),
+                     ("EVAL-ext32k-8Bthink-b3", "EVAL-ext32k-8Bthink-b2")):
+        a, b = rows(new), rows(old)
+        assert a and len(a) == len(b), new
+        assert [r[3:] for r in a] == [r[3:] for r in b], new
+        assert [r[2] for r in a] == [r[2].replace("_b2_", "_b3_").replace("_h2_", "_b3_") for r in b], new
+    for new, old in (("PROBE-TERM4-N4BTHB3", "PROBE-TERM4-N4BTHB2"), ("PROBE-TERM4-N8BTHB3", "PROBE-TERM4-N8BTHB2"), ("PROBE-TERM4-N17THB3", "PROBE-TERM4-N17THB2")):
+        a, b = rows(new), rows(old)
+        assert len(a) == len(b) == 1 and a[0][2:4] == b[0][2:4] and a[0][5:] == b[0][5:], new
+        assert a[0][4] == b[0][4].replace("-b2/", "-b3/").replace("_b2_", "_b3_"), new
+    tags = [l.split()[2] for l in L if l.startswith("#eval ")]
+    assert all(tags.count(t) == 1 for t in tags if "_b3_" in t) and len([t for t in tags if "_b3_" in t]) == 11
+    for k, t in enumerate(names):
+        assert env.c.v_run([t], 1990 + k)[0] == "accepted", t

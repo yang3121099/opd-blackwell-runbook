@@ -106,6 +106,14 @@ STAGES = {
     # under them would overwrite): the 8B base thinking 16K + its TERM4, and the 8B chain's s50 (E12e-P5tail-8k-nn's global_step_25 =
     # the chain's s50, as the e12e_P5tail-8k_s50 rows read it) at 16K T0.6 / T1.0; no training dependency
     "p1h2": ["EVAL-think16k-8Bbase-h2", "PROBE-TERM4-N8BTHH2:EVAL-think16k-8Bbase-h2", "EVAL-e12e-P5tail-8k-nn-h2"],
+    # [z157] (Fable D87 11-14 21:3x, registry Q-093c 11-14 addendum) B300 same-machine references under NEW names (-b3; the -b2 / -h2
+    # names hold the B200 / H200 results in the ops repo): for Q-093b-s43 the 4B chain's s50 + the 4B base thinking 16K (+ TERM4), for
+    # Q-093c the 8B chain's s50 (E12e-P5tail-8k-nn global_step_25) + the 8B base thinking 16K (+ TERM4) + its AIME24 / 25 32K, for
+    # Q-093-s43 the 1.7B s43 chain's s50 + the 1.7B base thinking 16K (+ TERM4); the AIME row last; no training dependency
+    "p1b3": ["EVAL-e12d-P5tail-8k-nn-b3", "EVAL-think16k-4Bbase-b3", "PROBE-TERM4-N4BTHB3:EVAL-think16k-4Bbase-b3",
+             "EVAL-e12e-P5tail-8k-nn-b3", "EVAL-think16k-8Bbase-b3", "PROBE-TERM4-N8BTHB3:EVAL-think16k-8Bbase-b3",
+             "EVAL-e12b-P5tail-8k-s43-s50-b3", "EVAL-think16k-17base-b3", "PROBE-TERM4-N17THB3:EVAL-think16k-17base-b3",
+             "EVAL-ext32k-8Bthink-b3"],
     # P1-b Q-074e the 8B chain from s25 (4 x 80 GB)
     "p1b": ["src:PROBE-E12E-8K", "src:E12e-P5tail-8k-nn", "src:EVAL-e12e-P5tail-8k-nn", "src:EVAL-budA-e12eP5tail-8k-nn",
             "src:EVAL-ext32k-8Bp5tail8k-nn", "src:PROBE-TERM4-N074E"],
@@ -151,7 +159,10 @@ EST = {"PROBE-TAIL": 0.3, "PROBE-E12B-8K": 0.3, "PROBE-E12B-STOP2": 0.3, "E12b-P
        "EVAL-budA-e12bP0think-8k-s43": 1.5, "EVAL-ext32k-17p0think8k-s43": 3.0, "EVAL-ext32k-17p5tail8k-oc": 1.5, "EVAL-ext32k-8Bthink-b2": 3.0,
        "PROBE-E12D-P0THINK-8G": 0.6, "E12d-P0think-8k-s43": 7.5, "EVAL-e12d-P0think-8k-s43": 2.0, "PROBE-TERM4-N093BS43": 0.4,   # [z156] as Q-093b
        "EVAL-budA-e12dP0think-8k-s43": 1.6, "EVAL-ext32k-4p0think8k-s43": 3.0,
-       "EVAL-think16k-8Bbase-h2": 1.5, "PROBE-TERM4-N8BTHH2": 0.5, "EVAL-e12e-P5tail-8k-nn-h2": 1.2}   # [z156b] as the -b2 references   # [z146] Q-093: thinking answers fill the 8K window (training ~1.5 x Q-091)   # P1-a arms: #steptime 180 s x 50 steps
+       "EVAL-think16k-8Bbase-h2": 1.5, "PROBE-TERM4-N8BTHH2": 0.5, "EVAL-e12e-P5tail-8k-nn-h2": 1.2,
+       "EVAL-e12d-P5tail-8k-nn-b3": 1.0, "EVAL-think16k-4Bbase-b3": 1.5, "PROBE-TERM4-N4BTHB3": 0.4, "EVAL-e12e-P5tail-8k-nn-b3": 1.2,
+       "EVAL-think16k-8Bbase-b3": 1.5, "PROBE-TERM4-N8BTHB3": 0.5, "EVAL-e12b-P5tail-8k-s43-s50-b3": 0.7, "EVAL-think16k-17base-b3": 1.0,
+       "PROBE-TERM4-N17THB3": 0.3, "EVAL-ext32k-8Bthink-b3": 3.0}   # [z156b] as the -b2 references   # [z146] Q-093: thinking answers fill the 8K window (training ~1.5 x Q-091)   # P1-a arms: #steptime 180 s x 50 steps
 PROFILES = {
     "1g": P0_SERIAL + ["pn5", "p1q", "p1a"],   # [z152] N5 after P0 (1gt inherits it, 1gs does not)   # [z146] Q-093 after P0, before P1-a (1gt inherits it; 1gs does not: a 1gs / 1gt pair shares the gates only)
     "4g": P0_PARALLEL + ["p1a"],
@@ -166,7 +177,7 @@ PROFILES = {
 # The 8-GPU node reads tasks/queue_8gs.txt through control/queue_name (env.sh exports QUEUE_FILE); the 1-GPU node keeps queue.txt.
 SHARE_1G = ["p0a", "p0c", "p0f", "p0g", "p0x"]
 PROFILES["1gs"] = SHARE_1G
-PROFILES["8gs"] = [s for s in PROFILES["8g80"] if s == "p0a" or s not in SHARE_1G] + ["p1q8", "p1qs43", "p1q4s43", "p1h2"]   # [z154] 8-GPU-only stages; [z156] p1q4s43; [z156b] p1h2
+PROFILES["8gs"] = [s for s in PROFILES["8g80"] if s == "p0a" or s not in SHARE_1G] + ["p1q8", "p1qs43", "p1q4s43", "p1h2", "p1b3"]   # [z154] 8-GPU-only stages; [z156] p1q4s43; [z156b] p1h2; [z157] p1b3
 # [z142] (the lead 11-10: the 8 x H200 reclaimed, a second 1 x H200 back) 1gt = the 1-GPU trainings and their readings beside a 1gs node:
 # 1g without the 1gs stages (p0d, p0e, p0b, p0dr, p0er, P1-a); with 1gs it is 1g's stages, only p0a on both
 PROFILES["1gt"] = [s for s in PROFILES["1g"] if s == "p0a" or s not in SHARE_1G]
@@ -271,6 +282,20 @@ NEW_ROWS = """\
 #term PROBE-TERM4-N8BTHH2 8B_base_think Qwen/Qwen3-8B EVAL-think16k-8Bbase-h2/base8_think16k_h2_math500_T0.6_math500_think_t0.6.jsonl think
 #eval EVAL-e12e-P5tail-8k-nn-h2 e12e_P5tail-8k_s50_h2_math500_T0.6 result:runs/E12e-P5tail-8k-nn/global_step_25/actor/huggingface math500 4 0.6
 #eval EVAL-e12e-P5tail-8k-nn-h2 e12e_P5tail-8k_s50_h2_math500_T1.0 result:runs/E12e-P5tail-8k-nn/global_step_25/actor/huggingface math500 4 1.0
+#eval EVAL-e12d-P5tail-8k-nn-b3 e12d_P5tail-8k_s50_b3_math500_T0.6 result:runs/E12d-P5tail-8k/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-e12d-P5tail-8k-nn-b3 e12d_P5tail-8k_s50_b3_math500_T1.0 result:runs/E12d-P5tail-8k/global_step_50/actor/huggingface math500 4 1.0
+#eval EVAL-think16k-4Bbase-b3 base4_think16k_b3_math500_T0.6 Qwen/Qwen3-4B math500 4 0.6 16384 think
+#term PROBE-TERM4-N4BTHB3 4B_base_think Qwen/Qwen3-4B EVAL-think16k-4Bbase-b3/base4_think16k_b3_math500_T0.6_math500_think_t0.6.jsonl think
+#eval EVAL-e12e-P5tail-8k-nn-b3 e12e_P5tail-8k_s50_b3_math500_T0.6 result:runs/E12e-P5tail-8k-nn/global_step_25/actor/huggingface math500 4 0.6
+#eval EVAL-e12e-P5tail-8k-nn-b3 e12e_P5tail-8k_s50_b3_math500_T1.0 result:runs/E12e-P5tail-8k-nn/global_step_25/actor/huggingface math500 4 1.0
+#eval EVAL-think16k-8Bbase-b3 base8_think16k_b3_math500_T0.6 Qwen/Qwen3-8B math500 4 0.6 16384 think
+#term PROBE-TERM4-N8BTHB3 8B_base_think Qwen/Qwen3-8B EVAL-think16k-8Bbase-b3/base8_think16k_b3_math500_T0.6_math500_think_t0.6.jsonl think
+#eval EVAL-e12b-P5tail-8k-s43-s50-b3 e12b_P5tail-8k-s43_s50_b3_math500_T0.6 result:runs/E12b-P5tail-8k-s43/global_step_50/actor/huggingface math500 4 0.6
+#eval EVAL-e12b-P5tail-8k-s43-s50-b3 e12b_P5tail-8k-s43_s50_b3_math500_T1.0 result:runs/E12b-P5tail-8k-s43/global_step_50/actor/huggingface math500 4 1.0
+#eval EVAL-think16k-17base-b3 base17_think16k_b3_math500_T0.6 Qwen/Qwen3-1.7B math500 4 0.6 16384 think
+#term PROBE-TERM4-N17THB3 17_base_think Qwen/Qwen3-1.7B EVAL-think16k-17base-b3/base17_think16k_b3_math500_T0.6_math500_think_t0.6.jsonl think
+#eval EVAL-ext32k-8Bthink-b3 ext32k8_base8think_b3_aime24_T0.6 Qwen/Qwen3-8B aime24 16 0.6 32768 think
+#eval EVAL-ext32k-8Bthink-b3 ext32k8_base8think_b3_aime25_T0.6 Qwen/Qwen3-8B aime25 16 0.6 32768 think
 #eval EVAL-ext32k-17p5tail8k-oc ext32k17_E12bP5tail8k_s50oc_aime24_T0.6 result:runs/E12b-P5tail-8k/global_step_50/actor/huggingface aime24 16 0.6 32768
 #eval EVAL-ext32k-17p5tail8k-oc ext32k17_E12bP5tail8k_s50oc_aime25_T0.6 result:runs/E12b-P5tail-8k/global_step_50/actor/huggingface aime25 16 0.6 32768
 """
