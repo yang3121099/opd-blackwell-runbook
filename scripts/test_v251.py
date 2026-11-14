@@ -2557,7 +2557,7 @@ def test_b300_references_new_names_z157(env):   # [z157] (Fable D87) B300 same-m
         assert len(a) == len(b) == 1 and a[0][2:4] == b[0][2:4] and a[0][5:] == b[0][5:], new
         assert a[0][4] == b[0][4].replace("-b2/", "-b3/").replace("_b2_", "_b3_"), new
     tags = [l.split()[2] for l in L if l.startswith("#eval ")]
-    assert all(tags.count(t) == 1 for t in tags if "_b3_" in t) and len([t for t in tags if "_b3_" in t]) == 24   # [z158b] + the two Q-093 s50 reread tags; [z158c] + 2 P5self rereads + 9 out-of-domain
+    assert all(tags.count(t) == 1 for t in tags if "_b3_" in t) and len([t for t in tags if "_b3_" in t]) == 26   # [z158b] + the two Q-093 s50 reread tags; [z158c] + 2 P5self rereads + 9 out-of-domain; [z158e] + 2 base non-thinking
     for k, t in enumerate(names):
         assert env.c.v_run([t], 1990 + k)[0] == "accepted", t
 
@@ -2662,6 +2662,9 @@ def test_q094_prefill_z158d(env, tmp_path):   # [z158d] (Fable 02:3x, lab/regist
     for f in ("E10b-P5self/global_step_50", "E10d-P5self/global_step_50", "E10b-P5/global_step_150"):
         assert f"#fetch result:runs/{f}/actor/huggingface" in L, f
     assert all(t in QP.EST for t in QP.STAGES["p1q094"])
+    nn = {l.split()[1]: l.split()[3:] for l in L if l.startswith("#eval EVAL-nothink16k-")}   # [z158e] the V1 check's same-machine natives
+    assert nn == {"EVAL-nothink16k-17base-b3": ["Qwen/Qwen3-1.7B", "math500", "4", "0.6", "16384", "no_think"],
+                  "EVAL-nothink16k-4Bbase-b3": ["Qwen/Qwen3-4B", "math500", "4", "0.6", "16384", "no_think"]}
     rq = open(os.path.join(HERE, "run_queue_eval.sh")).read()
     assert "{print $3, $4, $5, $6, $7, $8, $9, $10}" in rq and rq.count("read -r TAG MODEL BENCH N TEMP MAXT MODE PF; do") == 3
     assert "read -r TAG MODEL BENCH N TEMP MAXT MODE; do" not in rq   # no loop reads pf= into MODE

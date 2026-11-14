@@ -133,7 +133,9 @@ STAGES = {
     # students' first token, 100 %), N = "We" (1654, the bases' first token, 98.5 / 99.5 %); base and student (E10b-P5self s50 / E10d-P5self
     # s50) under each, both sizes, plus the descriptive cell E10b-P5 s150 (the chain's actual first stage) under T and N; MATH-500 16K T0.6 n4
     "p1q094": ["EVAL-q094-17base-T", "EVAL-q094-17base-N", "EVAL-q094-17self-T", "EVAL-q094-17self-N", "EVAL-q094-4base-T", "EVAL-q094-4base-N",
-               "EVAL-q094-4self-T", "EVAL-q094-4self-N", "EVAL-q094-17p5-T", "EVAL-q094-17p5-N"],
+               "EVAL-q094-4self-T", "EVAL-q094-4self-N", "EVAL-q094-17p5-T", "EVAL-q094-17p5-N",
+               # [z158e] (Fable 03:0x, Q-094 check V1) the bases' own non-thinking readings on the same machine (-b3), the same wave
+               "EVAL-nothink16k-17base-b3", "EVAL-nothink16k-4Bbase-b3"],
     "p1b3": ["EVAL-e12d-P5tail-8k-nn-b3", "EVAL-think16k-4Bbase-b3", "PROBE-TERM4-N4BTHB3:EVAL-think16k-4Bbase-b3",
              "EVAL-e12e-P5tail-8k-nn-b3", "EVAL-think16k-8Bbase-b3", "PROBE-TERM4-N8BTHB3:EVAL-think16k-8Bbase-b3",
              "EVAL-e12b-P5tail-8k-s43-s50-b3", "EVAL-think16k-17base-b3", "PROBE-TERM4-N17THB3:EVAL-think16k-17base-b3",
@@ -195,7 +197,8 @@ EST = {"PROBE-TAIL": 0.3, "PROBE-E12B-8K": 0.3, "PROBE-E12B-STOP2": 0.3, "E12b-P
        "EVAL-e10d-P5q093t": 0.8, "PROBE-TERM4-N095B": 0.3, "EVAL-e10b-P5self-b3": 0.6, "EVAL-e10d-P5self-b3": 0.8,
        "EVAL-ood-17think-b3": 3.0, "EVAL-ood-17chain-b3": 1.5, "EVAL-ood-17q093-b3": 3.0,
        "EVAL-q094-17base-T": 0.6, "EVAL-q094-17base-N": 0.3, "EVAL-q094-17self-T": 0.6, "EVAL-q094-17self-N": 0.6, "EVAL-q094-4base-T": 0.8,
-       "EVAL-q094-4base-N": 0.4, "EVAL-q094-4self-T": 0.8, "EVAL-q094-4self-N": 0.8, "EVAL-q094-17p5-T": 0.6, "EVAL-q094-17p5-N": 0.6}   # [z158b] as Q-093-s43 (the 16K arm ~1.8 x the 8K step)   # [z156b] as the -b2 references   # [z146] Q-093: thinking answers fill the 8K window (training ~1.5 x Q-091)   # P1-a arms: #steptime 180 s x 50 steps
+       "EVAL-q094-4base-N": 0.4, "EVAL-q094-4self-T": 0.8, "EVAL-q094-4self-N": 0.8, "EVAL-q094-17p5-T": 0.6, "EVAL-q094-17p5-N": 0.6,
+       "EVAL-nothink16k-17base-b3": 0.3, "EVAL-nothink16k-4Bbase-b3": 0.4}   # [z158b] as Q-093-s43 (the 16K arm ~1.8 x the 8K step)   # [z156b] as the -b2 references   # [z146] Q-093: thinking answers fill the 8K window (training ~1.5 x Q-091)   # P1-a arms: #steptime 180 s x 50 steps
 PROFILES = {
     "1g": P0_SERIAL + ["pn5", "p1q", "p1a"],   # [z152] N5 after P0 (1gt inherits it, 1gs does not)   # [z146] Q-093 after P0, before P1-a (1gt inherits it; 1gs does not: a 1gs / 1gt pair shares the gates only)
     "4g": P0_PARALLEL + ["p1a"],
@@ -384,6 +387,8 @@ NEW_ROWS = """\
 #eval EVAL-q094-4self-N q094_e10dP5self_s50_pfN_math500_T0.6 result:runs/E10d-P5self/global_step_50/actor/huggingface math500 4 0.6 16384 no_think pf=1654
 #eval EVAL-q094-17p5-T q094_e10bP5_s150_pfT_math500_T0.6 result:runs/E10b-P5/global_step_150/actor/huggingface math500 4 0.6 16384 no_think pf=32313
 #eval EVAL-q094-17p5-N q094_e10bP5_s150_pfN_math500_T0.6 result:runs/E10b-P5/global_step_150/actor/huggingface math500 4 0.6 16384 no_think pf=1654
+#eval EVAL-nothink16k-17base-b3 base17_nothink16k_b3_math500_T0.6 Qwen/Qwen3-1.7B math500 4 0.6 16384 no_think
+#eval EVAL-nothink16k-4Bbase-b3 base4_nothink16k_b3_math500_T0.6 Qwen/Qwen3-4B math500 4 0.6 16384 no_think
 """
 ROW_KINDS = ("#eval", "#pair", "#budget", "#term", "#gpus", "#steptime")
 # [z151] (Fable D12 11-11 16:3x) per-profile GPU counts: on 8gs (the me-west1 8 x B200s) each long training and its gate take all
