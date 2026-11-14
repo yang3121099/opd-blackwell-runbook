@@ -129,6 +129,11 @@ STAGES = {
     # [z158c] (Fable D96, lab/registry/Q-096.md C) out-of-domain readings: the 1.7B base (thinking), the 1.7B chain's s50 (its own non-thinking
     # template) and Q-093 s50 (thinking) on OlympiadBench (674), Minerva Math (272) and MMLU-Pro 1K (non-maths), 16K n4 T0.6
     "p1q096c": ["EVAL-ood-17think-b3", "EVAL-ood-17chain-b3", "EVAL-ood-17q093-b3"],
+    # [z158d] (Fable 02:3x, lab/registry/Q-094.md) the prefilled openings on the non-thinking template: T = "Okay" (32313, the self-distilled
+    # students' first token, 100 %), N = "We" (1654, the bases' first token, 98.5 / 99.5 %); base and student (E10b-P5self s50 / E10d-P5self
+    # s50) under each, both sizes, plus the descriptive cell E10b-P5 s150 (the chain's actual first stage) under T and N; MATH-500 16K T0.6 n4
+    "p1q094": ["EVAL-q094-17base-T", "EVAL-q094-17base-N", "EVAL-q094-17self-T", "EVAL-q094-17self-N", "EVAL-q094-4base-T", "EVAL-q094-4base-N",
+               "EVAL-q094-4self-T", "EVAL-q094-4self-N", "EVAL-q094-17p5-T", "EVAL-q094-17p5-N"],
     "p1b3": ["EVAL-e12d-P5tail-8k-nn-b3", "EVAL-think16k-4Bbase-b3", "PROBE-TERM4-N4BTHB3:EVAL-think16k-4Bbase-b3",
              "EVAL-e12e-P5tail-8k-nn-b3", "EVAL-think16k-8Bbase-b3", "PROBE-TERM4-N8BTHB3:EVAL-think16k-8Bbase-b3",
              "EVAL-e12b-P5tail-8k-s43-s50-b3", "EVAL-think16k-17base-b3", "PROBE-TERM4-N17THB3:EVAL-think16k-17base-b3",
@@ -188,7 +193,9 @@ EST = {"PROBE-TAIL": 0.3, "PROBE-E12B-8K": 0.3, "PROBE-E12B-STOP2": 0.3, "E12b-P
        "EVAL-e12b-P0think-16k": 0.9, "PROBE-TERM4-N096A16K": 0.3, "EVAL-e12b-P0think-8k-b3": 1.8, "PROBE-TERM4-N093B3": 0.3,
        "PROBE-P5Q093T": 0.3, "E10b-P5q093t": 3.5, "EVAL-e10b-P5q093t": 0.6, "PROBE-TERM4-N095A": 0.3, "PROBE-P5Q093T-4B": 0.4, "E10d-P5q093t": 4.5,
        "EVAL-e10d-P5q093t": 0.8, "PROBE-TERM4-N095B": 0.3, "EVAL-e10b-P5self-b3": 0.6, "EVAL-e10d-P5self-b3": 0.8,
-       "EVAL-ood-17think-b3": 3.0, "EVAL-ood-17chain-b3": 1.5, "EVAL-ood-17q093-b3": 3.0}   # [z158b] as Q-093-s43 (the 16K arm ~1.8 x the 8K step)   # [z156b] as the -b2 references   # [z146] Q-093: thinking answers fill the 8K window (training ~1.5 x Q-091)   # P1-a arms: #steptime 180 s x 50 steps
+       "EVAL-ood-17think-b3": 3.0, "EVAL-ood-17chain-b3": 1.5, "EVAL-ood-17q093-b3": 3.0,
+       "EVAL-q094-17base-T": 0.6, "EVAL-q094-17base-N": 0.3, "EVAL-q094-17self-T": 0.6, "EVAL-q094-17self-N": 0.6, "EVAL-q094-4base-T": 0.8,
+       "EVAL-q094-4base-N": 0.4, "EVAL-q094-4self-T": 0.8, "EVAL-q094-4self-N": 0.8, "EVAL-q094-17p5-T": 0.6, "EVAL-q094-17p5-N": 0.6}   # [z158b] as Q-093-s43 (the 16K arm ~1.8 x the 8K step)   # [z156b] as the -b2 references   # [z146] Q-093: thinking answers fill the 8K window (training ~1.5 x Q-091)   # P1-a arms: #steptime 180 s x 50 steps
 PROFILES = {
     "1g": P0_SERIAL + ["pn5", "p1q", "p1a"],   # [z152] N5 after P0 (1gt inherits it, 1gs does not)   # [z146] Q-093 after P0, before P1-a (1gt inherits it; 1gs does not: a 1gs / 1gt pair shares the gates only)
     "4g": P0_PARALLEL + ["p1a"],
@@ -203,7 +210,7 @@ PROFILES = {
 # The 8-GPU node reads tasks/queue_8gs.txt through control/queue_name (env.sh exports QUEUE_FILE); the 1-GPU node keeps queue.txt.
 SHARE_1G = ["p0a", "p0c", "p0f", "p0g", "p0x"]
 PROFILES["1gs"] = SHARE_1G
-PROFILES["8gs"] = [s for s in PROFILES["8g80"] if s == "p0a" or s not in SHARE_1G] + ["p1q8", "p1qs43", "p1q4s43", "p1h2", "p1b3", "p1b3q093", "p1qs44", "p1q096a", "p1q095", "p1q096c"]   # [z154] 8-GPU-only stages; [z156] p1q4s43; [z156b] p1h2; [z157] p1b3; [z158b] p1b3q093, p1qs44, p1q096a
+PROFILES["8gs"] = [s for s in PROFILES["8g80"] if s == "p0a" or s not in SHARE_1G] + ["p1q8", "p1qs43", "p1q4s43", "p1h2", "p1b3", "p1b3q093", "p1qs44", "p1q096a", "p1q095", "p1q096c", "p1q094"]   # [z154] 8-GPU-only stages; [z156] p1q4s43; [z156b] p1h2; [z157] p1b3; [z158b] p1b3q093, p1qs44, p1q096a
 # [z142] (the lead 11-10: the 8 x H200 reclaimed, a second 1 x H200 back) 1gt = the 1-GPU trainings and their readings beside a 1gs node:
 # 1g without the 1gs stages (p0d, p0e, p0b, p0dr, p0er, P1-a); with 1gs it is 1g's stages, only p0a on both
 PROFILES["1gt"] = [s for s in PROFILES["1g"] if s == "p0a" or s not in SHARE_1G]
@@ -218,6 +225,7 @@ FETCH = {
     "p2f": ["E10c-P5-fix4/global_step_150", "E12c-P5-8k/global_step_25", "E12c-P5-8k/global_step_50", "E10c-P5tail-c50/global_step_30"],
     "p1b3q093": ["E12b-P0think-8k/global_step_50"],   # [z158c] Q-093 s50: the reread and Q-095's teacher
     "p1q095": ["E10b-P5self/global_step_50", "E10d-P5self/global_step_50"],
+    "p1q094": ["E10b-P5self/global_step_50", "E10d-P5self/global_step_50", "E10b-P5/global_step_150"],   # [z158d]
 }
 DFETCH = {   # [z158c] (Q-096 C) the multiple-choice bench's data, pulled by run_tasks' fetch_pass into $OPD_ROOT/data/hf
     "p1q096c": ["TIGER-Lab/MMLU-Pro"],
@@ -366,6 +374,16 @@ NEW_ROWS = """\
 #fetch result:runs/E12b-P0think-8k/global_step_50/actor/huggingface
 #eval EVAL-ext32k-17p5tail8k-oc ext32k17_E12bP5tail8k_s50oc_aime24_T0.6 result:runs/E12b-P5tail-8k/global_step_50/actor/huggingface aime24 16 0.6 32768
 #eval EVAL-ext32k-17p5tail8k-oc ext32k17_E12bP5tail8k_s50oc_aime25_T0.6 result:runs/E12b-P5tail-8k/global_step_50/actor/huggingface aime25 16 0.6 32768
+#eval EVAL-q094-17base-T q094_base17_pfT_math500_T0.6 Qwen/Qwen3-1.7B math500 4 0.6 16384 no_think pf=32313
+#eval EVAL-q094-17base-N q094_base17_pfN_math500_T0.6 Qwen/Qwen3-1.7B math500 4 0.6 16384 no_think pf=1654
+#eval EVAL-q094-17self-T q094_e10bP5self_s50_pfT_math500_T0.6 result:runs/E10b-P5self/global_step_50/actor/huggingface math500 4 0.6 16384 no_think pf=32313
+#eval EVAL-q094-17self-N q094_e10bP5self_s50_pfN_math500_T0.6 result:runs/E10b-P5self/global_step_50/actor/huggingface math500 4 0.6 16384 no_think pf=1654
+#eval EVAL-q094-4base-T q094_base4B_pfT_math500_T0.6 Qwen/Qwen3-4B math500 4 0.6 16384 no_think pf=32313
+#eval EVAL-q094-4base-N q094_base4B_pfN_math500_T0.6 Qwen/Qwen3-4B math500 4 0.6 16384 no_think pf=1654
+#eval EVAL-q094-4self-T q094_e10dP5self_s50_pfT_math500_T0.6 result:runs/E10d-P5self/global_step_50/actor/huggingface math500 4 0.6 16384 no_think pf=32313
+#eval EVAL-q094-4self-N q094_e10dP5self_s50_pfN_math500_T0.6 result:runs/E10d-P5self/global_step_50/actor/huggingface math500 4 0.6 16384 no_think pf=1654
+#eval EVAL-q094-17p5-T q094_e10bP5_s150_pfT_math500_T0.6 result:runs/E10b-P5/global_step_150/actor/huggingface math500 4 0.6 16384 no_think pf=32313
+#eval EVAL-q094-17p5-N q094_e10bP5_s150_pfN_math500_T0.6 result:runs/E10b-P5/global_step_150/actor/huggingface math500 4 0.6 16384 no_think pf=1654
 """
 ROW_KINDS = ("#eval", "#pair", "#budget", "#term", "#gpus", "#steptime")
 # [z151] (Fable D12 11-11 16:3x) per-profile GPU counts: on 8gs (the me-west1 8 x B200s) each long training and its gate take all

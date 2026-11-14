@@ -244,7 +244,7 @@ fi
 [ $T32 = 1 ] && { TEACHER=${TEACHER_32B:-$OPD_ROOT/models/Qwen3-32B}; TEACHER_OFFLOAD=1; }   # [v2.5.9z9] offloaded whatever the node's setting
 [ $SELF = 1 ] && { TEACHER=$STUDENT_17B; [ "$SIZE" = 4B ] && TEACHER=$STUDENT_4B; [ -n "$MODE" ] && TEACHER=$STUDENT_06B; [ "$SIZE" = 8B ] && TEACHER=$STUDENT; }   # v2.5.7v; [v2.5.8e] the 4B student's own base; [v2.5.9v] the 0.6B one's
 [ $Q093T = 1 ] && { TEACHER=$CKPT_ROOT/adhoc_models/result/runs/E12b-P0think-8k/global_step_50/actor/huggingface   # [z158c] (Q-095) after the SELF line
-  [ -f $TEACHER/config.json ] || { echo "Q095_TEACHER_MISSING $TEACHER (the #fetch of E12b-P0think-8k global_step_50 not local yet)"; exit 1; }; }
+  [ -f $TEACHER/.fetch_ok ] || { echo "WAIT_INPUTS $TASK: start needs the Q-095 teacher E12b-P0think-8k s50 (no local copy, no adhoc_models/result/runs/E12b-P0think-8k/global_step_50/actor/huggingface/.fetch_ok)"; exit 1; }; }   # [z158d] the dry-run's adhoc_fetch form (z158c's Q095_TEACHER_MISSING was unclassified)
 [ $POLISH = 1 ] && TEACHER=$STUDENT_06B   # [v2.5.9u] the 0.6B base on its thinking template
 if [ -n "$XARM" ]; then   # [v2.5.8i] hub ids, resolved to the local HF cache after the venv is active
   STUDENT=${STUDENT_I2507:-Qwen/Qwen3-4B-Instruct-2507}; TEACHER=${TEACHER_T2507:-Qwen/Qwen3-4B-Thinking-2507}; [ $XARM = X2 ] && TEACHER=$STUDENT_4B

@@ -272,6 +272,8 @@ def compute_metrics(args, rows, recs, gen_s):
         "gen_seconds": round(gen_s, 1), "source": rows[0]["source"],
         **({"unparsed_rate": round(sum(1 for r in recs if r["pred"] is None) / len(recs), 4)} if args.bench in MC_SOURCES else {}),   # [v2.5.9z15]
         **({"ifeval": None} if later else {}),   # [v2.5.9z16]
+        **({"prefill_ids": args.prefill, "think_close_written_rate": round(sum("</think>" in r["text"] for r in recs) / len(recs), 4)}
+           if getattr(args, "prefill", "") else {}),   # [z158d]
     }
 
 
@@ -281,7 +283,10 @@ def compute_metrics(args, rows, recs, gen_s):
 # arguments keeps every complete block, drops a block that was only partly written, and generates the rest; the last
 # block renames .part to <stem>.jsonl and writes the metrics exactly as an unchunked run does. Blocks never change size,
 # so every problem is generated in the same batch as in an uninterrupted chunked run.
-RESUME_KEYS = ["model", "bench", "mode", "n", "temperature", "top_p", "top_k", "max_tokens", "limit", "seed", "chunk"]
+RESUME_KEYS = ["model", "bench", "mode", "n", "temperature", "top_p", "top_k", "max_tokens", "limit", "seed", "chunk", "prefill"]
+# [z158d] keys added after readings were already running: a .meta written before a key existed still matches while the run uses
+# that key's default (a reading started at z158c resumes under z158d; a prefilled one never resumes an unprefilled .part)
+RESUME_DEFAULTS = {"prefill": ""}
 
 
 def resume_state(part, meta, args, rows, K):
@@ -289,6 +294,8 @@ def resume_state(part, meta, args, rows, K):
     if not os.path.exists(part):
         return [], 0.0
     m = json.load(open(meta)) if os.path.exists(meta) else None
+    if m and isinstance(m.get("args"), dict):   # [z158d]
+        want = {k: v for k, v in want.items() if k in m["args"] or v != RESUME_DEFAULTS.get(k, object())}
     if not m or m.get("args") != want:
         raise SystemExit(f"RESUME_REFUSED {part}: written with other arguments ({m and m.get('args')}); move it aside first")
     recs = []
@@ -358,7 +365,15 @@ def main():
     ap.add_argument("--chunk", type=int, default=0, help="problems per resumable block (0: one pass, no resume)")
     ap.add_argument("--tag", default="")
     ap.add_argument("--out", required=True)
+    # [z158d] (Fable 02:3x, lab/registry/Q-094.md) token ids written at the start of the assistant turn, after the rendered template,
+    # and not generated (comma-separated; Q-094: 32313 = "Okay", 1654 = "We" in the Qwen3 vocabulary). The prompt then goes to vLLM as
+    # token ids: the template text encoded as vLLM encodes a text prompt (the tokenizer's default special tokens, after one_bos), then
+    # these ids. Records keep the generated part only (text, n_tokens, grading); the metrics name the prefill and the share of samples
+    # that write </think> themselves.
+    ap.add_argument("--prefill", default="", help="comma-separated token ids prefilled after the template (not generated)")
     args = ap.parse_args()
+    if args.prefill and not re.fullmatch(r"[0-9]+(,[0-9]+)*", args.prefill):
+        raise SystemExit(f"--prefill must be comma-separated token ids, not {args.prefill!r}")
 
     from transformers import AutoTokenizer
     from vllm import LLM, SamplingParams
@@ -376,6 +391,12 @@ def main():
             prompts.append(tok.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True))
 
     prompts = [one_bos(tok, p) for p in prompts]   # [v2.5.9z46]
+    if args.prefill:   # [z158d]
+        pf = [int(x) for x in args.prefill.split(",")]
+        if max(pf) >= len(tok):
+            raise SystemExit(f"--prefill: token id {max(pf)} is outside the vocabulary ({len(tok)})")
+        prompts = [{"prompt_token_ids": tok(p)["input_ids"] + pf} for p in prompts]
+        print(f"PREFILL {args.prefill} = {tok.decode(pf)!r} after the template", flush=True)
     os.makedirs(args.out, exist_ok=True)
     stem = f"{args.tag or os.path.basename(args.model.rstrip('/'))}_{args.bench}_{args.mode}_t{args.temperature}"
     final = os.path.join(args.out, stem + ".jsonl")

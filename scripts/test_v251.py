@@ -2187,8 +2187,8 @@ def test_newnode_v2_profiles_v259z137(env):
 def test_split_pair_1gs_8gs_z139():   # [z139] two machines: together 8g80's stages, only the gates on both; 8gs keeps every training
     import queue_profiles as QP
     a, b = QP.PROFILES["1gs"], QP.PROFILES["8gs"]
-    assert set(a) | set(b) == set(QP.PROFILES["8g80"]) | {"p1q8", "p1qs43", "p1q4s43", "p1h2", "p1b3", "p1b3q093", "p1qs44", "p1q096a", "p1q095", "p1q096c"} and set(a) & set(b) == {"p0a"}   # [z154] two 8gs-only stages and a[0] == b[0] == "p0a"
-    assert [s for s in QP.PROFILES["8g80"] if s in b] + ["p1q8", "p1qs43", "p1q4s43", "p1h2", "p1b3", "p1b3q093", "p1qs44", "p1q096a", "p1q095", "p1q096c"] == b  # [z156] p1q4s43; [z156b] p1h2; [z157] p1b3; 8g80's order ([z154] + the two 8gs-only stages last)
+    assert set(a) | set(b) == set(QP.PROFILES["8g80"]) | {"p1q8", "p1qs43", "p1q4s43", "p1h2", "p1b3", "p1b3q093", "p1qs44", "p1q096a", "p1q095", "p1q096c", "p1q094"} and set(a) & set(b) == {"p0a"}   # [z154] two 8gs-only stages and a[0] == b[0] == "p0a"
+    assert [s for s in QP.PROFILES["8g80"] if s in b] + ["p1q8", "p1qs43", "p1q4s43", "p1h2", "p1b3", "p1b3q093", "p1qs44", "p1q096a", "p1q095", "p1q096c", "p1q094"] == b  # [z156] p1q4s43; [z156b] p1h2; [z157] p1b3; 8g80's order ([z154] + the two 8gs-only stages last)
     spec, _ = QP.source()
     ta = {x.split(":")[0] for st in a for x in QP.stage_specs(st, spec)}
     assert not [t for t in ta if re.match(r"E1\d", t)]                          # no training on the 1-GPU box
@@ -2644,3 +2644,52 @@ def test_q095_and_ood_z158c(env):   # [z158c] (Fable D94 / D96) Q-095 (P5self wi
              "PROBE-TERM4-N095B", "EVAL-e10b-P5self-b3", "EVAL-e10d-P5self-b3", "EVAL-ood-17think-b3", "EVAL-ood-17chain-b3", "EVAL-ood-17q093-b3"]
     for k, t in enumerate(names):
         assert env.c.v_run([t], 2050 + k)[0] == "accepted", t
+
+
+def test_q094_prefill_z158d(env, tmp_path):   # [z158d] (Fable 02:3x, lab/registry/Q-094.md) prefilled openings: gen_eval --prefill, the queue's pf= field
+    import queue_profiles as QP
+    for p, st in QP.PROFILES.items():
+        assert ("p1q094" in st) == (p == "8gs"), p
+    L, stages, spec = _profile_queue("8gs")
+    ev = [l.split() for l in L if l.startswith("#eval EVAL-q094-")]
+    assert len(ev) == 10 and len({r[1] for r in ev}) == 10 and all(len(r) == 10 for r in ev)
+    assert all(r[4:9] == ["math500", "4", "0.6", "16384", "no_think"] for r in ev)
+    assert {r[9] for r in ev if r[1].endswith("-T")} == {"pf=32313"} and {r[9] for r in ev if r[1].endswith("-N")} == {"pf=1654"}
+    models = {r[1]: r[3] for r in ev}
+    assert models["EVAL-q094-17self-T"] == models["EVAL-q094-17self-N"] == "result:runs/E10b-P5self/global_step_50/actor/huggingface"
+    assert models["EVAL-q094-4self-T"] == "result:runs/E10d-P5self/global_step_50/actor/huggingface" and models["EVAL-q094-4base-N"] == "Qwen/Qwen3-4B"
+    assert models["EVAL-q094-17p5-T"] == "result:runs/E10b-P5/global_step_150/actor/huggingface" and models["EVAL-q094-17base-T"] == "Qwen/Qwen3-1.7B"
+    for f in ("E10b-P5self/global_step_50", "E10d-P5self/global_step_50", "E10b-P5/global_step_150"):
+        assert f"#fetch result:runs/{f}/actor/huggingface" in L, f
+    assert all(t in QP.EST for t in QP.STAGES["p1q094"])
+    rq = open(os.path.join(HERE, "run_queue_eval.sh")).read()
+    assert "{print $3, $4, $5, $6, $7, $8, $9, $10}" in rq and rq.count("read -r TAG MODEL BENCH N TEMP MAXT MODE PF; do") == 3
+    assert "read -r TAG MODEL BENCH N TEMP MAXT MODE; do" not in rq   # no loop reads pf= into MODE
+    assert '[[ $PF =~ ^pf=[0-9]+(,[0-9]+)*$ ]]' in rq and 'PFA="--prefill ${PF#pf=}"' in rq and "--out $OUT $PFA >>" in rq
+    sys.path.insert(0, os.path.join(os.path.dirname(HERE), "code", "eval"))
+    import gen_eval as G
+    assert "prefill" in G.RESUME_KEYS and G.RESUME_DEFAULTS == {"prefill": ""}
+    src = open(os.path.join(os.path.dirname(HERE), "code", "eval", "gen_eval.py")).read()
+    assert 'prompts = [{"prompt_token_ids": tok(p)["input_ids"] + pf} for p in prompts]' in src
+    # a .part written before z158d (no "prefill" in its .meta) resumes unprefilled, never prefilled
+    import argparse, json as _j
+    rows = [{"pid": f"p{i}"} for i in range(4)]
+    base = dict(model="m", bench="math500", mode="no_think", n=1, temperature=0.6, top_p=0.95, top_k=0, max_tokens=16384, limit=None, seed=0, chunk=2)
+    part, meta = str(tmp_path / "x.jsonl.part"), str(tmp_path / "x.jsonl.part.meta")
+    open(part, "w").write("".join(_j.dumps({"pid": f"p{i}", "sample": 0}) + "\n" for i in range(2)))
+    _j.dump({"args": base, "gen_seconds_done": 3.0}, open(meta, "w"))
+    recs, gs = G.resume_state(part, meta, argparse.Namespace(**base, prefill=""), rows, 2)
+    assert len(recs) == 2 and gs == 3.0
+    try:
+        G.resume_state(part, meta, argparse.Namespace(**base, prefill="32313"), rows, 2); assert False, "resumed a prefilled run on an unprefilled .part"
+    except SystemExit as e:
+        assert "RESUME_REFUSED" in str(e)
+    _j.dump({"args": dict(base, prefill="1654"), "gen_seconds_done": 3.0}, open(meta, "w"))
+    for pf, ok in (("1654", True), ("32313", False), ("", False)):
+        try:
+            G.resume_state(part, meta, argparse.Namespace(**base, prefill=pf), rows, 2); assert ok, pf
+        except SystemExit:
+            assert not ok, pf
+    names = [f"EVAL-q094-{c}-{o}" for c in ("17base", "17self", "4base", "4self", "17p5") for o in ("T", "N")]
+    for k, t in enumerate(names):
+        assert env.c.v_run([t], 2070 + k)[0] == "accepted", t

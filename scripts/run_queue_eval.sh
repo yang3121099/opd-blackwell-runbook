@@ -9,6 +9,8 @@
 # v2.5.7g (reviewer 18:4x UTC, budget-dependence readings A): an optional 7th field = the generation budget max_tokens
 # (2048 / 4096 / 8192 / 16384 / 32768; default 16384, as before):  #eval EVAL-<name> <tag> <model> <bench> <n> <temp> [<max_tokens>]
 # v2.5.7h (budget readings B, lab Q-013): an optional 8th field = the mode, think or no_think (default no_think, as before)
+# [z158d] (Fable 02:3x, lab Q-094): an optional 9th field pf=<token id>[,<id>...] = token ids prefilled at the start of the
+# assistant turn (gen_eval --prefill; max_tokens and mode written out before it); not for the image benches
 # v2.5.4e: models from yang31210999/opd-lab-ckpts come through fetch_model.py (complete by size and sha256, or not used);
 # `prefetch` mode fetches every model of the task without a GPU and writes runs/EVAL-<name>/.inputs_ok (the hash of the
 # task's #eval lines); run_tasks.sh starts prefetches for all EVAL tasks of the queue and gives a GPU only after .inputs_ok.
@@ -18,7 +20,7 @@ source "$(dirname "$0")/env.sh"; source ${VENV_EVAL:-$OPD_ROOT/venv}/bin/activat
 G=$1; T=$2; OUT=$OPD_ROOT/runs/$T; Q=${QUEUE_FILE:-$RUNBOOK/tasks/queue.txt}; mkdir -p $OUT
 VIF=${VENV_IFEVAL:-$OPD_ROOT/venv-ifeval}   # [v2.5.9z16] the grading-only venv of the ifeval rows (BUILD-VENV-IFEVAL)
 [ -f $OUT/.done ] && { echo "TASK_ALREADY_DONE $T"; exit 0; }
-SPECS=$(awk -v t="$T" '$1 == "#eval" && $2 == t {print $3, $4, $5, $6, $7, $8, $9}' "$Q")
+SPECS=$(awk -v t="$T" '$1 == "#eval" && $2 == t {print $3, $4, $5, $6, $7, $8, $9, $10}' "$Q")
 [ -n "$SPECS" ] || { echo "no #eval lines for $T in the queue"; exit 1; }
 HASH=$(awk -v t="$T" '$1 == "#eval" && $2 == t' "$Q" | cksum | cut -d' ' -f1)
 fetch_ckpt() {   # $1 = path inside yang31210999/opd-lab-ckpts; 0 when complete
@@ -60,7 +62,7 @@ ref_path() {   # a reading: a tag of this task -> its jsonl, or <task dir>/<file
 }
 if [ "$G" = prefetch ]; then
   pok=1
-  while read -r TAG MODEL BENCH N TEMP MAXT MODE; do
+  while read -r TAG MODEL BENCH N TEMP MAXT MODE PF; do
     case $MODEL in yang31210999/opd-lab-ckpts/*) fetch_ckpt "${MODEL#yang31210999/opd-lab-ckpts/}" || { echo "PREFETCH_FAILED $TAG $MODEL"; pok=0; };;
       result:*) [ -n "$(local_save "${MODEL#result:}")" ] && { echo "PREFETCH_LOCAL $TAG $MODEL"; continue; }   # v2.5.7zd
         fetch_result "${MODEL#result:}" || { echo "PREFETCH_FAILED $TAG $MODEL"; pok=0; };; esac
@@ -70,7 +72,7 @@ if [ "$G" = prefetch ]; then
 fi
 rm -f $OUT/.gpu_released   # [v2.5.9z65a] this attempt holds its GPU until its GPU work is over
 ok=1; touch $OUT/.models   # v2.5.6i: "<tag> <resolved model>" per reading, for a #twr line (kept across attempts)
-while read -r TAG MODEL BENCH N TEMP MAXT MODE; do
+while read -r TAG MODEL BENCH N TEMP MAXT MODE PF; do
   MAXT=${MAXT:-16384}; MODE=${MODE:-no_think}
   [[ $TAG =~ ^[A-Za-z0-9._-]+$ ]] || { echo "REFUSED bad tag $TAG"; ok=0; continue; }
   ls $OUT/${TAG}_*.metrics.json > /dev/null 2>&1 && { echo "DONE_ALREADY $TAG"; continue; }
@@ -80,6 +82,10 @@ while read -r TAG MODEL BENCH N TEMP MAXT MODE; do
   [ $rc = 1 ] && hf_backoff && { echo "WAIT_INPUTS $T: $MODEL not in (the HF 429 backoff lasts)"; exit 1; }   # [v2.5.9z52] waiting, no attempt
   [ $rc = 1 ] && { echo "MODEL_FETCH_FAILED $TAG: $MODEL (see $OUT/fetch.log)"; ok=0; continue; }
   [ $rc = 2 ] && { echo "MODEL_MISSING $TAG: $MODEL"; ok=0; continue; }
+  PFA=""; if [ -n "${PF:-}" ]; then   # [z158d]
+    [[ $PF =~ ^pf=[0-9]+(,[0-9]+)*$ ]] || { echo "REFUSED $TAG: prefill must be pf=<id>[,<id>...], not $PF"; ok=0; continue; }
+    case $BENCH in geo3k|mathvista|mathvision|mathverse) echo "REFUSED $TAG: no prefill for the image benches"; ok=0; continue;; esac
+    PFA="--prefill ${PF#pf=}"; fi
   case $TEMP in 1.0) SAMP="--temperature 1.0 --top_p 1.0 --top_k 0";; 0) SAMP="--temperature 0 --top_p 1.0 --top_k 0";; *) SAMP="--temperature 0.6 --top_p 0.95 --top_k 0";; esac   # [v2.5.9z15] 0: greedy
   # [v2.5.9z15] a multiple-choice bench reads the node's #fetch copy: while it is not in, the task waits (no attempt; 9z3)
   case $BENCH in gpqa) DS=Idavidrein__gpqa;; mmlupro1k) DS=TIGER-Lab__MMLU-Pro;; ifeval) DS=google__IFEval;; *) DS="";; esac   # [v2.5.9z16] ifeval
@@ -92,7 +98,7 @@ while read -r TAG MODEL BENCH N TEMP MAXT MODE; do
   EV=$RUNBOOK/code/eval/gen_eval.py; PYE=python   # [v2.5.9z] the image benches: gen_eval_vl.py in venv-vl (same arguments and file names)
   case $BENCH in geo3k|mathvista|mathvision|mathverse) EV=$RUNBOOK/code/eval/gen_eval_vl.py; PYE=${VENV_VL:-$OPD_ROOT/venv-vl}/bin/python;; esac
   CUDA_VISIBLE_DEVICES=$G $PYE $EV --model $M --bench $BENCH --mode $MODE --n $N $SAMP \
-    --max_tokens $MAXT --chunk $K --dtype $DT --tag $TAG --out $OUT >> $OUT/gen_eval.log 2>&1 || { echo "EVAL_FAIL $TAG"; ok=0; python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1; continue; }
+    --max_tokens $MAXT --chunk $K --dtype $DT --tag $TAG --out $OUT $PFA >> $OUT/gen_eval.log 2>&1 || { echo "EVAL_FAIL $TAG"; ok=0; python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1; continue; }
   echo "EVAL_DONE $(date -u +%T) $TAG"; echo "$TAG $M" >> $OUT/.models
   python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true   # v2.5.4b: release the GPU before the next engine
 done <<< "$SPECS"
@@ -157,7 +163,7 @@ export CUDA_VISIBLE_DEVICES=   # [ops-lead's A1 condition] a later step that tou
 # venv-ifeval (code/eval/ifeval_grade.py) writes <stem>.ifeval.json (prompt- / instruction-level accuracy, strict and loose), and its
 # metrics get avg_acc = prompt-level strict and the block ifeval. A graded reading (its .ifeval.json) is left alone. Without venv-ifeval
 # or the data the task waits (no attempt); a failed grading fails the task, and its reading is kept, so the next attempt only grades.
-while read -r TAG MODEL BENCH N TEMP MAXT MODE; do
+while read -r TAG MODEL BENCH N TEMP MAXT MODE PF; do
   [ "$BENCH" = ifeval ] || continue
   MJ=$(ls $OUT/${TAG}_ifeval_*.metrics.json 2> /dev/null | head -1); [ -n "$MJ" ] || continue   # no reading: counted above
   S=${MJ%.metrics.json}; [ -f $S.ifeval.json ] && { echo "IFEVAL_DONE_ALREADY $TAG"; continue; }
