@@ -146,9 +146,53 @@ def preflight(a, ck):
     print(f"SAVE every {sf} steps of {steps} ({n} saves) to {dd}; ~{per / 1e9:.1f} GB a save (start model {m}); free there {free / 1e9:.0f} GB")
     if per and free < 2 * per:
         print("DISK_LOW: less than two saves' room"); bad += 1
-    latest = os.path.join(dd, "latest_checkpointed_iteration.txt")
-    print(f"RESUME mode={mode}: " + (f"from step {open(latest).read().strip()} ({latest})" if os.path.isfile(latest) else "a fresh start (no saved state)"))
+    resume_line(a.task, a.root, ck, dd, mode)
     return bad + retain(rec, a.root, sf, steps)
+
+
+def resume_line(task, root, ck, dd, mode):
+    """[z171] (executor B, uk-8 11-15: c100 had steps 49 / 50 in its LOCAL dir, preflight said "a fresh start") with CKPT_LOCAL the step a
+    start resumes from is ckpt_lib.py's choice (prepare / select_resume: this run's highest verified step, local > shared > HF-pulled),
+    so ask it, on the same two dirs; without CKPT_LOCAL the trainer's own dir and its latest_checkpointed_iteration.txt as before."""
+    local = node_env(root, "CKPT_LOCAL")
+    if not local:
+        latest = os.path.join(dd, "latest_checkpointed_iteration.txt")
+        print(f"RESUME mode={mode}: " + (f"from step {open(latest).read().strip()} ({latest})" if os.path.isfile(latest) else "a fresh start (no saved state)"))
+        return
+    import ckpt_lib as CL
+    lk, sk = os.path.join(local, task, "ckpt"), os.path.join(ck, task, "ckpt")
+    cfg = os.path.join(root, "runs", task, "config.yaml")
+    rid = CL.run_id(cfg) if os.path.isfile(cfg) else None
+    lat = os.path.join(lk, "latest_checkpointed_iteration.txt")
+    seen = f"local steps {CL.steps(lk)[-3:] or 'none'}" + (f" (latest {open(lat).read().strip()})" if os.path.isfile(lat) else "") + f", shared steps {CL.steps(sk)[-3:] or 'none'}"
+    if rid is None:
+        print(f"RESUME mode={mode}: a fresh start - no runs/{task}/config.yaml, so no run id to resume (a new run); {seen}"); return
+    best, why = CL.select_resume(lk, sk, rid)
+    if best:
+        print(f"RESUME mode={mode}: from step {best[0]} ({['local', 'shared', 'hf'][best[1]]}: {best[2]}); {seen}")
+    else:
+        print(f"RESUME mode={mode}: a fresh start - no step of this run ({rid}) usable; {seen}")
+    for w in why[:3]:
+        print(f"  RESUME_SKIP {w}")
+
+
+def keep_alive(root, now=None):
+    """[z171] (executor B: its own node-kit keep_steps.sh kept every s25 today) the runbook loop's liveness file, or ANY keep_steps.sh
+    process on this machine (the node-kit copy keeps KEEP_STEPS, default 25: its step list is not checked)."""
+    import time
+    try:
+        if (now or time.time()) - int(open(os.path.join(root, "control", "loop_keep_steps")).read().strip()) < 300:
+            return "keep_steps.sh (the runbook loop, alive)"
+    except (OSError, ValueError):
+        pass
+    try:   # pgrep -f + ps (pgrep -a is "full args" on Linux but "ancestors too" on macOS)
+        pids = subprocess.run(["pgrep", "-f", "keep_steps[.]sh"], capture_output=True, text=True, timeout=10).stdout.split()
+        p = subprocess.run(["ps", "-o", "pid=,args=", "-p", ",".join(pids)], capture_output=True, text=True, timeout=10).stdout.strip() if pids else ""
+    except (OSError, subprocess.SubprocessError):
+        p = ""
+    if p:
+        return f"a keep_steps.sh process ({p.splitlines()[0][:120]}; the steps it keeps are not checked)"
+    return None
 
 
 def node_env(root, key):
@@ -175,10 +219,7 @@ def retain(rec, root, sf, steps, now=None):
         print(f"RETAIN registered steps {up}: nothing to check"); return 0
     sf, steps = int(sf), int(steps); uw = sorted({int(x) for x in up.split(",") if x.isdigit() and int(x) < steps})
     local = node_env(root, "CKPT_LOCAL")
-    try:
-        alive = (now or time.time()) - int(open(os.path.join(root, "control", "loop_keep_steps")).read().strip()) < 300
-    except (OSError, ValueError):
-        alive = False
+    alive = keep_alive(root, now)
     upl = bool(os.environ.get("HF_TOKEN") or os.environ.get("MS_TOKEN")) and os.environ.get("UPLOAD_DRY", "0") != "1"
     bad = 0
     for u in uw:
@@ -188,7 +229,7 @@ def retain(rec, root, sf, steps, now=None):
         elif saves_after <= 1:
             how = f"the local rotation keeps it (keep 2, {saves_after} save after it)"
         elif alive:
-            how = f"keep_steps.sh (loop alive) - {saves_after} saves after it would rotate it away"
+            how = f"{alive} - {saves_after} saves after it would rotate it away"
         elif upl:
             how = f"the upload (a credential set) - {saves_after} saves after it would rotate it away locally"
         else:

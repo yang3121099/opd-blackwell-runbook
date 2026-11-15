@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import time
+from types import SimpleNamespace
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -87,6 +88,7 @@ def test_retain(tmp_path, monkeypatch, capsys):
     root = tmp_path / "r"; (root / "control").mkdir(parents=True)
     for k in ("CKPT_LOCAL", "HF_TOKEN", "MS_TOKEN", "UPLOAD_DRY"):
         monkeypatch.delenv(k, raising=False)
+    monkeypatch.setattr(deps.subprocess, "run", lambda *k, **kw: SimpleNamespace(stdout=""))   # no keep_steps.sh process on this machine
     assert deps.retain(rec("25,50"), str(root), "1", "50") == 0 and "no local rotation" in capsys.readouterr().out
     (root / "paths.env").write_text("CKPT_LOCAL=/var/tmp/opd/ckptlocal\n")
     assert deps.retain(rec("25,50"), str(root), "1", "50") == 1   # the c100 case: SAVE=1, keep 2, nothing else
@@ -94,9 +96,14 @@ def test_retain(tmp_path, monkeypatch, capsys):
     assert "RETAIN s25 MISSING" in out and "s50" not in out.replace("of 50", "")   # the final step is the rotation's newest
     assert deps.retain(rec("25,50"), str(root), "25", "50") == 0 and "the local rotation keeps it" in capsys.readouterr().out
     (root / "control" / "loop_keep_steps").write_text(str(int(time.time())))
-    assert deps.retain(rec("25,50"), str(root), "1", "50") == 0 and "keep_steps.sh (loop alive)" in capsys.readouterr().out
+    assert deps.retain(rec("25,50"), str(root), "1", "50") == 0 and "keep_steps.sh (the runbook loop, alive)" in capsys.readouterr().out
     (root / "control" / "loop_keep_steps").write_text(str(int(time.time()) - 900))   # a dead loop does not count
+    monkeypatch.setattr(deps.subprocess, "run", lambda *k, **kw: SimpleNamespace(stdout=""))   # no keep_steps.sh process either
     assert deps.retain(rec("25,50"), str(root), "1", "50") == 1
+    monkeypatch.setattr(deps.subprocess, "run", lambda cmd, **kw: SimpleNamespace(stdout="4242\n" if cmd[0] == "pgrep" else " 4242 bash /var/tmp/opd/bin/keep_steps.sh\n"))
+    assert deps.retain(rec("25,50"), str(root), "1", "50") == 0   # [z171] executor B's node-kit copy counts
+    assert "a keep_steps.sh process (4242 bash /var/tmp/opd/bin/keep_steps.sh; the steps it keeps are not checked)" in capsys.readouterr().out
+    monkeypatch.setattr(deps.subprocess, "run", lambda *k, **kw: SimpleNamespace(stdout=""))
     monkeypatch.setenv("HF_TOKEN", "x")
     assert deps.retain(rec("25,50"), str(root), "1", "50") == 0 and "the upload" in capsys.readouterr().out
     assert deps.retain(rec("all"), str(root), "1", "50") == 0
@@ -111,3 +118,26 @@ def test_preflight_train_line_on_a_refusal_z170(tmp_path, monkeypatch, capsys): 
     assert "NODE_REFUSAL exit:2" in out and "TRAIN unknown (the node dry run ended before the launch" in out and "not a training" not in out
     monkeypatch.setattr(deps, "dry_record", lambda *k, **kw: ({"result": "ok", "train": []}, ""))
     assert deps.preflight(a, str(tmp_path)) == 0 and "TRAIN none (not a training" in capsys.readouterr().out
+
+
+def test_resume_line_reads_the_local_dir_z171(tmp_path, monkeypatch, capsys):   # [z171] (executor B, c100 11-15) local steps 49 / 50 = a resume, not "fresh"
+    import ckpt_lib as CL
+    root, ck, local = tmp_path / "opd", tmp_path / "ckpt", tmp_path / "local"
+    (root / "runs" / "T").mkdir(parents=True); (root / "paths.env").write_text(f"CKPT_LOCAL={local}\n")
+    monkeypatch.delenv("CKPT_LOCAL", raising=False)
+    cfg = root / "runs" / "T" / "config.yaml"; cfg.write_text("task: T\nstarted: 2026-11-15T10:00:00Z\n")
+    lk = local / "T" / "ckpt"
+    for st in (49, 50):
+        (lk / f"global_step_{st}").mkdir(parents=True)
+    (lk / "latest_checkpointed_iteration.txt").write_text("50"); (lk / ".run_id").write_text(CL.run_id(str(cfg))); CL.write_marker(str(lk), 50)
+    deps.resume_line("T", str(root), str(ck), str(lk), "auto")
+    out = capsys.readouterr().out
+    assert f"RESUME mode=auto: from step 50 (local: {lk / 'global_step_50'})" in out and "local steps [49, 50] (latest 50)" in out, out
+    (lk / ".run_id").write_text("another-run")   # another run's dir: not this run's steps
+    deps.resume_line("T", str(root), str(ck), str(lk), "auto")
+    assert "a fresh start - no step of this run" in capsys.readouterr().out
+    cfg.unlink(); deps.resume_line("T", str(root), str(ck), str(lk), "auto")
+    assert "no runs/T/config.yaml, so no run id" in capsys.readouterr().out
+    (root / "paths.env").write_text(""); (lk / ".run_id").write_text("x")   # no CKPT_LOCAL: the trainer dir's latest file, as before z171
+    deps.resume_line("T", str(root), str(ck), str(lk), "auto")
+    assert f"RESUME mode=auto: from step 50 ({lk / 'latest_checkpointed_iteration.txt'})" in capsys.readouterr().out
