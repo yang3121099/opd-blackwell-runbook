@@ -7,7 +7,7 @@ set -uo pipefail
 source "$(dirname "$0")/env.sh"; G=$1; T=$2
 # [v2.5.9a] G = one GPU, cpu, or a list a,b (a #gpus task, run_tasks.sh): a list only for the trainings and PROBE-2GPU
 [[ $G =~ ^([0-9]+(,[0-9]+){0,7}|cpu)$ ]] || { echo "bad gpu $G"; exit 2; }   # [z151] up to 8 GPUs (was 4)
-case $G in *,*) [[ $T =~ ^(E10[bcde]-|PROBE-MODE$|PROBE-E12D-16K$|PROBE-E12D-P0THINK$|PROBE-E12E-P0THINK$|PROBE-E12B-P0THINK-8G$|PROBE-E12B-P0THINK-(S44|4K|16K)$|PROBE-E12D-P0THINK-8G$|E12[bcde]-|PROBE-2GPU$|PROBE-8B$|PROBE-E12E-8K$|PROBE-E12E-16K$|PROBE-TAIL-8B$) ]] || { echo "$T takes one GPU (got $G)"; exit 2; };; esac   # [z151] the Q-093b gate (z149 left it out)
+case $G in *,*) [[ $T =~ ^(E10[bcde]-|PROBE-MODE$|PROBE-E12D-16K$|PROBE-E12D-P0THINK$|PROBE-E12E-P0THINK$|PROBE-E12B-P0THINK-8G$|PROBE-E12B-P0THINK-(S44|4K|16K|6K|12K|7K|8K50-4K)$|PROBE-E12D-P0THINK-8G$|PROBE-P5Q093T-4B$|E12[bcde]-|PROBE-2GPU$|PROBE-8B$|PROBE-E12E-8K$|PROBE-E12E-16K$|PROBE-TAIL-8B$) ]] || { echo "$T takes one GPU (got $G)"; exit 2; };; esac   # [z151] the Q-093b gate (z149 left it out)   # [z164] (executor B 11-15: PROBE-E12B-P0THINK-6K / -12K exited 'takes one GPU' on 4 GPUs) the z159 gates, 6K / 12K and the paused 7K / 8K50-4K
 # v2.5.4a: a task whose previous attempt ran out of GPU memory (run_tasks.sh writes runs/<task>/.oom) gets FIXED_MICRO_BSZ=4
 # for its own retries, unless the key is set already; nothing else changes
 [ -f $OPD_ROOT/runs/$T/.oom ] && [ -z "${FIXED_MICRO_BSZ:-}" ] && { export FIXED_MICRO_BSZ=4; echo "OOM_RETRY $T with FIXED_MICRO_BSZ=4"; }

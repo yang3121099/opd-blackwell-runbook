@@ -2853,3 +2853,22 @@ def test_teacher_suffix_arm_z163(env):   # [z163] (Fable board v7, registry Q-10
         assert env.c.v_run([t], 2190 + k)[0] == "accepted", t
     import control_rules as R
     R.parse({"cmd": "rerun PROBE-P5SELFP2", "reason": "t"})
+
+
+def test_multi_gpu_gates_z164():   # [z164] (executor B 11-15; Fable A1) every #gpus > 1 task of every queue file passes task.sh's multi-GPU list
+    import glob, subprocess
+    task = open(os.path.join(HERE, "task.sh")).read()
+    line = next(l for l in task.splitlines() if l.startswith("case $G in *,*) [[ $T =~ "))
+    case = line.split("   #")[0]
+    multi = {}
+    for f in glob.glob(os.path.join(HERE, "..", "tasks", "queue_*.txt")):
+        for l in open(f):
+            w = l.split()
+            if len(w) == 3 and w[0] == "#gpus" and w[2].isdigit() and int(w[2]) > 1:
+                multi[w[1]] = max(multi.get(w[1], 0), int(w[2]))
+    assert len(multi) > 20 and "PROBE-P5Q093T-4B" in multi and "PROBE-E12B-P0THINK-6K" in multi
+    probe = lambda t, g: subprocess.run(["bash", "-c", f"T={t}; G={g}; {case}; echo ok"], capture_output=True, text=True).stdout.strip() == "ok"
+    bad = [t for t, n in sorted(multi.items()) if not probe(t, ",".join(str(k) for k in range(n)))]
+    assert not bad, f"#gpus > 1 tasks refused by task.sh's multi-GPU list: {bad}"
+    for t in ("PROBE-P5SELFP2", "PROBE-P5Q4KT", "PROBE-P5Q093T", "EVAL-u1-refs"):   # one-GPU tasks stay refused on a list
+        assert not probe(t, "0,1,2,3"), t
