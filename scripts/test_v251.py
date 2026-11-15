@@ -1900,7 +1900,7 @@ def test_mode_benches_v259z108b():   # [v2.5.9z108b] (Q-083 D4) math500L / math5
     assert G.MODE_PREFIX == {"math500L": "[long] ", "math500S": "[short] "}
     assert G.BENCH_SOURCES["math500L"] == G.BENCH_SOURCES["math500S"] == G.BENCH_SOURCES["math500"]      # the same 500 problems
     src = open(os.path.join(os.path.dirname(here), "code", "eval", "gen_eval.py")).read()
-    assert '"content": MODE_PREFIX.get(args.bench, "") + r["problem"] + suffix' in src                     # the token first, as in training
+    assert 'text = MODE_PREFIX.get(bench, "") + problem + suffix' in src and 'user_content(args.bench, r["problem"], args.user_suffix)' in src   # the token first, as in training; [z161] built in user_content
     sys.path.insert(0, os.path.join(os.path.dirname(here), "code", "patches")); import opd_route
     assert G.MODE_PREFIX["math500L"] + "x" == opd_route.prefixed("x", True) and G.MODE_PREFIX["math500S"] + "x" == opd_route.prefixed("x", False)
     for b in ("math500L", "math500S"):
@@ -2730,7 +2730,7 @@ def test_seed_mode_z158h():   # [z158h] (Fable M1) per-problem seed derivation b
     a, b = G.request_seeds(pids, 0, 4), G.request_seeds(pids, 1000, 4)
     assert a == G.request_seeds(pids, 0, 4) and a != b and len(set(a)) == 500 and all(0 <= x < 2 ** 31 for x in a + b)
     assert len({(x + i) % 2 ** 32 for x in a for i in range(4)}) == 2000   # distinct per-sample streams (torch keeps 32 bits)
-    assert G.RESUME_DEFAULTS == {"prefill": "", "seed_mode": "shared"} and "seed_mode" in G.RESUME_KEYS
+    assert G.RESUME_DEFAULTS == {"prefill": "", "seed_mode": "shared", "user_suffix": ""} and "seed_mode" in G.RESUME_KEYS   # [z161] user_suffix
     src = open(os.path.join(os.path.dirname(here), "code", "eval", "gen_eval.py")).read()
     assert 'ap.add_argument("--seed_mode", default="shared", choices=["shared", "per_problem"])' in src
     assert 'if args.seed_mode == "shared":\n            return SamplingParams(**kw, seed=base)' in src   # the default: one SamplingParams, seed = --seed

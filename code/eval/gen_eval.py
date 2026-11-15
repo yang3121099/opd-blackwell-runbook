@@ -275,6 +275,7 @@ def compute_metrics(args, rows, recs, gen_s):
         **({"ifeval": None} if later else {}),   # [v2.5.9z16]
         **({"prefill_ids": args.prefill, "think_close_written_rate": round(sum("</think>" in r["text"] for r in recs) / len(recs), 4)}
            if getattr(args, "prefill", "") else {}),   # [z158d]
+        **({"user_suffix": args.user_suffix} if getattr(args, "user_suffix", "") else {}),   # [z161] (Q-098 prompt baselines)
     }
 
 
@@ -284,14 +285,29 @@ def compute_metrics(args, rows, recs, gen_s):
 # arguments keeps every complete block, drops a block that was only partly written, and generates the rest; the last
 # block renames .part to <stem>.jsonl and writes the metrics exactly as an unchunked run does. Blocks never change size,
 # so every problem is generated in the same batch as in an uninterrupted chunked run.
-RESUME_KEYS = ["model", "bench", "mode", "n", "temperature", "top_p", "top_k", "max_tokens", "limit", "seed", "chunk", "prefill", "seed_mode"]
+RESUME_KEYS = ["model", "bench", "mode", "n", "temperature", "top_p", "top_k", "max_tokens", "limit", "seed", "chunk", "prefill", "seed_mode",
+               "user_suffix"]   # [z161]
 # [z158d] keys added after readings were already running: a .meta written before a key existed still matches while the run uses
 # that key's default (a reading started at z158c resumes under z158d; a prefilled one never resumes an unprefilled .part)
-RESUME_DEFAULTS = {"prefill": "", "seed_mode": "shared"}   # [z158h] seed_mode
+RESUME_DEFAULTS = {"prefill": "", "seed_mode": "shared", "user_suffix": ""}   # [z158h] seed_mode; [z161] user_suffix
+
+
+def user_content(bench, problem, user_suffix=""):
+    """[z161] the user message of a problem: the mode token (math500L / math500S), the problem, the bench's suffix (multiple choice: the
+    letter suffix; ifeval: none; else PROMPT_SUFFIX), then --user_suffix on its own line when given (empty: exactly as before z161)."""
+    suffix = MC_SUFFIX if bench in MC_SOURCES else "" if bench == "ifeval" else PROMPT_SUFFIX   # [v2.5.9z16] ifeval: as it is
+    text = MODE_PREFIX.get(bench, "") + problem + suffix   # [v2.5.9z108b] the mode token
+    return text + "\n" + user_suffix if user_suffix else text
+
+
+def meta_args(args):
+    """[z161] the arguments a .part.meta records: every RESUME_KEYS value, except user_suffix while it is empty (so a reading written by
+    this version resumes under an older gen_eval too, as long as no suffix was used)."""
+    return {k: getattr(args, k, RESUME_DEFAULTS.get(k)) for k in RESUME_KEYS if not (k == "user_suffix" and not getattr(args, k, ""))}
 
 
 def resume_state(part, meta, args, rows, K):
-    want = {k: getattr(args, k) for k in RESUME_KEYS}
+    want = {k: getattr(args, k, RESUME_DEFAULTS.get(k)) for k in RESUME_KEYS}
     if not os.path.exists(part):
         return [], 0.0
     m = json.load(open(meta)) if os.path.exists(meta) else None
@@ -385,6 +401,9 @@ def main():
     # [z158h] (Fable M1) how request seeds are derived (shared = as before) and, for repeat readings, several seed bases read one after the
     # other in this engine (one pass each, no blocks; outputs <stem>_s<base>.jsonl / .metrics.json)
     ap.add_argument("--seed_mode", default="shared", choices=["shared", "per_problem"])
+    # [z161] (Fable 11-15, lab/registry/Q-098.md prompt baselines P1 / P2) a text appended to the user message on its own line after the
+    # standard suffix; empty (the default) = the prompt unchanged, character for character; the metrics name it
+    ap.add_argument("--user_suffix", default="", help="text appended to the user message on a new line after the standard suffix")
     ap.add_argument("--seed_list", default="", help="comma-separated seed bases read in this engine one after the other (no blocks)")
     args = ap.parse_args()
     if args.seed_list and not re.fullmatch(r"[0-9]+(,[0-9]+)*", args.seed_list):
@@ -399,8 +418,7 @@ def main():
     tok = AutoTokenizer.from_pretrained(args.model)
     prompts = []
     for r in rows:
-        suffix = MC_SUFFIX if args.bench in MC_SOURCES else "" if args.bench == "ifeval" else PROMPT_SUFFIX   # [v2.5.9z16] ifeval: as it is
-        msgs = [{"role": "user", "content": MODE_PREFIX.get(args.bench, "") + r["problem"] + suffix}]   # [v2.5.9z108b] the mode token
+        msgs = [{"role": "user", "content": user_content(args.bench, r["problem"], args.user_suffix)}]   # [z161] the text built in user_content
         kw = {"enable_thinking": args.mode == "think"}
         try:
             prompts.append(tok.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True, **kw))
@@ -452,7 +470,7 @@ def main():
         done_rows = len({r["pid"] for r in recs})
         if not os.path.exists(meta):   # before the first block, so a .part never exists without its arguments
             with open(meta, "w") as f:
-                json.dump({"args": {k: getattr(args, k) for k in RESUME_KEYS}, "gen_seconds_done": 0.0, "problems_done": 0}, f)
+                json.dump({"args": meta_args(args), "gen_seconds_done": 0.0, "problems_done": 0}, f)
             open(part, "a").close()
         if done_rows:
             print(f"RESUME {stem}: {done_rows}/{len(rows)} problems kept from {part}", flush=True)
@@ -468,7 +486,7 @@ def main():
                 os.fsync(f.fileno())
             recs += block
             with open(meta + ".tmp", "w") as f:
-                json.dump({"args": {k: getattr(args, k) for k in RESUME_KEYS}, "gen_seconds_done": gen_s,
+                json.dump({"args": meta_args(args), "gen_seconds_done": gen_s,
                            "problems_done": min(b + K, len(rows))}, f)
             os.replace(meta + ".tmp", meta)
             print(f"BLOCK {stem}: {min(b + K, len(rows))}/{len(rows)} problems", flush=True)
