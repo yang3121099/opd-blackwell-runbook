@@ -65,7 +65,7 @@ case $T in
   E12b-P0think-8k|E12d-P0think-8k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;
   E12d-P0think-8k-s43) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [z156] (Q-093b-s43, Fable D50) Q-093b with data.seed 43 on 8 GPUs; above E12d-*
   E12e-P0think-8k|E12b-P0think-8k-s43) bash $RUNBOOK/scripts/run_e12.sh $G $T;;
-  E12b-P0think-8k-s44|E12b-P0think-4k|E12b-P0think-16k|E12b-P0think-8k-c100|E12b-P0think-8k50-4k|E12b-P0think-6k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [z159] (Q-097) A4 / 6K   # [z158f] (Q-096 B)   # [z158b] (Q-093-s44, Q-096 A)   # [z154] (Q-093c / Q-093-s43, Fable D25) 8 GPUs each on 8gs   # [z149] (Q-093b) the 4B arm, #gpus 4
+  E12b-P0think-8k-s44|E12b-P0think-4k|E12b-P0think-16k|E12b-P0think-8k-c100|E12b-P0think-8k50-4k|E12b-P0think-7k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [z159] (Q-097) A4 / D   # [z158f] (Q-096 B)   # [z158b] (Q-093-s44, Q-096 A)   # [z154] (Q-093c / Q-093-s43, Fable D25) 8 GPUs each on 8gs   # [z149] (Q-093b) the 4B arm, #gpus 4
   #   # [z146] (Q-093, Fable D10) E12b-P0-8k's recipe in the thinking template; above E12b-*
   E12b-P5tail-8k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z84a] (Q-074) the 8K RL arm from E10b-P5tail s50 (the method's chain); [v2.5.9z84b] above E12b-*, which took it first (exit 2, no log line)
   E12b-P5-16k-s44) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z84] (Q-076) the 1.7B 16K arm from E10b-P5-s44 s150, #gpus 2; [v2.5.9z84b] above E12b-*
@@ -106,7 +106,7 @@ case $T in
   PROBE-E12B-P0THINK-4K) PEV_NAME=PROBE-E12B-P0THINK-4K PEV_ARM=E12b-P0think-4k bash $RUNBOOK/scripts/probe_e12var.sh $G p0think;;   # [z158b]
   PROBE-E12B-P0THINK-16K) PEV_NAME=PROBE-E12B-P0THINK-16K PEV_ARM=E12b-P0think-16k bash $RUNBOOK/scripts/probe_e12var.sh $G p0think;;   # [z158b]
   PROBE-E12B-P0THINK-8K50-4K) PEV_NAME=PROBE-E12B-P0THINK-8K50-4K PEV_ARM=E12b-P0think-8k50-4k bash $RUNBOOK/scripts/probe_e12var.sh $G p0think;;   # [z159] (Q-097 A4)
-  PROBE-E12B-P0THINK-6K) PEV_NAME=PROBE-E12B-P0THINK-6K PEV_ARM=E12b-P0think-6k bash $RUNBOOK/scripts/probe_e12var.sh $G p0think;;   # [z159] (Q-097 6K)
+  PROBE-E12B-P0THINK-7K) PEV_NAME=PROBE-E12B-P0THINK-7K PEV_ARM=E12b-P0think-7k bash $RUNBOOK/scripts/probe_e12var.sh $G p0think;;   # [z159] (Q-097 D: W_s = 7K)
   PROBE-E12B-P0THINK) bash $RUNBOOK/scripts/probe_e12var.sh $G p0think;;   # [z146] (Q-093): the gate of E12b-P0think-8k
   PROBE-E12B-STOP2) bash $RUNBOOK/scripts/probe_e12var.sh $G stop2;;   # [v2.5.9f] (T1): the gate of E12b-P5-stop2
   PROBE-E12B-R3) bash $RUNBOOK/scripts/probe_e12var.sh $G r3;;   # [v2.5.9w] (Q-039) the gate of E12b-P5-r3
