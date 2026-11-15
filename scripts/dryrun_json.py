@@ -84,6 +84,7 @@ NOT_TERMINAL = [
     (r"^FORCED_MODEL_MISSING ", "one forced row without its model: the next row goes on"),
     (r"^TWR_SKIPPED ", "one twr row skipped: the next row goes on"),
     (r"^TOOL_DATA_MISSING ", "E10b-P5tool needs TOOL_DATA set by hand: a faithful finding"),
+    (r"^TSUF_MISSING ", "[z163] the teacher suffix text ships with the runbook (code/train/teacher_suffix/): missing = a runbook defect, a faithful finding"),
     (r"^\$\{F:-", "a file name, not a message"),
 ]
 # every other read of $OPD_ROOT/runs/... in run_arm.sh / run_e12.sh, and how the fixpoint covers it (test T8 fails on a new one)

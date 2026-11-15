@@ -2187,8 +2187,8 @@ def test_newnode_v2_profiles_v259z137(env):
 def test_split_pair_1gs_8gs_z139():   # [z139] two machines: together 8g80's stages, only the gates on both; 8gs keeps every training
     import queue_profiles as QP
     a, b = QP.PROFILES["1gs"], QP.PROFILES["8gs"]
-    assert set(a) | set(b) == set(QP.PROFILES["8g80"]) | {"p1q8", "p1qs43", "p1q4s43", "p1h2", "p1b3", "p1b3q093", "p1qs44", "p1q096a", "p1q095", "p1q096c", "p1q094", "p1q096b", "p1q097", "p1q097t"} and set(a) & set(b) == {"p0a"}   # [z154] two 8gs-only stages and a[0] == b[0] == "p0a"
-    assert [s for s in QP.PROFILES["8g80"] if s in b] + ["p1q8", "p1qs43", "p1q4s43", "p1h2", "p1b3", "p1b3q093", "p1qs44", "p1q096a", "p1q095", "p1q096c", "p1q094", "p1q096b", "p1q097", "p1q097t"] == b  # [z156] p1q4s43; [z156b] p1h2; [z157] p1b3; 8g80's order ([z154] + the two 8gs-only stages last)
+    assert set(a) | set(b) == set(QP.PROFILES["8g80"]) | {"p1q8", "p1qs43", "p1q4s43", "p1h2", "p1b3", "p1b3q093", "p1qs44", "p1q096a", "p1q095", "p1q096c", "p1q094", "p1q096b", "p1q097", "p1q097t", "p1q101"} and set(a) & set(b) == {"p0a"}   # [z154] two 8gs-only stages and a[0] == b[0] == "p0a"
+    assert [s for s in QP.PROFILES["8g80"] if s in b] + ["p1q8", "p1qs43", "p1q4s43", "p1h2", "p1b3", "p1b3q093", "p1qs44", "p1q096a", "p1q095", "p1q096c", "p1q094", "p1q096b", "p1q097", "p1q097t", "p1q101"] == b  # [z156] p1q4s43; [z156b] p1h2; [z157] p1b3; 8g80's order ([z154] + the two 8gs-only stages last)
     spec, _ = QP.source()
     ta = {x.split(":")[0] for st in a for x in QP.stage_specs(st, spec)}
     assert not [t for t in ta if re.match(r"E1\d", t)]                          # no training on the 1-GPU box
@@ -2796,7 +2796,7 @@ def test_t4k_z160(env):   # [z160] (Fable D105, registry Q-097 T4K) E10b-P5q4kt 
     pr = open(os.path.join(HERE, "probe_p5self.sh")).read()
     assert '[ "${2:-}" = q4kt ] && { T=PROBE-P5Q4KT; ARMT=E10b-P5q4kt;' in pr and "is not the 4K arm s50" in pr
     task = open(os.path.join(HERE, "task.sh")).read()
-    assert "E10b-P5q093t|E10d-P5q093t|E10b-P5q4kt) bash $RUNBOOK/scripts/run_arm.sh" in task and "PROBE-P5Q4KT) bash $RUNBOOK/scripts/probe_p5self.sh $G q4kt;;" in task
+    assert "E10b-P5q093t|E10d-P5q093t|E10b-P5q4kt|E10b-P5selfp2) bash $RUNBOOK/scripts/run_arm.sh" in task and "PROBE-P5Q4KT) bash $RUNBOOK/scripts/probe_p5self.sh $G q4kt;;" in task
     for k, t in enumerate(["PROBE-P5Q4KT", "E10b-P5q4kt"]):
         assert env.c.v_run([t], 2130 + k)[0] == "accepted", t
     import control_rules as R
@@ -2830,3 +2830,26 @@ def test_u1_record_z162(env):   # [z162] (Fable board v2) uk-share's ad hoc read
         assert _re.fullmatch(r"PROBE-TERM4-N[0-9A-Z]{1,8}", r[1]) and r[4] in files and r[5] == files[r[4]][8], r
     for k, t in enumerate(names):
         assert env.c.v_run([t], 2150 + k)[0] == "accepted", t
+
+
+def test_teacher_suffix_arm_z163(env):   # [z163] (Fable board v7, registry Q-101) E10b-P5selfp2: P5self + P2 on the teacher's prompt only
+    import queue_profiles as QP
+    for p, st in QP.PROFILES.items():
+        assert ("p1q101" in st) == (p == "8gs"), p
+    L, stages, spec = _profile_queue("8gs")
+    assert spec["E10b-P5selfp2"] == ["PROBE-P5SELFP2"] and spec["PROBE-P5SELFP2"] == []
+    assert "#gpus E10b-P5selfp2 4" in L and not any(l.startswith("#gpus PROBE-P5SELFP2 ") for l in L)
+    arm = open(os.path.join(HERE, "run_arm.sh")).read()
+    assert 'TSUF=""; [[ $TASK =~ ^E10b-P5selfp([0-9])$ ]] && { SELF=1; BASE=E10b-P5; TSUF=p${BASH_REMATCH[1]}; }' in arm
+    assert 'export OPD_TEACHER_SUFFIX="$(cat "$TSF")" OPD_TEACHER_SUFFIX_LOG=$OUT/teacher_suffix.jsonl' in arm
+    assert arm.index("teacher_suffix_patch.py") < arm.index("python3 -m verl.trainer.main_ppo")
+    assert open(os.path.join(HERE, "..", "code", "train", "teacher_suffix", "p2.txt")).read() == "Be concise. Use as few reasoning steps as possible, then give the final answer."
+    pr = open(os.path.join(HERE, "probe_p5self.sh")).read()
+    assert 'TSK=""; [[ "${2:-}" =~ ^p([0-9])$ ]] && { TSK=${2}; T=PROBE-P5SELFP${BASH_REMATCH[1]}; ARMT=E10b-P5selfp${BASH_REMATCH[1]};' in pr
+    assert "student prompts contain the teacher suffix" in pr and "did not suffix every row" in pr and "ROLLOUT_DUMP=$DUMP SMOKE=1" in pr
+    task = open(os.path.join(HERE, "task.sh")).read()
+    assert "E10b-P5q093t|E10d-P5q093t|E10b-P5q4kt|E10b-P5selfp2) bash $RUNBOOK/scripts/run_arm.sh" in task and "PROBE-P5SELFP2) bash $RUNBOOK/scripts/probe_p5self.sh $G p2;;" in task
+    for k, t in enumerate(["PROBE-P5SELFP2", "E10b-P5selfp2"]):
+        assert env.c.v_run([t], 2190 + k)[0] == "accepted", t
+    import control_rules as R
+    R.parse({"cmd": "rerun PROBE-P5SELFP2", "reason": "t"})

@@ -16,6 +16,12 @@ d=$OPD_ROOT/runs/$PROBE_TASK; mkdir -p $d; S=/m/Qwen3-1.7B; [ $2 = E10d-P5self ]
 [ $2 = E10c-P5self ] && S=/m/Qwen3-0.6B   # [v2.5.9v]
 printf "task: $2\nstudent: $S (no_think)\nteacher: ${FAKE_TEACHER:-$S} (ref; think-template=1; param_offload=1)\n" > $d/config.yaml
 for i in $(seq 1 $SMOKE_STEPS); do echo "(TaskRunner pid=1) step:$i - timing_s/gen:100 - timing_s/update_actor:150 - timing_s/step:$([ $i = 1 ] && echo 600 || echo 330) - response_length/mean:3000" >> $d/train.log; done
+# [z163] the teacher-suffix arms: the per-call log and the student prompts of the rollout dump, by FAKE_TS (ok / none / partial / leak)
+if [[ $2 == E10b-P5selfp* ]]; then
+  [ "${FAKE_TS:-ok}" = none ] || for c in 1 2 3; do sf=64; [ "${FAKE_TS:-ok}" = partial ] && [ $c = 2 ] && sf=63; echo "{\"call\": $c, \"batch\": 64, \"rows\": 64, \"suffixed\": $sf}" >> $d/teacher_suffix.jsonl; done
+  mkdir -p $ROLLOUT_DUMP; q="What is 1+1?"; [ "${FAKE_TS:-ok}" = leak ] && q="What is 1+1? $(cat $RUNBOOK/code/train/teacher_suffix/p2.txt)"
+  for i in 1 2 3; do echo "{\"input\": \"user $q assistant\", \"output\": \"x\"}" >> $ROLLOUT_DUMP/$i.jsonl; done
+fi
 sleep ${FAKE_SLEEP:-0}; [ "${FAKE_OOM:-0}" = 1 ] && { echo "torch.OutOfMemoryError: CUDA out of memory" >> $d/train.log; exit 1; }; exit 0
 SH
   # [z158i] one line per GPU of an -i list, as the real nvidia-smi
@@ -69,4 +75,18 @@ ok "[z158i] a 4-GPU list: the start check passes, the smoke runs on 3,4,5,6, PAS
 rm -rf $T; setup; FAKE_MEM=5000 PSE_WAIT_STEP=0 bash $T/rb/scripts/probe_p5self.sh 3,4,5,6 > /dev/null 2>&1
 ok "[z158i] a 4-GPU list with a busy GPU: FAIL not empty" '[ "$(res result)" = FAIL ] && [[ "$(res reason)" == *"not empty after 180 s"* ]]'
 rm -rf $T
+# 9. [z163] p2: PROBE-P5SELFP2, a 3-step smoke of E10b-P5selfp2 with a rollout dump; PASS only when every teacher call suffixed every row
+#    and no student prompt contains the suffix
+resp() { python3 -c "import json, sys; print(json.load(open(sys.argv[1])).get(sys.argv[2], ''))" $T/root/runs/PROBE-P5SELFP2/report.json "$1"; }
+for case in ok none partial leak; do
+  setup; mkdir -p $T/rb/code/train/teacher_suffix; cp $SRC/code/train/teacher_suffix/p2.txt $T/rb/code/train/teacher_suffix/
+  FAKE_MEM=0 FAKE_TS=$case bash $T/rb/scripts/probe_p5self.sh 3 p2 > /dev/null 2>&1
+  case $case in
+    ok) ok "[z163] p2 PASS: E10b-P5selfp2 smoke with a dump, 3 calls x 64 rows suffixed, 3 prompts clean" '[ "$(resp result)" = PASS ] && grep -q "^run_arm 3 E10b-P5selfp2 SMOKE=1 STEPS=3 TEACHER_14B= PROBE_TASK=PROBE-P5SELFP2-smoke" $CALLS && [[ "$(resp reason)" == *"OK 3 teacher calls, 192 rows all suffixed; 3 student prompts without it"* ]] && grep -q "^remote put $T/root/runs/PROBE-P5SELFP2/up logs/abcd1234/probe_p5selfp2" $CALLS';;
+    none) ok "[z163] p2 FAIL: no teacher_suffix.jsonl" '[ "$(resp result)" = FAIL ] && [[ "$(resp reason)" == *"the hook did not run"* ]]';;
+    partial) ok "[z163] p2 FAIL: a call that did not suffix every row" '[ "$(resp result)" = FAIL ] && [[ "$(resp reason)" == *"did not suffix every row"* ]]';;
+    leak) ok "[z163] p2 FAIL: a student prompt with the suffix" '[ "$(resp result)" = FAIL ] && [[ "$(resp reason)" == *"student prompts contain the teacher suffix"* ]]';;
+  esac
+  rm -rf $T
+done
 [ $fails = 0 ] && echo "PROBE_P5SELF_TEST PASS ($n checks)" || echo "PROBE_P5SELF_TEST FAIL ($fails of $n)"

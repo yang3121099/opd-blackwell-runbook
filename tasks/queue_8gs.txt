@@ -63,6 +63,8 @@ p1q096b    open   E12b-P0think-8k-c100:PROBE-E12B-P0THINK-S44 EVAL-e12b-P0think-
 p1q097     open   PROBE-E12B-P0THINK-6K E12b-P0think-6k:PROBE-E12B-P0THINK-6K PROBE-E12B-P0THINK-12K E12b-P0think-12k:PROBE-E12B-P0THINK-12K
 # p1q097t ~3.8 B200 GPU-h: PROBE-P5Q4KT 0.3, E10b-P5q4kt 3.5
 p1q097t    open   PROBE-P5Q4KT E10b-P5q4kt:PROBE-P5Q4KT
+# p1q101 ~3.8 B200 GPU-h: PROBE-P5SELFP2 0.3, E10b-P5selfp2 3.5
+p1q101     open   PROBE-P5SELFP2 E10b-P5selfp2:PROBE-P5SELFP2
 
 #gpus PROBE-E12E-8K 8
 #gpus E12e-P5tail-8k-nn 8
@@ -104,6 +106,7 @@ p1q097t    open   PROBE-P5Q4KT E10b-P5q4kt:PROBE-P5Q4KT
 #gpus PROBE-E12B-P0THINK-12K 4
 #gpus E12b-P0think-12k 4
 #gpus E10b-P5q4kt 4
+#gpus E10b-P5selfp2 4
 
 #fetch result:runs/E10b-P5/global_step_150/actor/huggingface
 #fetch result:runs/E10b-P5tail/global_step_50/actor/huggingface

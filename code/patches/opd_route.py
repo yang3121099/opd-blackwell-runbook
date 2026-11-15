@@ -168,3 +168,45 @@ def flush(n_batch):
         with open(log, "a") as f:
             f.write(json.dumps(rec) + "\n")
     return rec
+
+
+
+# [z163] (lab/registry/Q-101.md E10b-P5selfp2) the teacher-side prompt suffix: teacher_suffix_patch.py's hook in prepare_ref_model_inputs
+_tsuf_rows = 0
+_tsuf_done = 0
+_tsuf_calls = 0
+
+
+def teacher_suffix(messages):
+    """The teacher's messages with OPD_TEACHER_SUFFIX appended to the LAST user message on its own line (a new list and a new dict for that
+    message: the batch's rows, i.e. what the student was given, stay untouched); the same object when the variable is empty / unset or no
+    user message is there. Counted for teacher_suffix_flush."""
+    global _tsuf_rows, _tsuf_done
+    suf = os.environ.get("OPD_TEACHER_SUFFIX", "")
+    if not suf:
+        return messages
+    _tsuf_rows += 1
+    out = list(messages)
+    for k in range(len(out) - 1, -1, -1):
+        m = out[k]
+        if isinstance(m, dict) and m.get("role") == "user":
+            out[k] = dict(m, content=str(m.get("content", "")) + "\n" + suf)
+            _tsuf_done += 1
+            return out
+    return messages
+
+
+def teacher_suffix_flush(n_batch):
+    """At the end of prepare_ref_model_inputs: one line per call to OPD_TEACHER_SUFFIX_LOG (rows seen, rows suffixed, the suffix's sha256
+    and length), the counts reset. PROBE-P5SELFP<k> requires suffixed = rows = the batch at every call."""
+    global _tsuf_rows, _tsuf_done, _tsuf_calls
+    _tsuf_calls += 1
+    suf = os.environ.get("OPD_TEACHER_SUFFIX", "")
+    rec = {"call": _tsuf_calls, "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "batch": int(n_batch), "rows": _tsuf_rows,
+           "suffixed": _tsuf_done, "suffix_sha256": hashlib.sha256(suf.encode()).hexdigest(), "suffix_chars": len(suf)}
+    _tsuf_rows = _tsuf_done = 0
+    log = os.environ.get("OPD_TEACHER_SUFFIX_LOG")
+    if log:
+        with open(log, "a") as f:
+            f.write(json.dumps(rec) + "\n")
+    return rec

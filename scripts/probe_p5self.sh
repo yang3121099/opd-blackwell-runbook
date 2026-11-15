@@ -16,6 +16,10 @@ T=PROBE-P5SELF; ARMT=E10b-P5self; UPD=probe_p5self
 [ "${2:-}" = q093t ] && { T=PROBE-P5Q093T; ARMT=E10b-P5q093t; UPD=probe_p5q093t; }   # [z158c] (Q-095 A)
 [ "${2:-}" = q093t4b ] && { T=PROBE-P5Q093T-4B; ARMT=E10d-P5q093t; UPD=probe_p5q093t_4b; }   # [z158c] (Q-095 B)
 [ "${2:-}" = q4kt ] && { T=PROBE-P5Q4KT; ARMT=E10b-P5q4kt; UPD=probe_p5q4kt; }   # [z160] (Q-097 T4K)
+# [z163] (Q-101) p<k>: PROBE-P5SELFP<k>, the gate of E10b-P5selfp<k> (the teacher-side suffix code/train/teacher_suffix/p<k>.txt): besides
+# the self-teacher check, every teacher call of the smoke suffixed every row (teacher_suffix.jsonl: suffixed = rows = batch) and no
+# student prompt of the smoke's rollout dump contains the suffix text
+TSK=""; [[ "${2:-}" =~ ^p([0-9])$ ]] && { TSK=${2}; T=PROBE-P5SELFP${BASH_REMATCH[1]}; ARMT=E10b-P5selfp${BASH_REMATCH[1]}; UPD=probe_p5selfp${BASH_REMATCH[1]}; }
 D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; mkdir -p $D
 [ -f $D/.done ] && { echo "TASK_ALREADY_DONE $T"; exit 0; }
 rm -f $D/mem.csv   # [v2.5.9z11] this run's memory samples only (a rerun keeps the directory: PROBE-STOPMERGE's 4th peak was the 2nd run's)
@@ -58,7 +62,8 @@ step "start gpu=$G FIXED_MICRO_BSZ=${FIXED_MICRO_BSZ:-} VENV=${VENV:-}"
 ( while true; do echo "$(date -u +%s),$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $G | tr -d ' ' | sort -n | tail -1)" >> $D/mem.csv; sleep 5; done ) &   # [z158i] peak = the fullest GPU
 MP=$!
 rm -rf $OPD_ROOT/runs/$T-smoke
-SMOKE=1 SMOKE_STEPS=${PSE_STEPS:-3} PROBE_TASK=$T-smoke bash $RUNBOOK/scripts/run_arm.sh $G $ARMT > $D/smoke.out 2>&1; rc=$?
+DUMP=""; [ -n "$TSK" ] && DUMP=$OPD_ROOT/runs/$T-smoke/rollouts_dump   # [z163] the student prompts the smoke generated from
+ROLLOUT_DUMP=$DUMP SMOKE=1 SMOKE_STEPS=${PSE_STEPS:-3} PROBE_TASK=$T-smoke bash $RUNBOOK/scripts/run_arm.sh $G $ARMT > $D/smoke.out 2>&1; rc=$?
 kill $MP 2> /dev/null
 mkdir -p $D/smoke; cp $OPD_ROOT/runs/$T-smoke/train.log $OPD_ROOT/runs/$T-smoke/config.yaml $D/smoke/ 2> /dev/null
 python3 $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true
@@ -70,4 +75,32 @@ S=$(sed -n 's/^student: \(.*\) (no_think)$/\1/p' $D/smoke/config.yaml); TT=$(sed
 case $ARMT in E10[bd]-P5q093t) case "$TT" in */result/runs/E12b-P0think-8k/global_step_50/actor/huggingface) ;; *) finish FAIL "the smoke's teacher ($TT) is not Q-093 s50";; esac;;   # [z158c]
   E10b-P5q4kt) case "$TT" in */result/runs/E12b-P0think-4k/global_step_50/actor/huggingface) ;; *) finish FAIL "the smoke's teacher ($TT) is not the 4K arm s50";; esac;;   # [z160]
   *) [ -n "$S" ] && [ "$S" = "$TT" ] || finish FAIL "the smoke's teacher ($TT) is not the student itself ($S)";; esac
-finish PASS "${PSE_STEPS:-3}-step smoke ok, peak ${peak} MiB"
+if [ -n "$TSK" ]; then   # [z163] the suffix reached every teacher row, and no student prompt
+  cp $OPD_ROOT/runs/$T-smoke/teacher_suffix.jsonl $D/smoke/ 2> /dev/null
+  python3 - "$OPD_ROOT/runs/$T-smoke/teacher_suffix.jsonl" "$DUMP" "$RUNBOOK/code/train/teacher_suffix/$TSK.txt" > $D/tsuf_check.txt <<'PY'
+import glob, json, os, sys
+log, dump, sf = sys.argv[1:4]
+suf = open(sf).read()
+try:
+    calls = [json.loads(l) for l in open(log) if l.strip()]
+except OSError:
+    calls = []
+bad = [c for c in calls if not (c["rows"] == c["suffixed"] == c["batch"] > 0)]
+recs = []
+for f in sorted(glob.glob(os.path.join(dump, "*.jsonl"))):
+    recs += [json.loads(l) for l in open(f) if l.strip()]
+hit = sum(1 for r in recs if suf in str(r.get("input", "")) or suf.strip() in str(r.get("input", "")))
+if not calls:
+    print("FAIL no teacher_suffix.jsonl line (the hook did not run)")
+elif bad:
+    print(f"FAIL {len(bad)} of {len(calls)} teacher calls did not suffix every row: {bad[0]}")
+elif not recs:
+    print("FAIL no student prompt in the rollout dump to check")
+elif hit:
+    print(f"FAIL {hit} of {len(recs)} student prompts contain the teacher suffix")
+else:
+    print(f"OK {len(calls)} teacher calls, {sum(c['rows'] for c in calls)} rows all suffixed; {len(recs)} student prompts without it")
+PY
+  grep -q "^OK " $D/tsuf_check.txt || finish FAIL "teacher suffix: $(cat $D/tsuf_check.txt)"
+fi
+finish PASS "${PSE_STEPS:-3}-step smoke ok, peak ${peak} MiB$([ -n "$TSK" ] && echo "; $(cat $D/tsuf_check.txt)")"

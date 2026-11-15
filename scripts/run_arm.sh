@@ -41,6 +41,10 @@ Q093T=0; [ $TASK = E10b-P5q093t ] && { SELF=1; BASE=E10b-P5; Q093T=1; }
 # non-thinking template, the teacher on its thinking template, 50 steps) with the teacher = Q-096 A's 4K arm s50 (E12b-P0think-4k, #fetch
 # / the region copy); gate PROBE-P5Q4KT (probe_p5self.sh q4kt)
 Q4KT=0; [ $TASK = E10b-P5q4kt ] && { SELF=1; BASE=E10b-P5; Q4KT=1; }
+# [z163] (Fable board v7, lab/registry/Q-101.md) E10b-P5selfp<k> = E10b-P5self item for item, the TEACHER's prompt with suffix <k>
+# (code/train/teacher_suffix/p<k>.txt, appended to its last user message on its own line by code/patches/teacher_suffix_patch.py);
+# the student's prompt unchanged; gate PROBE-P5SELFP<k> (probe_p5self.sh p<k>). p2 = Q-098's P2; another k = another text file
+TSUF=""; [[ $TASK =~ ^E10b-P5selfp([0-9])$ ]] && { SELF=1; BASE=E10b-P5; TSUF=p${BASH_REMATCH[1]}; }
 # v2.5.7zg (Q-019, reviewer 17:0x UTC): E10b-P2self = P2 (non-thinking teacher prompt) with the teacher replaced by the
 # student's own base, the other cell of the 2x2 (teacher mode x teacher = self); 50 steps on venv-fa, gated by PROBE-P2SELF
 [ $TASK = E10b-P2self ] && { SELF=1; BASE=E10b-P2; }
@@ -427,6 +431,8 @@ unset OPD_FRET OPD_TOPD_ALPHA; [ $FRET = 1 ] && export OPD_FRET=1; [ -n "$TOPD" 
 unset OPD_DENSE; [ -n "$DENSE" ] && export OPD_DENSE=$DENSE   # [v2.5.9z76] (Q-065) OPD_DENSE_K / OPD_DENSE_MU / OPD_DENSE_CHUNK pass through
 unset OPD_DENSE_LOSS; [ "$DENSE" = fkl ] && export OPD_DENSE=rkl OPD_DENSE_LOSS=fkl   # [v2.5.9z85] (Q-079) the hooks keyed on rkl, the loss the forward KL
 [ -n "$DENSE_K" ] && export OPD_DENSE_K=$DENSE_K; [ -n "$DENSE_MU" ] && export OPD_DENSE_MU=$DENSE_MU   # [v2.5.9z85] the arm's own top-K / mu
+unset OPD_TEACHER_SUFFIX OPD_TEACHER_SUFFIX_LOG; if [ -n "$TSUF" ]; then TSF=$RUNBOOK/code/train/teacher_suffix/$TSUF.txt   # [z163]
+  [ -s "$TSF" ] || { echo "TSUF_MISSING $TASK: $TSF"; exit 1; }; export OPD_TEACHER_SUFFIX="$(cat "$TSF")" OPD_TEACHER_SUFFIX_LOG=$OUT/teacher_suffix.jsonl; fi
 unset OPD_ROUTE OPD_ROUTE_LABELS OPD_ROUTE_LOG OPD_ROUTE_P; [ -n "$ROUTE" ] && export OPD_ROUTE=$ROUTE OPD_ROUTE_LABELS=${ROUTE_LABELS:-$OPD_ROOT/runs/PROBE-DIFF17/labels_17.jsonl} OPD_ROUTE_LOG=$OUT/route.jsonl   # [v2.5.9x]
 [ -n "$ROUTE_P" ] && export OPD_ROUTE_P=$ROUTE_P   # [v2.5.9z38]
 unset OPD_ROUTE_INVERT; [ -n "$ROUTE_INV" ] && export OPD_ROUTE_INVERT=1   # [v2.5.9z45]
@@ -479,6 +485,7 @@ ROLL_UTIL=${VLLM_UTIL:-0.5}; ACT_OPT_OFF=False
 [ "${DRYRUN:-0}" = 1 ] && [ $BUD -gt 0 ] && echo "DRYRUN_TAILBUD budget=${OPD_TAILSWAP_BUDGET:-} save=$SAVE upload=$UW maxresp=$MAXRESP"   # [v2.5.9z73] tests
 [ "${DRYRUN:-0}" = 1 ] && [ -n "$SOFTMIX" ] && echo "DRYRUN_SOFTMIX w=${OPD_TAILSWAP_SOFTMIX:-} save=$SAVE upload=$UW maxresp=$MAXRESP"   # [v2.5.9z83] tests
 [ "${DRYRUN:-0}" = 1 ] && [ $TAIL = 1 ] && echo "DRYRUN_TAILSWAP OPD_TAILSWAP=${OPD_TAILSWAP:-} log=$(basename ${OPD_TAILSWAP_LOG:-none})"   # [v2.5.9n] tests
+[ "${DRYRUN:-0}" = 1 ] && [ -n "$TSUF" ] && echo "DRYRUN_TSUF key=$TSUF chars=${#OPD_TEACHER_SUFFIX} log=$(basename $OPD_TEACHER_SUFFIX_LOG)"   # [z163] tests
 [ "${DRYRUN:-0}" = 1 ] && { echo "DRYRUN $TASK arm=$ARM lr=$LR seed=$SEED student=$STUDENT batch=[$BATCH] kern=[$KERN] gc=$GCK venv=$(basename ${VENV:-$OPD_ROOT/venv}) ngpu=$NG rmpad=$RMPAD tool=$TOOL maxp=$MAXP reward=$(basename $REWARD) lensel=${LENSEL:-none}/${TBS}x${RN}/mb$MBS sthink=$STHINK maxresp=$MAXRESP teacher=$TEACHER offload=${TEACHER_OFFLOAD:-1} variant=$OPD_VARIANT override=$OPD_VARIANT_OVERRIDE refthink=$OPD_REF_THINK steps=$NSTEPS"; exit 0; }   # tests
 STEPS=$NSTEPS; TEST=10; VALB=True
 # save rule (v2.4, Runming 2026-10-17): no archive of resume states. A dedicated node saves only the HF weights at the
@@ -510,6 +517,7 @@ started: $(date -u +%FT%TZ)
 CFG
 [ -n "$ROUTE_INV" ] && ! grep -q "^route_invert:" $OUT/config.yaml && echo "route_invert: easy (PROBE-DIFF17 r >= 0.5) -> the thinking teacher, hard -> the non-thinking one (OPD_ROUTE_INVERT=1)" >> $OUT/config.yaml   # [v2.5.9z45]
 [ -n "$ROUTE_SELF" ] && ! grep -q "^route_labels:" $OUT/config.yaml && echo "route_labels: $(python3 -c "import json, sys; r = json.load(open(sys.argv[1])); print(f\"probe labels (oof, t={r['threshold']:.3f} share-matched, agreement {r['train']['agreement']:.3f})\")" $OPD_ROOT/runs/PROBE-SELFROUTE/out/selfroute.json 2> /dev/null || echo 'probe labels (oof)') (PROBE-SELFROUTE labels_probe_17.jsonl: Q-062's probe at H1's layer; r >= 0.5 -> the non-thinking teacher)" >> $OUT/config.yaml   # [v2.5.9z82]; [v2.5.9z82a] the threshold and agreement
+[ -n "$TSUF" ] && ! grep -q "^teacher_suffix:" $OUT/config.yaml && echo "teacher_suffix: $TSUF ($(printf '%s' "$OPD_TEACHER_SUFFIX" | sha256sum | cut -c1-16), ${#OPD_TEACHER_SUFFIX} chars, the teacher's last user message only)" >> $OUT/config.yaml   # [z163]
 [ $SRC50 = 1 ] && ! grep -q "^continued:" $OUT/config.yaml && echo "continued: E10b-P5selfroute s50 weights; a fresh optimizer and data.seed 43 (Q-072b, as Q-055b): 50 more steps, global_step_50 = s100" >> $OUT/config.yaml   # [v2.5.9z85]
 [ $TAILC50 = 1 ] && ! grep -q "^continued:" $OUT/config.yaml && echo "continued: E10c-P5tail s20 weights; no resume state on the node, so a fresh optimizer and data.seed 43 (Fable's fallback, Q-055b): 30 more steps on the s20 weights, not the same trajectory; global_step_30 = s50" >> $OUT/config.yaml   # [v2.5.9z82]
 [ $X5 = 1 ] && ! grep -q "^x5:" $OUT/config.yaml && echo "x5: a student without a thinking mode (4096 positions: responses $MAXRESP), its stop id at the end read as the teacher's EOS 151643, the other special ids out of the loss; teacher prompt $([ $X5E = 1 ] && echo 'with an empty thought' || echo 'ending in one <think>') (opd_x5.py)" >> $OUT/config.yaml   # [v2.5.9z46]
@@ -525,6 +533,7 @@ if [ $SHAPE = 1 ]; then python $RUNBOOK/code/patches/shape_patch.py || { echo "S
 if [ $SMERGE = 1 ]; then python $RUNBOOK/code/patches/stopmerge_patch.py || { echo "STOPMERGE_PATCH_FAILED $TASK"; exit 1; }; fi   # [v2.5.9l] idempotent
 if [ $TAIL = 1 ]; then python $RUNBOOK/code/patches/tailswap_patch.py || { echo "TAILSWAP_PATCH_FAILED $TASK"; exit 1; }; fi   # [v2.5.9n] idempotent
 if [ -n "$ROUTE" ] || [ "${OPD_ROUTE:-}" = count ]; then python $RUNBOOK/code/patches/route_patch.py || { echo "ROUTE_PATCH_FAILED $TASK"; exit 1; }; fi
+if [ -n "$TSUF" ]; then python $RUNBOOK/code/patches/teacher_suffix_patch.py || { echo "TSUF_PATCH_FAILED $TASK"; exit 1; }; fi   # [z163] idempotent, any order
 if [ $PMODE = 1 ]; then python $RUNBOOK/code/patches/mode_patch.py || { echo "MODE_PATCH_FAILED $TASK"; exit 1; }; fi   # [v2.5.9z108] after route's hook; idempotent   # [v2.5.9x] idempotent; [v2.5.9z9] PROBE-T32's count
 if [ $X5 = 1 ]; then python $RUNBOOK/code/patches/x5_patch.py || { echo "X5_PATCH_FAILED $TASK"; exit 1; }; fi   # [v2.5.9z46] idempotent
 cd $OPD_ROOT/G-OPD/verl
