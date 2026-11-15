@@ -149,6 +149,11 @@ STAGES = {
     # "p1q097p" to PROFILES["8gs"]
     "p1q097p": ["PROBE-E12B-P0THINK-8K50-4K", "E12b-P0think-8k50-4k:PROBE-E12B-P0THINK-8K50-4K", "PROBE-E12B-P0THINK-7K",
                 "E12b-P0think-7k:PROBE-E12B-P0THINK-7K"],
+    # [z162] (Fable board v2, 11-15) the RECORD of reading machine R1 (uk-share), as its ad hoc queue ran it (Fable's first reads 10:30-10:44,
+    # then /var/tmp/fable_adhoc/queue.txt under Fable / executor C): run_queue_eval's settings (n 4, T0.6, top_p 0.95, top_k 0, 16K), the
+    # tags verbatim (so outcomes / TERM4 align); us=p1|p2 = Q-098's prompt baselines, seed=1000 = the independent repeats, budgets= on the
+    # forced answers. In NO profile: a record, never dispatched (the readings ran ad hoc); add "p1u1r" to a profile only for a rerun
+    "p1u1r": ["EVAL-u1-refs", "EVAL-u1-ood", "EVAL-u1-t4k", "EVAL-u1-q098p", "EVAL-u1-seed", "EVAL-u1-x10", "EVAL-u1-f2:EVAL-u1-refs", "PROBE-TERM4-N17THU1:EVAL-u1-refs", "PROBE-TERM4-N4THU1:EVAL-u1-refs", "PROBE-TERM4-N093U1:EVAL-u1-refs", "PROBE-TERM4-N096A4KU1:EVAL-u1-refs", "PROBE-TERM4-N093BU1:EVAL-u1-refs", "PROBE-TERM4-N095AU1:EVAL-u1-refs", "PROBE-TERM4-NT4KU1:EVAL-u1-t4k"],
     # [z160] (Fable D105 / 10:44, lab/registry/Q-097.md T4K) E10b-P5q4kt = Q-095 A's recipe with the 4K arm s50 as the teacher; gate on one GPU, arm on 4
     "p1q097t": ["PROBE-P5Q4KT", "E10b-P5q4kt:PROBE-P5Q4KT"],
     "p1b3": ["EVAL-e12d-P5tail-8k-nn-b3", "EVAL-think16k-4Bbase-b3", "PROBE-TERM4-N4BTHB3:EVAL-think16k-4Bbase-b3",
@@ -420,6 +425,78 @@ NEW_ROWS = """\
 #gpus PROBE-E12B-P0THINK-12K 4
 #gpus E12b-P0think-12k 4
 #gpus E10b-P5q4kt 4
+#eval EVAL-u1-refs base17_think_u1_math500_T0.6 Qwen/Qwen3-1.7B math500 4 0.6 16384 think
+#eval EVAL-u1-refs base4_think_u1_math500_T0.6 Qwen/Qwen3-4B math500 4 0.6 16384 think
+#eval EVAL-u1-ood base17_think_u1_minervamath_T0.6 Qwen/Qwen3-1.7B minervamath 4 0.6 16384 think
+#eval EVAL-u1-refs base17_nothink_u1_math500_T0.6 Qwen/Qwen3-1.7B math500 4 0.6 16384 no_think
+#eval EVAL-u1-refs base4_nothink_u1_math500_T0.6 Qwen/Qwen3-4B math500 4 0.6 16384 no_think
+#eval EVAL-u1-refs e12b_P0think-8k_s50_u1_math500_T0.6 result:runs/E12b-P0think-8k/global_step_50/actor/huggingface math500 4 0.6 16384 think
+#eval EVAL-u1-refs e12b_P5tail-8k_s50_u1_math500_T0.6 result:runs/E12b-P5tail-8k/global_step_50/actor/huggingface math500 4 0.6 16384 no_think
+#eval EVAL-u1-refs e10b_P5self_s50_u1_math500_T0.6 result:runs/E10b-P5self/global_step_50/actor/huggingface math500 4 0.6 16384 no_think
+#eval EVAL-u1-refs e10b_P5q093t_s50_u1_math500_T0.6 result:runs/E10b-P5q093t/global_step_50/actor/huggingface math500 4 0.6 16384 no_think
+#eval EVAL-u1-t4k e10b_P5q4kt_s50_u1_math500_T0.6 result:runs/E10b-P5q4kt/global_step_50/actor/huggingface math500 4 0.6 16384 no_think
+#eval EVAL-u1-q098p base17_think_p1_u1_math500_T0.6 Qwen/Qwen3-1.7B math500 4 0.6 16384 think us=p1
+#eval EVAL-u1-q098p base17_think_p2_u1_math500_T0.6 Qwen/Qwen3-1.7B math500 4 0.6 16384 think us=p2
+#eval EVAL-u1-q098p base4_think_p1_u1_math500_T0.6 Qwen/Qwen3-4B math500 4 0.6 16384 think us=p1
+#eval EVAL-u1-q098p base4_think_p2_u1_math500_T0.6 Qwen/Qwen3-4B math500 4 0.6 16384 think us=p2
+#eval EVAL-u1-refs e12b_P0think-4k_s50_u1_math500_T0.6 result:runs/E12b-P0think-4k/global_step_50/actor/huggingface math500 4 0.6 16384 think
+#eval EVAL-u1-refs e10d_P5self_s50_u1_math500_T0.6 result:runs/E10d-P5self/global_step_50/actor/huggingface math500 4 0.6 16384 no_think
+#eval EVAL-u1-refs e12d_P0think-8k_s50_u1_math500_T0.6 result:runs/E12d-P0think-8k/global_step_50/actor/huggingface math500 4 0.6 16384 think
+#eval EVAL-u1-refs e12d_P5tail-8k_s50_u1_math500_T0.6 result:runs/E12d-P5tail-8k/global_step_50/actor/huggingface math500 4 0.6 16384 no_think
+#eval EVAL-u1-seed e12b_P0think-8k_s50_u1s1000_math500_T0.6 result:runs/E12b-P0think-8k/global_step_50/actor/huggingface math500 4 0.6 16384 think seed=1000
+#eval EVAL-u1-seed e12b_P5tail-8k_s50_u1s1000_math500_T0.6 result:runs/E12b-P5tail-8k/global_step_50/actor/huggingface math500 4 0.6 16384 no_think seed=1000
+#eval EVAL-u1-seed base4_think_u1s1000_math500_T0.6 Qwen/Qwen3-4B math500 4 0.6 16384 think seed=1000
+#eval EVAL-u1-seed base8_think_u1s1000_math500_T0.6 Qwen/Qwen3-8B math500 4 0.6 16384 think seed=1000
+#eval EVAL-u1-ood base17_think_u1_olympiadbench_T0.6 Qwen/Qwen3-1.7B olympiadbench 4 0.6 16384 think
+#eval EVAL-u1-ood ood_17q093_u1_minervamath_T0.6 result:runs/E12b-P0think-8k/global_step_50/actor/huggingface minervamath 4 0.6 16384 think
+#eval EVAL-u1-ood ood_17chain_u1_minervamath_T0.6 result:runs/E12b-P5tail-8k/global_step_50/actor/huggingface minervamath 4 0.6 16384 no_think
+#eval EVAL-u1-ood ood_17q093_u1_olympiadbench_T0.6 result:runs/E12b-P0think-8k/global_step_50/actor/huggingface olympiadbench 4 0.6 16384 think
+#eval EVAL-u1-ood ood_17chain_u1_olympiadbench_T0.6 result:runs/E12b-P5tail-8k/global_step_50/actor/huggingface olympiadbench 4 0.6 16384 no_think
+#eval EVAL-u1-ood ood_17base_u1_mmlupro1k_T0.6 Qwen/Qwen3-1.7B mmlupro1k 4 0.6 16384 think
+#eval EVAL-u1-ood ood_17q093_u1_mmlupro1k_T0.6 result:runs/E12b-P0think-8k/global_step_50/actor/huggingface mmlupro1k 4 0.6 16384 think
+#eval EVAL-u1-ood ood_17chain_u1_mmlupro1k_T0.6 result:runs/E12b-P5tail-8k/global_step_50/actor/huggingface mmlupro1k 4 0.6 16384 no_think
+#eval EVAL-u1-ood ood_17base_u1_aime24_T0.6 Qwen/Qwen3-1.7B aime24 4 0.6 16384 think
+#eval EVAL-u1-ood ood_17q093_u1_aime24_T0.6 result:runs/E12b-P0think-8k/global_step_50/actor/huggingface aime24 4 0.6 16384 think
+#eval EVAL-u1-ood ood_17chain_u1_aime24_T0.6 result:runs/E12b-P5tail-8k/global_step_50/actor/huggingface aime24 4 0.6 16384 no_think
+#eval EVAL-u1-ood ood_17base_u1_aime25_T0.6 Qwen/Qwen3-1.7B aime25 4 0.6 16384 think
+#eval EVAL-u1-ood ood_17q093_u1_aime25_T0.6 result:runs/E12b-P0think-8k/global_step_50/actor/huggingface aime25 4 0.6 16384 think
+#eval EVAL-u1-ood ood_17chain_u1_aime25_T0.6 result:runs/E12b-P5tail-8k/global_step_50/actor/huggingface aime25 4 0.6 16384 no_think
+#eval EVAL-u1-ood ood_17base_u1_amc23_T0.6 Qwen/Qwen3-1.7B amc23 4 0.6 16384 think
+#eval EVAL-u1-ood ood_17q093_u1_amc23_T0.6 result:runs/E12b-P0think-8k/global_step_50/actor/huggingface amc23 4 0.6 16384 think
+#eval EVAL-u1-ood ood_17chain_u1_amc23_T0.6 result:runs/E12b-P5tail-8k/global_step_50/actor/huggingface amc23 4 0.6 16384 no_think
+#eval EVAL-u1-x10 x10_17q093_nothink_u1_math500_T0.6 result:runs/E12b-P0think-8k/global_step_50/actor/huggingface math500 4 0.6 16384 no_think
+#eval EVAL-u1-x10 x10_17q4k_nothink_u1_math500_T0.6 result:runs/E12b-P0think-4k/global_step_50/actor/huggingface math500 4 0.6 16384 no_think
+#eval EVAL-u1-x10 x10_4q093b_nothink_u1_math500_T0.6 result:runs/E12d-P0think-8k/global_step_50/actor/huggingface math500 4 0.6 16384 no_think
+#forced EVAL-u1-t4k e10b_P5q4kt_s50_u1_math500_T0.6 result:runs/E10b-P5q4kt/global_step_50/actor/huggingface no_think budgets=16384
+#forced EVAL-u1-q098p base17_think_p1_u1_math500_T0.6 Qwen/Qwen3-1.7B think budgets=16384
+#forced EVAL-u1-q098p base17_think_p2_u1_math500_T0.6 Qwen/Qwen3-1.7B think budgets=16384
+#forced EVAL-u1-q098p base4_think_p1_u1_math500_T0.6 Qwen/Qwen3-4B think budgets=16384
+#forced EVAL-u1-q098p base4_think_p2_u1_math500_T0.6 Qwen/Qwen3-4B think budgets=16384
+#forced EVAL-u1-refs base4_think_u1_math500_T0.6 Qwen/Qwen3-4B think budgets=1024,2048,3072,4096,6144,8192,16384
+#forced EVAL-u1-refs e12b_P0think-8k_s50_u1_math500_T0.6 result:runs/E12b-P0think-8k/global_step_50/actor/huggingface think budgets=16384
+#forced EVAL-u1-refs e12b_P5tail-8k_s50_u1_math500_T0.6 result:runs/E12b-P5tail-8k/global_step_50/actor/huggingface no_think budgets=16384
+#forced EVAL-u1-refs e12b_P0think-4k_s50_u1_math500_T0.6 result:runs/E12b-P0think-4k/global_step_50/actor/huggingface think budgets=16384
+#forced EVAL-u1-refs e10b_P5q093t_s50_u1_math500_T0.6 result:runs/E10b-P5q093t/global_step_50/actor/huggingface no_think budgets=16384
+#forced EVAL-u1-refs e10b_P5self_s50_u1_math500_T0.6 result:runs/E10b-P5self/global_step_50/actor/huggingface no_think budgets=16384
+#forced EVAL-u1-f2 EVAL-u1-refs/e12b_P0think-8k_s50_u1_math500_T0.6_math500_think_t0.6.jsonl result:runs/E12b-P0think-8k/global_step_50/actor/huggingface think budgets=1024,2048,3072,4096,6144,8192,16384
+#forced EVAL-u1-f2 EVAL-u1-refs/e12b_P0think-4k_s50_u1_math500_T0.6_math500_think_t0.6.jsonl result:runs/E12b-P0think-4k/global_step_50/actor/huggingface think budgets=1024,2048,3072,4096,6144,8192,16384
+#forced EVAL-u1-f2 EVAL-u1-refs/e10b_P5q093t_s50_u1_math500_T0.6_math500_no_think_t0.6.jsonl result:runs/E10b-P5q093t/global_step_50/actor/huggingface no_think budgets=1024,2048,3072,4096,6144,8192,16384
+#forced EVAL-u1-refs e10d_P5self_s50_u1_math500_T0.6 result:runs/E10d-P5self/global_step_50/actor/huggingface no_think budgets=16384
+#forced EVAL-u1-refs e12d_P0think-8k_s50_u1_math500_T0.6 result:runs/E12d-P0think-8k/global_step_50/actor/huggingface think budgets=16384
+#forced EVAL-u1-refs e12d_P5tail-8k_s50_u1_math500_T0.6 result:runs/E12d-P5tail-8k/global_step_50/actor/huggingface no_think budgets=16384
+#forced EVAL-u1-ood base17_think_u1_minervamath_T0.6 Qwen/Qwen3-1.7B think budgets=1024,2048,3072,4096,6144,8192,16384
+#forced EVAL-u1-ood ood_17q093_u1_minervamath_T0.6 result:runs/E12b-P0think-8k/global_step_50/actor/huggingface think budgets=16384
+#forced EVAL-u1-ood ood_17chain_u1_minervamath_T0.6 result:runs/E12b-P5tail-8k/global_step_50/actor/huggingface no_think budgets=16384
+#forced EVAL-u1-ood base17_think_u1_olympiadbench_T0.6 Qwen/Qwen3-1.7B think budgets=1024,2048,3072,4096,6144,8192,16384
+#forced EVAL-u1-ood ood_17q093_u1_olympiadbench_T0.6 result:runs/E12b-P0think-8k/global_step_50/actor/huggingface think budgets=16384
+#forced EVAL-u1-ood ood_17chain_u1_olympiadbench_T0.6 result:runs/E12b-P5tail-8k/global_step_50/actor/huggingface no_think budgets=16384
+#term PROBE-TERM4-N17THU1 17_base_think Qwen/Qwen3-1.7B EVAL-u1-refs/base17_think_u1_math500_T0.6_math500_think_t0.6.jsonl think
+#term PROBE-TERM4-N4THU1 4B_base_think Qwen/Qwen3-4B EVAL-u1-refs/base4_think_u1_math500_T0.6_math500_think_t0.6.jsonl think
+#term PROBE-TERM4-N093U1 17_P0think8k result:runs/E12b-P0think-8k/global_step_50/actor/huggingface EVAL-u1-refs/e12b_P0think-8k_s50_u1_math500_T0.6_math500_think_t0.6.jsonl think
+#term PROBE-TERM4-N096A4KU1 17_P0think4k result:runs/E12b-P0think-4k/global_step_50/actor/huggingface EVAL-u1-refs/e12b_P0think-4k_s50_u1_math500_T0.6_math500_think_t0.6.jsonl think
+#term PROBE-TERM4-N093BU1 4_P0think8k result:runs/E12d-P0think-8k/global_step_50/actor/huggingface EVAL-u1-refs/e12d_P0think-8k_s50_u1_math500_T0.6_math500_think_t0.6.jsonl think
+#term PROBE-TERM4-N095AU1 17_P5q093t result:runs/E10b-P5q093t/global_step_50/actor/huggingface EVAL-u1-refs/e10b_P5q093t_s50_u1_math500_T0.6_math500_no_think_t0.6.jsonl no_think
+#term PROBE-TERM4-NT4KU1 17_P5q4kt result:runs/E10b-P5q4kt/global_step_50/actor/huggingface EVAL-u1-t4k/e10b_P5q4kt_s50_u1_math500_T0.6_math500_no_think_t0.6.jsonl no_think
 #eval EVAL-e12b-P0think-8k-c100 e12b_P0think-8k-c100_s75_math500_T0.6 result:runs/E12b-P0think-8k-c100/global_step_25/actor/huggingface math500 4 0.6 16384 think
 #eval EVAL-e12b-P0think-8k-c100 e12b_P0think-8k-c100_s100_math500_T0.6 result:runs/E12b-P0think-8k-c100/global_step_50/actor/huggingface math500 4 0.6 16384 think
 #term PROBE-TERM4-N096B75 17_P0think8kc100s75 result:runs/E12b-P0think-8k-c100/global_step_25/actor/huggingface EVAL-e12b-P0think-8k-c100/e12b_P0think-8k-c100_s75_math500_T0.6_math500_think_t0.6.jsonl think

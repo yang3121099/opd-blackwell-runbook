@@ -20,7 +20,7 @@ source "$(dirname "$0")/env.sh"; source ${VENV_EVAL:-$OPD_ROOT/venv}/bin/activat
 G=$1; T=$2; OUT=$OPD_ROOT/runs/$T; Q=${QUEUE_FILE:-$RUNBOOK/tasks/queue.txt}; mkdir -p $OUT
 VIF=${VENV_IFEVAL:-$OPD_ROOT/venv-ifeval}   # [v2.5.9z16] the grading-only venv of the ifeval rows (BUILD-VENV-IFEVAL)
 [ -f $OUT/.done ] && { echo "TASK_ALREADY_DONE $T"; exit 0; }
-SPECS=$(awk -v t="$T" '$1 == "#eval" && $2 == t {print $3, $4, $5, $6, $7, $8, $9, $10}' "$Q")
+SPECS=$(awk -v t="$T" '$1 == "#eval" && $2 == t {print $3, $4, $5, $6, $7, $8, $9, $10, $11, $12}' "$Q")   # [z162] up to three optional fields ($10-$12) after the mode
 [ -n "$SPECS" ] || { echo "no #eval lines for $T in the queue"; exit 1; }
 HASH=$(awk -v t="$T" '$1 == "#eval" && $2 == t' "$Q" | cksum | cut -d' ' -f1)
 fetch_ckpt() {   # $1 = path inside yang31210999/opd-lab-ckpts; 0 when complete
@@ -82,10 +82,20 @@ while read -r TAG MODEL BENCH N TEMP MAXT MODE PF; do
   [ $rc = 1 ] && hf_backoff && { echo "WAIT_INPUTS $T: $MODEL not in (the HF 429 backoff lasts)"; exit 1; }   # [v2.5.9z52] waiting, no attempt
   [ $rc = 1 ] && { echo "MODEL_FETCH_FAILED $TAG: $MODEL (see $OUT/fetch.log)"; ok=0; continue; }
   [ $rc = 2 ] && { echo "MODEL_MISSING $TAG: $MODEL"; ok=0; continue; }
-  PFA=""; if [ -n "${PF:-}" ]; then   # [z158d]
-    [[ $PF =~ ^pf=[0-9]+(,[0-9]+)*$ ]] || { echo "REFUSED $TAG: prefill must be pf=<id>[,<id>...], not $PF"; ok=0; continue; }
-    case $BENCH in geo3k|mathvista|mathvision|mathverse) echo "REFUSED $TAG: no prefill for the image benches"; ok=0; continue;; esac
-    PFA="--prefill ${PF#pf=}"; fi
+  # [z162] (Fable 11-15, the uk-share record of Q-098 / the -u1 rereads) the optional fields after the mode, any order, each at most once:
+  # pf=<id>[,<id>...] (z158d), us=p1|p2 = one of Q-098's registered prompt baselines as gen_eval --user_suffix (the text verbatim from
+  # lab/registry/Q-098.md), seed=<base> = gen_eval --seed (independent repeats by seed base)
+  PFA=""; USA=(); SEEDA=""; bad=""
+  for X in ${PF:-}; do case $X in
+    pf=*) [[ $X =~ ^pf=[0-9]+(,[0-9]+)*$ ]] && [ -z "$PFA" ] || { bad="prefill must be pf=<id>[,<id>...], once, not $X"; break; }
+      case $BENCH in geo3k|mathvista|mathvision|mathverse) bad="no prefill for the image benches"; break;; esac
+      PFA="--prefill ${X#pf=}";;   # [z158d]
+    us=p1) [ ${#USA[@]} = 0 ] || { bad="us= twice"; break; }; USA=(--user_suffix "Think briefly: keep your reasoning short and stop as soon as you are confident in the answer.");;
+    us=p2) [ ${#USA[@]} = 0 ] || { bad="us= twice"; break; }; USA=(--user_suffix "Be concise. Use as few reasoning steps as possible, then give the final answer.");;
+    seed=*) [[ $X =~ ^seed=[0-9]{1,9}$ ]] && [ -z "$SEEDA" ] || { bad="seed must be seed=<integer>, once, not $X"; break; }; SEEDA="--seed ${X#seed=}";;
+    *) bad="unknown field $X (pf= / us=p1|p2 / seed=)"; break;;
+  esac; done
+  [ -z "$bad" ] || { echo "REFUSED $TAG: $bad"; ok=0; continue; }
   case $TEMP in 1.0) SAMP="--temperature 1.0 --top_p 1.0 --top_k 0";; 0) SAMP="--temperature 0 --top_p 1.0 --top_k 0";; *) SAMP="--temperature 0.6 --top_p 0.95 --top_k 0";; esac   # [v2.5.9z15] 0: greedy
   # [v2.5.9z15] a multiple-choice bench reads the node's #fetch copy: while it is not in, the task waits (no attempt; 9z3)
   case $BENCH in gpqa) DS=Idavidrein__gpqa;; mmlupro1k) DS=TIGER-Lab__MMLU-Pro;; ifeval) DS=google__IFEval;; *) DS="";; esac   # [v2.5.9z16] ifeval
@@ -98,7 +108,7 @@ while read -r TAG MODEL BENCH N TEMP MAXT MODE PF; do
   EV=$RUNBOOK/code/eval/gen_eval.py; PYE=python   # [v2.5.9z] the image benches: gen_eval_vl.py in venv-vl (same arguments and file names)
   case $BENCH in geo3k|mathvista|mathvision|mathverse) EV=$RUNBOOK/code/eval/gen_eval_vl.py; PYE=${VENV_VL:-$OPD_ROOT/venv-vl}/bin/python;; esac
   CUDA_VISIBLE_DEVICES=$G $PYE $EV --model $M --bench $BENCH --mode $MODE --n $N $SAMP \
-    --max_tokens $MAXT --chunk $K --dtype $DT --tag $TAG --out $OUT $PFA >> $OUT/gen_eval.log 2>&1 || { echo "EVAL_FAIL $TAG"; ok=0; python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1; continue; }
+    --max_tokens $MAXT --chunk $K --dtype $DT --tag $TAG --out $OUT $PFA $SEEDA ${USA[@]+"${USA[@]}"} >> $OUT/gen_eval.log 2>&1 || { echo "EVAL_FAIL $TAG"; ok=0; python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1; continue; }
   echo "EVAL_DONE $(date -u +%T) $TAG"; echo "$TAG $M" >> $OUT/.models
   python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true   # v2.5.4b: release the GPU before the next engine
 done <<< "$SPECS"
@@ -134,8 +144,12 @@ fi
 # stop string appended ("\n\n**Final Answer**\n\\boxed{", thinking: "\n</think>\n\n\\boxed{"), at most 32 more tokens
 # (code/eval/forced_stop.py --force_preset budB, E05's mechanism); <model> is the model that wrote the reading (as on an
 # #eval line); out: <reading stem>.forced.json / .forced.jsonl in this task, which #budget then reads
-while read -r FR FMODEL FMODE; do
+while read -r FR FMODEL FMODE FBUD; do
   [ -n "$FR" ] || continue
+  # [z162] an optional 6th field budgets=<B>[,<B>...] (Q-098's frontier 1K-16K, the 16K remedies); default the five budB levels
+  BUDS=2048,4096,8192,16384,32768; if [ -n "${FBUD:-}" ]; then
+    [[ $FBUD =~ ^budgets=[0-9]{3,5}(,[0-9]{3,5})*$ ]] || { echo "FORCED_REFUSED $FR: budgets must be budgets=<B>[,<B>...], not $FBUD"; ok=0; continue; }
+    BUDS=${FBUD#budgets=}; fi
   RP=$(ref_path "$FR"); [ -n "$RP" ] || { echo "FORCED_REF_REFUSED $FR"; continue; }
   [ -f "$RP" ] && [ -f "${RP%.jsonl}.metrics.json" ] || { echo "FORCED_SKIPPED $FR (no finished reading)"; ok=0; continue; }
   # [z152] (N5, lab/registry/N5.md) the reading's own benchmark (its .metrics.json "bench"; AIME readings too), math500 when unnamed
@@ -150,10 +164,10 @@ except Exception: print('math500')" "${RP%.jsonl}.metrics.json" 2> /dev/null); F
   gpu_wait_free $G || { python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1; gpu_wait_free $G 120; }   # [v2.5.8]
   # [z152d] (Fable 11-11 18:2x) the forced continuation samples as the queue's readings do (T 0.6, top_p 0.95, top_k 0; forced_stop.py's own default is top_k 20)
   CUDA_VISIBLE_DEVICES=$G python $RUNBOOK/code/eval/forced_stop.py --model $M --jsonl "$RP" --bench $FB --mode $FMODE --force_preset budB \
-    --max_new 32 --budgets 2048,4096,8192,16384,32768 --out $OUT/$STEM.forced.json --samples $OUT/$STEM.forced.jsonl --top_k 0 >> $OUT/forced.log 2>&1 \
+    --max_new 32 --budgets $BUDS --out $OUT/$STEM.forced.json --samples $OUT/$STEM.forced.jsonl --top_k 0 >> $OUT/forced.log 2>&1 \
     && echo "FORCED_DONE $STEM" || { echo "FORCED_FAIL $STEM (see forced.log)"; ok=0; rm -f $OUT/$STEM.forced.json; }
   python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true
-done <<< "$(awk -v t="$T" '$1 == "#forced" && $2 == t {print $3, $4, $5}' "$Q")"
+done <<< "$(awk -v t="$T" '$1 == "#forced" && $2 == t {print $3, $4, $5, $6}' "$Q")"
 # [v2.5.9z65a] (ops-lead 22:1x UTC 10-22) the GPU work is over (generations, TWR, forced answers): our processes off the GPU,
 # then .gpu_released lets run_tasks.sh give it to the next task while the pairs, the budgets and the upload below run
 python $RUNBOOK/scripts/control.py reap $G $T > /dev/null 2>&1 || true

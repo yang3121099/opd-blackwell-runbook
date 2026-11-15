@@ -24,6 +24,15 @@ FORCE = "\n</think>\n\n**Final Answer**\n\\boxed{"
 FORCE_BUDB = {"think": "\n</think>\n\n\\boxed{", "no_think": "\n\n**Final Answer**\n\\boxed{"}
 
 
+def forced_user_message(problem, user_suffix="", suffix=None):
+    """[z162] the user message the forced continuation is scored under: the reading's own (gen_eval: the problem, the math suffix, then
+    the reading's --user_suffix on its own line when it had one; its .metrics.json records it). Before z162 the suffix was dropped, so a
+    Q-098 prompt-baseline reading (us=p1 / p2) was forced under the plain prompt."""
+    if suffix is None:
+        from gen_eval import PROMPT_SUFFIX as suffix
+    return problem + suffix + ("\n" + user_suffix if user_suffix else "")
+
+
 def force_text(preset, mode, prefix_text=""):
     """The stop string appended at the cut (E05: always FORCE)."""
     if preset == "e05":
@@ -76,20 +85,21 @@ def main():
     force_ids = {}
     budgets = [int(b) for b in a.budgets.split(",")]
     mpath = a.jsonl[:-len(".jsonl")] + ".metrics.json"
+    us = (json.load(open(mpath)).get("user_suffix") or "") if os.path.isfile(mpath) else ""   # [z162] the reading's own prompt suffix
     if a.force_preset != "e05" and os.path.isfile(mpath) and json.load(open(mpath)).get("max_tokens"):
         budgets = budgets_upto(budgets, int(json.load(open(mpath))["max_tokens"]))
     jobs = []
     for b in budgets:
         _, forced = plan(recs, b)
         for r in forced:
-            msgs = [{"role": "user", "content": rows[r["pid"]]["problem"] + PROMPT_SUFFIX}]
+            msgs = [{"role": "user", "content": forced_user_message(rows[r["pid"]]["problem"], us, PROMPT_SUFFIX)}]   # [z162]
             p = tok.apply_chat_template(msgs, tokenize=True, add_generation_prompt=True, enable_thinking=a.mode == "think")
             f = force_text(a.force_preset, a.mode, tok.decode(r["token_ids"][:b]) if a.force_preset != "e05" else "")
             if f not in force_ids:
                 force_ids[f] = tok(f, add_special_tokens=False)["input_ids"]
             jobs.append((b, r, list(p) + r["token_ids"][:b] + force_ids[f]))
     out = {"model": a.model, "jsonl": a.jsonl, "bench": a.bench, "force": FORCE if a.force_preset == "e05" else FORCE_BUDB,
-           "mode": a.mode, "preset": a.force_preset, "max_new": a.max_new, "budgets": []}
+           "mode": a.mode, "preset": a.force_preset, "max_new": a.max_new, "budgets": [], **({"user_suffix": us} if us else {})}   # [z162]
     if jobs:
         llm = LLM(model=a.model, gpu_memory_utilization=a.gpu_mem, max_model_len=max(len(j[2]) for j in jobs) + a.max_new + 16, seed=a.seed)
         sp = SamplingParams(n=1, temperature=0.6, top_p=0.95, top_k=a.top_k if a.top_k > 0 else -1, max_tokens=a.max_new, seed=a.seed)

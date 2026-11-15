@@ -36,3 +36,16 @@ def test_budb_stop_strings():   # v2.5.7h (Q-013); E05 keeps FORCE whatever the 
 def test_budgets_upto():   # [v2.5.9z46] a 3072 reading is forced at 2048 and at its cap; the usual caps unchanged
     B = [2048, 4096, 8192, 16384, 32768]
     assert F.budgets_upto(B, 3072) == [2048, 3072] and F.budgets_upto(B, 16384) == [2048, 4096, 8192, 16384] and F.budgets_upto(B, 32768) == B
+
+
+def test_user_suffix_kept_z162():   # [z162] a forced continuation is scored under the reading's own prompt, user suffix included
+    import gen_eval as G
+    P1 = "Think briefly: keep your reasoning short and stop as soon as you are confident in the answer."
+    for prob in ("What is $1+1$?", "a\nb"):
+        assert F.forced_user_message(prob, "", G.PROMPT_SUFFIX) == prob + G.PROMPT_SUFFIX   # as before z162
+        for b in ("math500", "olympiadbench", "minervamath", "aime24"):
+            assert F.forced_user_message(prob, "", G.PROMPT_SUFFIX) == G.user_content(b, prob)
+            assert F.forced_user_message(prob, P1, G.PROMPT_SUFFIX) == G.user_content(b, prob, P1)
+    src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "forced_stop.py")).read()
+    assert 'us = (json.load(open(mpath)).get("user_suffix") or "") if os.path.isfile(mpath) else ""' in src
+    assert 'forced_user_message(rows[r["pid"]]["problem"], us, PROMPT_SUFFIX)' in src

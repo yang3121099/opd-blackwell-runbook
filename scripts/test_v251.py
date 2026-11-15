@@ -2667,9 +2667,9 @@ def test_q094_prefill_z158d(env, tmp_path):   # [z158d] (Fable 02:3x, lab/regist
     assert nn == {"EVAL-nothink16k-17base-b3": ["Qwen/Qwen3-1.7B", "math500", "4", "0.6", "16384", "no_think"],
                   "EVAL-nothink16k-4Bbase-b3": ["Qwen/Qwen3-4B", "math500", "4", "0.6", "16384", "no_think"]}
     rq = open(os.path.join(HERE, "run_queue_eval.sh")).read()
-    assert "{print $3, $4, $5, $6, $7, $8, $9, $10}" in rq and rq.count("read -r TAG MODEL BENCH N TEMP MAXT MODE PF; do") == 3
+    assert "{print $3, $4, $5, $6, $7, $8, $9, $10, $11, $12}" in rq and rq.count("read -r TAG MODEL BENCH N TEMP MAXT MODE PF; do") == 3   # [z162] three optional fields
     assert "read -r TAG MODEL BENCH N TEMP MAXT MODE; do" not in rq   # no loop reads pf= into MODE
-    assert '[[ $PF =~ ^pf=[0-9]+(,[0-9]+)*$ ]]' in rq and 'PFA="--prefill ${PF#pf=}"' in rq and "--out $OUT $PFA >>" in rq
+    assert '[[ $X =~ ^pf=[0-9]+(,[0-9]+)*$ ]]' in rq and 'PFA="--prefill ${X#pf=}"' in rq and '--out $OUT $PFA $SEEDA ${USA[@]+"${USA[@]}"} >>' in rq   # [z162] pf= among the optional fields
     sys.path.insert(0, os.path.join(os.path.dirname(HERE), "code", "eval"))
     import gen_eval as G
     assert "prefill" in G.RESUME_KEYS and G.RESUME_DEFAULTS["prefill"] == ""   # [z158h] + seed_mode
@@ -2801,3 +2801,32 @@ def test_t4k_z160(env):   # [z160] (Fable D105, registry Q-097 T4K) E10b-P5q4kt 
         assert env.c.v_run([t], 2130 + k)[0] == "accepted", t
     import control_rules as R
     R.parse({"cmd": "rerun PROBE-P5Q4KT", "reason": "t"})
+
+
+def test_u1_record_z162(env):   # [z162] (Fable board v2) uk-share's ad hoc readings recorded as queue rows: stage p1u1r, in no profile
+    import queue_profiles as QP, control_rules as R, re as _re
+    for p, st in QP.PROFILES.items():
+        assert "p1u1r" not in st, p   # a record: never rendered, never dispatched
+    names = [s.split(":")[0] for s in QP.STAGES["p1u1r"]]
+    rows = [l.split() for l in QP.NEW_ROWS.splitlines() if l.split()[:1] and l.split()[0] in ("#eval", "#forced", "#term") and l.split()[1] in names]
+    ev = [r for r in rows if r[0] == "#eval"]; fo = [r for r in rows if r[0] == "#forced"]; te = [r for r in rows if r[0] == "#term"]
+    assert len(ev) == 42 and len(fo) == 23 and len(te) == 7
+    tags = [r[2] for r in ev]
+    assert len(set(tags)) == len(tags) and all(_re.fullmatch(r"[A-Za-z0-9._-]+", t) for t in tags)
+    files = {f"{r[1]}/{r[2]}_{r[4]}_{r[8]}_t0.6.jsonl": r for r in ev}
+    for r in ev:
+        R.check_eval_args(r[3:9])   # run_queue_eval's own check (model, bench, n, T, max tokens, mode)
+        assert r[5:9] == ["4", "0.6", "16384", r[8]] and r[8] in ("think", "no_think"), r
+        for x in r[9:]:
+            assert _re.fullmatch(r"us=p[12]|seed=[0-9]+", x), r
+        assert ("us=p1" in r or "us=p2" in r) == bool(_re.search(r"_p[12]_", r[2])), r   # the prompt baselines carry their suffix
+        assert ("seed=1000" in r) == ("u1s1000" in r[2]), r
+    for r in fo:
+        ref = r[2]
+        assert ref in tags or ref in files, r   # a reading of the same task, or by path (the F2 pass)
+        assert r[4] in ("think", "no_think") and all(_re.fullmatch(r"budgets=[0-9]{3,5}(,[0-9]{3,5})*", x) for x in r[5:]), r
+    assert sum(1 for r in fo if r[1] == "EVAL-u1-f2") == 3 and all(r[2] in files for r in fo if r[1] == "EVAL-u1-f2")
+    for r in te:
+        assert _re.fullmatch(r"PROBE-TERM4-N[0-9A-Z]{1,8}", r[1]) and r[4] in files and r[5] == files[r[4]][8], r
+    for k, t in enumerate(names):
+        assert env.c.v_run([t], 2150 + k)[0] == "accepted", t
