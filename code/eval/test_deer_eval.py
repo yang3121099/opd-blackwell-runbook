@@ -112,3 +112,10 @@ def test_record_and_metrics_are_gen_evals():   # the reading's files read as any
                         limit=None, seed=0, chunk=100, prefill="", seed_mode="shared", user_suffix="", tp=1)
     m = G.compute_metrics(a, [r], [rec], 1.0)
     assert m["avg_acc"] == 100.0 and m["mean_tokens"] == 500.0   # the main count drives mean_tokens
+
+
+def test_exit_reaps_the_engine_z169():   # [z169] the process ends with gen_eval's reaper and os._exit, as gen_eval / forced_stop do
+    src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "deer_eval.py")).read()
+    tail = src[src.index('if __name__ == "__main__":'):]
+    assert "from gen_eval import _reap_children" in tail and "_reap_children()" in tail and "os._exit(rc or 0)" in tail
+    assert tail.index("_reap_children()") < tail.index("os._exit(rc or 0)")

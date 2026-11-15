@@ -235,4 +235,11 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    rc = main()
+    sys.stdout.flush(); sys.stderr.flush()
+    try:   # [z169] (executor C, uk-share 11-15: three calibrations kept their vLLM engines, 0 % and ~242 GB each, 35 min after metrics.json)
+        from gen_eval import _reap_children   # as gen_eval / forced_stop: no engine core outlives the reading (v2.5.6e)
+        _reap_children()
+    except Exception as e:   # noqa: BLE001 - the exit below must happen whatever the reaper does
+        print(f"REAP_FAILED {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+    os._exit(rc or 0)
