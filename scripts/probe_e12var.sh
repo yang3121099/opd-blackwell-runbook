@@ -92,7 +92,7 @@ ARM=$L-P5-$VAR; [ $L = E12e ] && ARM=$L-P5self-$VAR   # [v2.5.9z91] (Q-081) PEV_
 [ $L:$VAR = E12d:p0think ] && ARM=E12d-P0think-8k   # [z149] (Q-093b) the 4B arm on its four GPUs (#gpus 4)
 [ $L:$VAR = E12e:p0think ] && ARM=E12e-P0think-8k   # [z154] (Q-093c) the 8B arm on its eight GPUs
 [ $L:$VAR = E12b:p0think ] && ARM=E12b-P0think-8k   # [z146] (Q-093) PROBE-E12B-P0THINK smokes the arm itself: the base in the thinking template at 8K
-[[ ${PEV_ARM:-} =~ ^E12[bcde]-P0think-(8k(-s4[34])?|4k|16k|7k|8k50-4k)$ ]] && ARM=$PEV_ARM   # [z159] 7k (Q-097 D) / 8k50-4k (A4)   # [z158b] s44 / 4k / 16k   # [z154] PROBE-E12B-P0THINK-8G smokes E12b-P0think-8k-s43 itself
+[[ ${PEV_ARM:-} =~ ^E12[bcde]-P0think-(8k(-s4[34])?|4k|16k|6k|7k|12k|8k50-4k)$ ]] && ARM=$PEV_ARM   # [z159] 7k (Q-097 D) / 8k50-4k (A4)   # [z158b] s44 / 4k / 16k   # [z154] PROBE-E12B-P0THINK-8G smokes E12b-P0think-8k-s43 itself
 SMOKE=1 SMOKE_STEPS=${PEV_STEPS:-3} PROBE_TASK=$T-smoke bash $RUNBOOK/scripts/run_e12.sh $G $ARM > $D/smoke.out 2>&1; rc=$?   # [v2.5.9z85] $L
 kill $MP 2> /dev/null
 mkdir -p $D/smoke; cp $OPD_ROOT/runs/$T-smoke/train.log $OPD_ROOT/runs/$T-smoke/config.yaml $D/smoke/ 2> /dev/null
@@ -305,7 +305,7 @@ PY
 fi
 if [ $VAR = p0think ]; then   # [z146] (Q-093) the limit, the template switch, and the rollouts really in the thinking mode
   # [z158g] (the 4K gate failed 11-14 19:38Z on this check) the window of the arm the gate smokes: 4K / 16K for Q-096 A, else 8K
-  N=8192; case $ARM in *-P0think-4k|*-P0think-8k50-4k) N=4096;; *-P0think-7k) N=7168;; *-P0think-16k) N=16384;; esac   # [z159] A4 / D (7K)
+  N=8192; case $ARM in *-P0think-4k|*-P0think-8k50-4k) N=4096;; *-P0think-6k) N=6144;; *-P0think-7k) N=7168;; *-P0think-12k) N=12288;; *-P0think-16k) N=16384;; esac   # [z159] A4 / D (7K)
   grep -q "^max_response_length: $N$" $D/smoke/config.yaml || finish FAIL "the smoke's config does not name max_response_length $N"
   grep -q "^chat_template: enable_thinking=True$" $D/smoke/config.yaml || finish FAIL "the smoke's config does not name enable_thinking=True"
   cp $OPD_ROOT/runs/$T-smoke/rollouts/1.jsonl $D/smoke/rollouts_1.jsonl 2> /dev/null

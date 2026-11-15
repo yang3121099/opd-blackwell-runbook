@@ -2261,7 +2261,7 @@ def test_q093_thinking_arm_z146(env):   # [z146] (Q-093, Fable D10) the p1q stag
     assert "  PROBE-E12B-P0THINK) bash $RUNBOOK/scripts/probe_e12var.sh $G p0think;;" in task
     e12 = open(os.path.join(here, "run_e12.sh")).read()
     assert e12.count("+data.apply_chat_template_kwargs.enable_thinking=$THINK") == 1 and "enable_thinking=False" not in e12
-    assert e12.count("THINK=True") == 8 and '[ "$A" = P0think-8k ] && { VAR=8k; A=P0; THINK=True; }' in e12   # [z154] + P0think-8k-s43 (the same arm, seed 43); [z158b] + s44, 4k, 16k; [z158f] + c100
+    assert e12.count("THINK=True") == 10 and '[ "$A" = P0think-8k ] && { VAR=8k; A=P0; THINK=True; }' in e12   # [z154] + P0think-8k-s43 (the same arm, seed 43); [z158b] + s44, 4k, 16k; [z158f] + c100
     assert '[ "$A" = P0think-8k-s43 ] && { VAR=8k; A=P0; THINK=True; DSEED=43; }' in e12   # the switch: this arm only
 
 
@@ -2749,34 +2749,35 @@ def test_seed_mode_z158h():   # [z158h] (Fable M1) per-problem seed derivation b
             assert "RESUME_REFUSED" in str(e)
 
 
-def test_q097_arms_z159(env):   # [z159] (Fable 10:51 / 11:08, registry Q-097) the D arm at W_s = 7K, own gate, 4 GPUs; A4 defined but paused (no profile)
+def test_q097_arms_z159(env):   # [z159c] (Fable 11:17 / 11:30, registry Q-097) released: the D arm 6K and the 12K point; paused (no profile): A4, 7K
     import queue_profiles as QP
     for p, st in QP.PROFILES.items():
-        assert ("p1q097" in st) == (p == "8gs") and "p1q097a4" not in st, p
-    assert QP.STAGES["p1q097a4"] == ["PROBE-E12B-P0THINK-8K50-4K", "E12b-P0think-8k50-4k:PROBE-E12B-P0THINK-8K50-4K"]
+        assert ("p1q097" in st) == (p == "8gs") and "p1q097p" not in st, p
+    assert QP.STAGES["p1q097p"] == ["PROBE-E12B-P0THINK-8K50-4K", "E12b-P0think-8k50-4k:PROBE-E12B-P0THINK-8K50-4K", "PROBE-E12B-P0THINK-7K", "E12b-P0think-7k:PROBE-E12B-P0THINK-7K"]
+    assert QP.STAGES["p1q097"] == ["PROBE-E12B-P0THINK-6K", "E12b-P0think-6k:PROBE-E12B-P0THINK-6K", "PROBE-E12B-P0THINK-12K", "E12b-P0think-12k:PROBE-E12B-P0THINK-12K"]
     L, stages, spec = _profile_queue("8gs")
-    assert spec["E12b-P0think-7k"] == ["PROBE-E12B-P0THINK-7K"] and spec["PROBE-E12B-P0THINK-7K"] == []
-    assert "E12b-P0think-8k50-4k" not in spec and not any("8k50-4k" in l or "8K50-4K" in l for l in L)   # paused: not in the queue file
-    for t in ("PROBE-E12B-P0THINK-7K", "E12b-P0think-7k"):
+    assert spec["E12b-P0think-6k"] == ["PROBE-E12B-P0THINK-6K"] and spec["E12b-P0think-12k"] == ["PROBE-E12B-P0THINK-12K"]
+    assert not any(x in l for l in L for x in ("8k50-4k", "8K50-4K", "P0think-7k", "P0THINK-7K"))   # paused: not in the queue file
+    for t in ("PROBE-E12B-P0THINK-6K", "E12b-P0think-6k", "PROBE-E12B-P0THINK-12K", "E12b-P0think-12k"):
         assert f"#gpus {t} 4" in L, t
     e12 = open(os.path.join(HERE, "run_e12.sh")).read()
     assert '[ "$A" = P0think-8k50-4k ] && { VAR=""; A=P0; THINK=True; C100=1; W4=1; }' in e12 and '[ "$A" = P0think-7k ] && { VAR=7k; A=P0; THINK=True; }' in e12
     assert e12.index('[ "$A" = P0think-8k50-4k ]') > e12.index('C100=""; [ "$A" = P0think-8k-c100 ]')   # after C100's reset
-    assert 'if [ -n "$VAR$W4" ] && [ "${SMOKE:-0}" != 1 ]; then' in e12 and "7k) MAXR=7168;;" in e12 and "case $VAR in 7k|8k|16k|16k-kl) STEPS" in e12
+    assert 'if [ -n "$VAR$W4" ] && [ "${SMOKE:-0}" != 1 ]; then' in e12 and "6k) MAXR=6144;; 7k) MAXR=7168;; 12k) MAXR=12288;;" in e12 and "case $VAR in 6k|7k|8k|12k|16k|16k-kl) STEPS" in e12
     assert "E12b-P0think-8k50-4k) GATES=PROBE-E12B-P0THINK-8K50-4K;; E12b-P0think-7k) GATES=PROBE-E12B-P0THINK-7K;;" in e12
     task = open(os.path.join(HERE, "task.sh")).read()
-    for g, a in (("8K50-4K", "E12b-P0think-8k50-4k"), ("7K", "E12b-P0think-7k")):
+    for g, a in (("8K50-4K", "E12b-P0think-8k50-4k"), ("7K", "E12b-P0think-7k"), ("6K", "E12b-P0think-6k"), ("12K", "E12b-P0think-12k")):
         assert f"PROBE-E12B-P0THINK-{g}) PEV_NAME=PROBE-E12B-P0THINK-{g} PEV_ARM={a} bash" in task
     import re as _re
     probe = open(os.path.join(HERE, "probe_e12var.sh")).read()
     rx = _re.search(r"\[\[ \$\{PEV_ARM:-\} =~ (\S+) \]\]", probe).group(1)
-    for a in ("E12b-P0think-8k50-4k", "E12b-P0think-7k", "E12b-P0think-4k", "E12b-P0think-16k"):
+    for a in ("E12b-P0think-8k50-4k", "E12b-P0think-7k", "E12b-P0think-6k", "E12b-P0think-12k", "E12b-P0think-4k", "E12b-P0think-16k"):
         assert _re.fullmatch(rx.strip("^$"), a), a
-    assert "*-P0think-4k|*-P0think-8k50-4k) N=4096;; *-P0think-7k) N=7168;;" in probe
-    for k, t in enumerate(["PROBE-E12B-P0THINK-8K50-4K", "E12b-P0think-8k50-4k", "PROBE-E12B-P0THINK-7K", "E12b-P0think-7k"]):
+    assert "*-P0think-4k|*-P0think-8k50-4k) N=4096;; *-P0think-6k) N=6144;; *-P0think-7k) N=7168;; *-P0think-12k) N=12288;;" in probe
+    for k, t in enumerate(["PROBE-E12B-P0THINK-8K50-4K", "E12b-P0think-8k50-4k", "PROBE-E12B-P0THINK-7K", "E12b-P0think-7k", "PROBE-E12B-P0THINK-6K", "E12b-P0think-6k", "PROBE-E12B-P0THINK-12K", "E12b-P0think-12k"]):
         assert env.c.v_run([t], 2110 + k)[0] == "accepted", t
     import control_rules as R
-    for g in ("PROBE-E12B-P0THINK-7K", "PROBE-E12B-P0THINK-8K50-4K"):
+    for g in ("PROBE-E12B-P0THINK-7K", "PROBE-E12B-P0THINK-8K50-4K", "PROBE-E12B-P0THINK-6K", "PROBE-E12B-P0THINK-12K"):
         R.parse({"cmd": f"rerun {g}", "reason": "t"})
 
 
