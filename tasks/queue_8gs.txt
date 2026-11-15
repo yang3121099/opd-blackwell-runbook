@@ -59,6 +59,8 @@ p1q096c    open   EVAL-ood-17think-b3 EVAL-ood-17chain-b3 EVAL-ood-17q093-b3
 p1q094     open   EVAL-q094-17base-T EVAL-q094-17base-N EVAL-q094-17self-T EVAL-q094-17self-N EVAL-q094-4base-T EVAL-q094-4base-N EVAL-q094-4self-T EVAL-q094-4self-N EVAL-q094-17p5-T EVAL-q094-17p5-N EVAL-nothink16k-17base-b3 EVAL-nothink16k-4Bbase-b3
 # p1q096b ~10.4 B200 GPU-h: E12b-P0think-8k-c100 8, EVAL-e12b-P0think-8k-c100 1.8, PROBE-TERM4-N096B75 0.3, PROBE-TERM4-N096BC 0.3
 p1q096b    open   E12b-P0think-8k-c100:PROBE-E12B-P0THINK-S44 EVAL-e12b-P0think-8k-c100:E12b-P0think-8k-c100 PROBE-TERM4-N096B75:EVAL-e12b-P0think-8k-c100 PROBE-TERM4-N096BC:EVAL-e12b-P0think-8k-c100
+# p1q097 ~10.8 B200 GPU-h: PROBE-E12B-P0THINK-8K50-4K 0.3, E12b-P0think-8k50-4k 4, PROBE-E12B-P0THINK-6K 0.5, E12b-P0think-6k 6
+p1q097     open   PROBE-E12B-P0THINK-8K50-4K E12b-P0think-8k50-4k:PROBE-E12B-P0THINK-8K50-4K PROBE-E12B-P0THINK-6K E12b-P0think-6k:PROBE-E12B-P0THINK-6K
 
 #gpus PROBE-E12E-8K 8
 #gpus E12e-P5tail-8k-nn 8
@@ -95,6 +97,10 @@ p1q096b    open   E12b-P0think-8k-c100:PROBE-E12B-P0THINK-S44 EVAL-e12b-P0think-
 #gpus PROBE-E12B-P0THINK-16K 4
 #gpus E12b-P0think-16k 4
 #gpus E12b-P0think-8k-c100 4
+#gpus PROBE-E12B-P0THINK-8K50-4K 4
+#gpus E12b-P0think-8k50-4k 4
+#gpus PROBE-E12B-P0THINK-6K 4
+#gpus E12b-P0think-6k 4
 
 #fetch result:runs/E10b-P5/global_step_150/actor/huggingface
 #fetch result:runs/E10b-P5tail/global_step_50/actor/huggingface

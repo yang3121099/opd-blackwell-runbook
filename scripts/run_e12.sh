@@ -66,13 +66,18 @@ W4=""; [ "$A" = P0think-4k ] && { VAR=""; A=P0; THINK=True; W4=1; }   # [z158g] 
 # (constant lr: no schedule skipped), the data from step 51 on (code/train/skip_order.py, data.seed 4242, 64 prompts a step, 50 steps
 # skipped); its global_step_25 / _50 = Q-093's s75 / s100; the start is the #fetch copy of Q-093 s50 (as Q-095's teacher)
 C100=""; [ "$A" = P0think-8k-c100 ] && { VAR=8k; A=P0; THINK=True; C100=1; }
+# [z159] (Fable D103 / D106, lab/registry/Q-097.md) E12b-P0think-8k50-4k = Q-097 A4: c100's continuation (Q-093 s50, weights only, a fresh
+# optimizer, constant lr, the data from step 51 on, 50 steps) at the 4K window (MAXR 4096, the 4K arm's batching); E12b-P0think-6k = Q-097's
+# 6K point: Q-093 from the base at MAXR 6144, 50 steps. Each behind its own gate smoke (the smoke's window check is the arm's)
+[ "$A" = P0think-8k50-4k ] && { VAR=""; A=P0; THINK=True; C100=1; W4=1; }
+[ "$A" = P0think-6k ] && { VAR=6k; A=P0; THINK=True; }
 # [v2.5.9z136] (Q-090, 3s) E12b-P5-8k-lenpen: the 8K recipe from E10b-P5 s150 with reward_stop2 (a length control baseline)
 # [v2.5.8h] (Runming 10-20 17:5x UTC via the reviewer, Q-028: the 4K limit costs too much): E12b-P5-8k / -16k = E12b-P5 with
 # max_response_length 8192 / 16384 and what the length forces: flash-attn with remove-padding (an SDPA micro-batch is
 # padded to its longest sequence), a token budget of at least prompt + response, vLLM batching above the model length
-MAXR=4096; case $VAR in 8k) MAXR=8192;; 16k|16k-kl) MAXR=16384;; esac
+MAXR=4096; case $VAR in 6k) MAXR=6144;; 8k) MAXR=8192;; 16k|16k-kl) MAXR=16384;; esac   # [z159] 6k
 # [v2.5.8b] the variant starts only after its gate PROBE-E12B-<VAR> passed (a 3-step smoke that checks the reference; the smoke itself is exempt)
-if [ -n "$VAR" ] && [ "${SMOKE:-0}" != 1 ]; then
+if [ -n "$VAR$W4" ] && [ "${SMOKE:-0}" != 1 ]; then   # [z159] W4 too: the 4K-window arms (VAR "") had no gate check here
   GATES=PROBE-E12B-$(echo $VAR | tr a-z A-Z); [ "$VAR" = 16k-kl ] && GATES="PROBE-E12B-16K PROBE-E12B-KL"   # [v2.5.9y]
   [ $LADDER = E12c ] && GATES="$GATES PROBE-E12C-$(echo $VAR | tr a-z A-Z)"   # [v2.5.9z85] (Q-077) the 0.6B window arms' own smokes too
   [ $LADDER = E12e ] && GATES="$GATES PROBE-E12E-$(echo $VAR | tr a-z A-Z)"   # [v2.5.9z91] (Q-081) and the 8B four-GPU smoke
@@ -81,7 +86,8 @@ if [ -n "$VAR" ] && [ "${SMOKE:-0}" != 1 ]; then
   [ $THINK = True ] && [ $LADDER = E12d ] && GATES=PROBE-E12D-P0THINK   # [z149] (Q-093b) the 4B arm's own 4-GPU smoke
   [ $THINK = True ] && [ $LADDER = E12e ] && GATES=PROBE-E12E-P0THINK   # [z154] (Q-093c) the 8B arm's own 8-GPU smoke
   [ $T = E12b-P0think-8k-s43 ] && GATES=PROBE-E12B-P0THINK-8G   # [z154] (Q-093-s43) its own 8-GPU smoke
-  case $T in E12b-P0think-8k-s44|E12b-P0think-8k-c100) GATES=PROBE-E12B-P0THINK-S44;; E12b-P0think-4k) GATES=PROBE-E12B-P0THINK-4K;; E12b-P0think-16k) GATES=PROBE-E12B-P0THINK-16K;; esac   # [z158b] their own smokes
+  case $T in E12b-P0think-8k-s44|E12b-P0think-8k-c100) GATES=PROBE-E12B-P0THINK-S44;; E12b-P0think-4k) GATES=PROBE-E12B-P0THINK-4K;; E12b-P0think-16k) GATES=PROBE-E12B-P0THINK-16K;;
+    E12b-P0think-8k50-4k) GATES=PROBE-E12B-P0THINK-8K50-4K;; E12b-P0think-6k) GATES=PROBE-E12B-P0THINK-6K;; esac   # [z159]   # [z158b] their own smokes
   [ $T = E12d-P0think-8k-s43 ] && GATES=PROBE-E12D-P0THINK-8G   # [z156] (Q-093b-s43, Fable D50) the 4B mirror: its own 8-GPU smoke (Q-093b's gate passed on 4 x B200)
   for P in $GATES; do grep -q '"result": "PASS"' $OPD_ROOT/runs/$P/report.json 2> /dev/null || { echo "$P has not passed: $T$NN not started"; exit 3; }; done
 fi
@@ -146,7 +152,7 @@ if [ $A != P0 ] && ! has_weights $START; then
   esac
 fi
 case $A in P0|P1|P2|P3|P5|P5-s43|P5-s44|P2-s43|P5self|P5self-s43) STEPS=100;; *) STEPS=60;; esac   # v2.5.6j: P5-s43 = the headline chain's second seed (queue v3 V3-c2); v2.5.7n: P5-s44 its third (from the flash-attn arm)
-case $VAR in 8k|16k|16k-kl) STEPS=${E12B_LONG_STEPS:-50};; r3) STEPS=${E12B_R3_STEPS:-50};; esac   # [v2.5.8h] reviewer 17:4x UTC: 50 steps (constant lr: extendable)
+case $VAR in 6k|8k|16k|16k-kl) STEPS=${E12B_LONG_STEPS:-50};; r3) STEPS=${E12B_R3_STEPS:-50};; esac   # [v2.5.8h] reviewer 17:4x UTC: 50 steps (constant lr: extendable)
 [ -n "$PROG" ] && STEPS=${PROG_STEPS:-25}   # [v2.5.9z43] 25 more steps (total s50)
 [ -n "$CONT" ] && STEPS=25   # [v2.5.9z129] s26-s50 of E12e-P5tail-8k
 [ -n "$C100" ] && STEPS=50   # [z158f] s51-s100 of Q-093
@@ -174,7 +180,7 @@ if [ -n "$CONT" ] && [ ! -s $TRAINF ] && [ "${DRYRUN:-0}" != 1 ]; then
   python $RUNBOOK/code/train/skip_order.py build --train $OPD_ROOT/data/dapo_train.parquet --tokenizer $STUDENT_17B --out $TRAINF --skip_steps 25 \
     || { echo "CONT_DATA_FAILED $T$NN: skip_order.py build"; exit 1; }
 fi
-if [ -n "$C100" ] && [ ! -s $TRAINF ] && [ "${DRYRUN:-0}" != 1 ] && [ "${SMOKE:-0}" != 1 ]; then   # [z158f] the same build, 50 steps skipped
+if [ -n "$C100" ] && [ ! -s $TRAINF ] && [ "${DRYRUN:-0}" != 1 ]; then   # [z158f] the same build, 50 steps skipped; [z159] in a smoke too (A4's gate smokes the arm itself)
   python $RUNBOOK/code/train/skip_order.py build --train $OPD_ROOT/data/dapo_train.parquet --tokenizer $STUDENT_17B --out $TRAINF --skip_steps 50 \
     || { echo "CONT_DATA_FAILED $T: skip_order.py build"; exit 1; }
 fi
@@ -254,7 +260,7 @@ case $T in E12b-P5-16k-s44|E12d-P5-16k-s43) UW=25,$STEPS;; esac   # [v2.5.9z84] 
 case $T in E12c-P5-8k|E12c-P5-16k) UW=25,$STEPS;; esac   # [v2.5.9z85] (Q-077) as the 1.7B / 4B window arms: s25 and s50 up
 [ $T = E12b-P0think-8k ] && UW=25,$STEPS   # [z146] (Q-093) s25 and s50 up
 [ $T = E12d-P0think-8k ] && UW=25,$STEPS   # [z149] (Q-093b) s25 and s50 up
-case $T in E12e-P0think-8k|E12b-P0think-8k-s43|E12d-P0think-8k-s43|E12b-P0think-8k-s44|E12b-P0think-4k|E12b-P0think-16k|E12b-P0think-8k-c100) UW=25,$STEPS;; esac   # [z158b] the new arms as Q-093   # [z156] Q-093b-s43 as Q-093b   # [z154] s25 kept (up / held), s50 the registered step
+case $T in E12e-P0think-8k|E12b-P0think-8k-s43|E12d-P0think-8k-s43|E12b-P0think-8k-s44|E12b-P0think-4k|E12b-P0think-16k|E12b-P0think-8k-c100|E12b-P0think-8k50-4k|E12b-P0think-6k) UW=25,$STEPS;; esac   # [z159] A4 / 6K   # [z158b] the new arms as Q-093   # [z156] Q-093b-s43 as Q-093b   # [z154] s25 kept (up / held), s50 the registered step
 [ -n "$CONT" ] && UW=25   # [v2.5.9z129] the continued arm's last save (= the chain's s50)
 # [v2.5.9z86] (fix; found 10-25 16:5x UTC: EVAL-e12b-P5tail-8k's s25 weights did not exist) with DR off (seq 545, 10-24) the save
 # interval above fell to the final step, so an arm uploading s25 (UW=25,...) saved no s25 checkpoint; the save interval is

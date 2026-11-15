@@ -2187,8 +2187,8 @@ def test_newnode_v2_profiles_v259z137(env):
 def test_split_pair_1gs_8gs_z139():   # [z139] two machines: together 8g80's stages, only the gates on both; 8gs keeps every training
     import queue_profiles as QP
     a, b = QP.PROFILES["1gs"], QP.PROFILES["8gs"]
-    assert set(a) | set(b) == set(QP.PROFILES["8g80"]) | {"p1q8", "p1qs43", "p1q4s43", "p1h2", "p1b3", "p1b3q093", "p1qs44", "p1q096a", "p1q095", "p1q096c", "p1q094", "p1q096b"} and set(a) & set(b) == {"p0a"}   # [z154] two 8gs-only stages and a[0] == b[0] == "p0a"
-    assert [s for s in QP.PROFILES["8g80"] if s in b] + ["p1q8", "p1qs43", "p1q4s43", "p1h2", "p1b3", "p1b3q093", "p1qs44", "p1q096a", "p1q095", "p1q096c", "p1q094", "p1q096b"] == b  # [z156] p1q4s43; [z156b] p1h2; [z157] p1b3; 8g80's order ([z154] + the two 8gs-only stages last)
+    assert set(a) | set(b) == set(QP.PROFILES["8g80"]) | {"p1q8", "p1qs43", "p1q4s43", "p1h2", "p1b3", "p1b3q093", "p1qs44", "p1q096a", "p1q095", "p1q096c", "p1q094", "p1q096b", "p1q097"} and set(a) & set(b) == {"p0a"}   # [z154] two 8gs-only stages and a[0] == b[0] == "p0a"
+    assert [s for s in QP.PROFILES["8g80"] if s in b] + ["p1q8", "p1qs43", "p1q4s43", "p1h2", "p1b3", "p1b3q093", "p1qs44", "p1q096a", "p1q095", "p1q096c", "p1q094", "p1q096b", "p1q097"] == b  # [z156] p1q4s43; [z156b] p1h2; [z157] p1b3; 8g80's order ([z154] + the two 8gs-only stages last)
     spec, _ = QP.source()
     ta = {x.split(":")[0] for st in a for x in QP.stage_specs(st, spec)}
     assert not [t for t in ta if re.match(r"E1\d", t)]                          # no training on the 1-GPU box
@@ -2261,7 +2261,7 @@ def test_q093_thinking_arm_z146(env):   # [z146] (Q-093, Fable D10) the p1q stag
     assert "  PROBE-E12B-P0THINK) bash $RUNBOOK/scripts/probe_e12var.sh $G p0think;;" in task
     e12 = open(os.path.join(here, "run_e12.sh")).read()
     assert e12.count("+data.apply_chat_template_kwargs.enable_thinking=$THINK") == 1 and "enable_thinking=False" not in e12
-    assert e12.count("THINK=True") == 6 and '[ "$A" = P0think-8k ] && { VAR=8k; A=P0; THINK=True; }' in e12   # [z154] + P0think-8k-s43 (the same arm, seed 43); [z158b] + s44, 4k, 16k; [z158f] + c100
+    assert e12.count("THINK=True") == 8 and '[ "$A" = P0think-8k ] && { VAR=8k; A=P0; THINK=True; }' in e12   # [z154] + P0think-8k-s43 (the same arm, seed 43); [z158b] + s44, 4k, 16k; [z158f] + c100
     assert '[ "$A" = P0think-8k-s43 ] && { VAR=8k; A=P0; THINK=True; DSEED=43; }' in e12   # the switch: this arm only
 
 
@@ -2747,3 +2747,31 @@ def test_seed_mode_z158h():   # [z158h] (Fable M1) per-problem seed derivation b
             G.resume_state(part, meta, argparse.Namespace(**base, seed_mode="per_problem"), rows, 2); assert False
         except SystemExit as e:
             assert "RESUME_REFUSED" in str(e)
+
+
+def test_q097_arms_z159(env):   # [z159] (Fable D103 / D106, registry Q-097) A4 (Q-093 s50 + 50 steps at 4K) and the 6K point, own gates, 4 GPUs
+    import queue_profiles as QP
+    for p, st in QP.PROFILES.items():
+        assert ("p1q097" in st) == (p == "8gs"), p
+    L, stages, spec = _profile_queue("8gs")
+    assert spec["E12b-P0think-8k50-4k"] == ["PROBE-E12B-P0THINK-8K50-4K"] and spec["E12b-P0think-6k"] == ["PROBE-E12B-P0THINK-6K"]
+    assert spec["PROBE-E12B-P0THINK-8K50-4K"] == [] and spec["PROBE-E12B-P0THINK-6K"] == []
+    for t in ("PROBE-E12B-P0THINK-8K50-4K", "E12b-P0think-8k50-4k", "PROBE-E12B-P0THINK-6K", "E12b-P0think-6k"):
+        assert f"#gpus {t} 4" in L, t
+    assert "#fetch result:runs/E12b-P0think-8k/global_step_50/actor/huggingface" in L
+    e12 = open(os.path.join(HERE, "run_e12.sh")).read()
+    assert '[ "$A" = P0think-8k50-4k ] && { VAR=""; A=P0; THINK=True; C100=1; W4=1; }' in e12 and '[ "$A" = P0think-6k ] && { VAR=6k; A=P0; THINK=True; }' in e12
+    assert e12.index('[ "$A" = P0think-8k50-4k ]') > e12.index('C100=""; [ "$A" = P0think-8k-c100 ]')   # after C100's reset
+    assert 'if [ -n "$VAR$W4" ] && [ "${SMOKE:-0}" != 1 ]; then' in e12 and "6k) MAXR=6144;;" in e12
+    assert "E12b-P0think-8k50-4k) GATES=PROBE-E12B-P0THINK-8K50-4K;; E12b-P0think-6k) GATES=PROBE-E12B-P0THINK-6K;;" in e12
+    task = open(os.path.join(HERE, "task.sh")).read()
+    for g, a in (("8K50-4K", "E12b-P0think-8k50-4k"), ("6K", "E12b-P0think-6k")):
+        assert f"PROBE-E12B-P0THINK-{g}) PEV_NAME=PROBE-E12B-P0THINK-{g} PEV_ARM={a} bash" in task
+    import re as _re
+    probe = open(os.path.join(HERE, "probe_e12var.sh")).read()
+    rx = _re.search(r"\[\[ \$\{PEV_ARM:-\} =~ (\S+) \]\]", probe).group(1)
+    for a in ("E12b-P0think-8k50-4k", "E12b-P0think-6k", "E12b-P0think-4k", "E12b-P0think-16k"):
+        assert _re.fullmatch(rx.strip("^$"), a), a
+    assert "*-P0think-4k|*-P0think-8k50-4k) N=4096;; *-P0think-6k) N=6144;;" in probe
+    for k, t in enumerate(["PROBE-E12B-P0THINK-8K50-4K", "E12b-P0think-8k50-4k", "PROBE-E12B-P0THINK-6K", "E12b-P0think-6k"]):
+        assert env.c.v_run([t], 2110 + k)[0] == "accepted", t
