@@ -145,6 +145,8 @@ STAGES = {
     # continuation; Ar merged into A4 by the zero-GPU rule) and the 6K point E12b-P0think-6k (from the base), 4 GPUs each behind its own gate
     "p1q097": ["PROBE-E12B-P0THINK-8K50-4K", "E12b-P0think-8k50-4k:PROBE-E12B-P0THINK-8K50-4K", "PROBE-E12B-P0THINK-6K",
                 "E12b-P0think-6k:PROBE-E12B-P0THINK-6K"],
+    # [z160] (Fable D105 / 10:44, lab/registry/Q-097.md T4K) E10b-P5q4kt = Q-095 A's recipe with the 4K arm s50 as the teacher; gate on one GPU, arm on 4
+    "p1q097t": ["PROBE-P5Q4KT", "E10b-P5q4kt:PROBE-P5Q4KT"],
     "p1b3": ["EVAL-e12d-P5tail-8k-nn-b3", "EVAL-think16k-4Bbase-b3", "PROBE-TERM4-N4BTHB3:EVAL-think16k-4Bbase-b3",
              "EVAL-e12e-P5tail-8k-nn-b3", "EVAL-think16k-8Bbase-b3", "PROBE-TERM4-N8BTHB3:EVAL-think16k-8Bbase-b3",
              "EVAL-e12b-P5tail-8k-s43-s50-b3", "EVAL-think16k-17base-b3", "PROBE-TERM4-N17THB3:EVAL-think16k-17base-b3",
@@ -209,7 +211,7 @@ EST = {"PROBE-TAIL": 0.3, "PROBE-E12B-8K": 0.3, "PROBE-E12B-STOP2": 0.3, "E12b-P
        "EVAL-q094-4base-N": 0.4, "EVAL-q094-4self-T": 0.8, "EVAL-q094-4self-N": 0.8, "EVAL-q094-17p5-T": 0.6, "EVAL-q094-17p5-N": 0.6,
        "EVAL-nothink16k-17base-b3": 0.3, "EVAL-nothink16k-4Bbase-b3": 0.4,
        "E12b-P0think-8k-c100": 8.0, "EVAL-e12b-P0think-8k-c100": 1.8, "PROBE-TERM4-N096B75": 0.3, "PROBE-TERM4-N096BC": 0.3,
-       "PROBE-E12B-P0THINK-8K50-4K": 0.3, "E12b-P0think-8k50-4k": 4.0, "PROBE-E12B-P0THINK-6K": 0.5, "E12b-P0think-6k": 6.0}   # [z159] A4 as the 4K arm, 6K between 4K and 8K   # [z158b] as Q-093-s43 (the 16K arm ~1.8 x the 8K step)   # [z156b] as the -b2 references   # [z146] Q-093: thinking answers fill the 8K window (training ~1.5 x Q-091)   # P1-a arms: #steptime 180 s x 50 steps
+       "PROBE-E12B-P0THINK-8K50-4K": 0.3, "E12b-P0think-8k50-4k": 4.0, "PROBE-E12B-P0THINK-6K": 0.5, "E12b-P0think-6k": 6.0, "PROBE-P5Q4KT": 0.3, "E10b-P5q4kt": 3.5}   # [z159] A4 as the 4K arm, 6K between 4K and 8K   # [z158b] as Q-093-s43 (the 16K arm ~1.8 x the 8K step)   # [z156b] as the -b2 references   # [z146] Q-093: thinking answers fill the 8K window (training ~1.5 x Q-091)   # P1-a arms: #steptime 180 s x 50 steps
 PROFILES = {
     "1g": P0_SERIAL + ["pn5", "p1q", "p1a"],   # [z152] N5 after P0 (1gt inherits it, 1gs does not)   # [z146] Q-093 after P0, before P1-a (1gt inherits it; 1gs does not: a 1gs / 1gt pair shares the gates only)
     "4g": P0_PARALLEL + ["p1a"],
@@ -224,7 +226,7 @@ PROFILES = {
 # The 8-GPU node reads tasks/queue_8gs.txt through control/queue_name (env.sh exports QUEUE_FILE); the 1-GPU node keeps queue.txt.
 SHARE_1G = ["p0a", "p0c", "p0f", "p0g", "p0x"]
 PROFILES["1gs"] = SHARE_1G
-PROFILES["8gs"] = [s for s in PROFILES["8g80"] if s == "p0a" or s not in SHARE_1G] + ["p1q8", "p1qs43", "p1q4s43", "p1h2", "p1b3", "p1b3q093", "p1qs44", "p1q096a", "p1q095", "p1q096c", "p1q094", "p1q096b", "p1q097"]   # [z159] p1q097   # [z154] 8-GPU-only stages; [z156] p1q4s43; [z156b] p1h2; [z157] p1b3; [z158b] p1b3q093, p1qs44, p1q096a
+PROFILES["8gs"] = [s for s in PROFILES["8g80"] if s == "p0a" or s not in SHARE_1G] + ["p1q8", "p1qs43", "p1q4s43", "p1h2", "p1b3", "p1b3q093", "p1qs44", "p1q096a", "p1q095", "p1q096c", "p1q094", "p1q096b", "p1q097", "p1q097t"]   # [z160] p1q097t   # [z159] p1q097   # [z154] 8-GPU-only stages; [z156] p1q4s43; [z156b] p1h2; [z157] p1b3; [z158b] p1b3q093, p1qs44, p1q096a
 # [z142] (the lead 11-10: the 8 x H200 reclaimed, a second 1 x H200 back) 1gt = the 1-GPU trainings and their readings beside a 1gs node:
 # 1g without the 1gs stages (p0d, p0e, p0b, p0dr, p0er, P1-a); with 1gs it is 1g's stages, only p0a on both
 PROFILES["1gt"] = [s for s in PROFILES["1g"] if s == "p0a" or s not in SHARE_1G]
@@ -242,6 +244,7 @@ FETCH = {
     "p1q094": ["E10b-P5self/global_step_50", "E10d-P5self/global_step_50", "E10b-P5/global_step_150"],   # [z158d]
     "p1q096b": ["E12b-P0think-8k/global_step_50"],   # [z158f] the start of Q-096 B
     "p1q097": ["E12b-P0think-8k/global_step_50"],   # [z159] the start of A4
+    "p1q097t": ["E12b-P0think-4k/global_step_50"],   # [z160] T4K's teacher
 }
 DFETCH = {   # [z158c] (Q-096 C) the multiple-choice bench's data, pulled by run_tasks' fetch_pass into $OPD_ROOT/data/hf
     "p1q096c": ["TIGER-Lab/MMLU-Pro"],
@@ -408,6 +411,7 @@ NEW_ROWS = """\
 #gpus E12b-P0think-8k50-4k 4
 #gpus PROBE-E12B-P0THINK-6K 4
 #gpus E12b-P0think-6k 4
+#gpus E10b-P5q4kt 4
 #eval EVAL-e12b-P0think-8k-c100 e12b_P0think-8k-c100_s75_math500_T0.6 result:runs/E12b-P0think-8k-c100/global_step_25/actor/huggingface math500 4 0.6 16384 think
 #eval EVAL-e12b-P0think-8k-c100 e12b_P0think-8k-c100_s100_math500_T0.6 result:runs/E12b-P0think-8k-c100/global_step_50/actor/huggingface math500 4 0.6 16384 think
 #term PROBE-TERM4-N096B75 17_P0think8kc100s75 result:runs/E12b-P0think-8k-c100/global_step_25/actor/huggingface EVAL-e12b-P0think-8k-c100/e12b_P0think-8k-c100_s75_math500_T0.6_math500_think_t0.6.jsonl think

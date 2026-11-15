@@ -2187,8 +2187,8 @@ def test_newnode_v2_profiles_v259z137(env):
 def test_split_pair_1gs_8gs_z139():   # [z139] two machines: together 8g80's stages, only the gates on both; 8gs keeps every training
     import queue_profiles as QP
     a, b = QP.PROFILES["1gs"], QP.PROFILES["8gs"]
-    assert set(a) | set(b) == set(QP.PROFILES["8g80"]) | {"p1q8", "p1qs43", "p1q4s43", "p1h2", "p1b3", "p1b3q093", "p1qs44", "p1q096a", "p1q095", "p1q096c", "p1q094", "p1q096b", "p1q097"} and set(a) & set(b) == {"p0a"}   # [z154] two 8gs-only stages and a[0] == b[0] == "p0a"
-    assert [s for s in QP.PROFILES["8g80"] if s in b] + ["p1q8", "p1qs43", "p1q4s43", "p1h2", "p1b3", "p1b3q093", "p1qs44", "p1q096a", "p1q095", "p1q096c", "p1q094", "p1q096b", "p1q097"] == b  # [z156] p1q4s43; [z156b] p1h2; [z157] p1b3; 8g80's order ([z154] + the two 8gs-only stages last)
+    assert set(a) | set(b) == set(QP.PROFILES["8g80"]) | {"p1q8", "p1qs43", "p1q4s43", "p1h2", "p1b3", "p1b3q093", "p1qs44", "p1q096a", "p1q095", "p1q096c", "p1q094", "p1q096b", "p1q097", "p1q097t"} and set(a) & set(b) == {"p0a"}   # [z154] two 8gs-only stages and a[0] == b[0] == "p0a"
+    assert [s for s in QP.PROFILES["8g80"] if s in b] + ["p1q8", "p1qs43", "p1q4s43", "p1h2", "p1b3", "p1b3q093", "p1qs44", "p1q096a", "p1q095", "p1q096c", "p1q094", "p1q096b", "p1q097", "p1q097t"] == b  # [z156] p1q4s43; [z156b] p1h2; [z157] p1b3; 8g80's order ([z154] + the two 8gs-only stages last)
     spec, _ = QP.source()
     ta = {x.split(":")[0] for st in a for x in QP.stage_specs(st, spec)}
     assert not [t for t in ta if re.match(r"E1\d", t)]                          # no training on the 1-GPU box
@@ -2775,3 +2775,25 @@ def test_q097_arms_z159(env):   # [z159] (Fable D103 / D106, registry Q-097) A4 
     assert "*-P0think-4k|*-P0think-8k50-4k) N=4096;; *-P0think-6k) N=6144;;" in probe
     for k, t in enumerate(["PROBE-E12B-P0THINK-8K50-4K", "E12b-P0think-8k50-4k", "PROBE-E12B-P0THINK-6K", "E12b-P0think-6k"]):
         assert env.c.v_run([t], 2110 + k)[0] == "accepted", t
+
+
+def test_t4k_z160(env):   # [z160] (Fable D105, registry Q-097 T4K) E10b-P5q4kt = E10b-P5q093t with the 4K arm s50 as the teacher
+    import queue_profiles as QP
+    for p, st in QP.PROFILES.items():
+        assert ("p1q097t" in st) == (p == "8gs"), p
+    L, stages, spec = _profile_queue("8gs")
+    assert spec["E10b-P5q4kt"] == ["PROBE-P5Q4KT"] and spec["PROBE-P5Q4KT"] == []
+    assert "#gpus E10b-P5q4kt 4" in L and not any(l.startswith("#gpus PROBE-P5Q4KT ") for l in L)
+    assert "#fetch result:runs/E12b-P0think-4k/global_step_50/actor/huggingface" in L
+    arm = open(os.path.join(HERE, "run_arm.sh")).read()
+    assert "Q4KT=0; [ $TASK = E10b-P5q4kt ] && { SELF=1; BASE=E10b-P5; Q4KT=1; }" in arm
+    i_self = arm.index("[ $SELF = 1 ] && { TEACHER=$STUDENT_17B;"); i_t = arm.index("[ $Q4KT = 1 ] && { TEACHER=$CKPT_ROOT/adhoc_models/result/runs/E12b-P0think-4k/global_step_50/actor/huggingface")
+    assert i_t > i_self   # the T4K teacher replaces P5self's
+    pr = open(os.path.join(HERE, "probe_p5self.sh")).read()
+    assert '[ "${2:-}" = q4kt ] && { T=PROBE-P5Q4KT; ARMT=E10b-P5q4kt;' in pr and "is not the 4K arm s50" in pr
+    task = open(os.path.join(HERE, "task.sh")).read()
+    assert "E10b-P5q093t|E10d-P5q093t|E10b-P5q4kt) bash $RUNBOOK/scripts/run_arm.sh" in task and "PROBE-P5Q4KT) bash $RUNBOOK/scripts/probe_p5self.sh $G q4kt;;" in task
+    for k, t in enumerate(["PROBE-P5Q4KT", "E10b-P5q4kt"]):
+        assert env.c.v_run([t], 2130 + k)[0] == "accepted", t
+    import control_rules as R
+    R.parse({"cmd": "rerun PROBE-P5Q4KT", "reason": "t"})

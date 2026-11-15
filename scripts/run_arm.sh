@@ -37,6 +37,10 @@ SELF=0; [ $TASK = E10b-P5self ] && { SELF=1; BASE=E10b-P5; }
 # (E12b-P0think-8k global_step_50, the 1.7B direct window RL, read in the thinking template like P5self's teacher), fetched from the public
 # result repository (#fetch); gates PROBE-P5Q093T / PROBE-P5Q093T-4B (probe_p5self.sh q093t / q093t4b)
 Q093T=0; [ $TASK = E10b-P5q093t ] && { SELF=1; BASE=E10b-P5; Q093T=1; }
+# [z160] (Fable D105 / 10:44, lab/registry/Q-097.md T4K) E10b-P5q4kt = E10b-P5q093t item for item (P5self's recipe, the 1.7B student on the
+# non-thinking template, the teacher on its thinking template, 50 steps) with the teacher = Q-096 A's 4K arm s50 (E12b-P0think-4k, #fetch
+# / the region copy); gate PROBE-P5Q4KT (probe_p5self.sh q4kt)
+Q4KT=0; [ $TASK = E10b-P5q4kt ] && { SELF=1; BASE=E10b-P5; Q4KT=1; }
 # v2.5.7zg (Q-019, reviewer 17:0x UTC): E10b-P2self = P2 (non-thinking teacher prompt) with the teacher replaced by the
 # student's own base, the other cell of the 2x2 (teacher mode x teacher = self); 50 steps on venv-fa, gated by PROBE-P2SELF
 [ $TASK = E10b-P2self ] && { SELF=1; BASE=E10b-P2; }
@@ -245,6 +249,8 @@ fi
 [ $SELF = 1 ] && { TEACHER=$STUDENT_17B; [ "$SIZE" = 4B ] && TEACHER=$STUDENT_4B; [ -n "$MODE" ] && TEACHER=$STUDENT_06B; [ "$SIZE" = 8B ] && TEACHER=$STUDENT; }   # v2.5.7v; [v2.5.8e] the 4B student's own base; [v2.5.9v] the 0.6B one's
 [ $Q093T = 1 ] && { TEACHER=$CKPT_ROOT/adhoc_models/result/runs/E12b-P0think-8k/global_step_50/actor/huggingface   # [z158c] (Q-095) after the SELF line
   [ -f $TEACHER/.fetch_ok ] || { echo "WAIT_INPUTS $TASK: start needs the Q-095 teacher E12b-P0think-8k s50 (no local copy, no adhoc_models/result/runs/E12b-P0think-8k/global_step_50/actor/huggingface/.fetch_ok)"; exit 1; }; }   # [z158d] the dry-run's adhoc_fetch form (z158c's Q095_TEACHER_MISSING was unclassified)
+[ $Q4KT = 1 ] && { TEACHER=$CKPT_ROOT/adhoc_models/result/runs/E12b-P0think-4k/global_step_50/actor/huggingface   # [z160] (T4K) after the SELF line
+  [ -f $TEACHER/.fetch_ok ] || { echo "WAIT_INPUTS $TASK: start needs the T4K teacher E12b-P0think-4k s50 (no local copy, no adhoc_models/result/runs/E12b-P0think-4k/global_step_50/actor/huggingface/.fetch_ok)"; exit 1; }; }
 [ $POLISH = 1 ] && TEACHER=$STUDENT_06B   # [v2.5.9u] the 0.6B base on its thinking template
 if [ -n "$XARM" ]; then   # [v2.5.8i] hub ids, resolved to the local HF cache after the venv is active
   STUDENT=${STUDENT_I2507:-Qwen/Qwen3-4B-Instruct-2507}; TEACHER=${TEACHER_T2507:-Qwen/Qwen3-4B-Thinking-2507}; [ $XARM = X2 ] && TEACHER=$STUDENT_4B
