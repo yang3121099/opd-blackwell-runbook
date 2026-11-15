@@ -2889,3 +2889,13 @@ def test_deps_tool_z165(tmp_path):   # [z165] (Fable board v10) deps.py: the que
     f = ck / "adhoc_models/result/runs/E12b-P0think-8k/global_step_50/actor/huggingface"; f.mkdir(parents=True); (f / ".fetch_ok").write_text("x")
     rc, out = run()
     assert rc == 0 and "GATE PROBE-4B PASS" in out and "missing 0" in out, out
+
+
+def test_deps_on_a_node_and_no_conclusion_z167(tmp_path):   # [z167] (executor B on uk-8 11-15) CKPT_ROOT set: the sandbox on that disk; exit 2 when no conclusion
+    import subprocess
+    env = dict(os.environ, CKPT_ROOT=str(tmp_path))   # as on a node: dryrun_json.py refuses a sandbox / output outside $CKPT_ROOT
+    r = subprocess.run([sys.executable, os.path.join(HERE, "deps.py"), "E10b-P5selfp2"], capture_output=True, text=True, timeout=600, env=env)
+    assert r.returncode == 0 and "GATE PROBE-P5SELFP2" in r.stdout and "(dry run: ok)" in r.stdout, r.stdout + r.stderr
+    assert not any(p.name.startswith("deps_") for p in tmp_path.iterdir())   # the sandbox is removed afterwards
+    r = subprocess.run([sys.executable, os.path.join(HERE, "deps.py"), "NO-SUCH-TASK", "--sec", "20"], capture_output=True, text=True, timeout=600, env=env)
+    assert r.returncode == 2 and "DRYRUN_INCOMPLETE NO-SUCH-TASK" in r.stdout, r.stdout + r.stderr
