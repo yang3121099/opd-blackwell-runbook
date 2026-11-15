@@ -14,8 +14,12 @@ import deps  # noqa: E402
 T = "E12b-P0think-8k-c100"
 
 
-def tree(d):
-    return sorted((os.path.relpath(os.path.join(a, f), d), open(os.path.join(a, f)).read()) for a, _, fs in os.walk(d) for f in fs)
+def tree(d):   # every directory and file (with its bytes and mtime) under d
+    out = []
+    for a, ds, fs in os.walk(d):
+        out += [("dir", os.path.relpath(os.path.join(a, x), d), os.stat(os.path.join(a, x)).st_mtime_ns) for x in ds]
+        out += [("file", os.path.relpath(os.path.join(a, f), d), open(os.path.join(a, f), "rb").read(), os.stat(os.path.join(a, f)).st_mtime_ns) for f in fs]
+    return sorted(out, key=lambda x: (x[0], x[1]))
 
 
 def test_node_dry_run_leaves_the_real_local_dir_alone(tmp_path, monkeypatch):
@@ -31,11 +35,13 @@ def test_node_dry_run_leaves_the_real_local_dir_alone(tmp_path, monkeypatch):
     lk = real_local / T / "ckpt"; (lk / "global_step_50").mkdir(parents=True)
     (lk / ".run_id").write_text("2026-11-15T03:18:08Z-47125670d10d"); (lk / "latest_checkpointed_iteration.txt").write_text("50")
     (lk / "global_step_50" / "data.pt").write_text("state")
-    before = tree(real_local)
+    before = {n: tree(tmp_path / n) for n in ("opd", "ck", "reallocal")}   # [z172, Fable A1] the WHOLE fake node: root, ck, real local
     rec, tail = deps.dry_record(T, 60, str(ck), "node", str(root))
     assert rec and rec["result"] == "ok", tail
-    assert tree(real_local) == before and sorted(os.listdir(real_local / T)) == ["ckpt"], os.listdir(real_local / T)   # nothing renamed / added
-    assert not (tmp_path / "realarchive").exists()
+    assert sorted(os.listdir(real_local / T)) == ["ckpt"], os.listdir(real_local / T)   # nothing renamed / added
+    for n, t in before.items():
+        assert tree(tmp_path / n) == t, f"the dry run changed {n}"   # every dir / file, bytes and mtimes, as before (the sandbox under ck is gone)
+    assert not (tmp_path / "realarchive").exists() and sorted(os.listdir(tmp_path)) == ["ck", "opd", "reallocal"]
 
 
 def test_ckpt_lib_refuses_paths_outside_the_sandbox(tmp_path):
