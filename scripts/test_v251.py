@@ -2917,3 +2917,26 @@ def test_deps_on_a_node_and_no_conclusion_z167(tmp_path):   # [z167] (executor B
     assert not any(p.name.startswith("deps_") for p in tmp_path.iterdir())   # the sandbox is removed afterwards
     r = subprocess.run([sys.executable, os.path.join(HERE, "deps.py"), "NO-SUCH-TASK", "--sec", "20"], capture_output=True, text=True, timeout=600, env=env)
     assert r.returncode == 2 and "DRYRUN_INCOMPLETE NO-SUCH-TASK" in r.stdout, r.stdout + r.stderr
+
+
+def test_task_sh_queue_from_queue_name_z168(tmp_path):   # [z168] (Fable A1 condition) executor B's chain runs `bash scripts/task.sh 0,1,2,3 <arm>`
+    # with no QUEUE_FILE: task.sh sources the REAL env.sh, which takes the node's queue from control/queue_name (as run_tasks / dryrun_json do)
+    import subprocess
+    root = tmp_path / "opd"; (root / "control").mkdir(parents=True); (tmp_path / "ck").mkdir()
+    (root / "paths.env").write_text(f"CKPT_ROOT={tmp_path / 'ck'}\n")
+    env = {k: v for k, v in os.environ.items() if k not in ("QUEUE_FILE", "CKPT_ROOT", "CKPT_ROOT_FROM", "GPUS_MAX", "CKPT_LOCAL")}
+    env.update(OPD_ROOT=str(root), RUNBOOK=os.path.dirname(HERE), DRYRUN="1", FIXED_MICRO_BSZ="")
+
+    def run(qn, gpus, task):
+        (root / "control" / "queue_name").write_text(qn + "\n")
+        r = subprocess.run(["bash", os.path.join(HERE, "task.sh"), gpus, task], capture_output=True, text=True, env=env, timeout=120)
+        return r.returncode, r.stdout + r.stderr
+    for t in ("E12b-P0think-6k", "PROBE-E12B-P0THINK-6K"):   # #gpus 4 in queue_8gs.txt: the check passes (the runner's own dry run / gates follow)
+        rc, out = run("8gs", "0,1,2,3", t)
+        assert "GPU(s) by its #gpus row" not in out and rc != 2, (t, rc, out[-600:])
+    rc, out = run("1gs", "0,1,2,3", "PROBE-E12B-P0THINK-6K")   # no row in queue_1gs.txt, not a board arm: one GPU, the list refused with the reason
+    assert rc == 2 and "PROBE-E12B-P0THINK-6K takes 1 GPU(s) by its #gpus row in queue_1gs.txt or board_arms.txt (no row = 1), got 0,1,2,3" in out, out
+    rc, out = run("1gs", "0", "E12b-P0think-6k")   # a board arm: its board line (#gpus 4) counts on any queue - one GPU refused
+    assert rc == 2 and "E12b-P0think-6k takes 4 GPU(s) by its #gpus row in queue_1gs.txt or board_arms.txt (no row = 1), got 0" in out, out
+    rc, out = run("1gs", "0,1,2,3", "E12b-P0think-6k")
+    assert "GPU(s) by its #gpus row" not in out and rc != 2, (rc, out[-600:])
