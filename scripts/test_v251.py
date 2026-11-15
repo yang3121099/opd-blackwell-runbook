@@ -2872,3 +2872,20 @@ def test_multi_gpu_gates_z164():   # [z164] (executor B 11-15; Fable A1) every #
     assert not bad, f"#gpus > 1 tasks refused by task.sh's multi-GPU list: {bad}"
     for t in ("PROBE-P5SELFP2", "PROBE-P5Q4KT", "PROBE-P5Q093T", "EVAL-u1-refs"):   # one-GPU tasks stay refused on a list
         assert not probe(t, "0,1,2,3"), t
+
+
+def test_deps_tool_z165(tmp_path):   # [z165] (Fable board v10) deps.py: the queue deps + the runner's gates and inputs, checked on a root
+    import json as _j, subprocess
+    root = tmp_path / "run"; ck = tmp_path / "ckpt"; (root / "runs").mkdir(parents=True); ck.mkdir()
+    (root / "paths.env").write_text(f"CKPT_ROOT={ck}\n")
+    def run():
+        r = subprocess.run([sys.executable, os.path.join(HERE, "deps.py"), "E10d-P5q093t", "--root", str(root)], capture_output=True, text=True, timeout=600)
+        return r.returncode, r.stdout
+    rc, out = run()
+    assert rc == 1 and "GATE PROBE-4B MISSING" in out and "GATE PROBE-P5Q093T-4B MISSING" in out and "QUEUE_DEP PROBE-P5Q093T-4B MISSING" in out, out
+    assert "INPUT ckpt/adhoc_models/result/runs/E12b-P0think-8k/global_step_50/actor/huggingface/.fetch_ok MISSING" in out, out
+    for g in ("PROBE-P5Q093T-4B", "PROBE-4B"):
+        (root / "runs" / g).mkdir(); (root / "runs" / g / "report.json").write_text(_j.dumps({"result": "PASS"})); (root / "runs" / g / ".done").write_text("")
+    f = ck / "adhoc_models/result/runs/E12b-P0think-8k/global_step_50/actor/huggingface"; f.mkdir(parents=True); (f / ".fetch_ok").write_text("x")
+    rc, out = run()
+    assert rc == 0 and "GATE PROBE-4B PASS" in out and "missing 0" in out, out
