@@ -121,7 +121,16 @@ def queue_tasks(queue_txt):
 
 
 def queue_gpus(queue_txt):
+    """[z168] the GPU counts as gpus_lib.sh's gpus_of_q gives them (task.sh refuses any other): the queue's #gpus rows, else the
+    `<arm> #gpus <n>` lines of board_arms.txt next to it (a node-first arm before its rows)."""
     g = {}
+    try:
+        for l in open(os.path.join(os.path.dirname(queue_txt), "board_arms.txt")).read().split("\n"):
+            m = re.match(r"^(\S+)\s+#gpus\s+([1-8])(\s|$)", l)
+            if m:
+                g[m.group(1)] = int(m.group(2))
+    except OSError:
+        pass
     for l in open(queue_txt).read().split("\n"):
         m = re.match(r"^#gpus\s+(\S+)\s+(\d+)\s*$", l)
         if m:
@@ -248,6 +257,8 @@ def make_sandbox(sb, base, profile, runbook, plants, real, control_env):
         if profile == "clean" or always or real.has(os.path.join("models", name, ".fetch_ok")):
             _touch(os.path.join(d, ".fetch_ok"))
     _touch(os.path.join(opd, "paths.env"), f"CKPT_ROOT={ck}\n")
+    if QUEUE_NAME:   # [z168] the node's queue profile: env.sh points QUEUE_FILE at tasks/queue_<q>.txt, as on the node
+        _touch(os.path.join(opd, "control", "queue_name"), QUEUE_NAME + "\n")
     env_txt = control_env if profile == "node" else ""
     # the sandbox's own roots last (env.sh sources control.env last): a copied CKPT_ROOT / DR_ROOT / HF_HOME cannot escape
     env_txt += f"\n# [dryrun_json] sandbox roots\nexport CKPT_ROOT={ck} DR_ROOT={os.path.join(sb, 'dr')} HF_HOME={os.path.join(sb, 'hf')}\n"
@@ -261,6 +272,7 @@ def make_sandbox(sb, base, profile, runbook, plants, real, control_env):
 
 
 RUN_ID = ""   # [v2.5.9z88c c] one per recording (main): every sandbox process carries it as DRYRUN_RUN_ID
+QUEUE_NAME = ""   # [z168] --queue / the node's control/queue_name (empty: tasks/queue.txt)
 
 
 def env_pids(key, value, proc="/proc"):
@@ -728,6 +740,10 @@ def main(argv=None):
     ap.add_argument("--jobs", type=int, default=4)   # tasks recorded at once (each in its own sandbox; nice 19, one CPU-lane task)
     ap.add_argument("--task-dir", default=None)
     ap.add_argument("--no-upload", action="store_true")
+    # [z168] the queue profile the node runs (control/queue_name, e.g. 8gs): #gpus from tasks/queue_<q>.txt and the sandbox's own
+    # control/queue_name, so task.sh (env.sh QUEUE_FILE) and the GPU list given agree as on that node; default: this node's
+    # control/queue_name when $OPD_ROOT has one, else tasks/queue.txt (as before)
+    ap.add_argument("--queue", default=None)
     a = ap.parse_args(argv)
     global RUN_ID
     RUN_ID = f"{int(time.time())}-{os.getpid()}"   # [v2.5.9z88c c]
@@ -772,7 +788,15 @@ def _run(a):
         print("CORPUS_RECORD skips " + " ".join(sorted(set(names) & set(SELF))) + " (never recorded)")
         names = [n for n in names if n not in SELF]
     cpu = cpu_tasks(os.path.join(runbook, "scripts", "run_tasks.sh"))
-    gpus = queue_gpus(os.path.join(runbook, "tasks", "queue.txt"))
+    global QUEUE_NAME   # [z168]
+    qn = a.queue if a.queue is not None else ""
+    if a.queue is None and real_opd and os.path.isfile(os.path.join(real_opd, "control", "queue_name")):
+        qn = open(os.path.join(real_opd, "control", "queue_name")).read().strip()
+    qn = re.sub(r"[^A-Za-z0-9_]", "", qn); QUEUE_NAME = qn
+    qfile = os.path.join(runbook, "tasks", f"queue_{qn}.txt" if qn else "queue.txt")
+    if not os.path.isfile(qfile):
+        raise SystemExit(f"refused: no queue file {qfile} (--queue {qn})")
+    gpus = queue_gpus(qfile)
     head = git(runbook, "rev-parse", "--short", "HEAD") or "unknown"
     m = re.search(r'^RULES_VERSION = "([0-9.]+)"', open(os.path.join(runbook, "scripts", "control_rules.py")).read(), re.M)
     rules = m.group(1) if m else "unknown"

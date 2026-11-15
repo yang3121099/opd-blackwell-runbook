@@ -10,7 +10,7 @@ SRC=$(cd "$(dirname "$0")/.." && pwd); fails=0; n=0
 ok() { n=$((n + 1)); if eval "$2"; then :; else echo "  FAIL [$1]"; fails=$((fails + 1)); fi; }
 setup() {
   T=$(mktemp -d); mkdir -p $T/rb/scripts $T/rb/tasks $T/root/runs $T/root/logs $T/root/control $T/bin
-  cp $SRC/scripts/run_tasks.sh $T/rb/scripts/
+  cp $SRC/scripts/run_tasks.sh $SRC/scripts/gpus_lib.sh $T/rb/scripts/
   printf 'export OPD_ROOT=%s/root RUNBOOK=%s/rb CDIR=%s/root/control NGPU=2\n' $T $T $T > $T/rb/scripts/env.sh
   printf 'import sys, os; open(os.environ["CALLS"], "a").write("control " + " ".join(sys.argv[1:]) + "\\n")\n' > $T/rb/scripts/control.py
   printf 'import sys; sys.exit(1)\n' > $T/rb/scripts/remote.py   # nothing done remotely

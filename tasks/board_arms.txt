@@ -1,0 +1,15 @@
+# [z168] Fable's board training queue (lucid-jackson-9d2fef/lab/BOARD.md, 11-15 v22): one line per arm, `<arm> #gpus <n> [pending: <why>]`.
+# (1) the GPU count: scripts/gpus_lib.sh reads it when the node's queue has no #gpus row for the arm (a node-first arm before its rows),
+#     so task.sh / run_tasks.sh give and accept n GPUs; where the queue has a row, the two must agree (scripts/test_preflight_enum.py);
+# (2) every arm here must pass the preflight dry run on the 8gs queue (test_preflight_enum.py); "pending: <why>" = on the board but not in
+#     the runbook yet: the test then requires it to be absent from the runbook, so adding it flips the test until the mark is removed.
+E12b-P0think-16k #gpus 4
+E12b-P0think-8k-c100 #gpus 4
+E12b-P0think-8k-s44 #gpus 4
+E10d-P5q093t #gpus 4
+E10b-P5q4kt #gpus 4
+E10b-P5selfp2 #gpus 4
+E12b-P0think-6k #gpus 4
+E12b-P0think-12k #gpus 4
+E12b-P0think-8k-maj #gpus 4 pending: Q-100 majority-vote reward, executor B's node-local diff (runbook record after its A1)
+E12b-P0think-8k-fin #gpus 4 pending: Q-100 finished-only reward, executor B's node-local diff (runbook record after its A1)

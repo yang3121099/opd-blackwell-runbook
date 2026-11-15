@@ -11,7 +11,7 @@ SRC=$(cd "$(dirname "$0")/.." && pwd); fails=0; n=0
 ok() { n=$((n + 1)); if eval "$2"; then :; else echo "  FAIL [$1]"; fails=$((fails + 1)); fi; }
 setup() {   # $1 = the queue's stage line; NGPU=2
   T=$(mktemp -d); mkdir -p $T/rb/scripts $T/rb/tasks $T/root/runs $T/root/logs $T/root/control $T/bin
-  cp $SRC/scripts/run_tasks.sh $T/rb/scripts/
+  cp $SRC/scripts/run_tasks.sh $SRC/scripts/gpus_lib.sh $T/rb/scripts/
   printf 'export OPD_ROOT=%s/root RUNBOOK=%s/rb CDIR=%s/root/control NGPU=2\n' $T $T $T > $T/rb/scripts/env.sh
   printf 'import sys, os\nopen(os.environ["CALLS"], "a").write("control " + " ".join(sys.argv[1:]) + "\\n")\nif sys.argv[1:2] == ["disk_low"]: print(os.environ.get("FAKE_DISK_LOW", ""))\nif sys.argv[1:2] == ["readings_disk_low"]: print(os.environ.get("FAKE_READ_LOW", ""))\nif sys.argv[1:2] == ["tasks_disk_low"]: print(os.environ.get("FAKE_ALL_LOW", ""))\nif sys.argv[1:2] == ["runs_ckpt"]: print(os.environ.get("FAKE_RUNS_CKPT", "0"))\nif sys.argv[1:2] == ["run_placeable"]: sys.exit(1 if sys.argv[2] in os.environ.get("FAKE_KEEP", "").split() else 0)\n' > $T/rb/scripts/control.py
   printf 'import sys; sys.exit(1)\n' > $T/rb/scripts/remote.py

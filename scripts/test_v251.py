@@ -47,6 +47,19 @@ class FakeApi:
         pass
 
 
+
+def gpus_accepts(task, n, queue):   # [z168] n None = its row's count (> 1); task.sh's GPU check (gpus_lib.sh gpus_check) on n GPUs against a queue file of the runbook
+    import subprocess as _sp
+    q = queue if os.path.isabs(queue) else os.path.join(HERE, "..", "tasks", queue)
+    if n is None:   # the count of its #gpus row, which must be a multi-GPU one
+        rows = [l.split() for l in open(q) if l.startswith("#gpus ")]
+        n = ([int(w[2]) for w in rows if len(w) == 3 and w[1] == task] or [1])[-1]
+        if n < 2:
+            return False
+    lst = ",".join(str(i) for i in range(n))
+    return _sp.run(["bash", "-c", f'source "{os.path.join(HERE, "gpus_lib.sh")}"; gpus_check "$0" "$1" "$2"', task, lst, q], capture_output=True).returncode == 0
+
+
 @pytest.fixture
 def rem(tmp_path, monkeypatch):
     monkeypatch.setenv("OPD_ROOT", str(tmp_path)); monkeypatch.setenv("HF_REPO", "me/old"); monkeypatch.setenv("HF_TOKEN", "t")
@@ -1209,7 +1222,7 @@ def test_take_gpus_holds_with_soon_1440_without_eta_v2512a(tmp_path, soon, eta, 
     (tmp_path / "q").write_text("#gpus A 2\n")
     import subprocess as sp
     script = (f'Q={tmp_path}/q OPD_ROOT={tmp_path}; unset GPUS_SOON_MIN GPUS_HOLD_MIN\n'
-              f'eval "$(sed -n \'/^gpus_of() {{/p\' {src})"; eval "$(sed -n \'/^cenv() {{/p\' {src})"\n'
+              f'source {os.path.join(HERE, "gpus_lib.sh")}; eval "$(sed -n \'/^gpus_of() {{/p\' {src})"; eval "$(sed -n \'/^cenv() {{/p\' {src})"\n'
               f'eval "$(sed -n \'/^soon_free() {{/,/^}}$/p\' {src})"; eval "$(sed -n \'/^take_gpus() {{/,/; }}$/p\' {src})"\n'
               'FREE=(4); take_gpus A > /dev/null; echo "${#FREE[@]}"')
     out = sp.run(["bash", "-c", script], capture_output=True, text=True)
@@ -1632,7 +1645,7 @@ def test_run_and_rerun_accept_v259z91(env):   # [v2.5.9z91] (Q-082 / Q-075b / Q-
     here = os.path.dirname(os.path.abspath(__file__))
     ts = open(os.path.join(here, "task.sh")).read()
     assert ts.index("  E12b-P5tail-8k-s43) ") < ts.index("  E12b-*) ") and ts.index("  E10b-P5-t32) ") < ts.index("  E10b-*) ")
-    assert "|E12[bcde]-|PROBE-2GPU$|PROBE-8B$|PROBE-E12E-8K$|PROBE-E12E-16K$|PROBE-TAIL-8B$)" in ts   # [v2.5.9z97] PROBE-E12E-16K too      # the four-GPU tasks take a GPU list
+    assert "gpus_check \"$T\" \"$G\"" in ts and gpus_accepts("PROBE-E12E-16K", 4, "queue_archive_20261101.txt")   # [z168] by the #gpus row   # [v2.5.9z97] PROBE-E12E-16K too      # the four-GPU tasks take a GPU list
     rt = open(os.path.join(here, "run_tasks.sh")).read()
     assert "training_task() { case $1 in E10[bcde]-*|E12[bcde]-*|" in rt                 # trained alike: disk guard, restart
     assert "case $TASK in E12[bcde]-*) stats 0;; esac" in open(os.path.join(here, "upload_sync.sh")).read()
@@ -1688,7 +1701,7 @@ def test_run_and_rerun_accept_v259z97(env):   # [v2.5.9z97] (Q-074i / Q-074j; re
     here = os.path.dirname(os.path.abspath(__file__))
     ts = open(os.path.join(here, "task.sh")).read()
     assert ts.index("  E12d-P5tail-8k-s43) ") < ts.index("  E12d-*) ")
-    assert "PROBE-E12E-16K$" in ts.split("\n")[9]                                                   # a #gpus list is allowed
+    assert gpus_accepts("PROBE-E12E-16K", 4, "queue_archive_20261101.txt")   # [z168] by its #gpus row                                                   # a #gpus list is allowed
     pe = open(os.path.join(here, "probe_e12var.sh")).read()
     assert ("E12e:16k) ;;" in pe or "E12e:16k|E12e:p0think) ;;" in pe) and "[ $L:$VAR = E12e:16k ] && ARM=E12e-P5tail-16k" in pe
     q = open(os.path.join(os.path.dirname(here), "tasks", "queue_archive_20261101.txt")).read()
@@ -1873,7 +1886,7 @@ def test_q074h_gate_v259z113(env):   # [v2.5.9z113] (Q-074h) PROBE-E12D-16K, rul
     assert tuple(map(int, R.RULES_VERSION.split("."))) >= (2, 5, 108)
     here = os.path.dirname(os.path.abspath(__file__))
     ts = open(os.path.join(here, "task.sh")).read(); pv = open(os.path.join(here, "probe_e12var.sh")).read()
-    assert "  PROBE-E12D-16K) PEV_LADDER=E12d bash $RUNBOOK/scripts/probe_e12var.sh $G 16k;;" in ts and "|PROBE-E12D-16K$|" in ts   # four GPUs
+    assert "  PROBE-E12D-16K) PEV_LADDER=E12d bash $RUNBOOK/scripts/probe_e12var.sh $G 16k;;" in ts and gpus_accepts("PROBE-E12D-16K", 4, "queue_8gs.txt")   # four GPUs ([z168] by its #gpus row)
     assert "[ $L:$VAR = E12d:16k ] && ARM=E12d-P5tail-16k" in pv and "|E12d:16k|" in pv                                  # the arm itself
     q = open(os.path.join(os.path.dirname(here), "tasks", "queue_archive_20261101.txt")).read()
     assert re.search(r"^b259z113 +(held|open) +PROBE-E12D-16K$", q, re.M) and "\n#gpus PROBE-E12D-16K 4\n" in q   # held until its start is local
@@ -2068,10 +2081,9 @@ def test_newnode_v1_queue_v259z130(env):
     for i, t in enumerate(sorted(spec)):
         st, msg, _ = env.c.v_run([t], 600 + i)
         assert st == "accepted", (t, msg)
-    multi = re.search(r"\[\[ \$T =~ (\^\(.*?\)) \]\] \|\| \{ echo \"\$T takes one GPU", open(os.path.join(here, "task.sh")).read()).group(1)
-    for l in L:
+    for l in L:   # [z168] task.sh accepts each #gpus row's count (gpus_check)
         if l.startswith("#gpus "):
-            assert re.match(multi, l.split()[1]), f"task.sh runs {l.split()[1]} on one GPU only"
+            assert gpus_accepts(l.split()[1], int(l.split()[2]), "queue_newnode_v1.txt"), f"task.sh refuses {l.split()[1]} on {l.split()[2]} GPUs"
     assert not any(l.startswith("#gpus PROBE-E12C-8K") for l in L) and spec["PROBE-E12E-8K"] == []
     arms = [t for t in spec if re.match(r"E1[0-2][bcde]-", t)]
     assert not [t for t in arms if any(d.startswith("PROBE-TERM") for d in spec[t])]
@@ -2315,7 +2327,7 @@ def test_gpus_of_up_to_8_and_gpus_max_z151(tmp_path, row, cap, want):   # [z151]
     (tmp_path / "q").write_text(row + "\n")
     import subprocess as sp
     script = (f'Q={tmp_path}/q OPD_ROOT={tmp_path}\n'
-              f'eval "$(sed -n \'/^gpus_of() {{/p\' {src})"; eval "$(sed -n \'/^cenv() {{/p\' {src})"\n'
+              f'source {os.path.join(HERE, "gpus_lib.sh")}; eval "$(sed -n \'/^gpus_of() {{/p\' {src})"; eval "$(sed -n \'/^cenv() {{/p\' {src})"\n'
               'gpus_of A')
     out = sp.run(["bash", "-c", script], capture_output=True, text=True)
     assert out.stdout.strip() == want, (out.stdout, out.stderr)
@@ -2332,15 +2344,9 @@ def test_8gs_trainings_on_8_gpus_others_4_z151():   # [z151] only the 8gs profil
     assert open(qp.path("8gs")).read() == t8
 
 
-def test_task_sh_takes_a_gpu_list_for_the_q093b_gate_z151():   # [z151] z149 gave PROBE-E12D-P0THINK #gpus 4 but task.sh refused a list
-    import subprocess as sp
-    ts = open(os.path.join(HERE, "task.sh")).read()
-    line = [l for l in ts.splitlines() if l.startswith("case $G in *,*)")][0]
-    rx = line.split("[[ $T =~ ")[1].split(" ]]")[0]
+def test_task_sh_takes_a_gpu_list_for_the_q093b_gate_z151():   # [z151] z149 gave PROBE-E12D-P0THINK #gpus 4 but task.sh refused a list; [z168] by the row
     for t, ok in (("PROBE-E12D-P0THINK", True), ("E12d-P0think-8k", True), ("PROBE-E12E-8K", True), ("EVAL-x", False)):
-        r = sp.run(["bash", "-c", f'T={t}; [[ $T =~ {rx} ]]'])
-        assert (r.returncode == 0) == ok, t
-
+        assert gpus_accepts(t, None, "queue_8gs.txt") == ok, t
 
 def test_task_sh_gpu_list_up_to_8_z151():   # [z151] task.sh refused a list of more than 4 GPUs before its #gpus check
     import subprocess as sp
@@ -2444,8 +2450,7 @@ def test_q093c_q093s43_z154(env):   # [z154] (lab/registry/Q-093c.md; Fable D25)
     terms = [l for l in L if l.startswith("#term PROBE-TERM4-N093C ") or l.startswith("#term PROBE-TERM4-N093S43 ") or l.startswith("#term PROBE-TERM4-N8BTHB2 ") or l.startswith("#term PROBE-TERM4-N4BTHB2 ")]
     assert len(terms) == 4 and all(t.split()[-1] == "think" for t in terms)
     task = open(os.path.join(HERE, "task.sh")).read()
-    multi = re.search(r"\[\[ \$T =~ (\^\(.*?\)) \]\] \|\| \{ echo \"\$T takes one GPU", task).group(1)
-    assert all(re.match(multi, t) for t in ("PROBE-E12E-P0THINK", "PROBE-E12B-P0THINK-8G", "E12e-P0think-8k", "E12b-P0think-8k-s43"))
+    assert not [t for t in ("PROBE-E12E-P0THINK", "PROBE-E12B-P0THINK-8G", "E12e-P0think-8k", "E12b-P0think-8k-s43") if not gpus_accepts(t, None, "queue_8gs.txt")]   # [z168]
     for k, t in enumerate(("PROBE-E12E-P0THINK", "E12e-P0think-8k", "PROBE-E12B-P0THINK-8G", "E12b-P0think-8k-s43", "PROBE-TERM4-N093C",
                            "PROBE-TERM4-N093S43", "PROBE-TERM4-N8BTHB2", "PROBE-TERM4-N4BTHB2", "EVAL-ext32k-17p5tail8k-oc", "EVAL-ext32k-8Bthink-b2")):
         assert env.c.v_run([t], 1900 + k)[0] == "accepted", t
@@ -2493,8 +2498,7 @@ def test_q093b_s43_z156(env):   # [z156] (lab WO-012; Fable D50) Q-093b-s43 on 8
     task = open(os.path.join(HERE, "task.sh")).read()
     assert "PROBE-E12D-P0THINK-8G) PEV_LADDER=E12d PEV_NAME=PROBE-E12D-P0THINK-8G PEV_ARM=E12d-P0think-8k-s43 bash $RUNBOOK/scripts/probe_e12var.sh $G p0think;;" in task
     assert task.index("  E12d-P0think-8k-s43) bash") < task.index("  E12d-*)")
-    multi = re.search(r"\[\[ \$T =~ (\^\(.*?\)) \]\] \|\| \{ echo \"\$T takes one GPU", task).group(1)
-    assert re.match(multi, "PROBE-E12D-P0THINK-8G") and re.match(multi, "E12d-P0think-8k-s43")
+    assert gpus_accepts("PROBE-E12D-P0THINK-8G", None, "queue_8gs.txt") and gpus_accepts("E12d-P0think-8k-s43", None, "queue_8gs.txt")   # [z168]
     for k, t in enumerate(("PROBE-E12D-P0THINK-8G", "E12d-P0think-8k-s43", "PROBE-TERM4-N093BS43", "EVAL-e12d-P0think-8k-s43",
                            "EVAL-budA-e12dP0think-8k-s43", "EVAL-ext32k-4p0think8k-s43")):
         assert env.c.v_run([t], 1950 + k)[0] == "accepted", t
@@ -2855,29 +2859,43 @@ def test_teacher_suffix_arm_z163(env):   # [z163] (Fable board v7, registry Q-10
     R.parse({"cmd": "rerun PROBE-P5SELFP2", "reason": "t"})
 
 
-def test_multi_gpu_gates_z164():   # [z164] (executor B 11-15; Fable A1) every #gpus > 1 task of every queue file passes task.sh's multi-GPU list
+def test_multi_gpu_gates_z164():   # [z164 -> z168] every #gpus > 1 task of every queue file passes task.sh's GPU check on as many GPUs
     import glob, subprocess
+    lib = os.path.join(HERE, "gpus_lib.sh")
     task = open(os.path.join(HERE, "task.sh")).read()
-    line = next(l for l in task.splitlines() if l.startswith("case $G in *,*) [[ $T =~ "))
-    case = line.split("   #")[0]
-    multi = {}
+    assert 'gpus_check "$T" "$G" "${QUEUE_FILE:-$RUNBOOK/tasks/queue.txt}" "${GPUS_MAX:-}" || exit 2' in task and "PROBE-E12B-P0THINK-(S44" not in task
+    run = lambda t, g, q: subprocess.run(["bash", "-c", f'source "{lib}"; gpus_check "$0" "$1" "$2"', t, g, q], capture_output=True, text=True)
+    n = 0
     for f in glob.glob(os.path.join(HERE, "..", "tasks", "queue_*.txt")):
         for l in open(f):
             w = l.split()
             if len(w) == 3 and w[0] == "#gpus" and w[2].isdigit() and int(w[2]) > 1:
-                multi[w[1]] = max(multi.get(w[1], 0), int(w[2]))
-    assert len(multi) > 20 and "PROBE-P5Q093T-4B" in multi and "PROBE-E12B-P0THINK-6K" in multi
-    probe = lambda t, g: subprocess.run(["bash", "-c", f"T={t}; G={g}; {case}; echo ok"], capture_output=True, text=True).stdout.strip() == "ok"
-    bad = [t for t, n in sorted(multi.items()) if not probe(t, ",".join(str(k) for k in range(n)))]
-    assert not bad, f"#gpus > 1 tasks refused by task.sh's multi-GPU list: {bad}"
-    for t in ("PROBE-P5SELFP2", "PROBE-P5Q4KT", "PROBE-P5Q093T", "EVAL-u1-refs"):   # one-GPU tasks stay refused on a list
-        assert not probe(t, "0,1,2,3"), t
+                k = int(w[2]); n += 1
+                assert run(w[1], ",".join(str(i) for i in range(k)), f).returncode == 0, (f, w[1])
+                assert run(w[1], "0", f).returncode == 2, (f, w[1])                      # [z168] fewer GPUs than its row: refused
+    assert n > 20
+    q8 = os.path.join(HERE, "..", "tasks", "queue_8gs.txt")
+    for t in ("PROBE-P5SELFP2", "PROBE-P5Q4KT", "PROBE-P5Q093T", "EVAL-u1-refs"):   # no row: one GPU, a list refused
+        assert run(t, "0,1,2,3", q8).returncode == 2 and run(t, "0", q8).returncode == 0, t
 
+
+def test_gpus_lib_z168(tmp_path):   # [z168] the one definition: the #gpus row (1-8), no row = 1, GPUS_MAX caps it
+    import subprocess
+    q = tmp_path / "queue_x.txt"; q.write_text("version: 2\n#gpus A 4\n#gpus B 9\n#gpus A 8\n")
+    lib = os.path.join(HERE, "gpus_lib.sh")
+    of = lambda t, cap="": subprocess.run(["bash", "-c", f'source "{lib}"; gpus_of_q "$0" "$1" "$2"', t, str(q), cap], capture_output=True, text=True).stdout.strip()
+    assert of("A") == "8" and of("B") == "1" and of("C") == "1" and of("A", "2") == "2" and of("C", "2") == "1"   # last row wins; 9 is not 1-8
+    r = subprocess.run(["bash", "-c", f'source "{lib}"; gpus_check A 0,1 "$0" 2; echo rc=$?; gpus_check A 0 "$0"; echo rc=$?', str(q)], capture_output=True, text=True).stdout
+    assert "rc=0" in r and "A takes 8 GPU(s) by its #gpus row in queue_x.txt or board_arms.txt (no row = 1), got 0" in r and r.strip().endswith("rc=2")
+    (tmp_path / "board_arms.txt").write_text("# c\nD #gpus 4 pending: x\nA #gpus 2\nE #gpus 3\n")   # a node-first arm: the board line when no queue row
+    assert of("D") == "4" and of("E") == "3" and of("A") == "8" and of("D", "2") == "2" and of("F") == "1"   # a queue row wins
+    rt = open(os.path.join(HERE, "run_tasks.sh")).read()
+    assert 'gpus_of() { gpus_of_q "$1" "$Q" "$(cenv GPUS_MAX 8)"; }' in rt   # run_tasks.sh allocates with the same function
 
 def test_deps_tool_z165(tmp_path):   # [z165] (Fable board v10) deps.py: the queue deps + the runner's gates and inputs, checked on a root
     import json as _j, subprocess
     root = tmp_path / "run"; ck = tmp_path / "ckpt"; (root / "runs").mkdir(parents=True); ck.mkdir()
-    (root / "paths.env").write_text(f"CKPT_ROOT={ck}\n")
+    (root / "paths.env").write_text(f"CKPT_ROOT={ck}\n"); (root / "control").mkdir(); (root / "control" / "queue_name").write_text("8gs\n")   # [z168] the root's own queue
     def run():
         r = subprocess.run([sys.executable, os.path.join(HERE, "deps.py"), "E10d-P5q093t", "--root", str(root)], capture_output=True, text=True, timeout=600)
         return r.returncode, r.stdout
