@@ -131,8 +131,9 @@ def preflight(a, ck):
     else:
         print("NODE_DRYRUN ok (this root's control.env and gate reports)")
     rec = node if node and node.get("train") else None
-    if not rec:
-        print("TRAIN none (not a training: no save / resume checks)"); return bad
+    if not rec:   # [z170] (executor B, uk-8 11-15) a refusal is not "not a training": say which it is
+        print("TRAIN none (not a training: no save / resume checks)" if node and node.get("result") == "ok"
+              else "TRAIN unknown (the node dry run ended before the launch: no save / resume / retain checks)"); return bad
     sf, ld, steps, mode = argv_of(rec, "trainer.save_freq"), argv_of(rec, "trainer.default_local_dir"), argv_of(rec, "trainer.total_training_steps"), argv_of(rec, "trainer.resume_mode")
     d = real_path(ld, a.root, ck); dd = os.path.realpath(d) if d and os.path.lexists(d) else os.path.join(ck, a.task, "ckpt")
     probe = dd

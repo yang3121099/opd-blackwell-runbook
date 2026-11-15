@@ -100,3 +100,14 @@ def test_retain(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("HF_TOKEN", "x")
     assert deps.retain(rec("25,50"), str(root), "1", "50") == 0 and "the upload" in capsys.readouterr().out
     assert deps.retain(rec("all"), str(root), "1", "50") == 0
+
+
+def test_preflight_train_line_on_a_refusal_z170(tmp_path, monkeypatch, capsys):   # [z170] (executor B 11-15) a refusal is "unknown", not "not a training"
+    from types import SimpleNamespace
+    a = SimpleNamespace(task="X", sec=1, root=str(tmp_path))
+    monkeypatch.setattr(deps, "dry_record", lambda *k, **kw: ({"result": "exit:2", "dispatch": {"first_line": "unknown task X"}}, ""))
+    assert deps.preflight(a, str(tmp_path)) == 1
+    out = capsys.readouterr().out
+    assert "NODE_REFUSAL exit:2" in out and "TRAIN unknown (the node dry run ended before the launch" in out and "not a training" not in out
+    monkeypatch.setattr(deps, "dry_record", lambda *k, **kw: ({"result": "ok", "train": []}, ""))
+    assert deps.preflight(a, str(tmp_path)) == 0 and "TRAIN none (not a training" in capsys.readouterr().out
