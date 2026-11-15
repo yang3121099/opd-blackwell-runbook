@@ -262,6 +262,11 @@ def make_sandbox(sb, base, profile, runbook, plants, real, control_env):
     env_txt = control_env if profile == "node" else ""
     # the sandbox's own roots last (env.sh sources control.env last): a copied CKPT_ROOT / DR_ROOT / HF_HOME cannot escape
     env_txt += f"\n# [dryrun_json] sandbox roots\nexport CKPT_ROOT={ck} DR_ROOT={os.path.join(sb, 'dr')} HF_HOME={os.path.join(sb, 'hf')}\n"
+    # [z172] (11-15 incident: the node profile copied uk-8's `export CKPT_LOCAL=...`, so run_e12.sh's ckpt_lib.py prepare renamed the REAL
+    # local checkpoint dir aside) every other path a copied control.env may set goes into the sandbox too; CKPT_LOCAL stays set when the
+    # node sets it (the runner's local-checkpoint code path is part of what the dry run checks), in the sandbox's own local/
+    env_txt += (f"export ARCHIVE_ROOT={os.path.join(sb, 'archive')} CKPT_CANDIDATES_EXTRA=\n"
+                + (f"export CKPT_LOCAL={os.path.join(sb, 'local')}\n" if re.search(r"^\s*(export\s+)?CKPT_LOCAL=", env_txt, re.M) else "unset CKPT_LOCAL\n"))
     _touch(os.path.join(opd, "control.env"), env_txt)
     for rel, data in plants:
         p = _guard(os.path.join(sb, rel), sb)

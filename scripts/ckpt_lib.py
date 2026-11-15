@@ -489,6 +489,12 @@ def main(argv):
     env = os.environ
     local_root = env.get("CKPT_LOCAL", ""); shared_root = env.get("CKPT_ROOT", ""); runs = os.path.join(env.get("OPD_ROOT", ""), "runs")
     cmd = argv[0] if argv else ""
+    sb = env.get("DRYRUN_SB", "")
+    if sb:   # [z172] inside a dry-run sandbox no checkpoint path may leave it (11-15: a node dry run's prepare renamed uk-8's real local dir)
+        real = lambda p: os.path.realpath(p) + os.sep
+        out = [r for r in (local_root, shared_root) if r and not real(r).startswith(real(sb))]
+        if out:
+            print(f"CKPT_SANDBOX_ESCAPE {cmd}: {out} outside the dry-run sandbox {sb}: refused, nothing touched", file=sys.stderr); return 1
     lock = os.path.join(env.get("OPD_ROOT", ""), "control", "ckpt_mirror_pass.lock")
     if cmd == "mirror":
         with pass_lock(lock):
