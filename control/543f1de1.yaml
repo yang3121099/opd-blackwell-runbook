@@ -59,3 +59,4 @@ commands:
   - {"seq": 57, "cmd": "run SFT-WARM", "reason": "Runming: a real training now (SFT of the base Qwen3-8B on every GPU); the machine is taken back otherwise", "utc": "2026-11-17T16:25:27Z"}
   - {"seq": 58, "cmd": "tail SFT-WARM.log 12", "reason": "did SFT-WARM start", "utc": "2026-11-17T16:25:58Z"}
   - {"seq": 59, "cmd": "tail overnight.log 5", "reason": "install progress", "utc": "2026-11-17T16:26:08Z"}
+  - {"seq": 60, "cmd": "tail SFT-WARM.log 12", "reason": "did SFT-WARM start", "utc": "2026-11-17T16:30:11Z"}
