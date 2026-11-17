@@ -247,7 +247,7 @@ def summary(rep):
     rs = rep["roots"]
     return {"roots": len(rs), "models": sorted({m for r in rs for m in r["models"]}), "venvs": sorted({v for r in rs for v in r["venvs"]}),
             "weights": sum(r["weights"] for r in rs), "data": max([r["data"] for r in rs] or [0]), "hints": rep["hints"], "truncated": rep["truncated"],
-            "seconds": rep["seconds"], "paths": [r["path"] for r in rs], "store": rep.get("store")}
+            "seconds": rep["seconds"], "store": bool(rep.get("store"))}   # [v3.10a] no path: what env-probe writes goes into the status
 
 
 def write(rep):

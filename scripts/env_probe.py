@@ -69,7 +69,8 @@ def probe():
         import history_scan
         rep = history_scan.run()
         out["history"] = history_scan.summary(rep)
-        os.environ["OLD_BASE_CANDS"] = ":".join(rep["told"] + [r["path"] for r in rep["roots"]])
+        given = [c for c in os.environ.get("OLD_BASE_CANDS", "").split(":") if c]   # as the node was told them (a missing one still counts below)
+        os.environ["OLD_BASE_CANDS"] = ":".join(given + [r["path"] for r in rep["roots"] if r["path"] not in given])
     except Exception as e:   # the probe never fails on it
         out["history"] = {"error": f"{type(e).__name__}: {e}"[:200]}
     cands = [c for c in os.environ.get("OLD_BASE_CANDS", "").split(":") if c]
