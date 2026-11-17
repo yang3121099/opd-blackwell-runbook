@@ -7,14 +7,26 @@
 # queue's tasks need the cards.
 set -uo pipefail
 source "$(dirname "$0")/env.sh"; G=$1; T=SFT-WARM; R=$OPD_ROOT/runs/$T; mkdir -p $R
-PY=""
+PY=""; PP=""
+# [v3.8c] an earlier install's venv usually has its packages intact on the shared disk while its bin/python points at an
+# interpreter of a container that is gone (11-18: "-x venv/bin/python" failed and the old venv was taken for unusable). The right
+# use: this node's own Python of the same minor version with the old venv's site-packages on PYTHONPATH (for this stopgap only).
+try_env() {   # $1 = python, $2 = PYTHONPATH or ""
+  [ -x "$1" ] || return 1
+  PYTHONPATH="$2" timeout 420 "$1" -c 'import torch, transformers; assert torch.cuda.is_available()' >> $R/env_try.log 2>&1; }
 for i in $(seq 1 ${SFT_WARM_WAIT_MIN:-90}); do
-  # [v3.8b] also the venv of an earlier install of ours on this machine's disks (history_scan.py): for this stopgap only - the
-  # registered tasks never run from it
-  for c in $OPD_ROOT/venv/bin/python $OPD_ROOT/venv-fa/bin/python $(for r in $(echo "${OLD_BASE_CANDS:-}" | tr ':' ' '); do echo $r/venv/bin/python $r/venv-fa/bin/python; done); do
-    [ -x $c ] && timeout 300 $c -c 'import torch, transformers; assert torch.cuda.is_available()' 2> /dev/null && { PY=$c; break 2; }; done
-  echo "SFT_WARM $(date -u +%T) waiting for an environment with torch and transformers (minute $i)"; sleep 60; done
+  for c in $OPD_ROOT/venv/bin/python $OPD_ROOT/venv-fa/bin/python; do try_env $c "" && { PY=$c; break 2; }; done
+  for r in $(echo "${OLD_BASE_CANDS:-}" | tr ':' ' '); do for v in venv-fa venv; do
+    for sp in $r/$v/lib/python3.*/site-packages; do [ -d "$sp/torch" ] || continue
+      mv_=$(basename $(dirname $sp))   # python3.10
+      for c in $r/$v/bin/python $OPD_ROOT/venv-ctl/bin/python $OPD_ROOT/venv/bin/python $(command -v $mv_ 2> /dev/null); do
+        [ -x "$c" ] && [ "$($c -c 'import sys; print("python%d.%d" % sys.version_info[:2])' 2> /dev/null)" = "$mv_" ] || continue
+        echo "SFT_WARM $(date -u +%T) trying the earlier install's packages ($v, $mv_) with $(basename $(dirname $(dirname $c)))'s interpreter"
+        try_env $c "$sp" && { PY=$c; PP=$sp; break 5; }
+      done; done; done; done
+  echo "SFT_WARM $(date -u +%T) waiting for an environment with torch and transformers (minute $i): $(tail -n 1 $R/env_try.log 2> /dev/null | cut -c1-160)"; sleep 45; done
 [ -n "$PY" ] || { echo "SFT_WARM no environment with torch and transformers after ${SFT_WARM_WAIT_MIN:-90} min"; exit 1; }
+[ -n "$PP" ] && export PYTHONPATH="$PP"
 M=""; for m in ${SFT_WARM_MODEL:-Qwen3-8B} Qwen3-1.7B Qwen3-0.6B; do [ -f $OPD_ROOT/models/$m/config.json ] && ls $OPD_ROOT/models/$m/*.safetensors > /dev/null 2>&1 && [ ! -e $OPD_ROOT/models/$m/*.aria2 ] && { M=$OPD_ROOT/models/$m; break; }; done
 [ -n "$M" ] || { echo "SFT_WARM no complete base model under models/"; exit 1; }
 D="$OPD_ROOT/data"; for r in $(echo "${OLD_BASE_CANDS:-}" | tr ':' ' '); do [ -d $r/data ] && D="$D $r/data"; done
