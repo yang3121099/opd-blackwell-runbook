@@ -1,3 +1,4 @@
 node: 543f1de1
 commands:
   - {"seq": 1, "cmd": "env-probe", "reason": "T0: GPUs, driver, disks, network of the new node", "utc": "2026-11-17T10:03:12Z"}
+  - {"seq": 2, "cmd": "queue h2a", "reason": "T0: this node's queue is h2a (Q-107: the 3K gate, the two 3K arms, their readings, then the 4K / 6K zero-training readings)", "utc": "2026-11-17T10:03:21Z"}
