@@ -10,3 +10,4 @@ commands:
   - {"seq": 8, "cmd": "tail gpu_fill_1.log 40", "reason": "the filler's own output on GPU 1", "utc": "2026-11-17T10:14:29Z"}
   - {"seq": 9, "cmd": "mounts", "reason": "read-only: which shared disks this machine sees and whether an earlier install of ours is on them", "utc": "2026-11-17T10:15:20Z"}
   - {"seq": 10, "cmd": "setenv GPU_FILL_NAME=train1.py", "reason": "the owner's new filler script: known by this file name, its command learned from his running process", "utc": "2026-11-17T10:25:57Z"}
+  - {"seq": 11, "cmd": "setenv GPU_FILL=1", "reason": "fill logic back on with v3.4: setup clears no card; a card is cleared only when a task of ours starts on it, and the others are refilled with the owner's learned command", "utc": "2026-11-17T10:26:05Z"}
