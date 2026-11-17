@@ -241,6 +241,10 @@ for line in subprocess.run(["nvidia-smi", "--query-gpu=index,name,utilization.gp
     if len(f) == 5:
         gpu.append({"index": int(f[0]), "name": f[1], "util_pct": float(f[2]) if f[2].replace(".", "").isdigit() else None,
                     "mem_used_mib": float(f[3]), "mem_total_mib": float(f[4])})
+try:   # [v3.1] this node's own utilisation record against the machine's 85 % rule (scripts/gpu_monitor.py; numbers only)
+    gpu_util = json.load(open(os.path.join(root, "control", "gpu_monitor", "state.json")))
+except (OSError, ValueError):
+    gpu_util = None
 git = lambda *a: subprocess.run(["git", "-C", runbook, *a], capture_output=True, text=True).stdout.strip()
 st = os.statvfs(root)
 ver = re.search(r"^version:\s*(\S+)", queue, re.M)
@@ -250,7 +254,7 @@ stages = {m.group(1): m.group(2) for m in re.finditer(r"^(\S+)\s+(open|auto|lock
 json.dump({"host": os.uname().nodename, "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
            "queue_version": ver.group(1) if ver else None, "stages": stages,
            "stack": jload(os.path.join(root, "logs", "stack.json"), {}),
-           "tasks": tasks, "stale_task_dirs": stale, "gpus": gpu, "disk_free_gb": round(st.f_bavail * st.f_frsize / 1e9, 1),
+           "tasks": tasks, "stale_task_dirs": stale, "gpus": gpu, "gpu_util": gpu_util, "disk_free_gb": round(st.f_bavail * st.f_frsize / 1e9, 1),
            # v2.4: alert below DISK_ALERT_GB (30): one 1.7B save needs ~11 GB for a moment (fp32 HF + bf16 copy), a SPOT
            # resume save ~28 GB
            "disk_alert": st.f_bavail * st.f_frsize / 1e9 < float(os.environ.get("DISK_ALERT_GB", "30")),

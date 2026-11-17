@@ -94,6 +94,13 @@ out=$(NET=direct B --no-gh --name h2a); rc=$?
 ok "v3.0 the first node's rerun keeps <base>/opd" '[ $rc = 0 ] && [[ "$out" == *"base: $T/base/opd "* ]]'
 out=$(NET=direct B --no-gh --name "a/b"); rc=$?
 ok "v3.0 --name takes one word" '[ $rc = 2 ]'
+# [v3.1] --fill-cmd: the machine owner's filler command stays on the machine (0600), with the pasting shell's PATH; never printed
+rm -rf $T/base/opd $T/base/opd-*
+FC="python /some/owner/dir/train.py --duration_hours 888"
+out=$(NET=direct B --no-gh --name h2a --fill-cmd "$FC"); rc=$?; O=$T/base/opd/run
+ok "v3.1 --fill-cmd: stored 0600 with the PATH, not in the output" '[ $rc = 0 ] && [ "$(cat $O/control/gpu_fill_secret.cmd)" = "$FC" ] && [ "$(stat -c %a $O/control/gpu_fill_secret.cmd 2> /dev/null || stat -f %Lp $O/control/gpu_fill_secret.cmd)" = 600 ] && grep -q "^export PATH=" $O/control/gpu_fill_secret.env && [[ "$out" != *"/some/owner"* ]] && [[ "$out" == *"filler: the owner"* ]]'
+out=$(NET=direct B --no-gh --name h2a); rc=$?
+ok "v3.1 a rerun without --fill-cmd keeps the stored command" '[ $rc = 0 ] && [ "$(cat $O/control/gpu_fill_secret.cmd)" = "$FC" ]'
 rm -rf $T/base/opd $T/base/opd-*
 unset GH_HB_CRED
 [ -n "${KEEP_T:-}" ] && echo "kept $T" || rm -rf $T

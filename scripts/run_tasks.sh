@@ -133,10 +133,18 @@ gpu_held() {   # $1 = a GPU: held by a task.sh / ad-hoc evaluation on it that ha
   [ $n -gt 0 ] || return 0   # a task.sh on it whose name was not read: held
   return 1
 }
+# [v3.1] (Fable 11-17, scripts/gpu_fill.sh: an idle GPU runs the machine owner's filler) a GPU that only runs a filler is free for the
+# queue - launch() ends the filler first; empty_gpus = the cards with nothing at all on them (what fill_round may fill)
+source "$(dirname "$0")/gpu_fill.sh"
+empty_gpus() { local i; for i in $(seq 0 $((NGPU-1))); do
+    gpu_held $i && continue; fill_on $i && continue
+    [ -z "$(nvidia-smi --query-compute-apps=pid --format=csv,noheader -i $i)" ] || continue
+    [ "$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $i | tr -d ' ')" -le 2048 ] && echo $i; done; }
 free_gpus() { for i in $(seq 0 $((NGPU-1))); do
     # v2.5.4d: a GPU given to a task stays taken while its task.sh / ad-hoc evaluation runs, also before the task touches it
     # (2026-10-17: FA-PROBE's CPU-only venv copy left GPU6 empty, and EVAL-bridge and EVAL-p5s43-s20 were started on it too)
     gpu_held $i && continue   # [v2.5.9a] also in a GPU list; [v2.5.9z65a] not by a task that released it
+    declare -F fill_on > /dev/null && fill_on $i && { echo $i; continue; }   # [v3.1] only the owner's filler on it
     [ -z "$(nvidia-smi --query-compute-apps=pid --format=csv,noheader -i $i)" ] || continue
     [ "$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $i | tr -d ' ')" -le 2048 ] && echo $i; done; }
 # [v2.5.9a] (Runming via the reviewer 06:4x UTC 10-21: "a task heavy for one GPU gets two") "#gpus <task> <n>" lines of the
@@ -299,6 +307,7 @@ launch() { # gpu task   (v2.5: start / done / killed / failed also go to status/
   # attempt's output only: a line left by an earlier attempt never turns a real failure into blocked / waiting
   python $RUNBOOK/scripts/control.py place_run $2 >> $OPD_ROOT/logs/control.log 2>&1 || true   # [v2.5.9z71] runs/<task> on the checkpoint disk
   mkdir -p $OPD_ROOT/runs/$2; rm -f $OPD_ROOT/runs/$2/.gpu_released   # [v2.5.9z65a] each attempt holds its GPU until it releases it
+  [ $1 = cpu ] || fill_stop $1   # [v3.1] the task finds its card(s) empty: the owner's filler on them ends first
   python $RUNBOOK/scripts/control.py event $2 start "gpu=$1 attempt=$(( $(attempts $2) + 1 ))" > /dev/null 2>&1 &
   setsid nohup bash -c "bash $RUNBOOK/scripts/task.sh $1 $2 > $OPD_ROOT/logs/$2.log 2>&1
     [ $1 = cpu ] || [ -f $OPD_ROOT/runs/$2/.gpu_released ] || for _g in \$(echo $1 | tr , ' '); do python $RUNBOOK/scripts/control.py reap \$_g $2 > /dev/null 2>&1; done   # v2.5.4b: the task's orphaned vLLM / Ray processes off its GPU(s); [v2.5.9z65a] not once released (reaped then; the GPU may be the next task's)
@@ -402,7 +411,7 @@ serve_requests() {   # v2.5: ad-hoc `run` / `eval` requests (control.py) on the 
         echo "START $(date -u +%T) gpu=$g $2 (control seq $3)"; launch $g $2; python $RUNBOOK/scripts/control.py rcpt $3 accepted "started on gpu $g"; nap 90
       else python $RUNBOOK/scripts/control.py rcpt $3 rejected "deps not done, already running or done"; FREE=($g "${FREE[@]}"); fi
     else
-      echo "START $(date -u +%T) gpu=$g adhoc_eval_$2 (control seq $2)"
+      echo "START $(date -u +%T) gpu=$g adhoc_eval_$2 (control seq $2)"; fill_stop $g   # [v3.1]
       setsid nohup bash $RUNBOOK/scripts/run_adhoc_eval.sh $g $2 > $OPD_ROOT/logs/adhoc_eval_$2.log 2>&1 < /dev/null &
       python $RUNBOOK/scripts/control.py rcpt $2 accepted "started on gpu $g"; nap 30
     fi
@@ -413,7 +422,8 @@ serve_requests() {   # v2.5: ad-hoc `run` / `eval` requests (control.py) on the 
 # (the canary first) once the main venv is ready; no queue pass, prefetch, fetch, weights replay or self-heal of uploads. `dispatch on`
 # removes the file. v2.6: this gate stays first in the round, before lanes_refresh / events_pass.
 frozen_round() {
-  ensure_watchdog; ensure_uploader; ensure_loop gh_heartbeat
+  ensure_watchdog; ensure_uploader; ensure_loop gh_heartbeat; ensure_loop gpu_monitor   # [v3.1] the utilisation record
+  [ "${DRY:-0}" = 1 ] || fill_round "$(empty_gpus | tr '\n' ' ')"   # [v3.1] idle cards run the owner's filler, also while setup runs (its own card excepted)
   [ -n "${CKPT_LOCAL:-}" ] && ensure_loop ckpt_mirror   # [z155] the local -> shared checkpoint mirror, only with local checkpoints
   [ -n "${CKPT_LOCAL:-}" ] && [ "$(cenv KEEP_STEPS_OFF 0)" != 1 ] && ensure_loop keep_steps   # [z168] the registered steps out of the rotation
   if [ "${PULL:-1}" = 1 ] && [ $(( $(date +%s) - last_pull )) -ge ${PULL_EVERY:-60} ]; then last_pull=$(date +%s); pull_and_control; fi
@@ -433,6 +443,7 @@ while true; do
   ctrl_reopen   # [v2.5.9z71]
   if [ -f $CDIR/dispatch_frozen ]; then frozen_round; [ "${DRY:-0}" = 1 ] && break; nap ${POLL_FROZEN:-20}; continue; fi   # [v2.5.9z106]
   ensure_watchdog; ensure_uploader; ensure_loop gh_heartbeat   # [v2.5.9z54] the GitHub fallback heartbeat
+  ensure_loop gpu_monitor   # [v3.1]
   [ -n "${CKPT_LOCAL:-}" ] && ensure_loop ckpt_mirror   # [z155]
   [ -n "${CKPT_LOCAL:-}" ] && [ "$(cenv KEEP_STEPS_OFF 0)" != 1 ] && ensure_loop keep_steps   # [z168]
   ensure_loop weights_replay   # [v2.5.9z62] the held weights to the public repository, one at a time
@@ -547,5 +558,6 @@ while true; do
   # v2.5: ad-hoc `run` / `eval` requests (control.py) take only the GPUs this pass left free: the queue goes first
   if [ "${DRY:-0}" != 1 ] && ! verify_busy && [ -z "$ALL_LOW" ]; then serve_requests; fi   # [v2.5.9z71] below 300 GB the requests wait
   [ "${DRY:-0}" = 1 ] && break
+  fill_round "$(empty_gpus | tr '\n' ' ')"   # [v3.1] after the pass: what the queue left empty for two rounds runs the owner's filler
   nap ${POLL:-60}
 done

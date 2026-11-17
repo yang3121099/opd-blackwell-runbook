@@ -21,6 +21,7 @@
 #      OPD_CONTROL_ORIGIN (control.py's origin check), so run_tasks' git pull and the control commands go through the mirror.
 #      B1 prints the HTTP codes of GitHub, the runbook's host, the HF API and PyPI (no PyPI: only an old base's venv).
 #   B4 $T/run/venv-ctl: requirements.ctl.txt only (huggingface_hub, pyyaml; no torch)
+#   [v3.1] --fill-cmd '<command>': the machine owner's filler for idle GPUs, stored on this machine only (control/gpu_fill_secret.cmd)
 #   B5 cold_start.sh --step 1 (no old command may ever run here), then node.env, control/coldstart_args, control/bootstrap.json,
 #      heartbeat every 120 s, STATUS_PUT_S=120, dispatch frozen (control/dispatch_frozen). [z126] --profile <name>[,<name>]: the
 #      export lines of profiles/<name>.env into control.env, a key already there kept (setenv wins on a rerun); --role rehearsal
@@ -32,12 +33,12 @@
 set -uo pipefail
 RB_URL=${RB_URL:-https://github.com/yang3121099/opd-blackwell-runbook.git}
 REPOS=public=yang31210999/opd-lab-b300-pub,private=yang31210999/opd-lab-b300-ops
-BASE=""; TOKF=""; HFH=""; ONLY=""; CKMIN=200; ROLE=node; RETIRE_TMUX=""; RETIRE_FILES=""; DRY=0; OLDC=""; GHTOKF=""; NOGH=0; PROFILE=""; NAME=""
+BASE=""; TOKF=""; HFH=""; ONLY=""; CKMIN=200; ROLE=node; RETIRE_TMUX=""; RETIRE_FILES=""; DRY=0; OLDC=""; GHTOKF=""; NOGH=0; PROFILE=""; NAME=""; FILLCMD=""
 while [ $# -gt 0 ]; do case $1 in
   --base) BASE=$2; shift 2;; --token-file) TOKF=$2; shift 2;; --hf-home) HFH=$2; shift 2;; --repos) REPOS=$2; shift 2;;
   --only) ONLY=$2; shift 2;; --ckpt-min-gb) CKMIN=$2; shift 2;; --role) ROLE=$2; shift 2;; --old-base-cands) OLDC=$2; shift 2;;
   --retire-tmux) RETIRE_TMUX="$RETIRE_TMUX $2"; shift 2;; --retire-file) RETIRE_FILES="$RETIRE_FILES $2"; shift 2;; --dry) DRY=1; shift;;
-  --gh-token-file) GHTOKF=$2; shift 2;; --no-gh) NOGH=1; shift;; --profile) PROFILE=$2; shift 2;; --name) NAME=$2; shift 2;;
+  --gh-token-file) GHTOKF=$2; shift 2;; --no-gh) NOGH=1; shift;; --profile) PROFILE=$2; shift 2;; --name) NAME=$2; shift 2;; --fill-cmd) FILLCMD=$2; shift 2;;
   *) echo "BOOTSTRAP usage: unknown argument $1"; exit 2;; esac; done
 say() { echo "[bootstrap $(date -u +%H:%MZ)] $*"; }
 stop() { say "STOP: $*"; exit 1; }
@@ -210,6 +211,14 @@ fi
   } > $O/node.env.new && mv $O/node.env.new $O/node.env )
 grep -q "^export OPD_ROOT=$O RUNBOOK=$RB OPD_NODE=$NODE HF_REPO=" $O/node.env || stop "node.env not written"
 echo "$ARGS" > $O/control/coldstart_args
+# [v3.1] (Fable 11-17: the machine's 85 % utilisation rule) --fill-cmd '<command>': the machine owner's own filler for idle GPUs, kept
+# on this machine only (0600; never uploaded, never in a status), with the PATH of the shell this line was pasted in, so `python`
+# means there what it means here. scripts/gpu_fill.sh runs it per idle GPU while control.env has GPU_FILL=1 (profiles/h200.env)
+if [ -n "$FILLCMD" ]; then
+  ( umask 077; printf '%s\n' "$FILLCMD" > $O/control/gpu_fill_secret.cmd
+    { printf 'export PATH=%q\n' "$PATH"; [ -n "${LD_LIBRARY_PATH:-}" ] && printf 'export LD_LIBRARY_PATH=%q\n' "$LD_LIBRARY_PATH"; } > $O/control/gpu_fill_secret.env )
+  say "filler: the owner's command stored for idle GPUs (not shown, not uploaded)"
+fi
 [ -f $O/control/heartbeat_sec ] || echo 120 > $O/control/heartbeat_sec
 touch $O/control.env
 if [ -n "$PROFILE" ]; then   # [z126] the node class's settings; a key already in control.env is kept (setenv wins on a rerun)

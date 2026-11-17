@@ -20,6 +20,9 @@ STOP. The owner's copy with the expected output: the lab's handoff/newnode_paste
   machine is up and two machines with the same host name stay apart. `--profile h200`: an 8 x H200 node (the 140 GB class's
   numerics and a control plane of about 20 HF commits an hour). For the borrowed H200s the line ends
   `bash $d/scripts/bootstrap.sh --profile h200 --name h2a` (the second machine: `--name h2b`).
+- `--fill-cmd '<command>'` (v3.1): the machine owner's own filler for idle GPUs (the machine's rule: every GPU at 85 % or more,
+  else the job is ended after two hours). Stored on the machine only (0600), run per idle GPU while GPU_FILL=1 (profiles/h200.env)
+  and ended before a task takes the card; the node's own utilisation record is status.gpu_util (README section 3b).
 - Two machines on one shared disk (v3.0): the first takes `<base>/opd`, the second finds it owned and takes `<base>/opd-<its id>`.
 - Rerunning the line is safe: every step looks at what is there first.
 
