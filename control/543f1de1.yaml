@@ -15,3 +15,4 @@ commands:
   - {"seq": 13, "cmd": "snapshot logs/overnight.log", "reason": "setup step 2 has run an hour: read its log (the tail verb's file did not arrive)", "utc": "2026-11-17T11:04:58Z"}
   - {"seq": 14, "cmd": "snapshot logs/setup_4.log", "reason": "setup step 2 has run an hour: read its log (the tail verb's file did not arrive)", "utc": "2026-11-17T11:05:06Z"}
   - {"seq": 15, "cmd": "snapshot logs/gpu_fill.log", "reason": "setup step 2 has run an hour: read its log (the tail verb's file did not arrive)", "utc": "2026-11-17T11:05:14Z"}
+  - {"seq": 16, "cmd": "setenv STATUS_PUT_S=300", "reason": "back to a status every 5 min (fewer HF commits); applies if the node comes back within a day", "utc": "2026-11-17T11:54:10Z"}
