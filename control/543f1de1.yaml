@@ -51,3 +51,4 @@ commands:
   - {"seq": 49, "cmd": "setup all", "reason": "v3.7b: install the stack into the half-built venv of the first start", "utc": "2026-11-17T16:10:29Z"}
   - {"seq": 50, "cmd": "tail overnight.log 14", "reason": "install_uv.sh failed within a second at 16:10:47Z", "utc": "2026-11-17T16:17:11Z"}
   - {"seq": 51, "cmd": "setenv HF_COMMIT_BUDGET=120", "reason": "the node's uploads hit its hourly budget (hf put failed: Budget) during this setup", "utc": "2026-11-17T16:18:35Z"}
+  - {"seq": 52, "cmd": "setup all", "reason": "v3.7c: path fix in install_uv.sh; machine deadline in ~35 min", "utc": "2026-11-17T16:18:43Z"}
