@@ -251,6 +251,8 @@ def summary(rep):
 
 
 def write(rep):
+    if not ROOT:   # [v3.10c] no node directory (a probe run outside a node, the tests): nothing is written
+        return
     c = os.path.join(ROOT, "control")
     os.makedirs(c, exist_ok=True)
     cands = []

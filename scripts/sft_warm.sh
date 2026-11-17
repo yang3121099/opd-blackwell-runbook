@@ -27,8 +27,22 @@ for i in $(seq 1 ${SFT_WARM_WAIT_MIN:-90}); do
   echo "SFT_WARM $(date -u +%T) waiting for an environment with torch and transformers (minute $i): $(tail -n 1 $R/env_try.log 2> /dev/null | cut -c1-160)"; sleep 45; done
 [ -n "$PY" ] || { echo "SFT_WARM no environment with torch and transformers after ${SFT_WARM_WAIT_MIN:-90} min"; exit 1; }
 [ -n "$PP" ] && export PYTHONPATH="$PP"
-M=""; for m in ${SFT_WARM_MODEL:-Qwen3-8B} Qwen3-1.7B Qwen3-0.6B; do [ -f $OPD_ROOT/models/$m/config.json ] && ls $OPD_ROOT/models/$m/*.safetensors > /dev/null 2>&1 && [ ! -e $OPD_ROOT/models/$m/*.aria2 ] && { M=$OPD_ROOT/models/$m; break; }; done
-[ -n "$M" ] || { echo "SFT_WARM no complete base model under models/"; exit 1; }
+# [v3.10c] the base model: local if it is complete; else copied from the long-term store / an earlier install on this machine
+# (history_scan.py) - on a fresh machine models/ is empty until setup has copied or downloaded it, and a real training must not
+# wait for that; else wait for setup's download (SFT_WARM_MODEL_WAIT_MIN, 60)
+model_ok() { [ -f $1/config.json ] && ls $1/*.safetensors > /dev/null 2>&1 && ! ls $1/*.aria2 > /dev/null 2>&1; }
+M=""
+for i in $(seq 0 ${SFT_WARM_MODEL_WAIT_MIN:-60}); do
+  for m in ${SFT_WARM_MODEL:-Qwen3-8B} Qwen3-1.7B Qwen3-0.6B; do
+    model_ok $OPD_ROOT/models/$m && { M=$OPD_ROOT/models/$m; break 2; }
+    for r in ${OPD_STORE:-} $(echo "${OLD_BASE_CANDS:-}" | tr ':' ' '); do model_ok $r/models/$m || continue
+      echo "SFT_WARM $(date -u +%T) copying $m from the long-term store / an earlier install on this machine"
+      mkdir -p $OPD_ROOT/models/$m && cp -rL $r/models/$m/. $OPD_ROOT/models/$m/ 2>> $R/env_try.log && model_ok $OPD_ROOT/models/$m && { M=$OPD_ROOT/models/$m; break 3; }
+    done
+    [ "$m" = "${SFT_WARM_MODEL:-Qwen3-8B}" ] && [ $i -lt ${SFT_WARM_MODEL_WAIT_MIN:-60} ] && break   # the wanted model first: smaller ones only after the wait
+  done
+  echo "SFT_WARM $(date -u +%T) waiting for a complete base model under models/ (minute $i)"; sleep 60; done
+[ -n "$M" ] || { echo "SFT_WARM no complete base model under models/ after ${SFT_WARM_MODEL_WAIT_MIN:-60} min"; exit 1; }
 D="$OPD_ROOT/data"; for r in $(echo "${OLD_BASE_CANDS:-}" | tr ':' ' '); do [ -d $r/data ] && D="$D $r/data"; done
 GP=${SFT_WARM_GPUS:-all}; [ "$GP" = all ] && GP=$(nvidia-smi --query-gpu=index --format=csv,noheader | paste -sd, -)
 echo "SFT_WARM $(date -u +%T) python $($PY -c 'import torch, transformers; print(torch.__version__, transformers.__version__)') model $(basename $M) gpus $GP"

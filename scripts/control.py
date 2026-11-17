@@ -512,7 +512,9 @@ def _jwrite_ctrl(st):
 
 
 def queue_put(src, dst, kind=None):
-    if kind is None and _batch_on() and CTRL_SPOOL_RE.fullmatch(dst.lstrip("/")):   # [v2.5.9z124c] the control spool, one uploader per file
+    # [v3.10c] a directory (tail / snapshot / logs put replies/<seq>/ with their files) is not spooled: the spool carries single files,
+    # and on 11-17/18 no `tail` output arrived from a node in batch mode until CONTROL_BATCH was switched off
+    if kind is None and _batch_on() and CTRL_SPOOL_RE.fullmatch(dst.lstrip("/")) and not os.path.isdir(src):   # [v2.5.9z124c] the control spool, one uploader per file
         return _spool_add(src, dst)
     direct = kind is None and DIRECT_RE.fullmatch(dst.lstrip("/")) and _cfg("CONTROL_DIRECT", "1") == "1"   # [v2.5.9z53]
     if not direct and os.environ.get("OUTBOX", "1") == "1" and uploader_alive():

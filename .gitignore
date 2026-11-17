@@ -1,3 +1,5 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+# node-local files never belong in this repository
+control/*secret*
