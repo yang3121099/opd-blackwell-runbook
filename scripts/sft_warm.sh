@@ -34,9 +34,9 @@ GP=${SFT_WARM_GPUS:-all}; [ "$GP" = all ] && GP=$(nvidia-smi --query-gpu=index -
 echo "SFT_WARM $(date -u +%T) python $($PY -c 'import torch, transformers; print(torch.__version__, transformers.__version__)') model $(basename $M) gpus $GP"
 pids=""
 for g in $(echo $GP | tr , ' '); do
-  CUDA_VISIBLE_DEVICES=$g TOKENIZERS_PARALLELISM=false $PY $RUNBOOK/code/train/sft_warm.py --model $M --out $R/gpu$g --data $D --hours ${SFT_WARM_HOURS:-6} --seed $g > $R/train_gpu$g.log 2>&1 &
+  CUDA_VISIBLE_DEVICES=$g TOKENIZERS_PARALLELISM=false $PY $RUNBOOK/code/train/sft_warm.py --model $M --out $R/gpu$g --data $D --hours ${SFT_WARM_HOURS:-6} --seed $g > $OPD_ROOT/logs/SFT-WARM_gpu$g.log 2>&1 &   # [v3.8d] under logs/: `tail SFT-WARM_gpu0.log`
   pids="$pids $!"; sleep 2; done
 trap 'kill $pids 2> /dev/null' TERM INT
 rc=0; for p in $pids; do wait $p || rc=1; done
-echo "SFT_WARM $(date -u +%T) ended rc=$rc: $(tail -q -n 1 $R/train_gpu*.log 2> /dev/null | cut -c1-120 | tr '\n' ' ')"
+echo "SFT_WARM $(date -u +%T) ended rc=$rc: $(tail -q -n 1 $OPD_ROOT/logs/SFT-WARM_gpu*.log 2> /dev/null | cut -c1-120 | tr '\n' ' ')"
 [ $rc = 0 ] && touch $R/.done; exit $rc
