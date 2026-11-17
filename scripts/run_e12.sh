@@ -60,6 +60,9 @@ DSEED=4242; [ "$A" = P0think-8k-s43 ] && { VAR=8k; A=P0; THINK=True; DSEED=43; }
 # E12b-P0think-16k = Q-093 with the training window 4K / 16K (MAXR 4096 / 16384), seed 4242; each with its own 3-step gate
 [ "$A" = P0think-8k-s44 ] && { VAR=8k; A=P0; THINK=True; DSEED=44; }
 W4=""; [ "$A" = P0think-4k ] && { VAR=""; A=P0; THINK=True; W4=1; }   # [z158g] W4: 50 steps as Q-093 (VAR "" alone kept P0's 100)
+# [v3.0] (lab/registry/Q-107.md; executor B's node diff of 11-16, run on 8 x B200: gate PASS, both arms trained) E12b-P0think-3k = the 4K arm
+# (W4: 50 steps, its batching) at the 3K window (MAXR 3072); -3k-s44 = the same with data.seed 44. One gate for both, PROBE-E12B-P0THINK-3K
+W3=""; case $A in P0think-3k) VAR=""; A=P0; THINK=True; W4=1; W3=1;; P0think-3k-s44) VAR=""; A=P0; THINK=True; W4=1; W3=1; DSEED=44;; esac
 [ "$A" = P0think-16k ] && { VAR=16k; A=P0; THINK=True; }
 # [z158f] (Fable D96 / D99, lab/registry/Q-096.md B) E12b-P0think-8k-c100 = Q-093 continued from its s50 for 50 steps (s51-s100) with
 # the same recipe: weights only (Q-093 ran on one GPU, its sharded state cannot resume a 4-GPU run: Fable 02:3x), a fresh optimizer
@@ -79,6 +82,7 @@ C100=""; [ "$A" = P0think-8k-c100 ] && { VAR=8k; A=P0; THINK=True; C100=1; }
 # max_response_length 8192 / 16384 and what the length forces: flash-attn with remove-padding (an SDPA micro-batch is
 # padded to its longest sequence), a token budget of at least prompt + response, vLLM batching above the model length
 MAXR=4096; case $VAR in 6k) MAXR=6144;; 7k) MAXR=7168;; 12k) MAXR=12288;; 8k) MAXR=8192;; 16k|16k-kl) MAXR=16384;; esac   # [z159] 7k (Q-097 D)
+[ -n "$W3" ] && MAXR=3072   # [v3.0] (Q-107) the 3K window; MAXR <= 4096, so the batching is the 4K arm's (no long-limit branch)
 # [v2.5.8b] the variant starts only after its gate PROBE-E12B-<VAR> passed (a 3-step smoke that checks the reference; the smoke itself is exempt)
 if [ -n "$VAR$W4" ] && [ "${SMOKE:-0}" != 1 ]; then   # [z159] W4 too: the 4K-window arms (VAR "") had no gate check here
   GATES=PROBE-E12B-$(echo $VAR | tr a-z A-Z); [ "$VAR" = 16k-kl ] && GATES="PROBE-E12B-16K PROBE-E12B-KL"   # [v2.5.9y]
@@ -89,7 +93,7 @@ if [ -n "$VAR$W4" ] && [ "${SMOKE:-0}" != 1 ]; then   # [z159] W4 too: the 4K-wi
   [ $THINK = True ] && [ $LADDER = E12d ] && GATES=PROBE-E12D-P0THINK   # [z149] (Q-093b) the 4B arm's own 4-GPU smoke
   [ $THINK = True ] && [ $LADDER = E12e ] && GATES=PROBE-E12E-P0THINK   # [z154] (Q-093c) the 8B arm's own 8-GPU smoke
   [ $T = E12b-P0think-8k-s43 ] && GATES=PROBE-E12B-P0THINK-8G   # [z154] (Q-093-s43) its own 8-GPU smoke
-  case $T in E12b-P0think-8k-s44|E12b-P0think-8k-c100) GATES=PROBE-E12B-P0THINK-S44;; E12b-P0think-4k) GATES=PROBE-E12B-P0THINK-4K;; E12b-P0think-16k) GATES=PROBE-E12B-P0THINK-16K;;
+  case $T in E12b-P0think-8k-s44|E12b-P0think-8k-c100) GATES=PROBE-E12B-P0THINK-S44;; E12b-P0think-4k) GATES=PROBE-E12B-P0THINK-4K;; E12b-P0think-3k|E12b-P0think-3k-s44) GATES=PROBE-E12B-P0THINK-3K;; E12b-P0think-16k) GATES=PROBE-E12B-P0THINK-16K;;
     E12b-P0think-8k50-4k) GATES=PROBE-E12B-P0THINK-8K50-4K;; E12b-P0think-7k) GATES=PROBE-E12B-P0THINK-7K;;
     E12b-P0think-6k) GATES=PROBE-E12B-P0THINK-6K;; E12b-P0think-12k) GATES=PROBE-E12B-P0THINK-12K;; esac   # [z159c] 6K / 12K;   # [z159]   # [z158b] their own smokes
   [ $T = E12d-P0think-8k-s43 ] && GATES=PROBE-E12D-P0THINK-8G   # [z156] (Q-093b-s43, Fable D50) the 4B mirror: its own 8-GPU smoke (Q-093b's gate passed on 4 x B200)
@@ -264,7 +268,7 @@ case $T in E12b-P5-16k-s44|E12d-P5-16k-s43) UW=25,$STEPS;; esac   # [v2.5.9z84] 
 case $T in E12c-P5-8k|E12c-P5-16k) UW=25,$STEPS;; esac   # [v2.5.9z85] (Q-077) as the 1.7B / 4B window arms: s25 and s50 up
 [ $T = E12b-P0think-8k ] && UW=25,$STEPS   # [z146] (Q-093) s25 and s50 up
 [ $T = E12d-P0think-8k ] && UW=25,$STEPS   # [z149] (Q-093b) s25 and s50 up
-case $T in E12e-P0think-8k|E12b-P0think-8k-s43|E12d-P0think-8k-s43|E12b-P0think-8k-s44|E12b-P0think-4k|E12b-P0think-16k|E12b-P0think-8k-c100|E12b-P0think-8k50-4k|E12b-P0think-7k|E12b-P0think-6k|E12b-P0think-12k) UW=25,$STEPS;; esac   # [z159] A4 / 6K   # [z158b] the new arms as Q-093   # [z156] Q-093b-s43 as Q-093b   # [z154] s25 kept (up / held), s50 the registered step
+case $T in E12e-P0think-8k|E12b-P0think-8k-s43|E12d-P0think-8k-s43|E12b-P0think-8k-s44|E12b-P0think-4k|E12b-P0think-3k|E12b-P0think-3k-s44|E12b-P0think-16k|E12b-P0think-8k-c100|E12b-P0think-8k50-4k|E12b-P0think-7k|E12b-P0think-6k|E12b-P0think-12k) UW=25,$STEPS;; esac   # [z159] A4 / 6K   # [z158b] the new arms as Q-093   # [z156] Q-093b-s43 as Q-093b   # [z154] s25 kept (up / held), s50 the registered step
 [ -n "$CONT" ] && UW=25   # [v2.5.9z129] the continued arm's last save (= the chain's s50)
 # [v2.5.9z86] (fix; found 10-25 16:5x UTC: EVAL-e12b-P5tail-8k's s25 weights did not exist) with DR off (seq 545, 10-24) the save
 # interval above fell to the final step, so an arm uploading s25 (UW=25,...) saved no s25 checkpoint; the save interval is

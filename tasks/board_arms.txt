@@ -13,3 +13,5 @@ E12b-P0think-6k #gpus 4
 E12b-P0think-12k #gpus 4
 E12b-P0think-8k-maj #gpus 4 pending: Q-100 majority-vote reward, executor B's node-local diff (runbook record after its A1)
 E12b-P0think-8k-fin #gpus 4 pending: Q-100 finished-only reward, executor B's node-local diff (runbook record after its A1)
+E12b-P0think-3k #gpus 4
+E12b-P0think-3k-s44 #gpus 4

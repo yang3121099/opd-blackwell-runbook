@@ -2273,7 +2273,7 @@ def test_q093_thinking_arm_z146(env):   # [z146] (Q-093, Fable D10) the p1q stag
     assert "  PROBE-E12B-P0THINK) bash $RUNBOOK/scripts/probe_e12var.sh $G p0think;;" in task
     e12 = open(os.path.join(here, "run_e12.sh")).read()
     assert e12.count("+data.apply_chat_template_kwargs.enable_thinking=$THINK") == 1 and "enable_thinking=False" not in e12
-    assert e12.count("THINK=True") == 10 and '[ "$A" = P0think-8k ] && { VAR=8k; A=P0; THINK=True; }' in e12   # [z154] + P0think-8k-s43 (the same arm, seed 43); [z158b] + s44, 4k, 16k; [z158f] + c100
+    assert e12.count("THINK=True") == 12 and '[ "$A" = P0think-8k ] && { VAR=8k; A=P0; THINK=True; }' in e12   # [z154] + P0think-8k-s43 (the same arm, seed 43); [z158b] + s44, 4k, 16k; [z158f] + c100
     assert '[ "$A" = P0think-8k-s43 ] && { VAR=8k; A=P0; THINK=True; DSEED=43; }' in e12   # the switch: this arm only
 
 
