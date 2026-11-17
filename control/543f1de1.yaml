@@ -1,0 +1,3 @@
+node: 543f1de1
+commands:
+  - {"seq": 1, "cmd": "env-probe", "reason": "T0: GPUs, driver, disks, network of the new node", "utc": "2026-11-17T10:03:12Z"}
