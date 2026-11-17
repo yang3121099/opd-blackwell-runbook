@@ -13,3 +13,4 @@ commands:
   - {"seq": 11, "cmd": "setenv GPU_FILL=1", "reason": "fill logic back on with v3.4: setup clears no card; a card is cleared only when a task of ours starts on it, and the others are refilled with the owner's learned command", "utc": "2026-11-17T10:26:05Z"}
   - {"seq": 12, "cmd": "tail overnight.log 60", "reason": "setup step 2 has run 57 min: where is it", "utc": "2026-11-17T11:04:20Z"}
   - {"seq": 13, "cmd": "snapshot logs/overnight.log", "reason": "setup step 2 has run an hour: read its log (the tail verb's file did not arrive)", "utc": "2026-11-17T11:04:58Z"}
+  - {"seq": 14, "cmd": "snapshot logs/setup_4.log", "reason": "setup step 2 has run an hour: read its log (the tail verb's file did not arrive)", "utc": "2026-11-17T11:05:06Z"}
