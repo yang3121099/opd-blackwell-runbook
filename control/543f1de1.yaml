@@ -28,3 +28,4 @@ commands:
   - {"seq": 26, "cmd": "setup all", "reason": "v3.5 on main: install picks a mainland package index; rerun the install after the pypi.org timeout", "utc": "2026-11-17T15:06:07Z"}
   - {"seq": 27, "cmd": "ps", "reason": "which processes hold the GPUs: are the filler's pids visible in our container", "utc": "2026-11-17T15:06:56Z"}
   - {"seq": 28, "cmd": "snapshot", "reason": "nvidia-smi and the process table now: are the filler's pids visible in our container", "utc": "2026-11-17T15:08:47Z"}
+  - {"seq": 29, "cmd": "setup all", "reason": "retry: the first start's model downloads held the lock at 15:06Z", "utc": "2026-11-17T15:13:34Z"}
