@@ -23,3 +23,4 @@ commands:
   - {"seq": 21, "cmd": "run FETCH-all", "reason": "new H200 node online 22:46 Beijing (fresh bootstrap); Runming: start filler, install env, start the formal tasks", "utc": "2026-11-17T14:52:22Z"}
   - {"seq": 22, "cmd": "ps", "reason": "new H200 node online 22:46 Beijing (fresh bootstrap); Runming: start filler, install env, start the formal tasks; see what is on the cards", "utc": "2026-11-17T14:52:30Z"}
   - {"seq": 23, "cmd": "setenv CONTROL_BATCH=0", "reason": "setup step 3 (install_uv.sh) failed at 14:55Z; log outputs do not arrive in batch mode", "utc": "2026-11-17T15:01:07Z"}
+  - {"seq": 24, "cmd": "tail overnight.log 150", "reason": "setup step 3 (install_uv.sh) failed at 14:55Z; log outputs do not arrive in batch mode", "utc": "2026-11-17T15:01:15Z"}
