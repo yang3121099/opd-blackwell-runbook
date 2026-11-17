@@ -4,3 +4,4 @@ commands:
   - {"seq": 2, "cmd": "queue h2a", "reason": "T0: this node's queue is h2a (Q-107: the 3K gate, the two 3K arms, their readings, then the 4K / 6K zero-training readings)", "utc": "2026-11-17T10:03:21Z"}
   - {"seq": 3, "cmd": "setenv STATUS_PUT_S=120", "reason": "T0: a status every 2 min while setup runs (back to 300 once the queue is running)", "utc": "2026-11-17T10:05:50Z"}
   - {"seq": 4, "cmd": "setup all", "reason": "T0: install the environment, base models, vLLM probe, verify (cold_start steps 2-7)", "utc": "2026-11-17T10:05:57Z"}
+  - {"seq": 5, "cmd": "run FETCH-all", "reason": "T0: pull the queue's #fetch weights while setup runs (canary starts, 4K / 6K checkpoints)", "utc": "2026-11-17T10:06:05Z"}
