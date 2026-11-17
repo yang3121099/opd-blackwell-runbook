@@ -1529,6 +1529,15 @@ def v_run(a, seq, flags=None, entry=None):
     t = a[0]
     if t.startswith("FETCH-"):   # [v2.5.9z127] a pull, not a task
         return v_fetch(t, seq)
+    if t == "SFT-WARM":   # [v3.8] it waits for an environment by itself: run_tasks starts it in the frozen round too, before the main venv
+        if running_pids(t):
+            return "rejected", f"{t} is already running", {}
+        for f in (".done", ".failed"):   # a new start after an end: the old markers aside
+            p = os.path.join(ROOT, "runs", t, f)
+            if os.path.exists(p):
+                os.replace(p, f"{p}.prev_{seq}")
+        open(_p("sft_warm_go"), "w").write(f"seq {seq} {utc()}\n")
+        return "accepted", f"{t} starts on the next free GPU (frozen or not, before the main venv: it waits for torch itself) and trains on every GPU", {}
     r = subprocess.run(["bash", "-c", f'T={t}; ARMS="P2|P3|P4lowlr|P5|P6|P6r|P2noEOS|Pstop|P6rand|P6top5|P4EOSpen|P5top10|P5rand10m"; '
                         'case $T in E12b-P5-prog|E12b-P5-prog-up|PROBE-PROG) exit 0;; esac; '   # [v2.5.9z43] (Q-058)
                         'case $T in E10b-P5route-inv|PROBE-ROUTE-INV) exit 0;; esac; '   # [v2.5.9z45] (Q-063)

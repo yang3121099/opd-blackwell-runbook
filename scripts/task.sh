@@ -148,6 +148,7 @@ case $T in
   PROBE-MIXP) bash $RUNBOOK/scripts/probe_mixp.sh;;   # [v2.5.9z38] (Q-060): the gate of E10b-P5mix75 / -P5mix90, the coin at p (the CPU lane)
   PROBE-PROG) bash $RUNBOOK/scripts/probe_prog.sh;;   # [v2.5.9z43] (Q-058): the gate of E12b-P5-prog / -prog-up, the continuation file and the starts (the CPU lane)
   VENV-VL-NVRTC) bash $RUNBOOK/scripts/venv_vl_nvrtc.sh;;   # [v2.5.9z31] (ops-lead, Q-051): CUDA 12.9's NVRTC into venv-vl (sm_103), the CPU lane   # [v2.5.9z24] (ops-lead, Q-057): vocab / special tokens / chat template of the X5 trio once pulled (the CPU lane)
+  SFT-WARM) bash $RUNBOOK/scripts/sft_warm.sh $G;;   # [v3.8] a plain SFT of the base model on every GPU, startable before the stack is installed (not a registered experiment)
   PROBE-TAIL) bash $RUNBOOK/scripts/probe_tail.sh $G;;   # [v2.5.9n] (T4): the gate of E10b-P5tail
   PROBE-TAIL-4B) PTL_PROBE=PROBE-TAIL-4B PTL_ARM=E10d-P5tail bash $RUNBOOK/scripts/probe_tail.sh $G;;   # [v2.5.9z84a] (Q-075): the 4B tail arm's smoke
   PROBE-SOFTMIX) PTL_PROBE=PROBE-SOFTMIX PTL_ARM=E10b-P5softmix50 PTL_SOFTMIX=0.5 bash $RUNBOOK/scripts/probe_tail.sh $G;;   # [v2.5.9z83] (Q-073): the soft mix's gate

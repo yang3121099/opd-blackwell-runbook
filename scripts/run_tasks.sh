@@ -414,6 +414,12 @@ serve_requests() {   # v2.5: ad-hoc `run` / `eval` requests (control.py) on the 
     fi
   done
 }
+# [v3.8] `run SFT-WARM` (control.py: control/sft_warm_go): started on the first free GPU, also in the frozen round and before the
+# main venv is ready - the task waits for an environment by itself (a borrowed machine must show a real training soon)
+sft_warm_pass() { [ -f $CDIR/sft_warm_go ] || return 0
+  running SFT-WARM && { rm -f $CDIR/sft_warm_go; return 0; }
+  local g; g=$(free_gpus | head -1); [ -n "$g" ] || return 0
+  rm -f $CDIR/sft_warm_go; echo "START $(date -u +%T) gpu=$g SFT-WARM (run request, before the stack)"; launch $g SFT-WARM; }
 # [v2.5.9z106] (connect-first, Fable 11-01; ops-lead's A1 16:11 UTC) control/dispatch_frozen: the round only keeps the control plane -
 # watchdog / uploader / gh_heartbeat, git pull + apply, the heartbeat through loops.sh - and serves explicit `run` / `eval` requests
 # (the canary first) once the main venv is ready; no queue pass, prefetch, fetch, weights replay or self-heal of uploads. `dispatch on`
@@ -426,6 +432,7 @@ frozen_round() {
   [ "${DRY:-0}" = 1 ] && { echo "FROZEN dispatch frozen: control plane only"; return; }
   bash $RUNBOOK/scripts/loops.sh ensure heartbeat >> $OPD_ROOT/logs/loops.log 2>&1
   [ -s $CDIR/fetch_allow ] && fetch_pass allow   # [v2.5.9z127] `run FETCH-*`: the weights come in before the main venv (control venv)
+  sft_warm_pass   # [v3.8]
   [ -f $OPD_ROOT/venv-ctl/bin/activate ] && [ ! -f $CDIR/venv_ready ] && return   # no main venv yet: requests wait
   verify_busy && return
   FREE=( $(free_gpus) ); serve_requests; }   # (spaced: test_ops_guard finds the full pass's own FREE=($(free_gpus)) line)
