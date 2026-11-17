@@ -73,3 +73,4 @@ commands:
   - {"seq": 71, "cmd": "tail SFT-WARM.log 8", "reason": "SFT-WARM start with the earlier install's packages", "utc": "2026-11-17T16:45:22Z"}
   - {"seq": 72, "cmd": "snapshot", "reason": "confirm the SFT processes train (memory, utilisation)", "utc": "2026-11-17T16:48:16Z"}
   - {"seq": 73, "cmd": "tail overnight.log 30", "reason": "why install_uv.sh failed at 16:46Z", "utc": "2026-11-17T16:59:09Z"}
+  - {"seq": 74, "cmd": "setup all", "reason": "v3.9: seed the venv from the earlier install's pinned stack (copied locally), then install what is missing", "utc": "2026-11-17T17:01:47Z"}
