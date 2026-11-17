@@ -71,3 +71,4 @@ commands:
   - {"seq": 69, "cmd": "kill SFT-WARM", "reason": "restart with v3.8c (old venv's packages with this node's Python)", "utc": "2026-11-17T16:42:05Z"}
   - {"seq": 70, "cmd": "run SFT-WARM", "reason": "v3.8c", "utc": "2026-11-17T16:42:14Z"}
   - {"seq": 71, "cmd": "tail SFT-WARM.log 8", "reason": "SFT-WARM start with the earlier install's packages", "utc": "2026-11-17T16:45:22Z"}
+  - {"seq": 72, "cmd": "snapshot", "reason": "confirm the SFT processes train (memory, utilisation)", "utc": "2026-11-17T16:48:16Z"}
