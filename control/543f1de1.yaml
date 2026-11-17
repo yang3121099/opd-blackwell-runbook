@@ -18,3 +18,4 @@ commands:
   - {"seq": 16, "cmd": "setenv STATUS_PUT_S=300", "reason": "back to a status every 5 min (fewer HF commits); applies if the node comes back within a day", "utc": "2026-11-17T11:54:10Z"}
   - {"seq": 17, "cmd": "setenv GPU_FILL=0", "reason": "new H200 node online 22:46 Beijing (fresh bootstrap); Runming: start filler, install env, start the formal tasks; install must not touch the owner's filler", "utc": "2026-11-17T14:51:48Z"}
   - {"seq": 18, "cmd": "env-probe", "reason": "new H200 node online 22:46 Beijing (fresh bootstrap); Runming: start filler, install env, start the formal tasks", "utc": "2026-11-17T14:51:56Z"}
+  - {"seq": 19, "cmd": "queue h2a", "reason": "new H200 node online 22:46 Beijing (fresh bootstrap); Runming: start filler, install env, start the formal tasks", "utc": "2026-11-17T14:52:05Z"}
