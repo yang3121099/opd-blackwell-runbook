@@ -114,6 +114,9 @@ if [ -f $OPD_ROOT/triton.env ]; then source $OPD_ROOT/triton.env; fi
 # [z139] a node's own queue: control/queue_name = <profile> -> tasks/queue_<profile>.txt for every queue reader (run_tasks.sh,
 # run_eval.sh, term_probe.sh, cold_start.sh, heartbeat.sh, control.py); without the file tasks/queue.txt as before
 if [ -s $OPD_ROOT/control/queue_name ]; then export QUEUE_FILE=$RUNBOOK/tasks/queue_$(tr -cd 'A-Za-z0-9_' < $OPD_ROOT/control/queue_name).txt; fi
+# [v3.7] earlier installs of ours that scripts/history_scan.py found on this machine's disks (node-local; paths never leave the node):
+# OLD_BASE_CANDS for fetch_model.py's local copies and overnight.sh's base models and data
+if [ -s $OPD_ROOT/control/history_secret.env ]; then source $OPD_ROOT/control/history_secret.env; fi
 # [v3.5] the node's package index (scripts/pypi_index.sh chooses it at install time: a mainland machine times out on pypi.org):
 # uv and pip of every script use it; UV_HTTP_TIMEOUT for large wheels over a proxy
 if [ -s $OPD_ROOT/control/pypi_index ]; then _pi=$(head -1 $OPD_ROOT/control/pypi_index); export UV_DEFAULT_INDEX=$_pi UV_INDEX_URL=$_pi PIP_INDEX_URL=$_pi; unset _pi; fi

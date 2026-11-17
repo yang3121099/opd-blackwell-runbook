@@ -64,6 +64,14 @@ def probe():
             best = gb if best is None or gb > best else best
     disks["largest_local"] = best
     out["disk_free_gb"] = disks
+    try:   # [v3.7] every probe looks for earlier installs of ours on this machine's disks (history_scan.py; node-local result)
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import history_scan
+        rep = history_scan.run()
+        out["history"] = history_scan.summary(rep)
+        os.environ["OLD_BASE_CANDS"] = ":".join(rep["told"] + [r["path"] for r in rep["roots"]])
+    except Exception as e:   # the probe never fails on it
+        out["history"] = {"error": f"{type(e).__name__}: {e}"[:200]}
     cands = [c for c in os.environ.get("OLD_BASE_CANDS", "").split(":") if c]
     out["old_base"] = {"candidates": len(cands), "found": sum(1 for c in cands if os.path.isdir(c)),
                        "with_venv": sum(1 for c in cands if os.path.isfile(os.path.join(c, "venv", "bin", "activate")))}
@@ -92,6 +100,8 @@ if __name__ == "__main__":
         json.dump(o, f)
     os.replace(sys.argv[1] + ".tmp", sys.argv[1])
     names = sorted({g["name"] for g in o["gpus"]})
-    print(f"{o['gpu_count']} GPU(s) {', '.join(names) or 'none'}; driver {o.get('driver')}, CUDA {o['cuda_driver']}; "
+    h = o.get("history") or {}
+    print(f"earlier installs {h.get('roots')} (models {h.get('models')}, venvs {h.get('venvs')}, weights {h.get('weights')}); "
+          f"{o['gpu_count']} GPU(s) {', '.join(names) or 'none'}; driver {o.get('driver')}, CUDA {o['cuda_driver']}; "
           f"{o['gpu_processes']} GPU process(es); free {o['disk_free_gb']}; proxy {'set' if o['proxy_set'] else 'not set'}; "
           f"reach {o['reach']}")

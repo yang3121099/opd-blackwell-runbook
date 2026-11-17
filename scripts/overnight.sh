@@ -38,6 +38,13 @@ PY
 find_model(){ m=$1   # v2.5: also the old OPD_ROOT's models when moving (FROM_OPD_ROOT; used in place, not copied)
   complete_dir $OPD_ROOT/models/$m && { echo $OPD_ROOT/models/$m; return 0; }
   [ -n "${FROM_OPD_ROOT:-}" ] && complete_dir $FROM_OPD_ROOT/models/$m && { echo $FROM_OPD_ROOT/models/$m; return 0; }
+  # [v3.7] an earlier install of ours on this machine's disks (history_scan.py -> OLD_BASE_CANDS) has the model complete: it is
+  # COPIED here (a node does not depend on a shared disk at run time), in place of a download through the machine's proxy
+  local _r; for _r in $(echo "${OLD_BASE_CANDS:-}" | tr ':' ' '); do
+    complete_dir $_r/models/$m || continue
+    mkdir -p $OPD_ROOT/models/$m && cp -r $_r/models/$m/. $OPD_ROOT/models/$m/ 2>> $LOG && rm -f $OPD_ROOT/models/$m/*.aria2 \
+      && complete_dir $OPD_ROOT/models/$m && { echo "[$(date -u +%FT%TZ)] STEP 2 $m copied from an earlier install on this machine" >> $LOG; echo $OPD_ROOT/models/$m; return 0; }
+  done
   for root in ${HF_HUB_CACHE:-} ${HF_HOME:+$HF_HOME/hub} $HOME/.cache/huggingface/hub $OPD_ROOT/hf_home/hub ${FROM_OPD_ROOT:+$FROM_OPD_ROOT/hf_home/hub}; do
     [ -d "$root" ] || continue
     for s in $root/models--Qwen--$m/snapshots/*/; do complete_dir "$s" && { echo "${s%/}"; return 0; }; done
@@ -97,6 +104,11 @@ try_tier(){ local tag=$1 kv; shift
 # vLLM tier probe starts at the tier that passed in the old OPD_ROOT (its earlier tiers are skipped) and is re-run there
 # against this venv. The venv is installed fresh unless LINK_VENV=1 (then the old venv and G-OPD are used through links).
 OLD_TIER=""
+# [v3.7] earlier installs of ours on this machine's disks: every setup looks once (env-probe looks each time it runs). Base models
+# are copied from them (find_model) and fetch_model.py copies our weights from them; data files and venvs are only reported:
+# a data file made by an older prep_data.py or a venv built weeks ago is not taken over silently.
+python3 $RB/scripts/history_scan.py --if-missing >> $LOG 2>&1 || true
+if [ -s $OPD_ROOT/control/history_secret.env ]; then source $OPD_ROOT/control/history_secret.env; fi
 if [ -n "${FROM_OPD_ROOT:-}" ] && [ "$FROM_OPD_ROOT" != "$OPD_ROOT" ] && [ -d "$FROM_OPD_ROOT" ]; then
   mkdir -p $OPD_ROOT/data
   for f in $FROM_OPD_ROOT/data/*.parquet; do [ -f "$f" ] && [ ! -f $OPD_ROOT/data/$(basename $f) ] && cp "$f" $OPD_ROOT/data/; done
