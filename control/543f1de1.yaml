@@ -27,3 +27,4 @@ commands:
   - {"seq": 25, "cmd": "tail setup_20.log 80", "reason": "setup step 3 (install_uv.sh) failed at 14:55Z; log outputs do not arrive in batch mode", "utc": "2026-11-17T15:01:24Z"}
   - {"seq": 26, "cmd": "setup all", "reason": "v3.5 on main: install picks a mainland package index; rerun the install after the pypi.org timeout", "utc": "2026-11-17T15:06:07Z"}
   - {"seq": 27, "cmd": "ps", "reason": "which processes hold the GPUs: are the filler's pids visible in our container", "utc": "2026-11-17T15:06:56Z"}
+  - {"seq": 28, "cmd": "snapshot", "reason": "nvidia-smi and the process table now: are the filler's pids visible in our container", "utc": "2026-11-17T15:08:47Z"}
