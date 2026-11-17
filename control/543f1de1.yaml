@@ -6,3 +6,4 @@ commands:
   - {"seq": 4, "cmd": "setup all", "reason": "T0: install the environment, base models, vLLM probe, verify (cold_start steps 2-7)", "utc": "2026-11-17T10:05:57Z"}
   - {"seq": 5, "cmd": "run FETCH-all", "reason": "T0: pull the queue's #fetch weights while setup runs (canary starts, 4K / 6K checkpoints)", "utc": "2026-11-17T10:06:05Z"}
   - {"seq": 6, "cmd": "setenv GPU_FILL=0", "reason": "stop our fill logic at once: its setup-card rule ended the owner's filler (one process on all 8 cards); nothing of the owner's is touched while this is 0", "utc": "2026-11-17T10:14:12Z"}
+  - {"seq": 7, "cmd": "tail gpu_fill.log 60", "reason": "why our own fillers did not start after the owner's was ended", "utc": "2026-11-17T10:14:21Z"}
