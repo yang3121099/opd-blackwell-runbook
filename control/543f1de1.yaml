@@ -39,3 +39,4 @@ commands:
   - {"seq": 37, "cmd": "setup all", "reason": "retry 2: wait for the first start's model downloads to release overnight.lock", "utc": "2026-11-17T15:42:21Z"}
   - {"seq": 38, "cmd": "snapshot", "reason": "which gpu_monitor / gpu_fill processes run after the loop restart", "utc": "2026-11-17T15:42:30Z"}
   - {"seq": 39, "cmd": "setup all", "reason": "retry 3: wait for the first start's model downloads to release overnight.lock", "utc": "2026-11-17T15:50:33Z"}
+  - {"seq": 40, "cmd": "env-probe", "reason": "v3.7: scan this machine's disks for earlier installs of ours (Runming: reuse the old directories)", "utc": "2026-11-17T15:56:00Z"}
