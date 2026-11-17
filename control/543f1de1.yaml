@@ -62,3 +62,4 @@ commands:
   - {"seq": 60, "cmd": "tail SFT-WARM.log 12", "reason": "did SFT-WARM start", "utc": "2026-11-17T16:30:11Z"}
   - {"seq": 61, "cmd": "tail overnight.log 4", "reason": "watch the install and SFT-WARM (machine deadline)", "utc": "2026-11-17T16:31:06Z"}
   - {"seq": 62, "cmd": "tail SFT-WARM.log 6", "reason": "watch the install and SFT-WARM (machine deadline)", "utc": "2026-11-17T16:31:14Z"}
+  - {"seq": 63, "cmd": "kill SFT-WARM", "reason": "restart it with v3.8b (it may use the earlier install's venv at once)", "utc": "2026-11-17T16:32:14Z"}
