@@ -45,3 +45,4 @@ commands:
   - {"seq": 43, "cmd": "setup all", "reason": "retry 4: wait for the first start's model downloads to release overnight.lock", "utc": "2026-11-17T15:58:45Z"}
   - {"seq": 44, "cmd": "tail aria2_Qwen3-8B.log 14", "reason": "is the base-model download stalled (models/ stayed at 16.4 GB for 19 min)", "utc": "2026-11-17T16:01:49Z"}
   - {"seq": 45, "cmd": "tail aria2_Qwen3-1.7B.log 14", "reason": "is the base-model download stalled (models/ stayed at 16.4 GB for 19 min)", "utc": "2026-11-17T16:01:57Z"}
+  - {"seq": 46, "cmd": "tail aria2_Qwen3-0.6B.log 14", "reason": "is the base-model download stalled (models/ stayed at 16.4 GB for 19 min)", "utc": "2026-11-17T16:02:06Z"}
