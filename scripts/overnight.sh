@@ -153,9 +153,14 @@ P06=$(find_model Qwen3-0.6B) || { P06=$OPD_ROOT/models/Qwen3-0.6B; bg_get Qwen3-
 P8=$(find_model Qwen3-8B)    || { P8=$OPD_ROOT/models/Qwen3-8B;    bg_get Qwen3-8B;    step 2 "Qwen3-8B downloading/resuming in background -> $P8"; }
 step 2 "model locations: 0.6B=$P06 1.7B=$P17 8B=$P8"
 # ---------- 3. cu128 environment (the validated stack) ----------
-if [ ! -f $OPD_ROOT/venv/bin/activate ]; then bash scripts/install_uv.sh >>$LOG 2>&1 || fail 3 "install_uv.sh (see logs/overnight.log)"; fi
+# [v3.7b] an environment counts once install_uv.sh has ended well (venv/.install_ok) or the stack imports. 11-17: a first start
+# failed inside install_uv.sh (index timeout) and left an empty venv; the next start took it for the stack ("env OK ()") and
+# failed one step later at the data files. install_uv.sh is safe to run again on a partial venv.
+if [ ! -f $OPD_ROOT/venv/bin/activate ] || { [ ! -f $OPD_ROOT/venv/.install_ok ] && ! $OPD_ROOT/venv/bin/python -c 'import torch, vllm, verl' 2> /dev/null; }; then
+  bash scripts/install_uv.sh >>$LOG 2>&1 || fail 3 "install_uv.sh (see logs/overnight.log)"; : > $OPD_ROOT/venv/.install_ok 2> /dev/null || true; fi
 source $OPD_ROOT/venv/bin/activate || fail 3 "venv activate"
-step 3 "env OK ($(python -c 'import torch,vllm;print("torch",torch.__version__,"cuda",torch.version.cuda,"vllm",vllm.__version__)' 2>/dev/null))"
+_v=$(python -c 'import torch,vllm;print("torch",torch.__version__,"cuda",torch.version.cuda,"vllm",vllm.__version__)' 2>>$LOG) || fail 3 "the stack does not import (torch / vllm; see logs/overnight.log)"
+step 3 "env OK ($_v)"
 # ---------- 4. data ----------
 get_datasets || fail 4 "datasets (MATH-500 / DAPO-17k) after 3 attempts"
 HF_ENDPOINT=https://hf-mirror.com HF_HUB_ETAG_TIMEOUT=60 HF_HUB_DOWNLOAD_TIMEOUT=120 python code/train/prep_data.py > $OPD_ROOT/logs/prep_data.log 2>&1 || HF_HUB_OFFLINE=1 HF_DATASETS_OFFLINE=1 python code/train/prep_data.py >> $OPD_ROOT/logs/prep_data.log 2>&1 || fail 4 "prep_data.py (see logs/prep_data.log)"
