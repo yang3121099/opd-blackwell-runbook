@@ -320,10 +320,8 @@ PY
     for f in hf_repos.txt paths.env models.env control.env control/heartbeat_sec; do [ -f $OPD_ROOT/$f ] && cp -p $OPD_ROOT/$f $DS/$(basename $f); done
     cp -p ${QUEUE_FILE:-$RUNBOOK/tasks/queue.txt} $DS/queue.txt 2> /dev/null; git -C $RUNBOOK rev-parse HEAD > $DS/runbook_head 2> /dev/null; date -u +%FT%TZ > $DS/utc
   fi
-  # first-arm comparison with the reference H100 run, uploaded once when E10b-P2 has reached step 10
-  if [ ! -f $OPD_ROOT/logs/.compare_uploaded ] && python $RUNBOOK/scripts/compare_first_arm.py >/dev/null 2>&1; then
-    hb_to python $RUNBOOK/scripts/control.py put_q $OPD_ROOT/logs/compare_$H.json status/compare_$N.json && touch $OPD_ROOT/logs/.compare_uploaded && echo "COMPARE_UPLOADED $(date -u +%T)"
-  fi
+  # [v3.0] the first-arm comparison with the H100 reference run (compare_first_arm.py, 10-16: E10b-P2 steps 0-10) is gone: a python
+  # start every round on every node that never runs E10b-P2
   # v2.5: `heartbeat` (control.py) asks for the next round now: the flag is checked every 10 s
   # v2.5.1: the round lasts HEARTBEAT_SEC (control/heartbeat_sec, 60-3600, default 600; [v2.5.9z106] 120); the pulse goes every 60 s
   HB=$(cat $OPD_ROOT/control/heartbeat_sec 2>/dev/null | tr -cd 0-9); HB=${HB:-120}; [ $HB -lt 60 ] && HB=60; [ $HB -gt 3600 ] && HB=3600

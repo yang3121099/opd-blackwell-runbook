@@ -5,7 +5,7 @@ read against them. Single runs; trends, not conclusions.
 
 | File / table | What it is |
 |---|---|
-| `E10b-P2_reference_H100_first10.json` | Steps 0-10 of the 1.7B P2 pilot on 1x H100 (same recipe as `E10b-P2`; step-0 validation 74.0, 256-513 s per step). `scripts/compare_first_arm.py` puts the node's first 10 steps next to it. |
+| (removed in v3.0) | The H100 first-10-steps reference of `E10b-P2` and its comparison script: see the tag `record-z172`. |
 
 **0.6B student, 16K re-evaluation (E11), MATH500 avg@4 at T=0.6, non-thinking** (the 1.7B stage E11b repeats this):
 

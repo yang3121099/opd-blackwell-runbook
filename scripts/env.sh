@@ -103,7 +103,7 @@ gpu_wait_free() {
   echo "GPU_NOT_FREE gpu $1 still ${u:-?} MiB after ${2:-${GPU_WAIT_FREE_S:-180}} s"; return 1; }
 # B300 (compute capability 10.3, v2.3): the Triton in torch 2.8 ships the ptxas of CUDA 12.8, which may fail on sm_103
 # ("PTXASError: Internal Triton PTX codegen error"). Order of fixes (README section 2b): 12.8 as is, then the CUDA 12.9
-# ptxas ($B300_PTXAS, installed by install_uv.sh / install_conda.sh on a 10.3 card), then the CUDA 13 route.
+# ptxas ($B300_PTXAS, installed by install_uv.sh on a 10.3 card), then the CUDA 13 route.
 # overnight.sh (tier B) or the manual step writes $OPD_ROOT/triton.env; every script picks it up here, so a restarted
 # run_tasks.sh keeps the same ptxas. Delete the file to go back to Triton's own ptxas. v2.3.1: it may also set
 # VLLM_ATTENTION_BACKEND and VLLM_USE_FLASHINFER_SAMPLER=0 (FlashInfer's JIT sampler needs an nvcc that knows sm_103).

@@ -29,6 +29,7 @@ frozen**; B6 heartbeat + run_tasks (+ watchdog, uploader, gh_heartbeat), the fir
 | Command | What it does |
 |---|---|
 | `env-probe` | GPUs, driver, disks, network, an old base or not: into status |
+| `queue <name>` | (v3.0) this node's queue: tasks/queue_<name>.txt. tasks/queue.txt opens nothing, so until this command the node has nothing to fetch or start; send it before `setup` and `run FETCH-all` |
 | `setenv K=V` | the differences from the profile |
 | `mounts` | read-only mount probe (shared disks) |
 | `setup all` | cold_start.sh steps 2-7 in the background, each step in status.setup_state; a STOP shows the step log's last lines |

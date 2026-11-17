@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Student (Qwen3-0.6B, Qwen3-1.7B), teacher (Qwen3-8B) and benchmark data (MATH-500, DAPO-Math-17k). Run
-# scripts/scan_cache.sh first: copies already on the machine are reused once HF_HOME / HF_HUB_CACHE / MODELSCOPE_CACHE
+# [v3.0] scan_cache.sh is gone (the cold start looks for local copies itself, z134): copies already on the machine are reused once HF_HOME / HF_HUB_CACHE / MODELSCOPE_CACHE
 # point at them.
 # Hugging Face route (default): downloads through the mirror https://hf-mirror.com unless HF_MIRROR=0 or HF_ENDPOINT is
 # already set; a 10-second model_info check falls back to https://huggingface.co when the endpoint does not answer.
