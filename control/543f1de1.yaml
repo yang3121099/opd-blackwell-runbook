@@ -49,3 +49,4 @@ commands:
   - {"seq": 47, "cmd": "setup all", "reason": "retry 5: wait for the first start's model downloads to release overnight.lock", "utc": "2026-11-17T16:06:56Z"}
   - {"seq": 48, "cmd": "setup all", "reason": "v3.7a: the start ends the leftover download helper that holds overnight.lock and goes on", "utc": "2026-11-17T16:07:16Z"}
   - {"seq": 49, "cmd": "setup all", "reason": "v3.7b: install the stack into the half-built venv of the first start", "utc": "2026-11-17T16:10:29Z"}
+  - {"seq": 50, "cmd": "tail overnight.log 14", "reason": "install_uv.sh failed within a second at 16:10:47Z", "utc": "2026-11-17T16:17:11Z"}
