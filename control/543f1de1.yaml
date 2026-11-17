@@ -19,3 +19,4 @@ commands:
   - {"seq": 17, "cmd": "setenv GPU_FILL=0", "reason": "new H200 node online 22:46 Beijing (fresh bootstrap); Runming: start filler, install env, start the formal tasks; install must not touch the owner's filler", "utc": "2026-11-17T14:51:48Z"}
   - {"seq": 18, "cmd": "env-probe", "reason": "new H200 node online 22:46 Beijing (fresh bootstrap); Runming: start filler, install env, start the formal tasks", "utc": "2026-11-17T14:51:56Z"}
   - {"seq": 19, "cmd": "queue h2a", "reason": "new H200 node online 22:46 Beijing (fresh bootstrap); Runming: start filler, install env, start the formal tasks", "utc": "2026-11-17T14:52:05Z"}
+  - {"seq": 20, "cmd": "setup all", "reason": "new H200 node online 22:46 Beijing (fresh bootstrap); Runming: start filler, install env, start the formal tasks", "utc": "2026-11-17T14:52:13Z"}
