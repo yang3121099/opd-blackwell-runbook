@@ -16,6 +16,11 @@ STOP. The owner's copy with the expected output: the lab's handoff/newnode_paste
   command line, in the shell history or in a file anyone else can read). Enter at the second one skips the GitHub heartbeat.
 - `--base <dir>`: the disk to use (default: the largest writable local disk). `--profile <name>[,<name>]`: the node class
   (profiles/*.env: `80g` for 80 GB cards). `--role rehearsal`: a rehearsal's commit limits (profiles/rehearsal.env).
+- `--name <word>` (v3.0): the node id is the hash of that word instead of the host name's, so the project knows it before the
+  machine is up and two machines with the same host name stay apart. `--profile h200`: an 8 x H200 node (the 140 GB class's
+  numerics and a control plane of about 20 HF commits an hour). For the borrowed H200s the line ends
+  `bash $d/scripts/bootstrap.sh --profile h200 --name h2a` (the second machine: `--name h2b`).
+- Two machines on one shared disk (v3.0): the first takes `<base>/opd`, the second finds it owned and takes `<base>/opd-<its id>`.
 - Rerunning the line is safe: every step looks at what is there first.
 
 ## What bootstrap.sh does (2-5 min, then `node <id> online; everything else is remote`)

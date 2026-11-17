@@ -158,6 +158,19 @@ STAGES = {
     # [z163] (Fable board v7, lab/registry/Q-101.md) E10b-P5selfp2 = E10b-P5self + Q-098's P2 on the TEACHER's prompt only; gate on one GPU
     # (the suffix reached every teacher row and no student prompt), the arm on 4 GPUs
     "p1q101": ["PROBE-P5SELFP2", "E10b-P5selfp2:PROBE-P5SELFP2"],
+    # [v3.0] (Fable 11-17; lab/registry/Q-107.md; Runming: a classmate's 8 x H200, maybe two machines, GitHub mode, light on the HF API)
+    # h2g: the dispatch canary and Q-107's own gate (4 GPUs). q107: the two 3K window arms from the base, 4 GPUs each, side by side.
+    # q107r: the four registered points, one EVAL task each (four GPUs in parallel): MATH-500 16K thinking T0.6 n 4, the 16K forced
+    # remedy, outcomes (the stop at </think>) as every reading. q107z: zero-training readings of weights already in the result
+    # repository - the direct 4K arm's s25 (owed) and its s50 reread on this machine (the cross-machine anchor: the same weights were
+    # read on the B300 reading machine on 11-15). q107z6: the direct 6K arm's s25, in NO profile until its weights are in the repository.
+    "h2g": ["PROBE-TAIL", "PROBE-E12B-P0THINK-3K"],
+    "h2gb": ["PROBE-TAIL"],
+    "q107": ["E12b-P0think-3k:PROBE-E12B-P0THINK-3K", "E12b-P0think-3k-s44:PROBE-E12B-P0THINK-3K"],
+    "q107r": ["EVAL-q107-3k-s50:E12b-P0think-3k", "EVAL-q107-3k-s44-s50:E12b-P0think-3k-s44",
+              "EVAL-q107-3k-s25:E12b-P0think-3k", "EVAL-q107-3k-s44-s25:E12b-P0think-3k-s44"],
+    "q107z": ["EVAL-q107-4k-s50", "EVAL-q107-4k-s25"],
+    "q107z6": ["EVAL-q107-6k-s25"],
     # [z160] (Fable D105 / 10:44, lab/registry/Q-097.md T4K) E10b-P5q4kt = Q-095 A's recipe with the 4K arm s50 as the teacher; gate on one GPU, arm on 4
     "p1q097t": ["PROBE-P5Q4KT", "E10b-P5q4kt:PROBE-P5Q4KT"],
     "p1b3": ["EVAL-e12d-P5tail-8k-nn-b3", "EVAL-think16k-4Bbase-b3", "PROBE-TERM4-N4BTHB3:EVAL-think16k-4Bbase-b3",
@@ -243,6 +256,12 @@ PROFILES["8gs"] = [s for s in PROFILES["8g80"] if s == "p0a" or s not in SHARE_1
 # [z142] (the lead 11-10: the 8 x H200 reclaimed, a second 1 x H200 back) 1gt = the 1-GPU trainings and their readings beside a 1gs node:
 # 1g without the 1gs stages (p0d, p0e, p0b, p0dr, p0er, P1-a); with 1gs it is 1g's stages, only p0a on both
 PROFILES["1gt"] = [s for s in PROFILES["1g"] if s == "p0a" or s not in SHARE_1G]
+# [v3.0] (Fable 11-17) the borrowed 8 x H200 machines. h2a = one machine does everything: the gates, Q-107's two arms, their readings,
+# then the zero-training readings (an `auto` stage: it opens once the stages before it have ended). h2b = a second machine, if there is
+# one: the canary and the zero-training readings at once; h2a then finds their .done in the result repository and skips them
+PROFILES["h2a"] = ["h2g", "q107", "q107r", "q107z"]
+PROFILES["h2b"] = ["h2gb", "q107z"]
+AUTO = {("h2a", "q107z")}   # (profile, stage) written as `auto`, every other stage `open`
 # each stage's starts pulled ahead (#fetch, from T0 + 8 min): the source's 14 lines plus the 1.7B chain's s50, in stage order
 FETCH = {
     "p0a": ["E10b-P5/global_step_150", "E10b-P5tail/global_step_50"],
@@ -258,11 +277,31 @@ FETCH = {
     "p1q096b": ["E12b-P0think-8k/global_step_50"],   # [z158f] the start of Q-096 B
     "p1q097p": ["E12b-P0think-8k/global_step_50"],   # [z159] the start of A4 (paused)
     "p1q097t": ["E12b-P0think-4k/global_step_50"],   # [z160] T4K's teacher
+    "h2g": ["E10b-P5/global_step_150", "E10b-P5tail/global_step_50"],   # [v3.0] the canary PROBE-TAIL's starts (as p0a)
+    "h2gb": ["E10b-P5/global_step_150", "E10b-P5tail/global_step_50"],
+    "q107z": ["E12b-P0think-4k/global_step_50", "E12b-P0think-4k/global_step_25"],
 }
 DFETCH = {   # [z158c] (Q-096 C) the multiple-choice bench's data, pulled by run_tasks' fetch_pass into $OPD_ROOT/data/hf
     "p1q096c": ["TIGER-Lab/MMLU-Pro"],
 }
 NEW_ROWS = """\
+#gpus PROBE-E12B-P0THINK-3K 4
+#gpus E12b-P0think-3k 4
+#gpus E12b-P0think-3k-s44 4
+#eval EVAL-q107-3k-s50 q107_e12b_P0think-3k_s50_h2_math500_T0.6 result:runs/E12b-P0think-3k/global_step_50/actor/huggingface math500 4 0.6 16384 think
+#forced EVAL-q107-3k-s50 q107_e12b_P0think-3k_s50_h2_math500_T0.6 result:runs/E12b-P0think-3k/global_step_50/actor/huggingface think budgets=16384
+#eval EVAL-q107-3k-s44-s50 q107_e12b_P0think-3k-s44_s50_h2_math500_T0.6 result:runs/E12b-P0think-3k-s44/global_step_50/actor/huggingface math500 4 0.6 16384 think
+#forced EVAL-q107-3k-s44-s50 q107_e12b_P0think-3k-s44_s50_h2_math500_T0.6 result:runs/E12b-P0think-3k-s44/global_step_50/actor/huggingface think budgets=16384
+#eval EVAL-q107-3k-s25 q107_e12b_P0think-3k_s25_h2_math500_T0.6 result:runs/E12b-P0think-3k/global_step_25/actor/huggingface math500 4 0.6 16384 think
+#forced EVAL-q107-3k-s25 q107_e12b_P0think-3k_s25_h2_math500_T0.6 result:runs/E12b-P0think-3k/global_step_25/actor/huggingface think budgets=16384
+#eval EVAL-q107-3k-s44-s25 q107_e12b_P0think-3k-s44_s25_h2_math500_T0.6 result:runs/E12b-P0think-3k-s44/global_step_25/actor/huggingface math500 4 0.6 16384 think
+#forced EVAL-q107-3k-s44-s25 q107_e12b_P0think-3k-s44_s25_h2_math500_T0.6 result:runs/E12b-P0think-3k-s44/global_step_25/actor/huggingface think budgets=16384
+#eval EVAL-q107-4k-s50 q107_e12b_P0think-4k_s50_h2_math500_T0.6 result:runs/E12b-P0think-4k/global_step_50/actor/huggingface math500 4 0.6 16384 think
+#forced EVAL-q107-4k-s50 q107_e12b_P0think-4k_s50_h2_math500_T0.6 result:runs/E12b-P0think-4k/global_step_50/actor/huggingface think budgets=16384
+#eval EVAL-q107-4k-s25 q107_e12b_P0think-4k_s25_h2_math500_T0.6 result:runs/E12b-P0think-4k/global_step_25/actor/huggingface math500 4 0.6 16384 think
+#forced EVAL-q107-4k-s25 q107_e12b_P0think-4k_s25_h2_math500_T0.6 result:runs/E12b-P0think-4k/global_step_25/actor/huggingface think budgets=16384
+#eval EVAL-q107-6k-s25 q107_e12b_P0think-6k_s25_h2_math500_T0.6 result:runs/E12b-P0think-6k/global_step_25/actor/huggingface math500 4 0.6 16384 think
+#forced EVAL-q107-6k-s25 q107_e12b_P0think-6k_s25_h2_math500_T0.6 result:runs/E12b-P0think-6k/global_step_25/actor/huggingface think budgets=16384
 #eval EVAL-e12b-P5tail-8k-nn e12b_P5tail-8k_s50_math500_T0.6 result:runs/E12b-P5tail-8k/global_step_50/actor/huggingface math500 4 0.6
 #eval EVAL-e12b-P5tail-8k-nn e12b_P5tail-8k_s50_math500_T1.0 result:runs/E12b-P5tail-8k/global_step_50/actor/huggingface math500 4 1.0
 #eval EVAL-e12b-P5-8k-nn e12b_P5-8k_s50_math500_T0.6 result:runs/E12b-P5-8k/global_step_50/actor/huggingface math500 4 0.6
@@ -536,7 +575,9 @@ WHAT = {"1g": "one GPU (B200 default, profiles/140g.env), P0 in series with the 
         "8g80": "8 x 80 GB, P0 + P1-a, P1-b on 4 GPUs, P2 fills idle GPUs",
         "1gs": "one GPU beside an 8gs node: gates, P0-c, the historical-weight readings P0-f / P0-g / P0-x",
         "8gs": "8 x >= 80 GB beside a 1gs node (control/queue_name = 8gs): 8g80 without P0-c / f / g / x",
-        "1gt": "one GPU beside a 1gs node (control/queue_name = 1gt): 1g's trainings and their readings (P0-d / e / b / dr / er, Q-093, P1-a)"}
+        "1gt": "one GPU beside a 1gs node (control/queue_name = 1gt): 1g's trainings and their readings (P0-d / e / b / dr / er, Q-093, P1-a)",
+        "h2a": "a borrowed 8 x H200 (profiles/h200.env, `queue h2a`): the canary, Q-107's two 3K arms on 4 GPUs each, their readings, then the 4K zero-training readings",
+        "h2b": "a second borrowed 8 x H200 (`queue h2b`): the canary and the 4K zero-training readings; nothing h2a trains"}
 
 
 def source():
@@ -565,7 +606,7 @@ def render(p):
         est = [(s.split(":")[0], EST[s.split(":")[0]]) for s in ss if s.split(":")[0] in EST]
         if est:
             out.append(f"# {st} ~{sum(h for _, h in est):.1f} B200 GPU-h: " + ", ".join(f"{t} {h:g}" for t, h in est))
-        out.append(f"{st:<10} open   " + " ".join(ss))
+        out.append(f"{st:<10} {'auto' if (p, st) in AUTO else 'open'}   " + " ".join(ss))
     have = set(tasks)
     out.append("")
     g8 = GPUS_BY_PROFILE.get(p, {})

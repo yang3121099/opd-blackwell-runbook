@@ -92,3 +92,21 @@ def test_140g_is_the_b300_numerics_with_the_memory_keys_z137():   # [v2.5.9z137]
     kv = _kv(os.path.join(REPO, "profiles", "140g.env"))
     assert kv == {"VENV": "fa", "FIXED_MICRO_BSZ": "4", "GC": "0", "LOGP_MB": "4", "VLLM_UTIL": "0.5",
                   "DISK_ALERT_GB": "150", "READINGS_DISK_MIN_GB": "150"}   # [z141] a ~1 TB data disk
+
+
+def test_h200_is_140g_numerics_and_a_quiet_control_plane_v30():
+    """[v3.0] (Fable 11-17; Runming: borrowed 8 x H200s, stable and light on the HF API) profiles/h200.env = 140g's keys unchanged, results
+    public, and a control plane of about 20 commits an hour with room left for results below the control-only line."""
+    kv, big = _kv(os.path.join(REPO, "profiles", "h200.env")), _kv(os.path.join(REPO, "profiles", "140g.env"))
+    assert all(kv[k] == v for k, v in big.items()) and kv["PUBLIC_UPLOADS"] == "1" and kv["CONTROL_BATCH"] == "1"
+    steady = 3600 / int(kv["STATUS_PUT_S"]) + 3600 / int(kv["PULSE_PUT_S"]) + 1   # the status (receipts / events / procs inside), the pulse, the hourly resync
+    assert steady <= 20 and steady + 10 <= int(kv["CONTROL_ONLY_AT"]) < int(kv["HF_COMMIT_BUDGET"]) <= 60
+    assert int(kv["BULK_HEADROOM"]) < int(kv["HF_COMMIT_BUDGET"]) - int(kv["CONTROL_ONLY_AT"]) + 1   # a bulk upload can start below the control-only line
+    assert int(kv["REMOTE_EVERY"]) >= 3600 and int(kv["RUNS_PUT_S"]) >= 1800
+    for k, v in kv.items():
+        R.parse({"cmd": f"setenv {k}={v}", "reason": "t"})   # every value is one setenv accepts
+    for bad in ("REMOTE_EVERY=5", "REMOTE_EVERY=x"):
+        try:
+            R.parse({"cmd": f"setenv {bad}", "reason": "t"}); raise AssertionError(bad)
+        except R.Reject:
+            pass

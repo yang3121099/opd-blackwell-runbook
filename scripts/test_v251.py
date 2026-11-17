@@ -2134,7 +2134,7 @@ def test_newnode_v2_profiles_v259z137(env):
     assert QP.main(["--check"]) == 0, "tasks/queue_<profile>.txt is stale: run python3 scripts/queue_profiles.py"
     live = open(os.path.join(repo, "tasks", "queue.txt")).read()   # [v3.0] the default queue opens nothing (test_queue_verb.py); a node is given a profile
     assert [l for l in live.splitlines() if l.strip() and not l.startswith("#")] == ["version: 2"]
-    assert set(QP.PROFILES) == {"1g", "4g", "4g80", "8g", "8g80", "1gs", "8gs", "1gt"}   # [z139] + the split pair (own test)
+    assert set(QP.PROFILES) == {"1g", "4g", "4g80", "8g", "8g80", "1gs", "8gs", "1gt", "h2a", "h2b"}   # [z139] + the split pair (own test); [v3.0] + the borrowed H200s (test_queue_verb.py)
     # [11-09 21:5x the lead: self-paid GPUs, no idle] one GPU: the base-start Q-091 training right after the gates, the readings between
     order = {"1g": ["p0a", "p0d", "p0c", "p0b", "p0e", "p0dr", "p0er", "p0f", "p0g", "p0x", "pn5", "p1q", "p1a"],   # [z146] Q-093 before P1-a; [z152] N5 first
              "4g": ["p0a", "p0d", "p0e", "p0c", "p0b", "p0dr", "p0er", "p0f", "p0g", "p0x", "p1a"]}

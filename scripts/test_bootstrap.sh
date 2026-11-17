@@ -81,6 +81,20 @@ rm -rf $T/base/opd; out=$(NET=githubonly HB --no-gh); rc=$?
 ok "z135: Hugging Face blocked, RB_URL = the mirror: STOP before any clone" '[ $rc = 1 ] && [[ "$out" == *"reaches the runbook (huggingface.co) and Hugging Face"* ]] && [ ! -d $T/base/opd/runbook ]'
 rm -rf $T/base/opd; out=$(NET=direct B --no-gh); rc=$?
 ok "z135: the GitHub RB_URL: node.env without RB_URL / OPD_CONTROL_ORIGIN (control.py's default)" '[ $rc = 0 ] && ! grep -q "OPD_CONTROL_ORIGIN" $O/node.env'
+# [v3.0] (Fable 11-17) --name: the node id from the word; a base another node owns is never shared (two machines on one disk)
+H() { python3 -c "import hashlib, sys; print(hashlib.sha256(sys.argv[1].encode()).hexdigest()[:8])" $1; }
+rm -rf $T/base/opd $T/base/opd-*; NA=$(H h2a); NB=$(H h2b)
+out=$(NET=direct B --no-gh --name h2a); rc=$?
+ok "v3.0 --name: the node id is the word's hash, in node.env and control/owner" '[ $rc = 0 ] && grep -q " OPD_NODE=$NA " $T/base/opd/run/node.env && [ "$(cat $T/base/opd/run/control/owner)" = $NA ] && [[ "$out" == *"node $NA"* ]]'
+out=$(NET=direct B --no-gh --name h2b); rc=$?
+ok "v3.0 a second node on the same base takes opd-<its id>; the first node's files stay" '[ $rc = 0 ] && [[ "$out" == *"belongs to another node"* ]] && grep -q " OPD_NODE=$NB " $T/base/opd-$NB/run/node.env && grep -q " OPD_NODE=$NA " $T/base/opd/run/node.env && [ "$(cat $T/base/opd/run/control/owner)" = $NA ]'
+out=$(NET=direct B --no-gh --name h2b); rc=$?
+ok "v3.0 the second node's rerun finds its own directory" '[ $rc = 0 ] && [[ "$out" != *"belongs to another node"* ]] && [[ "$out" == *"base: $T/base/opd-$NB "* ]]'
+out=$(NET=direct B --no-gh --name h2a); rc=$?
+ok "v3.0 the first node's rerun keeps <base>/opd" '[ $rc = 0 ] && [[ "$out" == *"base: $T/base/opd "* ]]'
+out=$(NET=direct B --no-gh --name "a/b"); rc=$?
+ok "v3.0 --name takes one word" '[ $rc = 2 ]'
+rm -rf $T/base/opd $T/base/opd-*
 unset GH_HB_CRED
 [ -n "${KEEP_T:-}" ] && echo "kept $T" || rm -rf $T
 [ $fails = 0 ] && echo "BOOTSTRAP_TEST PASS ($n checks)" || { echo "BOOTSTRAP_TEST FAIL ($fails of $n)"; exit 1; }

@@ -4,7 +4,8 @@
 #   node <id> online; everything else is remote
 # and from then on the project installs, checks and repairs this machine through control commands (env-probe, setup, verify,
 # tail, restart-loops, dispatch, setenv, ...). What it does, in order:
-#   B2 a base directory: --base, else the largest writable local disk; T=<base>/opd (runbook, run, ckpt, cache below it)
+#   B2 a base directory: --base, else the largest writable local disk; T=<base>/opd (runbook, run, ckpt, cache below it);
+#      [v3.0] <base>/opd-<node id> when <base>/opd is another node's (a shared disk); --name <word>: the node id from that word
 #   B0 the Hugging Face token: --token-file <0600 file>, or --hf-home <dir> (its token file, read in place, never copied), else typed
 #      once with read -rs (not echoed, not in the shell history) into $T/run/.hf_token (0600)
 #   B0b [z126] the GitHub heartbeat token (Fable 11-02: a second way out): --gh-token-file <0600 file>, else typed once with read -rs
@@ -31,24 +32,38 @@
 set -uo pipefail
 RB_URL=${RB_URL:-https://github.com/yang3121099/opd-blackwell-runbook.git}
 REPOS=public=yang31210999/opd-lab-b300-pub,private=yang31210999/opd-lab-b300-ops
-BASE=""; TOKF=""; HFH=""; ONLY=""; CKMIN=200; ROLE=node; RETIRE_TMUX=""; RETIRE_FILES=""; DRY=0; OLDC=""; GHTOKF=""; NOGH=0; PROFILE=""
+BASE=""; TOKF=""; HFH=""; ONLY=""; CKMIN=200; ROLE=node; RETIRE_TMUX=""; RETIRE_FILES=""; DRY=0; OLDC=""; GHTOKF=""; NOGH=0; PROFILE=""; NAME=""
 while [ $# -gt 0 ]; do case $1 in
   --base) BASE=$2; shift 2;; --token-file) TOKF=$2; shift 2;; --hf-home) HFH=$2; shift 2;; --repos) REPOS=$2; shift 2;;
   --only) ONLY=$2; shift 2;; --ckpt-min-gb) CKMIN=$2; shift 2;; --role) ROLE=$2; shift 2;; --old-base-cands) OLDC=$2; shift 2;;
   --retire-tmux) RETIRE_TMUX="$RETIRE_TMUX $2"; shift 2;; --retire-file) RETIRE_FILES="$RETIRE_FILES $2"; shift 2;; --dry) DRY=1; shift;;
-  --gh-token-file) GHTOKF=$2; shift 2;; --no-gh) NOGH=1; shift;; --profile) PROFILE=$2; shift 2;;
+  --gh-token-file) GHTOKF=$2; shift 2;; --no-gh) NOGH=1; shift;; --profile) PROFILE=$2; shift 2;; --name) NAME=$2; shift 2;;
   *) echo "BOOTSTRAP usage: unknown argument $1"; exit 2;; esac; done
 say() { echo "[bootstrap $(date -u +%H:%MZ)] $*"; }
 stop() { say "STOP: $*"; exit 1; }
 [[ $ROLE =~ ^(node|rehearsal)$ ]] && [[ $CKMIN =~ ^[0-9]+$ ]] && [[ -z $ONLY || $ONLY =~ ^[A-Za-z0-9._-]+(,[A-Za-z0-9._-]+)*$ ]] \
-  && [[ -z $PROFILE || $PROFILE =~ ^[A-Za-z0-9_-]+(,[A-Za-z0-9_-]+)*$ ]] || { echo "BOOTSTRAP usage: --role node|rehearsal, --ckpt-min-gb N, --only task[,task], --profile name[,name]"; exit 2; }
+  && [[ -z $PROFILE || $PROFILE =~ ^[A-Za-z0-9_-]+(,[A-Za-z0-9_-]+)*$ ]] && [[ -z $NAME || $NAME =~ ^[A-Za-z0-9_-]{1,32}$ ]] \
+  || { echo "BOOTSTRAP usage: --role node|rehearsal, --ckpt-min-gb N, --only task[,task], --profile name[,name], --name word"; exit 2; }
 for c in bash git curl python3; do command -v $c > /dev/null || stop "$c is missing on this machine"; done
 OURS='^bash /root/h800_(setup|loops|fix)\.sh|scripts/(verify|run_arm|overnight|cold_start|setup_runner)\.sh|scripts/task\.sh'
 
 # ---------- B2. the base directory ----------
 [ -n "$BASE" ] || BASE=$(df -P -T 2> /dev/null | awk 'NR > 1 && $2 ~ /^(ext[234]|xfs|btrfs|zfs|overlay)$/ {print $5, $7}' | sort -n | tail -1 | cut -d' ' -f2-)
 [ -n "$BASE" ] && [ -d "$BASE" ] && [ -w "$BASE" ] || stop "no writable local disk found (run again with --base <dir>)"
-T=${BASE%/}/opd; O=$T/run
+# [v3.0] (Fable 11-17: two borrowed machines that may share a disk, or carry the same host name) the node id here already: the hash of
+# --name <word> when given (the project then knows the id before the machine is up, and two machines with one host name differ),
+# else of the host name as before. A base that another node owns (its control/owner, or its node.env) is never shared: this machine
+# then takes <base>/opd-<node id>. The owner file is written once (noclobber), so two machines started at the same moment cannot
+# both take <base>/opd.
+NODE=$(python3 -c "import hashlib, socket, sys; print(hashlib.sha256((sys.argv[1] or socket.gethostname().split('.')[0]).encode()).hexdigest()[:8])" "$NAME")
+claim() { mkdir -p $1/run/control 2> /dev/null || return 1
+  if [ -f $1/run/node.env ] && ! grep -q " OPD_NODE=$NODE " $1/run/node.env; then return 1; fi
+  ( set -o noclobber; echo $NODE > $1/run/control/owner ) 2> /dev/null; [ "$(cat $1/run/control/owner 2> /dev/null)" = "$NODE" ]; }
+T=${BASE%/}/opd
+if [ -d ${BASE%/}/opd-$NODE/run ]; then T=${BASE%/}/opd-$NODE; fi
+claim $T || { T=${BASE%/}/opd-$NODE; claim $T || stop "cannot take a base directory under $BASE for node $NODE"
+  say "base: ${BASE%/}/opd belongs to another node (a shared disk): this machine uses $T"; }
+O=$T/run
 mkdir -p $O/logs $O/control $T/cache $T/tools $T/ckpt || stop "cannot create $T"
 say "base: $T ($(df -Ph $BASE | awk 'NR == 2 {print $4}') free)"
 
@@ -154,7 +169,6 @@ fi
 if [ -d $T/runbook/.git ]; then git -C $T/runbook pull -q --ff-only || say "git pull failed: the clone as it is"
 else git clone -q ${RB_BRANCH:+-b $RB_BRANCH} $RB_URL $T/runbook || stop "git clone failed"; fi   # RB_BRANCH: a rehearsal's branch
 RB=$T/runbook; [ -f $RB/scripts/loops.sh ] || stop "this runbook has no z106 (scripts/loops.sh) yet"
-NODE=$(python3 -c "import hashlib, socket; print(hashlib.sha256(socket.gethostname().split('.')[0].encode()).hexdigest()[:8])")
 NG=$(nvidia-smi -L 2> /dev/null | grep -c '^GPU'); CAPS=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2> /dev/null | tr -d ' ' | sort -u | paste -sd, -)
 say "runbook $(git -C $RB log -1 --format=%h); node $NODE; $NG GPU(s)${CAPS:+, compute capability $CAPS}"
 

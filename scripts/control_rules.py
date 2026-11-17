@@ -20,7 +20,7 @@ KEY_RE = re.compile(r"^(VLLM_[A-Z0-9_]+|TRITON_[A-Z0-9_]+|TORCHINDUCTOR_[A-Z0-9_
                     r"|GH_HB|GH_HB_SEC|GH_HB_URGENT_MIN_S"
                     r"|WEIGHTS_REPLAY|WEIGHTS_REPLAY_MBPS|WEIGHTS_REPLAY_MAX_S|WEIGHTS_REPLAY_BATCH|REPLAY_OUTBOX_MAX_AGE|WEIGHTS_REPLAY_COOL_S|WEIGHTS_REPLAY_COOL_MAX_S"
                     r"|GPU_RELEASE|LOGP_MB|READINGS_DISK_MIN_GB|CTRL_ON_CKPT|RUNS_ON_CKPT|RUNS_MOVE_MAX_MB|TASKS_DISK_MIN_GB|TASKS_DISK_CRIT_GB"
-                    r"|CONTROL_BATCH|HF_COMMIT_BUDGET|CONTROL_ONLY_AT|BULK_HEADROOM)$")   # [2.5.115] z124c's switch and z124b's budget   # [2.5.80] a released GPU free for the next task   # [2.5.79] the weights replay   # [2.5.78] the GitHub fallback heartbeat   # [2.5.77] the control plane goes direct   # [2.5.76] the upload throttles (HF 429, 10-22)   # [2.5.74] the disk lines   # [v2.5.8] 2.5.33; [2.5.50] the parallel pulls
+                    r"|CONTROL_BATCH|HF_COMMIT_BUDGET|CONTROL_ONLY_AT|BULK_HEADROOM|REMOTE_EVERY)$")   # [2.5.115] z124c's switch and z124b's budget   # [2.5.80] a released GPU free for the next task   # [2.5.79] the weights replay   # [2.5.78] the GitHub fallback heartbeat   # [2.5.77] the control plane goes direct   # [2.5.76] the upload throttles (HF 429, 10-22)   # [2.5.74] the disk lines   # [v2.5.8] 2.5.33; [2.5.50] the parallel pulls
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")   # owner/name of an HF repository
 VAL_RE = re.compile(r"^[A-Za-z0-9_.,:/=+-]*$")
 # [v2.5.9z11] task names task.sh dispatches that `run` / `rerun` deliberately do not accept (the queue starts them); every other
@@ -155,6 +155,8 @@ def parse(entry):
             raise Reject("CONTROL_BATCH must be 0, 1 or empty")
         if k in ("HF_COMMIT_BUDGET", "CONTROL_ONLY_AT", "BULK_HEADROOM") and v and not (v.isdigit() and 1 <= int(v) <= 1000):   # [2.5.115] z124b
             raise Reject(f"{k} must be an integer 1-1000 (empty: back to the default)")
+        if k == "REMOTE_EVERY" and v and not (v.isdigit() and 60 <= int(v) <= 86400):   # [2.5.116] run_tasks.sh done_(): seconds between two looks for a task's .done in the result repository
+            raise Reject("REMOTE_EVERY must be an integer 60-86400 (empty: back to 600)")
         if k == "FIXED_MICRO_BSZ" and v and not (v.isdigit() and 1 <= int(v) <= 16):
             raise Reject("FIXED_MICRO_BSZ must be an integer 1-16 (empty: back to the token budget)")
         if k == "VENV" and v not in ("", "fa"):

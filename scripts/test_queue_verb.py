@@ -72,3 +72,26 @@ def test_the_default_queue_opens_nothing():
     import queue_profiles as QP   # every tasks/queue_<name>.txt a node could be given is a generated profile (row sources: tasks/rows_*)
     for q in os.listdir(os.path.join(RB, "tasks")):
         assert not q.startswith("queue") or q == "queue.txt" or q[6:-4] in QP.PROFILES, f"tasks/{q}: not a queue a node can be given"
+
+
+def test_the_borrowed_h200_queues():
+    """[v3.0] h2a: the canary and Q-107's gate, the two 3K arms behind the gate on 4 GPUs each, one reading task per registered point
+    behind its arm (reading + the 16K forced remedy), then the zero-training readings as an `auto` stage; h2b: nothing h2a trains."""
+    import queue_profiles as QP
+    a = open(os.path.join(RB, "tasks", "queue_h2a.txt")).read(); b = open(os.path.join(RB, "tasks", "queue_h2b.txt")).read()
+    st = {l.split()[0]: l.split()[1:] for l in a.splitlines() if l and not l.startswith("#") and len(l.split()) > 2}
+    assert list(st) == ["h2g", "q107", "q107r", "q107z"] and [v[0] for v in st.values()] == ["open", "open", "open", "auto"]
+    assert st["q107"][1:] == ["E12b-P0think-3k:PROBE-E12B-P0THINK-3K", "E12b-P0think-3k-s44:PROBE-E12B-P0THINK-3K"]
+    for t in ("PROBE-E12B-P0THINK-3K", "E12b-P0think-3k", "E12b-P0think-3k-s44"):
+        assert f"#gpus {t} 4\n" in a
+    for task, arm, step in (("EVAL-q107-3k-s50", "E12b-P0think-3k", 50), ("EVAL-q107-3k-s44-s50", "E12b-P0think-3k-s44", 50),
+                            ("EVAL-q107-3k-s25", "E12b-P0think-3k", 25), ("EVAL-q107-3k-s44-s25", "E12b-P0think-3k-s44", 25)):
+        assert f"{task}:{arm}" in st["q107r"]
+        m = f"result:runs/{arm}/global_step_{step}/actor/huggingface"
+        ev = [l for l in a.splitlines() if l.startswith(f"#eval {task} ")]; fo = [l for l in a.splitlines() if l.startswith(f"#forced {task} ")]
+        assert len(ev) == 1 and ev[0].split()[3:] == [m, "math500", "4", "0.6", "16384", "think"], ev
+        assert len(fo) == 1 and fo[0].split()[2:] == [ev[0].split()[2], m, "think", "budgets=16384"], fo
+    tb = {x.split(":")[0] for l in b.splitlines() if l and not l.startswith("#") and len(l.split()) > 2 for x in l.split()[2:]}
+    assert tb == {"PROBE-TAIL", "EVAL-q107-4k-s50", "EVAL-q107-4k-s25"} and not any(t.startswith("E1") for t in tb)
+    assert "E12b-P0think-6k" not in a + b   # its weights are not in the result repository yet (stage q107z6 is in no profile)
+    assert QP.main(["--check"]) == 0
