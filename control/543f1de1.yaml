@@ -34,3 +34,4 @@ commands:
   - {"seq": 32, "cmd": "du ckpt adhoc_models/result/runs", "reason": "prefetch progress", "utc": "2026-11-17T15:18:57Z"}
   - {"seq": 33, "cmd": "restart-loops", "reason": "load v3.6 (4cf6b32): gpu_monitor reports what runs on each card; gpu_fill self-test", "utc": "2026-11-17T15:20:50Z"}
   - {"seq": 34, "cmd": "setup all", "reason": "retry 1: wait for the first start's model downloads to release overnight.lock", "utc": "2026-11-17T15:34:09Z"}
+  - {"seq": 35, "cmd": "du opd_root models", "reason": "download progress of the base models", "utc": "2026-11-17T15:39:36Z"}
