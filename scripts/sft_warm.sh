@@ -9,8 +9,10 @@ set -uo pipefail
 source "$(dirname "$0")/env.sh"; G=$1; T=SFT-WARM; R=$OPD_ROOT/runs/$T; mkdir -p $R
 PY=""
 for i in $(seq 1 ${SFT_WARM_WAIT_MIN:-90}); do
-  for c in $OPD_ROOT/venv/bin/python $OPD_ROOT/venv-fa/bin/python; do
-    [ -x $c ] && $c -c 'import torch, transformers' 2> /dev/null && { PY=$c; break 2; }; done
+  # [v3.8b] also the venv of an earlier install of ours on this machine's disks (history_scan.py): for this stopgap only - the
+  # registered tasks never run from it
+  for c in $OPD_ROOT/venv/bin/python $OPD_ROOT/venv-fa/bin/python $(for r in $(echo "${OLD_BASE_CANDS:-}" | tr ':' ' '); do echo $r/venv/bin/python $r/venv-fa/bin/python; done); do
+    [ -x $c ] && timeout 300 $c -c 'import torch, transformers; assert torch.cuda.is_available()' 2> /dev/null && { PY=$c; break 2; }; done
   echo "SFT_WARM $(date -u +%T) waiting for an environment with torch and transformers (minute $i)"; sleep 60; done
 [ -n "$PY" ] || { echo "SFT_WARM no environment with torch and transformers after ${SFT_WARM_WAIT_MIN:-90} min"; exit 1; }
 M=""; for m in ${SFT_WARM_MODEL:-Qwen3-8B} Qwen3-1.7B Qwen3-0.6B; do [ -f $OPD_ROOT/models/$m/config.json ] && ls $OPD_ROOT/models/$m/*.safetensors > /dev/null 2>&1 && [ ! -e $OPD_ROOT/models/$m/*.aria2 ] && { M=$OPD_ROOT/models/$m; break; }; done
