@@ -418,7 +418,10 @@ serve_requests() {   # v2.5: ad-hoc `run` / `eval` requests (control.py) on the 
 # main venv is ready - the task waits for an environment by itself (a borrowed machine must show a real training soon)
 sft_warm_pass() { [ -f $CDIR/sft_warm_go ] || return 0
   running SFT-WARM && { rm -f $CDIR/sft_warm_go; return 0; }
-  local g; g=$(free_gpus | head -1); [ -n "$g" ] || return 0
+  local g; g=$(free_gpus | head -1)
+  # [v3.8a] no card counts as free (someone's process on each, e.g. a filler the node does not know by name): SFT-WARM shares the
+  # cards anyway, so it starts on GPU 0 as long as no task of ours runs
+  [ -n "$g" ] || { pgrep -f "scripts/task[.]sh " > /dev/null && return 0; g=0; }
   rm -f $CDIR/sft_warm_go; echo "START $(date -u +%T) gpu=$g SFT-WARM (run request, before the stack)"; launch $g SFT-WARM; }
 # [v2.5.9z106] (connect-first, Fable 11-01; ops-lead's A1 16:11 UTC) control/dispatch_frozen: the round only keeps the control plane -
 # watchdog / uploader / gh_heartbeat, git pull + apply, the heartbeat through loops.sh - and serves explicit `run` / `eval` requests

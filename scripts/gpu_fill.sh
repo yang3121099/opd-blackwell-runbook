@@ -52,7 +52,7 @@ fill_cmd_line() { local s; s=$(fill_sig)
 # from one of them; the stored line is not needed any more
 fill_name() { sed -n 's/^export GPU_FILL_NAME=\([A-Za-z0-9_.-]*\)$/\1/p' $OPD_ROOT/control.env 2> /dev/null | tail -1; }
 fill_enabled() { { [ -s $FILL_CMDF ] || [ -n "$(fill_name)" ]; } && [ "$(sed -n 's/^export GPU_FILL=\([01]\)$/\1/p' $OPD_ROOT/control.env 2> /dev/null | tail -1)" = 1 ]; }
-fill_sig() { local n; n=$(fill_name); if [ -n "$n" ]; then echo "/$n"; else head -1 $FILL_CMDF 2> /dev/null | tr ' ' '\n' | grep -m1 -E '\.py$'; fi; }   # what the filler's processes are known by
+fill_sig() { local n; n=$(fill_name); if [ -n "$n" ]; then echo "$n"; else head -1 $FILL_CMDF 2> /dev/null | tr ' ' '\n' | grep -m1 -E '\.py$'; fi; }   # what the filler's processes are known by
 fill_pgid() { local p=""; [ -f $FILL_DIR/$1.pid ] && p=$(tr -cd 0-9 < $FILL_DIR/$1.pid); [ -n "$p" ] && kill -0 -- -$p 2> /dev/null && echo $p; }   # our filler's session on GPU $1, if alive
 fill_on() { [ -n "$(fill_pgid $1)" ]; }
 fill_apps() { nvidia-smi --query-compute-apps=pid --format=csv,noheader -i $1 2> /dev/null | tr -d ' ' | grep -E '^[0-9]+$'; }
