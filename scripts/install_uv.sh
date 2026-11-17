@@ -3,6 +3,7 @@
 # + the lab patches; then models and data. UNTESTED on Blackwell until section 8 of README.md is filled in.
 set -euo pipefail
 source "$(dirname "$0")/env.sh"; cd $OPD_ROOT
+source "$(dirname "$0")/pypi_index.sh"; pypi_index_export || true   # [v3.5] the fastest index that answers (mainland mirrors before a proxied PyPI)
 command -v uv >/dev/null || pip install -q uv
 [ -d venv ] || uv venv -p 3.10 venv
 source venv/bin/activate

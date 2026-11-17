@@ -114,6 +114,10 @@ if [ -f $OPD_ROOT/triton.env ]; then source $OPD_ROOT/triton.env; fi
 # [z139] a node's own queue: control/queue_name = <profile> -> tasks/queue_<profile>.txt for every queue reader (run_tasks.sh,
 # run_eval.sh, term_probe.sh, cold_start.sh, heartbeat.sh, control.py); without the file tasks/queue.txt as before
 if [ -s $OPD_ROOT/control/queue_name ]; then export QUEUE_FILE=$RUNBOOK/tasks/queue_$(tr -cd 'A-Za-z0-9_' < $OPD_ROOT/control/queue_name).txt; fi
+# [v3.5] the node's package index (scripts/pypi_index.sh chooses it at install time: a mainland machine times out on pypi.org):
+# uv and pip of every script use it; UV_HTTP_TIMEOUT for large wheels over a proxy
+if [ -s $OPD_ROOT/control/pypi_index ]; then _pi=$(head -1 $OPD_ROOT/control/pypi_index); export UV_DEFAULT_INDEX=$_pi UV_INDEX_URL=$_pi PIP_INDEX_URL=$_pi; unset _pi; fi
+export UV_HTTP_TIMEOUT=${UV_HTTP_TIMEOUT:-180}
 # v2.4 (ops-1): variables set remotely with `setenv` (control.py; whitelisted keys only), sourced last
 if [ -f $OPD_ROOT/control.env ]; then source $OPD_ROOT/control.env; fi
 # v2.5.7i: a probe's own settings (PROBE_ENV="KEY=VAL ...", set by fa_speed.sh for its variants) win over control.env.
