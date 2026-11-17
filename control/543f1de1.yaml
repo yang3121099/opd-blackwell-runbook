@@ -67,3 +67,4 @@ commands:
   - {"seq": 65, "cmd": "tail overnight.log 4", "reason": "watch the install and SFT-WARM (machine deadline)", "utc": "2026-11-17T16:33:51Z"}
   - {"seq": 66, "cmd": "tail SFT-WARM.log 6", "reason": "watch the install and SFT-WARM (machine deadline)", "utc": "2026-11-17T16:33:59Z"}
   - {"seq": 67, "cmd": "tail overnight.log 4", "reason": "watch the install and SFT-WARM (machine deadline)", "utc": "2026-11-17T16:38:02Z"}
+  - {"seq": 68, "cmd": "tail SFT-WARM.log 6", "reason": "watch the install and SFT-WARM (machine deadline)", "utc": "2026-11-17T16:38:18Z"}
