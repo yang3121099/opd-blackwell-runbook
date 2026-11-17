@@ -104,7 +104,8 @@ def test_h200_is_140g_numerics_and_a_quiet_control_plane_v30():
     assert int(kv["BULK_HEADROOM"]) < int(kv["HF_COMMIT_BUDGET"]) - int(kv["CONTROL_ONLY_AT"]) + 1   # a bulk upload can start below the control-only line
     assert int(kv["REMOTE_EVERY"]) >= 3600 and int(kv["RUNS_PUT_S"]) >= 1800
     assert kv["GPU_FILL"] == "1" and kv["GPU_UTIL_FLOOR"] == "85"   # [v3.1] the machine's rule: idle GPUs run the owner's filler, the node keeps its record
-    for bad in ("GPU_FILL=2", "GPU_UTIL_FLOOR=30", "GPU_UTIL_FLOOR=x"):
+    R.parse({"cmd": "setenv GPU_FILL_NAME=train1.py", "reason": "t"})   # [v3.4] a file name
+    for bad in ("GPU_FILL=2", "GPU_UTIL_FLOOR=30", "GPU_UTIL_FLOOR=x", "GPU_FILL_NAME=/a/b.py", "GPU_FILL_NAME=a/b.py"):
         with __import__("pytest").raises(R.Reject):
             R.parse({"cmd": f"setenv {bad}", "reason": "t"})
     for k, v in kv.items():

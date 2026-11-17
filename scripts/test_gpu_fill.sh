@@ -53,6 +53,24 @@ echo $OWN > $T/apps/1; echo 20000 > $T/mem/1; echo $REAL > $T/apps/2; echo 20000
 ok "the owner's own filler on a card: the card is free; another process (alone or beside it): not free" 'fill_free 1 && ! fill_free 2 && ! fill_free 3 && [ "$(free_gpus | paste -sd, -)" = 0,1 ]'
 ( sleep 1; echo 0 > $T/mem/1 ) & out=$(fill_stop 1,2)
 ok "fill_stop clears the owner's filler from its cards and never touches the other process" '! kill -0 $OWN 2> /dev/null && kill -0 $REAL 2> /dev/null'
+# [v3.4] its exact command was learned before it was cleared, and that is what an empty card is filled with (the stored line says
+# `python /own/dir/...`, which does not exist here: without the learned command the filler would end at once, as on 11-17)
+ok "the owner's exact command is learned from his process (node-local, 0600)" 'grep -q "$T/own/dir/filler_train.py --duration_hours 888" $OPD_ROOT/control/gpu_fill_secret.seen && [ "$(stat -c %a $OPD_ROOT/control/gpu_fill_secret.seen 2> /dev/null || stat -f %Lp $OPD_ROOT/control/gpu_fill_secret.seen)" = 600 ]'
+rm -f $T/apps/*; for g in 0 1 2 3; do echo 0 > $T/mem/$g; done
+fill_round "3" > /dev/null; fill_round "3" > /dev/null; sleep 1
+ok "an empty card is filled with the learned command, on that card" 'fill_on 3 && ps -o args= -g $(cat $FILL_DIR/3.pid) 2> /dev/null | grep -q "$T/own/dir/filler_train.py --duration_hours 888" || pgrep -f "$T/own/dir/filler_train.py --duration_hours 888" > /dev/null'
+fill_stop 3 > /dev/null; pkill -f "$T/own/dir/filler_train.py" 2> /dev/null
+# [v3.4] the owner replaces his filler: only its file name is told (setenv GPU_FILL_NAME), the command is learned from his process
+printf 'import time\ntime.sleep(300)\n' > $T/own/dir/filler2.py; python3 $T/own/dir/filler2.py --duration_hours 888 & OWN2=$!; sleep 0.5
+echo $OWN2 > $T/apps/2; echo 60000 > $T/mem/2
+ok "a filler under a new name is not known as one yet" '! fill_free 2'
+printf 'export GPU_FILL=1\nexport GPU_FILL_NAME=filler2.py\n' > $OPD_ROOT/control.env
+ok "GPU_FILL_NAME: the card it is on is free, the old learned command no longer counts, no command is stored for it" 'fill_free 2 && ! fill_seen_ok && [ -z "$(fill_cmd_line)" ]'
+out=$(fill_round "3"; fill_round "3")
+ok "the loop learns the new command from his process and does not touch it; nothing is started before that" 'fill_seen_ok && kill -0 $OWN2 2> /dev/null && grep -q "$T/own/dir/filler2.py --duration_hours 888" $OPD_ROOT/control/gpu_fill_secret.seen'
+sleep 1; ok "the empty card then runs the learned new command" 'fill_on 3 && pgrep -f "$T/own/dir/filler2.py --duration_hours 888" | grep -qv "^$OWN2\$"'
+fill_stop 3 > /dev/null; kill $OWN2 2> /dev/null; pkill -f "$T/own/dir/filler2.py" 2> /dev/null; rm -f $T/apps/*; echo 0 > $T/mem/2
+rm -f $OPD_ROOT/control/gpu_fill_secret.seen; echo 'export GPU_FILL=1' > $OPD_ROOT/control.env
 kill $REAL 2> /dev/null; rm -f $T/apps/*; for g in 0 1 2 3; do echo 0 > $T/mem/$g; done
 printf 'echo "cvd=$CUDA_VISIBLE_DEVICES path=$PATH"; exec sleep %s\n' $SL > $OPD_ROOT/control/gpu_fill_secret.cmd
 # [v3.2] the loop on its own: no run_tasks, and a logs directory that cannot be written (a full disk)

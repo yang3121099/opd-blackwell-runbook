@@ -23,8 +23,27 @@
 # Sourced by run_tasks.sh (functions only). As a command: gpu_fill.sh [loop] | status | stop [<gpu>[,<gpu>...]] (all without a list).
 FILL_DIR=${FILL_DIR:-$( [ -d /dev/shm ] && [ -w /dev/shm ] && echo /dev/shm/opd_gpu_fill_$(id -u)_$(echo "$OPD_ROOT" | cksum | cut -d' ' -f1) || echo $OPD_ROOT/control/gpu_fill )}
 FILL_CMDF=$OPD_ROOT/control/gpu_fill_secret.cmd
-fill_enabled() { [ -s $FILL_CMDF ] && [ "$(sed -n 's/^export GPU_FILL=\([01]\)$/\1/p' $OPD_ROOT/control.env 2> /dev/null | tail -1)" = 1 ]; }
-fill_sig() { head -1 $FILL_CMDF 2> /dev/null | tr ' ' '\n' | grep -m1 -E '\.py$'; }   # the filler's script: what its processes are known by
+# [v3.4] (11-17: the owner's filler runs under an interpreter of his own conda environment; the stored line said `python`, which is
+# something else in our loops, so the fillers we started ended at once) the filler's exact command is LEARNED from a filler process
+# that is on a card - its working directory and its argv, word for word - into control/gpu_fill_secret.seen (node-local, 0600), and
+# that is what fill_start runs; the stored line is only the fallback and the name fillers are known by
+FILL_SEEN=$OPD_ROOT/control/gpu_fill_secret.seen
+fill_learn() {   # $1 = a filler's pid: its cwd and argv become the command fill_start runs
+  local p=$1 cwd="" args=""
+  if [ -r /proc/$p/cmdline ]; then cwd=$(readlink /proc/$p/cwd 2> /dev/null); args=$(xargs -0 printf '%q ' < /proc/$p/cmdline 2> /dev/null)
+  else args=$(ps -o args= -p $p 2> /dev/null); fi   # no /proc (macOS, the tests): the words as ps gives them
+  [ -n "$args" ] || return 1
+  ( umask 077; { [ -n "$cwd" ] && printf 'cd %q 2> /dev/null; ' "$cwd"; printf '%s\n' "$args"; } > $FILL_SEEN.tmp && mv $FILL_SEEN.tmp $FILL_SEEN ) 2> /dev/null; }
+fill_seen_ok() { local s; s=$(fill_sig); [ -s $FILL_SEEN ] && [ -n "$s" ] && grep -qF -- "$s" $FILL_SEEN; }   # learned, and from the filler named now
+fill_cmd_line() { local s; s=$(fill_sig)
+  if fill_seen_ok; then head -1 $FILL_SEEN
+  elif [ -s $FILL_CMDF ] && { [ -z "$(fill_name)" ] || grep -qF -- "$s" $FILL_CMDF; }; then head -1 $FILL_CMDF; fi; }   # else nothing: no command known yet
+# [v3.4] `setenv GPU_FILL_NAME=<script file name>` (no path: control files are public) names the filler when the owner changes it
+# (11-17: train.py -> a new script): its processes are then known by "/<name>" on their command line, and the command is learned
+# from one of them; the stored line is not needed any more
+fill_name() { sed -n 's/^export GPU_FILL_NAME=\([A-Za-z0-9_.-]*\)$/\1/p' $OPD_ROOT/control.env 2> /dev/null | tail -1; }
+fill_enabled() { { [ -s $FILL_CMDF ] || [ -n "$(fill_name)" ]; } && [ "$(sed -n 's/^export GPU_FILL=\([01]\)$/\1/p' $OPD_ROOT/control.env 2> /dev/null | tail -1)" = 1 ]; }
+fill_sig() { local n; n=$(fill_name); if [ -n "$n" ]; then echo "/$n"; else head -1 $FILL_CMDF 2> /dev/null | tr ' ' '\n' | grep -m1 -E '\.py$'; fi; }   # what the filler's processes are known by
 fill_pgid() { local p=""; [ -f $FILL_DIR/$1.pid ] && p=$(tr -cd 0-9 < $FILL_DIR/$1.pid); [ -n "$p" ] && kill -0 -- -$p 2> /dev/null && echo $p; }   # our filler's session on GPU $1, if alive
 fill_on() { [ -n "$(fill_pgid $1)" ]; }
 fill_apps() { nvidia-smi --query-compute-apps=pid --format=csv,noheader -i $1 2> /dev/null | tr -d ' ' | grep -E '^[0-9]+$'; }
@@ -55,19 +74,20 @@ fill_empty_gpus() {   # the GPUs with nothing on them and no task of ours holdin
     [ -z "$(fill_apps $i)" ] || continue
     [ "$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $i 2> /dev/null | tr -d ' ' | head -1)" -le 2048 ] 2> /dev/null && echo $i; done; }
 fill_start() {   # $1 = a GPU
+  [ -n "$(fill_cmd_line)" ] || { echo "FILL_NO_COMMAND $(date -u +%T) gpu=$1: the filler's command is not known yet (none learned, none stored for this name)"; return 1; }
   mkdir -p $FILL_DIR; rm -f $FILL_DIR/$1.pid
   local log=$OPD_ROOT/logs/gpu_fill_$1.log; { mkdir -p $OPD_ROOT/logs && : >> $log; } 2> /dev/null || log=/dev/null   # a full disk does not stop the filler
   ( [ -f $OPD_ROOT/control/gpu_fill_secret.env ] && . $OPD_ROOT/control/gpu_fill_secret.env
-    export CUDA_VISIBLE_DEVICES=$1 FILL_CMD_LINE="$(head -1 $FILL_CMDF)" FILL_PIDF=$FILL_DIR/$1.pid
+    export CUDA_VISIBLE_DEVICES=$1 FILL_CMD_LINE="$(fill_cmd_line)" FILL_PIDF=$FILL_DIR/$1.pid
     exec setsid bash -c 'echo $$ > $FILL_PIDF; unset FILL_PIDF; eval "$FILL_CMD_LINE"' >> $log 2>&1 8>&- 9>&- < /dev/null ) &
   local i; for i in $(seq 30); do [ -s $FILL_DIR/$1.pid ] && break; sleep 0.1; done   # its session id is on file before anyone asks for it
   echo "FILL_START $(date -u +%T) gpu=$1"; }
 fill_stop() {   # $1 = a GPU list a,b,c: clear them of the filler (ours and one that was there before us) and wait for the cards' memory
   local g p i any=0 L; L=$(echo "$1" | tr , ' ')
-  [ -d $FILL_DIR ] || [ -s $FILL_CMDF ] || return 0
+  [ -d $FILL_DIR ] || [ -s $FILL_CMDF ] || [ -n "$(fill_name)" ] || return 0
   for g in $L; do
     p=$(fill_pgid $g); [ -n "$p" ] && { any=1; kill -TERM -- -$p 2> /dev/null; }
-    fill_enabled && for p in $(fill_app_pids $g); do any=1; kill -TERM $p 2> /dev/null; done
+    fill_enabled && for p in $(fill_app_pids $g); do any=1; fill_seen_ok || fill_learn $p; kill -TERM $p 2> /dev/null; done
   done
   [ $any = 1 ] || return 0
   for i in $(seq $(( ${FILL_TERM_S:-20} * 2 ))); do any=0
@@ -89,6 +109,8 @@ fill_round() {   # $1 = the GPUs that are empty right now (space separated): fil
       g=$(fill_pgid $g) && kill -TERM -- -$g 2> /dev/null; done
     rm -f $FILL_DIR/*.pid $FILL_DIR/*.empty 2> /dev/null; return 0; fi
   mkdir -p $FILL_DIR
+  if ! fill_seen_ok; then   # [v3.4] a filler is on some card: learn its exact command while it is there
+    for g in $(nvidia-smi --query-gpu=index --format=csv,noheader 2> /dev/null); do g=$(fill_app_pids $g | head -1); [ -n "$g" ] && { fill_learn $g; break; }; done; fi
   for g in $(ls $FILL_DIR 2> /dev/null | sed -n 's/\.empty$//p'); do [[ $e == *" $g "* ]] || rm -f $FILL_DIR/$g.empty; done
   for g in $1; do
     fill_on $g && continue; fill_holding $g && continue   # never a second filler on a card; not on a card a check asked to keep empty
@@ -105,7 +127,7 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
         sleep ${FILL_POLL_S:-20}; done;;
     status) n=$(nvidia-smi --query-gpu=index --format=csv,noheader 2> /dev/null | wc -l)
       for g in $(seq 0 $((n - 1))); do echo "gpu $g: $(fill_on $g && echo "our filler (session $(fill_pgid $g))" || { fill_free $g && echo "a filler that was there before us" || { fill_held $g && echo "a task of ours" || echo "-"; }; })"; done
-      fill_enabled && echo "filling: on" || echo "filling: off (GPU_FILL=1 and control/gpu_fill_secret.cmd are both needed)";;
+      fill_enabled && echo "filling: on (command $(fill_seen_ok && echo learned || { [ -n "$(fill_cmd_line)" ] && echo stored || echo "not known yet"; }))" || echo "filling: off (GPU_FILL=1 and a stored command or GPU_FILL_NAME are needed)";;
     stop) n=$(nvidia-smi --query-gpu=index --format=csv,noheader 2> /dev/null | wc -l)
       L=${2:-$(seq 0 $((n - 1)) | paste -sd, -)}; [ -n "$L" ] && fill_stop $L || echo "no GPU";;
     *) echo "usage: gpu_fill.sh [loop] | status | stop [<gpu>[,<gpu>...]]"; exit 2;;
