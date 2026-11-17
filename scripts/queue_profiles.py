@@ -163,7 +163,7 @@ STAGES = {
     # q107r: the four registered points, one EVAL task each (four GPUs in parallel): MATH-500 16K thinking T0.6 n 4, the 16K forced
     # remedy, outcomes (the stop at </think>) as every reading. q107z: zero-training readings of weights already in the result
     # repository - the direct 4K arm's s25 (owed) and its s50 reread on this machine (the cross-machine anchor: the same weights were
-    # read on the B300 reading machine on 11-15). q107z6: the direct 6K arm's s25, in NO profile until its weights are in the repository.
+    # read on the B300 reading machine on 11-15). q107z6: the direct 6K arm's s25 (owed; its weights reached the repository on 11-17).
     "h2g": ["PROBE-TAIL", "PROBE-E12B-P0THINK-3K"],
     "h2gb": ["PROBE-TAIL"],
     "q107": ["E12b-P0think-3k:PROBE-E12B-P0THINK-3K", "E12b-P0think-3k-s44:PROBE-E12B-P0THINK-3K"],
@@ -259,9 +259,9 @@ PROFILES["1gt"] = [s for s in PROFILES["1g"] if s == "p0a" or s not in SHARE_1G]
 # [v3.0] (Fable 11-17) the borrowed 8 x H200 machines. h2a = one machine does everything: the gates, Q-107's two arms, their readings,
 # then the zero-training readings (an `auto` stage: it opens once the stages before it have ended). h2b = a second machine, if there is
 # one: the canary and the zero-training readings at once; h2a then finds their .done in the result repository and skips them
-PROFILES["h2a"] = ["h2g", "q107", "q107r", "q107z"]
-PROFILES["h2b"] = ["h2gb", "q107z"]
-AUTO = {("h2a", "q107z")}   # (profile, stage) written as `auto`, every other stage `open`
+PROFILES["h2a"] = ["h2g", "q107", "q107r", "q107z", "q107z6"]
+PROFILES["h2b"] = ["h2gb", "q107z", "q107z6"]
+AUTO = {("h2a", "q107z"), ("h2a", "q107z6")}   # (profile, stage) written as `auto`, every other stage `open`
 # each stage's starts pulled ahead (#fetch, from T0 + 8 min): the source's 14 lines plus the 1.7B chain's s50, in stage order
 FETCH = {
     "p0a": ["E10b-P5/global_step_150", "E10b-P5tail/global_step_50"],
@@ -280,6 +280,7 @@ FETCH = {
     "h2g": ["E10b-P5/global_step_150", "E10b-P5tail/global_step_50"],   # [v3.0] the canary PROBE-TAIL's starts (as p0a)
     "h2gb": ["E10b-P5/global_step_150", "E10b-P5tail/global_step_50"],
     "q107z": ["E12b-P0think-4k/global_step_50", "E12b-P0think-4k/global_step_25"],
+    "q107z6": ["E12b-P0think-6k/global_step_25"],
 }
 DFETCH = {   # [z158c] (Q-096 C) the multiple-choice bench's data, pulled by run_tasks' fetch_pass into $OPD_ROOT/data/hf
     "p1q096c": ["TIGER-Lab/MMLU-Pro"],
@@ -576,8 +577,8 @@ WHAT = {"1g": "one GPU (B200 default, profiles/140g.env), P0 in series with the 
         "1gs": "one GPU beside an 8gs node: gates, P0-c, the historical-weight readings P0-f / P0-g / P0-x",
         "8gs": "8 x >= 80 GB beside a 1gs node (control/queue_name = 8gs): 8g80 without P0-c / f / g / x",
         "1gt": "one GPU beside a 1gs node (control/queue_name = 1gt): 1g's trainings and their readings (P0-d / e / b / dr / er, Q-093, P1-a)",
-        "h2a": "a borrowed 8 x H200 (profiles/h200.env, `queue h2a`): the canary, Q-107's two 3K arms on 4 GPUs each, their readings, then the 4K zero-training readings",
-        "h2b": "a second borrowed 8 x H200 (`queue h2b`): the canary and the 4K zero-training readings; nothing h2a trains"}
+        "h2a": "a borrowed 8 x H200 (profiles/h200.env, `queue h2a`): the canary, Q-107's two 3K arms on 4 GPUs each, their readings, then the 4K / 6K zero-training readings",
+        "h2b": "a second borrowed 8 x H200 (`queue h2b`): the canary and the 4K / 6K zero-training readings; nothing h2a trains"}
 
 
 def source():

@@ -80,7 +80,7 @@ def test_the_borrowed_h200_queues():
     import queue_profiles as QP
     a = open(os.path.join(RB, "tasks", "queue_h2a.txt")).read(); b = open(os.path.join(RB, "tasks", "queue_h2b.txt")).read()
     st = {l.split()[0]: l.split()[1:] for l in a.splitlines() if l and not l.startswith("#") and len(l.split()) > 2}
-    assert list(st) == ["h2g", "q107", "q107r", "q107z"] and [v[0] for v in st.values()] == ["open", "open", "open", "auto"]
+    assert list(st) == ["h2g", "q107", "q107r", "q107z", "q107z6"] and [v[0] for v in st.values()] == ["open", "open", "open", "auto", "auto"]
     assert st["q107"][1:] == ["E12b-P0think-3k:PROBE-E12B-P0THINK-3K", "E12b-P0think-3k-s44:PROBE-E12B-P0THINK-3K"]
     for t in ("PROBE-E12B-P0THINK-3K", "E12b-P0think-3k", "E12b-P0think-3k-s44"):
         assert f"#gpus {t} 4\n" in a
@@ -92,6 +92,7 @@ def test_the_borrowed_h200_queues():
         assert len(ev) == 1 and ev[0].split()[3:] == [m, "math500", "4", "0.6", "16384", "think"], ev
         assert len(fo) == 1 and fo[0].split()[2:] == [ev[0].split()[2], m, "think", "budgets=16384"], fo
     tb = {x.split(":")[0] for l in b.splitlines() if l and not l.startswith("#") and len(l.split()) > 2 for x in l.split()[2:]}
-    assert tb == {"PROBE-TAIL", "EVAL-q107-4k-s50", "EVAL-q107-4k-s25"} and not any(t.startswith("E1") for t in tb)
-    assert "E12b-P0think-6k" not in a + b   # its weights are not in the result repository yet (stage q107z6 is in no profile)
+    assert tb == {"PROBE-TAIL", "EVAL-q107-4k-s50", "EVAL-q107-4k-s25", "EVAL-q107-6k-s25"} and not any(t.startswith("E1") for t in tb)
+    for q in (a, b):   # the direct 6K arm's s25 (owed): its weights are fetched ahead as the 4K arm's
+        assert "#fetch result:runs/E12b-P0think-6k/global_step_25/actor/huggingface\n" in q and "#eval EVAL-q107-6k-s25 " in q
     assert QP.main(["--check"]) == 0

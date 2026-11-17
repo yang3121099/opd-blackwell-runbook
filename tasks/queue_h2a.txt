@@ -1,4 +1,4 @@
-# Remote-node task queue, version 2. newnode-v2, profile h2a: a borrowed 8 x H200 (profiles/h200.env, `queue h2a`): the canary, Q-107's two 3K arms on 4 GPUs each, their readings, then the 4K zero-training readings
+# Remote-node task queue, version 2. newnode-v2, profile h2a: a borrowed 8 x H200 (profiles/h200.env, `queue h2a`): the canary, Q-107's two 3K arms on 4 GPUs each, their readings, then the 4K / 6K zero-training readings
 # Written by scripts/queue_profiles.py (lab WO-001; v3 workflow 7.2) from tasks/rows_newnode_v1.txt + its new rows: edit the
 # generator, not this file. Profiles 1g / 4g / 4g80 / 8g / 8g80 (+ the split pair 1gs / 8gs, z139); a node reads this file once the project
 # sends it `queue h2a` (control verb, v3.0; tasks/queue.txt itself opens nothing). Under 80 GB: no 4B / 8B training.
@@ -18,6 +18,7 @@ h2g        open   PROBE-TAIL PROBE-E12B-P0THINK-3K
 q107       open   E12b-P0think-3k:PROBE-E12B-P0THINK-3K E12b-P0think-3k-s44:PROBE-E12B-P0THINK-3K
 q107r      open   EVAL-q107-3k-s50:E12b-P0think-3k EVAL-q107-3k-s44-s50:E12b-P0think-3k-s44 EVAL-q107-3k-s25:E12b-P0think-3k EVAL-q107-3k-s44-s25:E12b-P0think-3k-s44
 q107z      auto   EVAL-q107-4k-s50 EVAL-q107-4k-s25
+q107z6     auto   EVAL-q107-6k-s25
 
 #gpus PROBE-E12B-P0THINK-3K 4
 #gpus E12b-P0think-3k 4
@@ -27,6 +28,7 @@ q107z      auto   EVAL-q107-4k-s50 EVAL-q107-4k-s25
 #fetch result:runs/E10b-P5tail/global_step_50/actor/huggingface
 #fetch result:runs/E12b-P0think-4k/global_step_50/actor/huggingface
 #fetch result:runs/E12b-P0think-4k/global_step_25/actor/huggingface
+#fetch result:runs/E12b-P0think-6k/global_step_25/actor/huggingface
 
 #eval EVAL-q107-3k-s50 q107_e12b_P0think-3k_s50_h2_math500_T0.6 result:runs/E12b-P0think-3k/global_step_50/actor/huggingface math500 4 0.6 16384 think
 #forced EVAL-q107-3k-s50 q107_e12b_P0think-3k_s50_h2_math500_T0.6 result:runs/E12b-P0think-3k/global_step_50/actor/huggingface think budgets=16384
@@ -40,3 +42,5 @@ q107z      auto   EVAL-q107-4k-s50 EVAL-q107-4k-s25
 #forced EVAL-q107-4k-s50 q107_e12b_P0think-4k_s50_h2_math500_T0.6 result:runs/E12b-P0think-4k/global_step_50/actor/huggingface think budgets=16384
 #eval EVAL-q107-4k-s25 q107_e12b_P0think-4k_s25_h2_math500_T0.6 result:runs/E12b-P0think-4k/global_step_25/actor/huggingface math500 4 0.6 16384 think
 #forced EVAL-q107-4k-s25 q107_e12b_P0think-4k_s25_h2_math500_T0.6 result:runs/E12b-P0think-4k/global_step_25/actor/huggingface think budgets=16384
+#eval EVAL-q107-6k-s25 q107_e12b_P0think-6k_s25_h2_math500_T0.6 result:runs/E12b-P0think-6k/global_step_25/actor/huggingface math500 4 0.6 16384 think
+#forced EVAL-q107-6k-s25 q107_e12b_P0think-6k_s25_h2_math500_T0.6 result:runs/E12b-P0think-6k/global_step_25/actor/huggingface think budgets=16384

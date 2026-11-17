@@ -1,4 +1,4 @@
-# Remote-node task queue, version 2. newnode-v2, profile h2b: a second borrowed 8 x H200 (`queue h2b`): the canary and the 4K zero-training readings; nothing h2a trains
+# Remote-node task queue, version 2. newnode-v2, profile h2b: a second borrowed 8 x H200 (`queue h2b`): the canary and the 4K / 6K zero-training readings; nothing h2a trains
 # Written by scripts/queue_profiles.py (lab WO-001; v3 workflow 7.2) from tasks/rows_newnode_v1.txt + its new rows: edit the
 # generator, not this file. Profiles 1g / 4g / 4g80 / 8g / 8g80 (+ the split pair 1gs / 8gs, z139); a node reads this file once the project
 # sends it `queue h2b` (control verb, v3.0; tasks/queue.txt itself opens nothing). Under 80 GB: no 4B / 8B training.
@@ -16,14 +16,18 @@ version: 2
 # h2gb ~0.3 B200 GPU-h: PROBE-TAIL 0.3
 h2gb       open   PROBE-TAIL
 q107z      open   EVAL-q107-4k-s50 EVAL-q107-4k-s25
+q107z6     open   EVAL-q107-6k-s25
 
 
 #fetch result:runs/E10b-P5/global_step_150/actor/huggingface
 #fetch result:runs/E10b-P5tail/global_step_50/actor/huggingface
 #fetch result:runs/E12b-P0think-4k/global_step_50/actor/huggingface
 #fetch result:runs/E12b-P0think-4k/global_step_25/actor/huggingface
+#fetch result:runs/E12b-P0think-6k/global_step_25/actor/huggingface
 
 #eval EVAL-q107-4k-s50 q107_e12b_P0think-4k_s50_h2_math500_T0.6 result:runs/E12b-P0think-4k/global_step_50/actor/huggingface math500 4 0.6 16384 think
 #forced EVAL-q107-4k-s50 q107_e12b_P0think-4k_s50_h2_math500_T0.6 result:runs/E12b-P0think-4k/global_step_50/actor/huggingface think budgets=16384
 #eval EVAL-q107-4k-s25 q107_e12b_P0think-4k_s25_h2_math500_T0.6 result:runs/E12b-P0think-4k/global_step_25/actor/huggingface math500 4 0.6 16384 think
 #forced EVAL-q107-4k-s25 q107_e12b_P0think-4k_s25_h2_math500_T0.6 result:runs/E12b-P0think-4k/global_step_25/actor/huggingface think budgets=16384
+#eval EVAL-q107-6k-s25 q107_e12b_P0think-6k_s25_h2_math500_T0.6 result:runs/E12b-P0think-6k/global_step_25/actor/huggingface math500 4 0.6 16384 think
+#forced EVAL-q107-6k-s25 q107_e12b_P0think-6k_s25_h2_math500_T0.6 result:runs/E12b-P0think-6k/global_step_25/actor/huggingface think budgets=16384
