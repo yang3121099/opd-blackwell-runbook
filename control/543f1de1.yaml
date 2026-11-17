@@ -65,3 +65,4 @@ commands:
   - {"seq": 63, "cmd": "kill SFT-WARM", "reason": "restart it with v3.8b (it may use the earlier install's venv at once)", "utc": "2026-11-17T16:32:14Z"}
   - {"seq": 64, "cmd": "run SFT-WARM", "reason": "v3.8b: start from the earlier install's venv if it imports torch with CUDA", "utc": "2026-11-17T16:32:24Z"}
   - {"seq": 65, "cmd": "tail overnight.log 4", "reason": "watch the install and SFT-WARM (machine deadline)", "utc": "2026-11-17T16:33:51Z"}
+  - {"seq": 66, "cmd": "tail SFT-WARM.log 6", "reason": "watch the install and SFT-WARM (machine deadline)", "utc": "2026-11-17T16:33:59Z"}
