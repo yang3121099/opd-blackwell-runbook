@@ -12,7 +12,9 @@
 #     instance per GPU, in its own session, CUDA_VISIBLE_DEVICES=<gpu>, the PATH the bootstrap line was pasted in
 #     (control/gpu_fill_secret.env). The loop does not depend on run_tasks.sh, on the heartbeat or on the disk: its state is in
 #     /dev/shm (memory), so a task that dies of a full disk - or a scheduler that cannot write any more - still gets its cards filled.
-#     While setup's own checks run, their card (VERIFY_GPU, 0) is left empty.
+#     [v3.3] Setup never clears a card by itself (11-17: the rule "setup's card stays empty" ended the owner's filler, one process
+#     on all eight cards, for the whole install - Runming: "do not end the filler before a GPU program of ours runs"). A script
+#     that needs an EMPTY card for a few minutes (fa_probe.sh) says so: fill_hold <gpu> <s>, fill_stop, and fill_unhold at its exit.
 #   - A GPU that only runs the filler is FREE for the queue (run_tasks.sh free_gpus -> fill_free): the filler we started, or one that
 #     was on the card before us - a process whose command line names the filler's script, whoever started it.
 #   - Before a task starts on its GPUs, fill_stop clears them of the filler: TERM to our sessions and to such processes, KILL -9 after
@@ -43,10 +45,13 @@ fill_held() {   # GPU $1 is held by a task.sh / ad-hoc evaluation of ours that h
   done
   [ $n -gt 0 ] || return 0
   return 1; }
+fill_hold() { local g; mkdir -p $FILL_DIR; for g in $(echo "$1" | tr , ' '); do echo $(( $(date +%s) + ${2:-1800} )) > $FILL_DIR/$g.hold; done; }   # keep the loop off these cards for $2 s
+fill_unhold() { local g; for g in $(echo "$1" | tr , ' '); do rm -f $FILL_DIR/$g.hold; done; }
+fill_holding() { local u=""; [ -f $FILL_DIR/$1.hold ] && u=$(tr -cd 0-9 < $FILL_DIR/$1.hold); [ -n "$u" ] && [ "$u" -gt "$(date +%s)" ]; }
 fill_empty_gpus() {   # the GPUs with nothing on them and no task of ours holding them
   local i n; n=$(nvidia-smi --query-gpu=index --format=csv,noheader 2> /dev/null | wc -l)
   for i in $(seq 0 $((n - 1))); do
-    fill_held $i && continue; fill_on $i && continue
+    fill_held $i && continue; fill_on $i && continue; fill_holding $i && continue
     [ -z "$(fill_apps $i)" ] || continue
     [ "$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $i 2> /dev/null | tr -d ' ' | head -1)" -le 2048 ] 2> /dev/null && echo $i; done; }
 fill_start() {   # $1 = a GPU
@@ -78,17 +83,15 @@ fill_stop() {   # $1 = a GPU list a,b,c: clear them of the filler (ours and one 
     [ $any = 0 ] && { echo "FILL_STOP $(date -u +%T) gpu=$1 (cards empty after $i s)"; return 0; }; sleep 1; done
   echo "FILL_STOP $(date -u +%T) gpu=$1: memory not back under 2 GB after ${FILL_FREE_S:-90} s"; return 1; }
 fill_round() {   # $1 = the GPUs that are empty right now (space separated): fill those that were empty at the look before too
-  local g e=" $1 " sg=""
+  local g e=" $1 "
   if ! fill_enabled; then   # switched off: the fillers we started end; nothing else is touched
     [ -d $FILL_DIR ] && for g in $(ls $FILL_DIR 2> /dev/null | sed -n 's/\.pid$//p'); do
       g=$(fill_pgid $g) && kill -TERM -- -$g 2> /dev/null; done
     rm -f $FILL_DIR/*.pid $FILL_DIR/*.empty 2> /dev/null; return 0; fi
   mkdir -p $FILL_DIR
-  pgrep -f "scripts/(cold_start|overnight|verify|fa_probe|fa_build)\.s[h]" > /dev/null 2>&1 && sg=${VERIFY_GPU:-0}   # setup's checks want their card empty
   for g in $(ls $FILL_DIR 2> /dev/null | sed -n 's/\.empty$//p'); do [[ $e == *" $g "* ]] || rm -f $FILL_DIR/$g.empty; done
-  [ -n "$sg" ] && fill_free $sg && fill_stop $sg
   for g in $1; do
-    [ "$g" = "$sg" ] && continue; fill_on $g && continue   # never a second filler on a card
+    fill_on $g && continue; fill_holding $g && continue   # never a second filler on a card; not on a card a check asked to keep empty
     if [ -f $FILL_DIR/$g.empty ]; then rm -f $FILL_DIR/$g.empty; fill_start $g; else date +%s > $FILL_DIR/$g.empty; fi
   done; }
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then

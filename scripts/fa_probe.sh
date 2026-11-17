@@ -45,6 +45,9 @@ finish() {   # $1 = PASS / FAIL, $2 = reason
   python3 $RUNBOOK/scripts/control.py event FA-PROBE "fa_probe_$(echo $1 | tr A-Z a-z)" "$2" > /dev/null 2>&1
   step "$1 $2"; touch $D/.done; exit 0
 }
+# [v3.3] this probe needs its card EMPTY: the machine owner's filler (scripts/gpu_fill.sh) is cleared from it here, the fill loop is kept
+# off it for an hour at most, and the card is given back when the probe ends (setup itself no longer clears any card)
+if [ -f "$(dirname "$0")/gpu_fill.sh" ] && [ "$G" != cpu ]; then source "$(dirname "$0")/gpu_fill.sh"; fill_hold $G 3600; fill_stop $G > /dev/null 2>&1; trap 'fill_unhold $G' EXIT; fi
 for _w in $(seq 19); do   # the previous task's vLLM can take tens of seconds to release its memory: wait up to 180 s
   used=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $G 2>/dev/null | tr -d ' ')
   [ "${used:-1}" -le 1024 ] && break; [ $_w = 19 ] && finish FAIL "gpu $G not empty after 180 s (${used} MiB used)"; sleep ${FA_WAIT_STEP:-10}   # (tests: 0)

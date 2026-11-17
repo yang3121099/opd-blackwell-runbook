@@ -2,8 +2,8 @@
 # [v3.1 / v3.2] gpu_fill.sh on stubs (no GPU: nvidia-smi answers from files; the "owner's filler" is a sleep): off without the command
 # or without GPU_FILL=1; a GPU empty at two looks in a row gets one filler in its own session with CUDA_VISIBLE_DEVICES and the stored
 # PATH; fill_stop ends it and waits for the card; a filler that was on a card before us makes the card free and is cleared too, any
-# other process is never touched; the loop fills without run_tasks and with a logs directory it cannot write; setup's card stays
-# empty while setup runs; switching off ends our fillers; run_tasks.sh's free_gpus counts a filler-only card as free.
+# other process is never touched; the loop fills without run_tasks and with a logs directory it cannot write; a running setup clears
+# no card and a card on hold is not filled; switching off ends our fillers; run_tasks.sh's free_gpus counts a filler-only card as free.
 # Run: bash scripts/test_gpu_fill.sh
 set -u
 SRC=$(cd "$(dirname "$0")/.." && pwd); fails=0; n=0
@@ -66,13 +66,15 @@ rm -f $OPD_ROOT/logs; mkdir -p $OPD_ROOT/logs; fill_stop 0,1,2,3 > /dev/null
 fill_round "1 2 3" > /dev/null; fill_round "1 2 3" > /dev/null; sleep 0.5; echo 4242 > $T/apps/0
 # setup running: its card (VERIFY_GPU, default 0) is left empty, a filler on it is ended
 rm -f $T/apps/* ; for g in 0 1 2 3; do echo 0 > $T/mem/$g; done; fill_round "0" > /dev/null; fill_round "0" > /dev/null; sleep 0.5
-STRAY=$(pgrep -f "scripts/(cold_start|overnight|verify|fa_probe|fa_build)\.s[h]" | wc -l | tr -d ' ')   # another test's leftover on this machine would look like a setup that never ends
+# [v3.3] a running setup clears nothing (11-17: it ended the owner's filler for the whole install); a card is kept empty only on request
 mkdir -p $T/scripts; printf '#!/bin/bash\nsleep 30\n' > $T/scripts/verify.sh; bash $T/scripts/verify.sh & VP=$!; sleep 0.5
-fill_round "2 3" > /dev/null; fill_round "2 3" > /dev/null; sleep 0.5
-ok "while setup's checks run: GPU 0's filler is ended, the others stay / start" '[ "$(live)" = 1,2,3 ]'
-kill $VP 2> /dev/null; sleep 0.3
-fill_round "0" > /dev/null; fill_round "0" > /dev/null; sleep 0.5
-ok "after setup: GPU 0 is filled again" '[ "$(live)" = 0,1,2,3 ] || [ "$STRAY" != 0 ]'
+fill_round "" > /dev/null; fill_round "" > /dev/null; sleep 0.5
+ok "a running setup clears no card: every filler stays" '[ "$(live)" = 0,1,2,3 ]'
+kill $VP 2> /dev/null
+fill_hold 0 60; fill_stop 0 > /dev/null; fill_round "0" > /dev/null; fill_round "0" > /dev/null; sleep 0.5
+ok "a card on hold (a check that needs it empty) is not filled, and is not in the loop's list" '[ "$(live)" = 1,2,3 ] && [ -z "$(fill_empty_gpus)" ]'
+fill_unhold 0; fill_round "0" > /dev/null; fill_round "0" > /dev/null; sleep 0.5
+ok "the hold lifted: the card is filled again" '[ "$(live)" = 0,1,2,3 ]'
 echo 'export GPU_FILL=0' > $OPD_ROOT/control.env; fill_round "" > /dev/null
 sleep 1
 ok "GPU_FILL=0: every filler ends" '[ -z "$(live)" ] && [ "$(pgrep -f "sleep $SL" | wc -l | tr -d " ")" = 0 ]'
