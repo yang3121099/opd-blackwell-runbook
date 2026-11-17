@@ -31,3 +31,4 @@ commands:
   - {"seq": 29, "cmd": "setup all", "reason": "retry: the first start's model downloads held the lock at 15:06Z", "utc": "2026-11-17T15:13:34Z"}
   - {"seq": 30, "cmd": "snapshot", "reason": "are the base-model downloads still running (overnight.lock)", "utc": "2026-11-17T15:18:09Z"}
   - {"seq": 31, "cmd": "du opd_root models", "reason": "sizes of models/ while the base-model downloads run", "utc": "2026-11-17T15:18:50Z"}
+  - {"seq": 32, "cmd": "du ckpt adhoc_models/result/runs", "reason": "prefetch progress", "utc": "2026-11-17T15:18:57Z"}
