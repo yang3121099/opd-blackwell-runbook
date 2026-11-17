@@ -111,6 +111,9 @@ step "venv-fa relocated: sys.prefix and activate both point to venv-fa"
 FAIMP="from flash_attn.bert_padding import unpad_input, pad_input, index_first_axis; from flash_attn import flash_attn_varlen_func"   # what verl's remove-padding path imports
 if ! $VF/bin/python -c "$FAIMP" 2>/dev/null; then
   WD=$OPD_ROOT/tmp/fa_wheel; mkdir -p $WD; W=$WD/$NAME   # outside runs/FA-PROBE, which is uploaded
+  # [v3.10] the pinned wheel from the long-term store or an earlier install on this machine (the sha256 check below is the same)
+  for _r in ${OPD_STORE:-} $(echo "${OLD_BASE_CANDS:-}" | tr ':' ' '); do for _c in $_r/wheels/$NAME $_r/tmp/fa_wheel/$NAME; do
+    [ -f "$W" ] || { [ -f "$_c" ] && cp "$_c" "$W.part" && mv "$W.part" "$W"; }; done; done
   if [ ! -f "$W" ]; then
     curl -fsSL --retry 3 -o "$W.part" "$URL" && mv "$W.part" "$W" || finish FAIL "download failed: $NAME"
   fi

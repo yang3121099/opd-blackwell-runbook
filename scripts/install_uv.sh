@@ -19,6 +19,12 @@ seed_venv() {
   dst=$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])') || return 1
   mv=$(basename "$(dirname "$dst")")
   ls -d $dst/torch-2.8.0*.dist-info $dst/vllm-0.10.2*.dist-info > /dev/null 2>&1 && return 1   # the stack is here already
+  for r in ${OPD_STORE:-} $(echo "${OLD_BASE_CANDS:-}" | tr ':' ' '); do   # [v3.10] first the long-term store's environment pack (store_sync.sh)
+    f=$r/envpack/site-packages-$mv-torch2.8.0-vllm0.10.2.tar; [ -f $f ] || continue
+    [ ! -f $f.sha256 ] || [ "$(sha256sum $f | cut -c1-64)" = "$(cat $f.sha256)" ] || { echo "SEED_VENV $(basename $f): sha256 differs, not used"; continue; }
+    echo "SEED_VENV $(date -u +%T) unpacking the environment pack of the long-term store ($(du -h $f | cut -f1))"
+    tar -xf $f -C $dst && { echo "SEED_VENV $(date -u +%T) done: $(ls $dst | wc -l) entries"; : > venv/.seeded_from_store; return 0; }
+  done
   for r in $(echo "${OLD_BASE_CANDS:-}" | tr ':' ' '); do for v in venv venv-fa; do
     sp=$r/$v/lib/$mv/site-packages
     ls -d $sp/torch-2.8.0*.dist-info $sp/vllm-0.10.2*.dist-info > /dev/null 2>&1 || continue

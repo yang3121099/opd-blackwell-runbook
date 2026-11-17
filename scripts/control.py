@@ -2590,6 +2590,7 @@ def do_script(seq, script, out_json):
 
 
 v_persist_env = _script_verb("persist-env", "persist_env.sh", "persist_env.json")
+v_store = _script_verb("store", "store_sync.sh", "store.json")   # [v3.10] the long-term store on a shared disk (rules 2.5.120)
 v_rebuild_drill = _script_verb("rebuild-drill", "rebuild_drill.sh", "rebuild_drill.json")
 
 
@@ -3557,7 +3558,7 @@ def _v24(fn):
 VERBS = {"pause": _v24(v_pause), "resume": _v24(v_resume), "kill": _v24(v_kill), "prio": _v24(v_prio),
          "restore": _v24(v_restore), "rerun_verify": _v24(v_rerun_verify), "setenv": v_set, "set": v_set,
          "snapshot": lambda a, seq, flags=None, entry=None: v_snapshot0(seq) if not a else v_snapshot(a, seq),
-         "ps": v_ps, "logs": v_logs, "run": v_run, "rerun": v_rerun, "republish": v_republish, "publish": v_publish, "publish-redacted": v_publish_redacted, "pend-weight": v_pend_weight, "leakscan": v_leakscan, "fa-build": v_fa_build, "scrubdiff": v_scrubdiff, "du": v_du, "mounts": v_mounts, "inventory": v_inventory, "rm-ours": v_rm_ours, "dr-keep": v_dr_keep, "persist-env": v_persist_env, "rebuild-drill": v_rebuild_drill, "eval": v_eval, "update": v_update, "upload": v_upload,
+         "store": v_store, "ps": v_ps, "logs": v_logs, "run": v_run, "rerun": v_rerun, "republish": v_republish, "publish": v_publish, "publish-redacted": v_publish_redacted, "pend-weight": v_pend_weight, "leakscan": v_leakscan, "fa-build": v_fa_build, "scrubdiff": v_scrubdiff, "du": v_du, "mounts": v_mounts, "inventory": v_inventory, "rm-ours": v_rm_ours, "dr-keep": v_dr_keep, "persist-env": v_persist_env, "rebuild-drill": v_rebuild_drill, "eval": v_eval, "update": v_update, "upload": v_upload,
          "signal": v_signal, "kill-pgid": v_killpgid, "cancel": v_cancel, "heartbeat": v_heartbeat, "env-probe": v_env_probe, "setup": v_setup, "verify": _v24(v_rerun_verify), "tail": v_tail, "restart-loops": v_restart_loops, "dispatch": v_dispatch, "queue": v_queue, "move-ckpt": v_move_ckpt, "reap": v_reap}
 assert set(VERBS) == set(R.VERBS), set(VERBS) ^ set(R.VERBS)
 TASK_VERBS = R.TASK_VERBS

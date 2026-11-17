@@ -85,3 +85,17 @@ def test_hints_from_a_stored_filler_command(tmp_path, monkeypatch):
     monkeypatch.setattr(hs, "ROOT", root)
     assert os.path.join(a, "alice", "code", "train.py") in hs.hint_paths({}, [])
     assert os.path.join(b, "alice") in hs.hint_dirs(hs.hint_paths({}, []), mts)
+
+
+def test_store_is_beside_a_root_on_the_mount_with_most_room(tmp_path, monkeypatch):
+    a, b, mts = machine(tmp_path)
+    monkeypatch.setattr(hs, "ROOT", str(tmp_path / "local" / "opd" / "run"))
+    rep = hs.scan(mts, [os.path.join(a, "alice", "code")], {"HISTORY_STORE_MIN_GB": "0"})
+    assert rep["store"] in (os.path.join(a, "alice", "code", "opd-store"), os.path.join(b, "alice", "code", "opd-store"))
+    assert hs.scan(mts, [os.path.join(a, "alice", "code")], {"HISTORY_STORE_MIN_GB": "99999999"})["store"] is None
+    assert hs.scan(mts, [os.path.join(a, "alice", "code")], {"OPD_STORE": "/x/y"})["store"] == "/x/y"
+    install(os.path.join(b, "alice", "code", "opd-store"), venv=False)   # an existing store is a root and is taken
+    rep = hs.scan(mts, [os.path.join(a, "alice", "code")], {"HISTORY_STORE_MIN_GB": "99999999"})
+    assert rep["store"] == os.path.realpath(os.path.join(b, "alice", "code", "opd-store"))
+    hs.write(rep)
+    assert "export OPD_STORE=" in open(os.path.join(str(tmp_path / "local" / "opd" / "run"), "control", "history_secret.env")).read()

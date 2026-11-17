@@ -15,7 +15,8 @@ Where it looks (paths never leave the node: they are in no control file, the res
 
 What it writes (0600, node-local, "secret" in the names keeps them out of snapshot / upload):
   control/history_secret.json   every root: path, last change, complete base models, venvs present, fetched weights, data files
-  control/history_secret.env    export OLD_BASE_CANDS=<told ones>:<found ones, newest first>   (env.sh sources it)
+  control/history_secret.env    export OLD_BASE_CANDS=<told ones>:<found ones, newest first>; export OPD_STORE=<the long-term store,
+                                v3.10: where store_sync.sh puts this node's models, weights and environment pack>   (env.sh sources it)
 and what uses it: fetch_model.py copies a weight from such a root before it asks the Hub (z134, local_roots: size and sha256 are
 still checked against the Hub's list); overnight.sh copies a complete base model from it before it downloads (v3.7). Data files
 and venvs found there are reported, never taken over by themselves (an older prep_data.py, a venv built weeks ago).
@@ -206,15 +207,47 @@ def scan(mts, paths, env, deadline_s=None, budget=None, depth=None):
             cut = True
             break
     rows = sorted((describe(r) for r in found if r not in me), key=lambda x: x["changed"] or "", reverse=True)
-    return {"utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "roots": rows, "told": [t for t in told if t not in me], "hints": len(hd),
-            "dirs_listed": used, "truncated": cut, "seconds": round(time.time() - t0, 1)}
+    rep = {"utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "roots": rows, "told": [t for t in told if t not in me], "hints": len(hd),
+           "dirs_listed": used, "truncated": cut, "seconds": round(time.time() - t0, 1)}
+    rep["store"] = pick_store(rep, mts, env)
+    return rep
+
+
+def pick_store(rep, mts, env):
+    """[v3.10] The long-term store this node syncs its reusable files to (store_sync.sh) and the next machine copies from:
+    OPD_STORE of node.env; else an `opd-store` already among the found roots; else `opd-store` beside a found root or in the
+    same relative directory on another real mount - the writable one with the most free space, HISTORY_STORE_MIN_GB (200) at
+    least. None when this machine has no such disk."""
+    if env.get("OPD_STORE"):
+        return env["OPD_STORE"]
+    for r in rep["roots"]:
+        if os.path.basename(r["path"]) == "opd-store":
+            return r["path"]
+    best, bf = None, float(env.get("HISTORY_STORE_MIN_GB", 200))
+    for r in rep["roots"]:
+        par = os.path.dirname(r["path"])
+        mp = next((m for m, _ in mts if par == m or par.startswith(m + "/")), None)
+        if not mp:
+            continue
+        rel = os.path.relpath(par, mp)
+        for m, _ in mts:
+            d = os.path.normpath(os.path.join(m, rel))
+            try:
+                if os.path.isdir(d) and os.access(d, os.W_OK):
+                    st = os.statvfs(d)
+                    free = st.f_bavail * st.f_frsize / 1e9
+                    if free > bf:
+                        best, bf = os.path.join(d, "opd-store"), free
+            except OSError:
+                pass
+    return best
 
 
 def summary(rep):
     rs = rep["roots"]
     return {"roots": len(rs), "models": sorted({m for r in rs for m in r["models"]}), "venvs": sorted({v for r in rs for v in r["venvs"]}),
             "weights": sum(r["weights"] for r in rs), "data": max([r["data"] for r in rs] or [0]), "hints": rep["hints"], "truncated": rep["truncated"],
-            "seconds": rep["seconds"], "paths": [r["path"] for r in rs]}
+            "seconds": rep["seconds"], "paths": [r["path"] for r in rs], "store": rep.get("store")}
 
 
 def write(rep):
@@ -224,7 +257,10 @@ def write(rep):
     for p in rep["told"] + [r["path"] for r in rep["roots"]]:
         if p not in cands and re.fullmatch(r"/[A-Za-z0-9_./@+-]+", p):
             cands.append(p)
-    for name, text in (("history_secret.json", json.dumps(rep, indent=1)), ("history_secret.env", f"export OLD_BASE_CANDS={':'.join(cands)}\n" if cands else "")):
+    envt = (f"export OLD_BASE_CANDS={':'.join(cands)}\n" if cands else "")
+    if rep.get("store") and re.fullmatch(r"/[A-Za-z0-9_./@+-]+", rep["store"]):
+        envt += f"export OPD_STORE={rep['store']}\n"
+    for name, text in (("history_secret.json", json.dumps(rep, indent=1)), ("history_secret.env", envt)):
         p = os.path.join(c, name)
         fd = os.open(p + ".tmp", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         with os.fdopen(fd, "w") as f:
