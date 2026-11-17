@@ -30,16 +30,16 @@ FILL_CMDF=$OPD_ROOT/control/gpu_fill_secret.cmd
 FILL_SEEN=$OPD_ROOT/control/gpu_fill_secret.seen
 fill_learn() {   # $1 = a filler's pid: its cwd and argv become the command fill_start runs
   local p=$1 cwd="" args=""
-  local -a A=(); local e="" envs="" k v
-  if [ -r /proc/$p/cmdline ]; then cwd=$(readlink /proc/$p/cwd 2> /dev/null)
-    while IFS= read -r -d '' k; do A+=("$k"); done < /proc/$p/cmdline 2> /dev/null
+  local -a A=(); local e="" envs="" k v PR=${FILL_PROC:-/proc}   # FILL_PROC: a stand-in for /proc in the tests (macOS has none)
+  if [ -r $PR/$p/cmdline ]; then cwd=$(readlink $PR/$p/cwd 2> /dev/null)
+    while IFS= read -r -d '' k; do A+=("$k"); done < $PR/$p/cmdline 2> /dev/null
     # [v3.6] the interpreter by its real path (argv[0] `python` is another program in our loops), and the environment variables that
     # choose its libraries, as the filler itself has them
-    [ ${#A[@]} -gt 0 ] && [[ ${A[0]} != /* ]] && e=$(readlink /proc/$p/exe 2> /dev/null) && [ -x "$e" ] && A[0]=$e
+    [ ${#A[@]} -gt 0 ] && [[ ${A[0]} != /* ]] && e=$(readlink $PR/$p/exe 2> /dev/null) && [ -x "$e" ] && A[0]=$e
     [ ${#A[@]} -gt 0 ] && args=$(printf '%q ' "${A[@]}")
-    if [ -r /proc/$p/environ ]; then while IFS= read -r -d '' k; do v=${k#*=}; k=${k%%=*}
+    if [ -r $PR/$p/environ ]; then while IFS= read -r -d '' k; do v=${k#*=}; k=${k%%=*}
         case $k in PATH|LD_LIBRARY_PATH|PYTHONPATH|CONDA_PREFIX|CONDA_DEFAULT_ENV|VIRTUAL_ENV) envs="$envs$(printf 'export %s=%q; ' "$k" "$v")";; esac
-      done < /proc/$p/environ 2> /dev/null; fi
+      done < $PR/$p/environ 2> /dev/null; fi
   else args=$(ps -o args= -p $p 2> /dev/null); fi   # no /proc (macOS, the tests): the words as ps gives them
   [ -n "$args" ] || return 1
   ( umask 077; { printf '%s' "$envs"; [ -n "$cwd" ] && printf 'cd %q 2> /dev/null; ' "$cwd"; printf '%s\n' "$args"; } > $FILL_SEEN.tmp && mv $FILL_SEEN.tmp $FILL_SEEN ) 2> /dev/null; }
@@ -138,7 +138,9 @@ fill_stop() {   # $1 = a GPU list a,b,c: clear them of the filler (ours and one 
     rm -f $FILL_DIR/$g.pid $FILL_DIR/$g.empty; done
   # [v3.6] a filler that was one process on many cards is gone from all of them: the cards this call did not ask for get their own
   # filler at once (not after the loop's two looks)
-  if [ $theirs = 1 ] && fill_enabled; then sleep 1; for g in $(fill_empty_gpus); do [[ " $L " == *" $g "* ]] || fill_holding $g || fill_start $g; done; fi
+  if [ $theirs = 1 ] && fill_enabled; then
+    for i in 1 2 3 4 5; do sleep 1   # the driver's process list may trail the process's end by a moment: five looks, a second apart
+      for g in $(fill_empty_gpus); do [[ " $L " == *" $g "* ]] || fill_holding $g || fill_on $g || fill_start $g; done; done; fi
   command -v nvidia-smi > /dev/null || { echo "FILL_STOP $(date -u +%T) gpu=$1"; return 0; }
   for i in $(seq ${FILL_FREE_S:-90}); do any=0
     for g in $L; do [ "$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $g 2> /dev/null | tr -d ' ' | head -1)" -le 2048 ] 2> /dev/null || any=1; done
