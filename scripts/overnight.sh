@@ -18,8 +18,27 @@ mkdir -p $OPD_ROOT/logs $OPD_ROOT/models $OPD_ROOT/data
 LOG=$OPD_ROOT/logs/overnight.log
 exec 9> $OPD_ROOT/overnight.lock
 if ! flock -n 9; then
-  echo "[$(date -u +%FT%TZ)] overnight.sh is already running, or its model downloads still are (lock $OPD_ROOT/overnight.lock); this start exits. Check: pgrep -af 'overnight.sh|aria2c'" | tee -a $LOG; exit 1
+  # [v3.7a] (11-17: a start failed at step 3; one of its background download helpers - they inherited this lock - hung in a
+  # fetch without a time limit, and for an hour every new start ended here.) The lock is respected while the MAIN run that took it
+  # is alive (control/overnight.pid, written below). Without one, the holders are leftovers of an earlier start: they are ended
+  # and this start goes on.
+  _anc=" $$ "; _p=$$; while _p=$(ps -o ppid= -p $_p 2> /dev/null | tr -d ' '); [ -n "$_p" ] && [ "$_p" -gt 1 ] 2> /dev/null; do _anc="$_anc$_p "; done
+  _main=$(tr -cd 0-9 < $OPD_ROOT/control/overnight.pid 2> /dev/null)
+  if [ -n "$_main" ] && [[ $_anc != *" $_main "* ]] && kill -0 $_main 2> /dev/null && ps -o args= -p $_main 2> /dev/null | grep -q "scripts/overnight[.]sh"; then :; else _main=""; fi
+  if [ -n "$_main" ] || [ ! -d /proc/$$/fd ]; then
+    echo "[$(date -u +%FT%TZ)] overnight.sh is already running (lock $OPD_ROOT/overnight.lock${_main:+, pid $_main}); this start exits. Check: pgrep -af 'overnight.sh|aria2c'" | tee -a $LOG; exit 1
+  fi
+  _lk=$(readlink -f $OPD_ROOT/overnight.lock); _n=0
+  for _sig in TERM KILL; do
+    for _d in /proc/[0-9]*; do _p=${_d#/proc/}; [[ $_anc == *" $_p "* ]] && continue
+      for _f in $_d/fd/*; do [ "$(readlink $_f 2> /dev/null)" = "$_lk" ] && { kill -$_sig $_p 2> /dev/null && _n=$((_n + 1)); break; }; done
+    done
+    flock -w 10 9 && break
+  done
+  flock -n 9 || { echo "[$(date -u +%FT%TZ)] overnight.lock is still held after ending $_n leftover process(es) of an earlier start; this start exits" | tee -a $LOG; exit 1; }
+  echo "[$(date -u +%FT%TZ)] $_n leftover process(es) of an earlier start (background downloads that never ended) held overnight.lock: ended, this start goes on" | tee -a $LOG
 fi
+mkdir -p $OPD_ROOT/control; echo $$ > $OPD_ROOT/control/overnight.pid   # [v3.7a] the main run that holds overnight.lock
 step(){ echo "[$(date -u +%FT%TZ)] STEP $1 $2" | tee -a $LOG; }
 upload_logs(){ if [ -n "${HF_TOKEN:-}" ] && [ -n "${HF_REPO:-}" ] && [ -f $OPD_ROOT/venv/bin/activate ]; then (cd $RB && source $OPD_ROOT/venv/bin/activate && python scripts/remote.py put $OPD_ROOT/logs logs/$(hostname) >>$LOG 2>&1); fi; }
 fail(){ step "$1" "FAIL: $2"; upload_logs; exit 1; }
@@ -53,7 +72,7 @@ find_model(){ m=$1   # v2.5: also the old OPD_ROOT's models when moving (FROM_OP
 }
 ensure_aria2(){ command -v aria2c >/dev/null && return 0
   apt-get install -y aria2 >>$LOG 2>&1 || sudo -n apt-get install -y aria2 >>$LOG 2>&1 || conda install -y -c conda-forge aria2 >>$LOG 2>&1 || \
-  ( mkdir -p $HOME/.local/bin && cd /tmp && curl -sL -o aria2.tgz https://github.com/P3TERX/aria2-static-builds/releases/download/v1.36.0/aria2-1.36.0-static-linux-amd64.tar.gz && tar xzf aria2.tgz && cp aria2-1.36.0-static-linux-amd64/aria2c $HOME/.local/bin/ && chmod +x $HOME/.local/bin/aria2c ) >>$LOG 2>&1
+  ( mkdir -p $HOME/.local/bin && cd /tmp && curl -sL --max-time 180 -o aria2.tgz https://github.com/P3TERX/aria2-static-builds/releases/download/v1.36.0/aria2-1.36.0-static-linux-amd64.tar.gz && tar xzf aria2.tgz && cp aria2-1.36.0-static-linux-amd64/aria2c $HOME/.local/bin/ && chmod +x $HOME/.local/bin/aria2c ) >>$LOG 2>&1
   command -v aria2c >/dev/null
 }
 list_files(){ m=$1
@@ -75,7 +94,10 @@ get_model(){ m=$1; d=$OPD_ROOT/models/$m; mkdir -p $d
   done
   return 1
 }
-bg_get(){ m=$1; ( get_model $m && touch $OPD_ROOT/models/$m/.complete || echo "$m download FAILED" >> $LOG ) >>$LOG 2>&1 & }
+# [v3.7a] the background download does not keep overnight.lock (9>&-); one download per model (its own lock), so a later start
+# that finds the model incomplete waits for the running download in place of starting a second one on the same files
+bg_get(){ m=$1; ( exec 7> $OPD_ROOT/models/.$m.lock; flock -n 7 || { echo "$m is already being downloaded by an earlier start"; exit 0; }
+    get_model $m && touch $OPD_ROOT/models/$m/.complete || echo "$m download FAILED" >> $LOG ) >>$LOG 2>&1 9>&- & }
 get_datasets(){ for ep in https://hf-mirror.com https://hf-mirror.com https://huggingface.co; do
     ( cd $RB && source $OPD_ROOT/venv/bin/activate && HF_ENDPOINT=$ep HF_HUB_ETAG_TIMEOUT=60 HF_HUB_DOWNLOAD_TIMEOUT=120 HF_HUB_ENABLE_HF_TRANSFER=0 \
       python -c "from huggingface_hub import snapshot_download as s; [s(d, repo_type='dataset') for d in ['HuggingFaceH4/MATH-500','BytedTsinghua-SIA/DAPO-Math-17k']]" ) >>$LOG 2>&1 && return 0
@@ -99,16 +121,16 @@ try_tier(){ local tag=$1 kv; shift
   step 6 "tier $tag vLLM probe FAILED: $(probe_err $tag)"; for kv in "$@"; do unset "${kv%%=*}"; done; return 1
 }
 
-# ---------- 0. v2.5: moving OPD_ROOT to another disk (FROM_OPD_ROOT=<old OPD_ROOT>) ----------
-# Copied: data/*.parquet and paths.env (the checkpoint root choice); models are used where they are (find_model); the
-# vLLM tier probe starts at the tier that passed in the old OPD_ROOT (its earlier tiers are skipped) and is re-run there
-# against this venv. The venv is installed fresh unless LINK_VENV=1 (then the old venv and G-OPD are used through links).
-OLD_TIER=""
 # [v3.7] earlier installs of ours on this machine's disks: every setup looks once (env-probe looks each time it runs). Base models
 # are copied from them (find_model) and fetch_model.py copies our weights from them; data files and venvs are only reported:
 # a data file made by an older prep_data.py or a venv built weeks ago is not taken over silently.
 python3 $RB/scripts/history_scan.py --if-missing >> $LOG 2>&1 || true
 if [ -s $OPD_ROOT/control/history_secret.env ]; then source $OPD_ROOT/control/history_secret.env; fi
+# ---------- 0. v2.5: moving OPD_ROOT to another disk (FROM_OPD_ROOT=<old OPD_ROOT>) ----------
+# Copied: data/*.parquet and paths.env (the checkpoint root choice); models are used where they are (find_model); the
+# vLLM tier probe starts at the tier that passed in the old OPD_ROOT (its earlier tiers are skipped) and is re-run there
+# against this venv. The venv is installed fresh unless LINK_VENV=1 (then the old venv and G-OPD are used through links).
+OLD_TIER=""
 if [ -n "${FROM_OPD_ROOT:-}" ] && [ "$FROM_OPD_ROOT" != "$OPD_ROOT" ] && [ -d "$FROM_OPD_ROOT" ]; then
   mkdir -p $OPD_ROOT/data
   for f in $FROM_OPD_ROOT/data/*.parquet; do [ -f "$f" ] && [ ! -f $OPD_ROOT/data/$(basename $f) ] && cp "$f" $OPD_ROOT/data/; done
@@ -125,6 +147,7 @@ before_old(){ [ -n "$OLD_TIER" ] && [ "$(tier_rank $1)" -lt "$(tier_rank $OLD_TI
 cd $RB || fail 0 "runbook dir missing: $RB"
 if git pull --ff-only >>$LOG 2>&1; then step 1 "git pull OK ($(git rev-parse --short HEAD))"; else step 1 "git pull FAILED, continuing with local copy ($(git rev-parse --short HEAD))"; fi
 # ---------- 2. model downloads start now, in the background (no venv needed) ----------
+ensure_aria2 > /dev/null 2>&1 || true   # [v3.7a] once, before the downloads: two of them installing it at the same time blocked each other
 P17=$(find_model Qwen3-1.7B) || { P17=$OPD_ROOT/models/Qwen3-1.7B; bg_get Qwen3-1.7B; step 2 "Qwen3-1.7B downloading in background -> $P17"; }
 P06=$(find_model Qwen3-0.6B) || { P06=$OPD_ROOT/models/Qwen3-0.6B; bg_get Qwen3-0.6B; step 2 "Qwen3-0.6B downloading in background -> $P06"; }
 P8=$(find_model Qwen3-8B)    || { P8=$OPD_ROOT/models/Qwen3-8B;    bg_get Qwen3-8B;    step 2 "Qwen3-8B downloading/resuming in background -> $P8"; }
