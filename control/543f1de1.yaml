@@ -37,3 +37,4 @@ commands:
   - {"seq": 35, "cmd": "du opd_root models", "reason": "download progress of the base models", "utc": "2026-11-17T15:39:36Z"}
   - {"seq": 36, "cmd": "du ckpt adhoc_models/result/runs", "reason": "download progress of our own checkpoints", "utc": "2026-11-17T15:39:45Z"}
   - {"seq": 37, "cmd": "setup all", "reason": "retry 2: wait for the first start's model downloads to release overnight.lock", "utc": "2026-11-17T15:42:21Z"}
+  - {"seq": 38, "cmd": "snapshot", "reason": "which gpu_monitor / gpu_fill processes run after the loop restart", "utc": "2026-11-17T15:42:30Z"}
