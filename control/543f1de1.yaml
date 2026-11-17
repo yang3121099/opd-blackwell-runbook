@@ -21,3 +21,4 @@ commands:
   - {"seq": 19, "cmd": "queue h2a", "reason": "new H200 node online 22:46 Beijing (fresh bootstrap); Runming: start filler, install env, start the formal tasks", "utc": "2026-11-17T14:52:05Z"}
   - {"seq": 20, "cmd": "setup all", "reason": "new H200 node online 22:46 Beijing (fresh bootstrap); Runming: start filler, install env, start the formal tasks", "utc": "2026-11-17T14:52:13Z"}
   - {"seq": 21, "cmd": "run FETCH-all", "reason": "new H200 node online 22:46 Beijing (fresh bootstrap); Runming: start filler, install env, start the formal tasks", "utc": "2026-11-17T14:52:22Z"}
+  - {"seq": 22, "cmd": "ps", "reason": "new H200 node online 22:46 Beijing (fresh bootstrap); Runming: start filler, install env, start the formal tasks; see what is on the cards", "utc": "2026-11-17T14:52:30Z"}
