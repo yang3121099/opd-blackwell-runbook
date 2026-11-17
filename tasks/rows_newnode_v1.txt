@@ -1,5 +1,5 @@
 # Remote-node task queue, version 2. newnode-v1 (scheduler draft 11-02; Fable 11-02 08:1x UTC; stage_results_20261102 6,
-# next_machine_selfserve_20261102 4). Cut from the H800-era queue, archived as tasks/queue_archive_20261101.txt (provenance of
+# next_machine_selfserve_20261102 4). Cut from the H800-era queue, archived as tasks/rows_archive_20261101.txt (provenance of
 # every row below: that file). Format and rules as before: <stage> <status> <task>[:<dep>+<dep>] ...; open stages start in
 # file order, one task per free GPU set; a waiting multi-GPU task holds the GPUs as they free.
 # Order: the local gates first (hardware-bound, rerun here; PROBE-TAIL = the canary, by a run request before dispatch on), then

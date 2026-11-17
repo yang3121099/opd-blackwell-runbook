@@ -1,7 +1,7 @@
 """[v2.5.9z137] (lab WO-001, the v3 workflow 11-09 section 7.2) newnode-v2: one queue per machine size, P0 first.
 
 The next machine's size is unknown, so tasks/queue_<profile>.txt is written here for five profiles from one row source,
-tasks/queue_newnode_v1.txt (z136's live queue, kept unchanged for provenance), plus the rows WO-001 adds (the same-machine
+tasks/rows_newnode_v1.txt (z136's live queue, kept unchanged for provenance), plus the rows WO-001 adds (the same-machine
 anchors, the 1.7B chain's AIME 32K anchor, the 8B base model's thinking-mode TERM4). tasks/queue.txt is a copy of one of them
 (1g until a machine arrives); every node-side reader keeps reading tasks/queue.txt, nothing on the node changes.
 
@@ -15,13 +15,14 @@ Under 80 GB no 4B and no 8B training (P0 trains 1.7B only, so 1g serves both).
 
 Usage: python3 scripts/queue_profiles.py              write tasks/queue_<profile>.txt for every profile
        python3 scripts/queue_profiles.py --check      exit 1 if a committed profile file differs from what this writes
-       python3 scripts/queue_profiles.py --select P   copy tasks/queue_P.txt to tasks/queue.txt (at T0, before cold_start.sh)
+[v3.0] (Fable 11-17) --select is gone: tasks/queue.txt opens nothing; a node is given its profile with the control verb
+`queue <profile>` (rules 2.5.116), which a node's status confirms, instead of one shared file every clone would run.
 """
 import os
 import sys
 
 RB = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC = os.path.join(RB, "tasks", "queue_newnode_v1.txt")
+SRC = os.path.join(RB, "tasks", "rows_newnode_v1.txt")
 
 # stage -> its task specs (task[:dep+dep]); "src:<task>" copies that task's spec from the row source
 STAGES = {
@@ -514,9 +515,9 @@ GPUS_BY_PROFILE = {"8gs": {"PROBE-E12E-8K": 8, "E12e-P5tail-8k-nn": 8, "PROBE-E1
                            "PROBE-E12D-P0THINK-8G": 8, "E12d-P0think-8k-s43": 8}}   # [z154]; [z156]
 HEADER = """\
 # Remote-node task queue, version 2. newnode-v2, profile {p}: {what}
-# Written by scripts/queue_profiles.py (lab WO-001; v3 workflow 7.2) from tasks/queue_newnode_v1.txt + its new rows: edit the
-# generator, not this file. Profiles 1g / 4g / 4g80 / 8g / 8g80 (+ the split pair 1gs / 8gs, z139); at T0, before cold_start.sh: `python3 scripts/queue_profiles.py
-# --select <profile>` copies tasks/queue_<profile>.txt to tasks/queue.txt (one commit, main + hf). Under 80 GB: no 4B / 8B training.
+# Written by scripts/queue_profiles.py (lab WO-001; v3 workflow 7.2) from tasks/rows_newnode_v1.txt + its new rows: edit the
+# generator, not this file. Profiles 1g / 4g / 4g80 / 8g / 8g80 (+ the split pair 1gs / 8gs, z139); a node reads this file once the project
+# sends it `queue {p}` (control verb, v3.0; tasks/queue.txt itself opens nothing). Under 80 GB: no 4B / 8B training.
 # Stages: p0a gates, p0b same-machine anchors, p0c TERM4 (NRL8K, 8B think), p0d / p0dr Q-091 training / readings, p0e / p0er Q-090
 # training / readings, p0f Q-074i, p0g Q-075c, p0x the 1.7B chain's AIME 32K anchor, p1a 2 x 2 beyond arms, p1b Q-074e (8B, 4 GPUs),
 # p2f Q-074f, p2h Q-074h, p2g Q-074g; "# <stage> ~N B200 GPU-h" over each stage. Open stages start in file order, one task per free
@@ -590,9 +591,7 @@ def main(argv):
         p = argv[1] if len(argv) > 1 else ""
         if p not in PROFILES:
             sys.exit(f"profile must be one of {' '.join(PROFILES)}")
-        open(os.path.join(RB, "tasks", "queue.txt"), "w").write(open(path(p)).read())
-        print(f"tasks/queue.txt = tasks/queue_{p}.txt")
-        return 0
+        sys.exit(f"--select is gone (v3.0): push tasks/queue_{p}.txt and send the node `queue {p}`; tasks/queue.txt opens nothing")
     bad = []
     for p in PROFILES:
         text = render(p)

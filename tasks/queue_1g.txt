@@ -1,7 +1,7 @@
 # Remote-node task queue, version 2. newnode-v2, profile 1g: one GPU (B200 default, profiles/140g.env), P0 in series with the trainings interleaved, then Q-093, then P1-a
-# Written by scripts/queue_profiles.py (lab WO-001; v3 workflow 7.2) from tasks/queue_newnode_v1.txt + its new rows: edit the
-# generator, not this file. Profiles 1g / 4g / 4g80 / 8g / 8g80 (+ the split pair 1gs / 8gs, z139); at T0, before cold_start.sh: `python3 scripts/queue_profiles.py
-# --select <profile>` copies tasks/queue_<profile>.txt to tasks/queue.txt (one commit, main + hf). Under 80 GB: no 4B / 8B training.
+# Written by scripts/queue_profiles.py (lab WO-001; v3 workflow 7.2) from tasks/rows_newnode_v1.txt + its new rows: edit the
+# generator, not this file. Profiles 1g / 4g / 4g80 / 8g / 8g80 (+ the split pair 1gs / 8gs, z139); a node reads this file once the project
+# sends it `queue 1g` (control verb, v3.0; tasks/queue.txt itself opens nothing). Under 80 GB: no 4B / 8B training.
 # Stages: p0a gates, p0b same-machine anchors, p0c TERM4 (NRL8K, 8B think), p0d / p0dr Q-091 training / readings, p0e / p0er Q-090
 # training / readings, p0f Q-074i, p0g Q-075c, p0x the 1.7B chain's AIME 32K anchor, p1a 2 x 2 beyond arms, p1b Q-074e (8B, 4 GPUs),
 # p2f Q-074f, p2h Q-074h, p2g Q-074g; "# <stage> ~N B200 GPU-h" over each stage. Open stages start in file order, one task per free

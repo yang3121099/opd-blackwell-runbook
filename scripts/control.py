@@ -3486,6 +3486,30 @@ def v_restart_loops(a, seq, flags=None, entry=None):
     return "accepted", "restart started: heartbeat and run_tasks through loops.sh once this receipt is out (task sessions untouched)", {}
 
 
+def v_queue(a, seq, flags=None, entry=None):
+    """[v3.0] (Fable 11-17: one runbook, one queue file per node) queue <name>: this node reads tasks/queue_<name>.txt from now on
+    (control/queue_name, env.sh z139); queue none: back to tasks/queue.txt, which opens no stage since v3.0 - a node without a queue
+    of its own starts nothing, whatever its dispatch switch says (a revived old node, a second clone). Refused when the pulled
+    runbook has no such file. The loops read the queue's path once at their start, so the command restarts them as restart-loops
+    does (after its own receipt; task sessions are never signalled); running tasks go on, the next round starts the new queue."""
+    f = _p("queue_name")
+    if a[0] == "none":
+        if os.path.exists(f):
+            os.remove(f)
+        note = "tasks/queue.txt (opens nothing)"
+    else:
+        qf = os.path.join(RUNBOOK, "tasks", f"queue_{a[0]}.txt")
+        if not os.path.isfile(qf):
+            return "rejected", f"tasks/queue_{a[0]}.txt is not in this node's runbook (push it first)", {}
+        tmp = f + ".tmp"
+        with open(tmp, "w") as h:
+            h.write(a[0] + "\n")
+        os.replace(tmp, f)
+        note = f"tasks/queue_{a[0]}.txt"
+    v_restart_loops([], seq)
+    return "accepted", f"this node's queue: {note}; heartbeat and run_tasks restart once this receipt is out", {}
+
+
 def v_dispatch(a, seq, flags=None, entry=None):
     f = _p("dispatch_frozen")
     if a[0] == "off":
@@ -3525,7 +3549,7 @@ VERBS = {"pause": _v24(v_pause), "resume": _v24(v_resume), "kill": _v24(v_kill),
          "restore": _v24(v_restore), "rerun_verify": _v24(v_rerun_verify), "setenv": v_set, "set": v_set,
          "snapshot": lambda a, seq, flags=None, entry=None: v_snapshot0(seq) if not a else v_snapshot(a, seq),
          "ps": v_ps, "logs": v_logs, "run": v_run, "rerun": v_rerun, "republish": v_republish, "publish": v_publish, "publish-redacted": v_publish_redacted, "pend-weight": v_pend_weight, "leakscan": v_leakscan, "fa-build": v_fa_build, "scrubdiff": v_scrubdiff, "du": v_du, "mounts": v_mounts, "inventory": v_inventory, "rm-ours": v_rm_ours, "dr-keep": v_dr_keep, "persist-env": v_persist_env, "rebuild-drill": v_rebuild_drill, "eval": v_eval, "update": v_update, "upload": v_upload,
-         "signal": v_signal, "kill-pgid": v_killpgid, "cancel": v_cancel, "heartbeat": v_heartbeat, "env-probe": v_env_probe, "setup": v_setup, "verify": _v24(v_rerun_verify), "tail": v_tail, "restart-loops": v_restart_loops, "dispatch": v_dispatch, "move-ckpt": v_move_ckpt, "reap": v_reap}
+         "signal": v_signal, "kill-pgid": v_killpgid, "cancel": v_cancel, "heartbeat": v_heartbeat, "env-probe": v_env_probe, "setup": v_setup, "verify": _v24(v_rerun_verify), "tail": v_tail, "restart-loops": v_restart_loops, "dispatch": v_dispatch, "queue": v_queue, "move-ckpt": v_move_ckpt, "reap": v_reap}
 assert set(VERBS) == set(R.VERBS), set(VERBS) ^ set(R.VERBS)
 TASK_VERBS = R.TASK_VERBS
 
