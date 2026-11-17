@@ -65,8 +65,12 @@ if [ -d ${BASE%/}/opd-$NODE/run ]; then T=${BASE%/}/opd-$NODE; fi
 claim $T || { T=${BASE%/}/opd-$NODE; claim $T || stop "cannot take a base directory under $BASE for node $NODE"
   say "base: ${BASE%/}/opd belongs to another node (a shared disk): this machine uses $T"; }
 O=$T/run
+# [v3.2] (Fable 11-17: two borrowed machines on one shared disk) the node that owns <base>/opd is this machine's PEER: setup here uses
+# its models and fetched weights in place and links its venv (overnight.sh FROM_OPD_ROOT + LINK_VENV=1, fetch_model.py's local
+# roots), minutes instead of hours. Send this node `setup` only once the peer's own setup is done (its status: venv_ready).
+PEER=""; [ "$T" != "${BASE%/}/opd" ] && [ -f ${BASE%/}/opd/run/node.env ] && PEER=${BASE%/}/opd/run
 mkdir -p $O/logs $O/control $T/cache $T/tools $T/ckpt || stop "cannot create $T"
-say "base: $T ($(df -Ph $BASE | awk 'NR == 2 {print $4}') free)"
+say "base: $T ($(df -Ph $BASE | awk 'NR == 2 {print $4}') free)$([ -n "$PEER" ] && echo "; a peer node's install on this disk will be reused")"
 
 # ---------- B0. the token ----------
 if [ -n "$HFH" ]; then TOKF=$HFH/token; [ -s "$TOKF" ] || stop "--hf-home: no token file in it"
@@ -179,10 +183,26 @@ if ! [ -x $V/bin/python ] || ! $V/bin/python -c "import huggingface_hub, yaml" 2
   if [ $DRY = 1 ]; then say "would build $V from requirements.ctl.txt"
   else
     say "[installs] the control venv: huggingface_hub, pyyaml (no torch; about 1-2 min)"
-    if python3 -m venv $V > $O/logs/bootstrap_venv.log 2>&1; then $V/bin/python -m pip install -q -r $RB/requirements.ctl.txt >> $O/logs/bootstrap_venv.log 2>&1
-    else   # no ensurepip (python3-venv not installed): a venv without pip, filled by the system pip
-      rm -rf $V; python3 -m venv --without-pip $V >> $O/logs/bootstrap_venv.log 2>&1 && \
-        python3 -m pip install -q --target "$($V/bin/python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" -r $RB/requirements.ctl.txt >> $O/logs/bootstrap_venv.log 2>&1
+    # [v3.2] (the first borrowed H200, 11-17: its python3 is 3.8, and pip found no requests==2.34.2 for it) the control plane needs
+    # Python >= 3.9 (its pinned packages, str.removeprefix): the first of python3.12 .. python3.9 / python3 / python that is, else a
+    # Python 3.10 of uv's own (uv from pip, its Python under $T/tools/python - the one setup's main venv uses later)
+    PYC=""; for c in python3.12 python3.11 python3.10 python3.9 python3 python; do
+      command -v $c > /dev/null && $c -c 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)' 2> /dev/null && { PYC=$c; break; }; done
+    : > $O/logs/bootstrap_venv.log
+    if [ -n "$PYC" ]; then
+      if $PYC -m venv $V >> $O/logs/bootstrap_venv.log 2>&1; then $V/bin/python -m pip install -q -r $RB/requirements.ctl.txt >> $O/logs/bootstrap_venv.log 2>&1
+      else   # no ensurepip (python3-venv not installed): a venv without pip, filled by the system pip
+        rm -rf $V; $PYC -m venv --without-pip $V >> $O/logs/bootstrap_venv.log 2>&1 && \
+          $PYC -m pip install -q --target "$($V/bin/python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" -r $RB/requirements.ctl.txt >> $O/logs/bootstrap_venv.log 2>&1
+      fi
+    fi
+    if ! $V/bin/python -c "import huggingface_hub, yaml" 2> /dev/null; then
+      say "[installs] this machine's python3 is $(python3 -V 2>&1 | cut -d' ' -f2): a Python 3.10 of uv's own for the control venv (about 1-3 min)"
+      UVT=$T/tools/uvpkg; export UV_PYTHON_INSTALL_DIR=$T/tools/python UV_CACHE_DIR=$T/cache/uv
+      { [ -x $UVT/bin/uv ] || python3 -m pip install -q --target $UVT uv || python -m pip install -q --target $UVT uv; } >> $O/logs/bootstrap_venv.log 2>&1
+      rm -rf $V
+      { $UVT/bin/uv venv -q --seed --python 3.10 $V && $UVT/bin/uv pip install -q --python $V/bin/python -r $RB/requirements.ctl.txt uv; } >> $O/logs/bootstrap_venv.log 2>&1
+      [ -x $V/bin/python ] && echo 1 > $O/control/py_from_uv
     fi
     $V/bin/python -c "import huggingface_hub, yaml" 2> /dev/null || { tail -n 5 $O/logs/bootstrap_venv.log | sed -E 's#//[^/@ ]+@#//***@#g'; stop "the control venv did not build (logs/bootstrap_venv.log)"; }
   fi
@@ -200,9 +220,11 @@ fi
     echo "export OPD_ROOT=$O RUNBOOK=$RB OPD_NODE=$NODE HF_REPO=$PUB"
     echo "export XDG_CACHE_HOME=$T/cache UV_CACHE_DIR=$T/cache/uv UV_PYTHON_INSTALL_DIR=$T/tools/python PIP_CACHE_DIR=$T/cache/pip TRITON_CACHE_DIR=$T/cache/triton"
     echo "export PYTHONDONTWRITEBYTECODE=1 VLLM_NO_USAGE_STATS=1"
+    [ -f $O/control/py_from_uv ] && echo "export PATH=$O/venv-ctl/bin:\$PATH   # [v3.2] this machine's own python3 is older than 3.9: the control venv's python (and its uv) come first for every loop"
     echo "export HF_HOME=$T/cache/hf"   # also with --hf-home: its token is read from there, the caches stay below $T
     [ "$CAPS" = 9.0 ] && echo "export OVERNIGHT_TIER_A_ONLY=1 FA_CUDA_ARCHS=90   # Hopper: vLLM tier A, flash-attn for sm_90"
     [ -n "$OLDC" ] && echo "export OLD_BASE_CANDS=$OLDC"
+    [ -n "$PEER" ] && echo "export FROM_OPD_ROOT=$PEER LINK_VENV=1   # [v3.2] the peer node on this shared disk: its models, weights and venv are used, not installed again"
     [ -n "$RBH" ] && [ "$RBH" != github.com ] && echo "export RB_URL=$RB_URL OPD_CONTROL_ORIGIN=$(echo "${RB_URL%.git}" | sed -E 's#^https?://##; s#/$##')"   # [z135] the mirror for the loops
     [ -n "${GH_HB_CRED:-}" ] && echo "export GH_HB_CRED=$GHC"   # [z126] a credential file moved from its default
     [ -n "${GH_HB_URL:-}" ] && echo "export GH_HB_URL=$GHURL"

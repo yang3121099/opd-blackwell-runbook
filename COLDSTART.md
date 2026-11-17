@@ -23,7 +23,9 @@ STOP. The owner's copy with the expected output: the lab's handoff/newnode_paste
 - `--fill-cmd '<command>'` (v3.1): the machine owner's own filler for idle GPUs (the machine's rule: every GPU at 85 % or more,
   else the job is ended after two hours). Stored on the machine only (0600), run per idle GPU while GPU_FILL=1 (profiles/h200.env)
   and ended before a task takes the card; the node's own utilisation record is status.gpu_util (README section 3b).
-- Two machines on one shared disk (v3.0): the first takes `<base>/opd`, the second finds it owned and takes `<base>/opd-<its id>`.
+- Two machines on one shared disk (v3.0): the first takes `<base>/opd`, the second finds it owned and takes `<base>/opd-<its id>`;
+  (v3.2) the second then reuses the first one's models, fetched weights and venv (FROM_OPD_ROOT + LINK_VENV=1 in its node.env):
+  send it `setup` only after the first node's setup is done.
 - Rerunning the line is safe: every step looks at what is there first.
 
 ## What bootstrap.sh does (2-5 min, then `node <id> online; everything else is remote`)

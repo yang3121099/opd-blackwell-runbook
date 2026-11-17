@@ -72,5 +72,5 @@ def test_once_against_a_stub_nvidia_smi(tmp_path):
 def test_heartbeat_carries_it_and_the_loops_know_it():
     hb = open(os.path.join(HERE, "heartbeat.sh")).read(); rt = open(os.path.join(HERE, "run_tasks.sh")).read()
     assert '"gpu_util": gpu_util' in hb and 'control", "gpu_monitor", "state.json"' in hb
-    assert rt.count("ensure_loop gpu_monitor") == 2 and rt.count('fill_round "$(empty_gpus') == 2   # the frozen round and the full pass
+    assert rt.count("ensure_loop gpu_monitor") == 2 and rt.count("ensure_loop gpu_fill") == 2   # the frozen round and the full pass
     assert "gpu_monitor" in open(os.path.join(HERE, "loops.sh")).read()

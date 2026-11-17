@@ -88,8 +88,9 @@ out=$(NET=direct B --no-gh --name h2a); rc=$?
 ok "v3.0 --name: the node id is the word's hash, in node.env and control/owner" '[ $rc = 0 ] && grep -q " OPD_NODE=$NA " $T/base/opd/run/node.env && [ "$(cat $T/base/opd/run/control/owner)" = $NA ] && [[ "$out" == *"node $NA"* ]]'
 out=$(NET=direct B --no-gh --name h2b); rc=$?
 ok "v3.0 a second node on the same base takes opd-<its id>; the first node's files stay" '[ $rc = 0 ] && [[ "$out" == *"belongs to another node"* ]] && grep -q " OPD_NODE=$NB " $T/base/opd-$NB/run/node.env && grep -q " OPD_NODE=$NA " $T/base/opd/run/node.env && [ "$(cat $T/base/opd/run/control/owner)" = $NA ]'
+ok "v3.2 the second node reuses the first one's install: FROM_OPD_ROOT and LINK_VENV in its node.env, none in the first node's" 'grep -q "^export FROM_OPD_ROOT=$T/base/opd/run LINK_VENV=1" $T/base/opd-$NB/run/node.env && ! grep -q FROM_OPD_ROOT $T/base/opd/run/node.env && [[ "$out" == *"will be reused"* ]]'
 out=$(NET=direct B --no-gh --name h2b); rc=$?
-ok "v3.0 the second node's rerun finds its own directory" '[ $rc = 0 ] && [[ "$out" != *"belongs to another node"* ]] && [[ "$out" == *"base: $T/base/opd-$NB "* ]]'
+ok "v3.0 the second node's rerun finds its own directory (and still its peer)" '[ $rc = 0 ] && [[ "$out" != *"belongs to another node"* ]] && [[ "$out" == *"base: $T/base/opd-$NB "* ]] && grep -q "^export FROM_OPD_ROOT=$T/base/opd/run LINK_VENV=1" $T/base/opd-$NB/run/node.env'
 out=$(NET=direct B --no-gh --name h2a); rc=$?
 ok "v3.0 the first node's rerun keeps <base>/opd" '[ $rc = 0 ] && [[ "$out" == *"base: $T/base/opd "* ]]'
 out=$(NET=direct B --no-gh --name "a/b"); rc=$?
