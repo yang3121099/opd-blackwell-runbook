@@ -55,3 +55,4 @@ commands:
   - {"seq": 53, "cmd": "setenv GPU_FILL_NAME=gpu_consum.py", "reason": "the status shows the owner's filler as gpu_consum.py on all 8 cards", "utc": "2026-11-17T16:19:13Z"}
   - {"seq": 54, "cmd": "setenv GPU_FILL=1", "reason": "cards that only run the owner's filler are free for the queue; restart self-test first (v3.6)", "utc": "2026-11-17T16:19:20Z"}
   - {"seq": 55, "cmd": "tail overnight.log 6", "reason": "is the install running", "utc": "2026-11-17T16:19:29Z"}
+  - {"seq": 56, "cmd": "tail overnight.log 8", "reason": "install progress (deadline)", "utc": "2026-11-17T16:20:59Z"}
