@@ -47,3 +47,4 @@ commands:
   - {"seq": 45, "cmd": "tail aria2_Qwen3-1.7B.log 14", "reason": "is the base-model download stalled (models/ stayed at 16.4 GB for 19 min)", "utc": "2026-11-17T16:01:57Z"}
   - {"seq": 46, "cmd": "tail aria2_Qwen3-0.6B.log 14", "reason": "is the base-model download stalled (models/ stayed at 16.4 GB for 19 min)", "utc": "2026-11-17T16:02:06Z"}
   - {"seq": 47, "cmd": "setup all", "reason": "retry 5: wait for the first start's model downloads to release overnight.lock", "utc": "2026-11-17T16:06:56Z"}
+  - {"seq": 48, "cmd": "setup all", "reason": "v3.7a: the start ends the leftover download helper that holds overnight.lock and goes on", "utc": "2026-11-17T16:07:16Z"}
