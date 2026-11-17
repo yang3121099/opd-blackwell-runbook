@@ -16,7 +16,15 @@ i=""; q=""; while [ $# -gt 0 ]; do case $1 in -i) i=$2; shift 2;; --query-gpu=*)
 case $q in memory.used) cat $TROOT/mem/$i 2> /dev/null || echo 0;; apps) cat $TROOT/apps/$i 2> /dev/null;; index) printf '0\n1\n2\n3\n';; esac
 STUB
 command -v setsid > /dev/null || printf '#!/bin/bash\nexec python3 -c "import os, sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])" "$@"\n' > $T/bin/setsid   # macOS has no setsid
-chmod +x $T/bin/*; export PATH=$T/bin:$PATH TROOT=$T FILL_TERM_S=3 FILL_FREE_S=3 FILL_DIR=$T/shm
+command -v timeout > /dev/null || cat > $T/bin/timeout <<'STUB'   # macOS has no timeout: exit 124 when the time is up, like GNU timeout
+#!/usr/bin/env python3
+import subprocess, sys
+a = sys.argv[1:]
+if a[0] == "-k": a = a[2:]
+try: sys.exit(subprocess.run(a[1:], timeout=float(a[0])).returncode)
+except subprocess.TimeoutExpired: sys.exit(124)
+STUB
+chmod +x $T/bin/*; export PATH=$T/bin:$PATH TROOT=$T FILL_TERM_S=3 FILL_FREE_S=3 FILL_DIR=$T/shm FILL_SELFTEST_S=2
 source $SRC/scripts/gpu_fill.sh
 SL=$((30000 + RANDOM))   # this run's own filler: `sleep $SL` (two runs of this test at once do not see each other's)
 live() { ls $FILL_DIR/*.pid 2> /dev/null | while read -r f; do fill_on $(basename $f .pid) && echo $(basename $f .pid); done | sort | paste -sd, -; }
@@ -51,6 +59,17 @@ mkdir -p $T/own/dir; printf 'import time\ntime.sleep(300)\n' > $T/own/dir/filler
 python3 $T/own/dir/filler_train.py --duration_hours 888 & OWN=$!; python3 $T/own/dir/real_job.py & REAL=$!; sleep 0.5
 echo $OWN > $T/apps/1; echo 20000 > $T/mem/1; echo $REAL > $T/apps/2; echo 20000 > $T/mem/2; printf '%s\n%s\n' $OWN $REAL > $T/apps/3; echo 20000 > $T/mem/3
 ok "the owner's own filler on a card: the card is free; another process (alone or beside it): not free" 'fill_free 1 && ! fill_free 2 && ! fill_free 3 && [ "$(free_gpus | paste -sd, -)" = 0,1 ]'
+# [v3.6] the owner's filler is ended only once a restart of it has been proven on this node
+out=$(fill_stop 1,2)
+ok "without a proven restart fill_stop keeps the owner's filler (the task shares the card) and has learned its command" 'kill -0 $OWN 2> /dev/null && [[ "$out" == *"FILL_KEEP"*"gpu=1"* ]] && fill_seen_ok'
+out=$(fill_selftest 0)
+ok "the self-test runs the learned command for a moment: alive at the end = ok" '[[ "$out" == *"gpu=0 ok"* ]] && fill_selftest_ok && ! fill_selftest_due'
+( umask 077; echo "fail $(fill_cmd_id) 2026-01-01T00:00:00Z rc=1" > $FILL_TEST ); out=$(fill_stop 1)
+ok "a failed self-test keeps his filler too, and is not repeated at once" 'kill -0 $OWN 2> /dev/null && [[ "$out" == *"FILL_KEEP"* ]] && ! fill_selftest_due'
+printf 'exit 3\n' > $OPD_ROOT/control/gpu_fill_secret.seen.x; cp $OPD_ROOT/control/gpu_fill_secret.seen $T/seen.keep
+printf '%s\n' "true $T/own/dir/filler_train.py" > $OPD_ROOT/control/gpu_fill_secret.seen; out=$(fill_selftest 0)
+ok "a command that ends by itself fails the self-test" '[[ "$out" == *"FAILED"* ]] && ! fill_selftest_ok'
+cp $T/seen.keep $OPD_ROOT/control/gpu_fill_secret.seen; rm -f $OPD_ROOT/control/gpu_fill_secret.seen.x; fill_selftest 0 > /dev/null
 ( sleep 1; echo 0 > $T/mem/1 ) & out=$(fill_stop 1,2)
 ok "fill_stop clears the owner's filler from its cards and never touches the other process" '! kill -0 $OWN 2> /dev/null && kill -0 $REAL 2> /dev/null'
 # [v3.4] its exact command was learned before it was cleared, and that is what an empty card is filled with (the stored line says

@@ -30,10 +30,19 @@ FILL_CMDF=$OPD_ROOT/control/gpu_fill_secret.cmd
 FILL_SEEN=$OPD_ROOT/control/gpu_fill_secret.seen
 fill_learn() {   # $1 = a filler's pid: its cwd and argv become the command fill_start runs
   local p=$1 cwd="" args=""
-  if [ -r /proc/$p/cmdline ]; then cwd=$(readlink /proc/$p/cwd 2> /dev/null); args=$(xargs -0 printf '%q ' < /proc/$p/cmdline 2> /dev/null)
+  local -a A=(); local e="" envs="" k v
+  if [ -r /proc/$p/cmdline ]; then cwd=$(readlink /proc/$p/cwd 2> /dev/null)
+    while IFS= read -r -d '' k; do A+=("$k"); done < /proc/$p/cmdline 2> /dev/null
+    # [v3.6] the interpreter by its real path (argv[0] `python` is another program in our loops), and the environment variables that
+    # choose its libraries, as the filler itself has them
+    [ ${#A[@]} -gt 0 ] && [[ ${A[0]} != /* ]] && e=$(readlink /proc/$p/exe 2> /dev/null) && [ -x "$e" ] && A[0]=$e
+    [ ${#A[@]} -gt 0 ] && args=$(printf '%q ' "${A[@]}")
+    if [ -r /proc/$p/environ ]; then while IFS= read -r -d '' k; do v=${k#*=}; k=${k%%=*}
+        case $k in PATH|LD_LIBRARY_PATH|PYTHONPATH|CONDA_PREFIX|CONDA_DEFAULT_ENV|VIRTUAL_ENV) envs="$envs$(printf 'export %s=%q; ' "$k" "$v")";; esac
+      done < /proc/$p/environ 2> /dev/null; fi
   else args=$(ps -o args= -p $p 2> /dev/null); fi   # no /proc (macOS, the tests): the words as ps gives them
   [ -n "$args" ] || return 1
-  ( umask 077; { [ -n "$cwd" ] && printf 'cd %q 2> /dev/null; ' "$cwd"; printf '%s\n' "$args"; } > $FILL_SEEN.tmp && mv $FILL_SEEN.tmp $FILL_SEEN ) 2> /dev/null; }
+  ( umask 077; { printf '%s' "$envs"; [ -n "$cwd" ] && printf 'cd %q 2> /dev/null; ' "$cwd"; printf '%s\n' "$args"; } > $FILL_SEEN.tmp && mv $FILL_SEEN.tmp $FILL_SEEN ) 2> /dev/null; }
 fill_seen_ok() { local s; s=$(fill_sig); [ -s $FILL_SEEN ] && [ -n "$s" ] && grep -qF -- "$s" $FILL_SEEN; }   # learned, and from the filler named now
 fill_cmd_line() { local s; s=$(fill_sig)
   if fill_seen_ok; then head -1 $FILL_SEEN
@@ -73,6 +82,31 @@ fill_empty_gpus() {   # the GPUs with nothing on them and no task of ours holdin
     fill_held $i && continue; fill_on $i && continue; fill_holding $i && continue
     [ -z "$(fill_apps $i)" ] || continue
     [ "$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $i 2> /dev/null | tr -d ' ' | head -1)" -le 2048 ] 2> /dev/null && echo $i; done; }
+# [v3.6] (11-17, a second borrowed machine: the owner's filler is ONE process on all eight cards, started with the container) the
+# owner's filler is ended only once a RESTART of it has been proven on this node: the loop runs the known command once, beside
+# whatever is on a card, for FILL_SELFTEST_S (30) s - alive at the end = ok (control/gpu_fill_selftest: "ok|fail <command id> <utc>").
+# Until then fill_stop ends only the fillers we started and the task shares its card with the owner's filler (FILL_KEEP).
+FILL_TEST=$OPD_ROOT/control/gpu_fill_selftest
+fill_cmd_id() { fill_cmd_line | cksum | cut -d' ' -f1; }
+fill_selftest_ok() { [ -s $FILL_TEST ] && [ "$(cut -d' ' -f1,2 $FILL_TEST 2> /dev/null)" = "ok $(fill_cmd_id)" ]; }
+fill_selftest_due() {   # a command is known and it has no result yet (or a failure older than FILL_SELFTEST_RETRY_S 1800 s)
+  [ -n "$(fill_cmd_line)" ] || return 1
+  [ "$(cut -d' ' -f2 $FILL_TEST 2> /dev/null)" = "$(fill_cmd_id)" ] || return 0
+  [ "$(cut -d' ' -f1 $FILL_TEST)" = fail ] && [ $(( $(date +%s) - $(stat -c %Y $FILL_TEST 2> /dev/null || stat -f %m $FILL_TEST) )) -ge ${FILL_SELFTEST_RETRY_S:-1800} ]; }
+fill_selftest() {   # $1 = a GPU
+  local rc id log=$OPD_ROOT/logs/gpu_fill_selftest.log n=${FILL_SELFTEST_S:-30}; id=$(fill_cmd_id); [ -n "$(fill_cmd_line)" ] || return 1
+  { mkdir -p $OPD_ROOT/logs && : > $log; } 2> /dev/null || log=/dev/null
+  ( [ -f $OPD_ROOT/control/gpu_fill_secret.env ] && . $OPD_ROOT/control/gpu_fill_secret.env
+    export CUDA_VISIBLE_DEVICES=$1 FILL_CMD_LINE="$(fill_cmd_line)"
+    exec timeout -k 5 $n bash -c 'eval "$FILL_CMD_LINE"' > $log 2>&1 8>&- 9>&- < /dev/null ); rc=$?
+  if [ $rc = 124 ] || [ $rc = 137 ]; then ( umask 077; echo "ok $id $(date -u +%FT%TZ)" > $FILL_TEST ) 2> /dev/null
+    echo "FILL_SELFTEST $(date -u +%T) gpu=$1 ok: the filler's command was alive after $n s"
+  else ( umask 077; echo "fail $id $(date -u +%FT%TZ) rc=$rc" > $FILL_TEST ) 2> /dev/null
+    echo "FILL_SELFTEST $(date -u +%T) gpu=$1 FAILED (exit $rc before $n s): the owner's filler will not be ended; see logs/gpu_fill_selftest.log"; fi; }
+fill_kill_pids() {   # the filler processes on GPU $1 that fill_stop may end: all of them once a restart is proven, else only ours
+  local p o; o=" $(cat $FILL_DIR/*.pid 2> /dev/null | tr '\n' ' ') "
+  for p in $(fill_app_pids $1); do
+    if fill_selftest_ok || [[ $o == *" $(ps -o pgid= -p $p 2> /dev/null | tr -d ' ') "* ]]; then echo $p; fi; done; }
 fill_start() {   # $1 = a GPU
   [ -n "$(fill_cmd_line)" ] || { echo "FILL_NO_COMMAND $(date -u +%T) gpu=$1: the filler's command is not known yet (none learned, none stored for this name)"; return 1; }
   mkdir -p $FILL_DIR; rm -f $FILL_DIR/$1.pid
@@ -85,18 +119,26 @@ fill_start() {   # $1 = a GPU
 fill_stop() {   # $1 = a GPU list a,b,c: clear them of the filler (ours and one that was there before us) and wait for the cards' memory
   local g p i any=0 L; L=$(echo "$1" | tr , ' ')
   [ -d $FILL_DIR ] || [ -s $FILL_CMDF ] || [ -n "$(fill_name)" ] || return 0
+  local theirs=0
+  if fill_enabled && ! fill_seen_ok; then   # [v3.6] learn the command before deciding: the proof below is about the command a restart runs
+    for g in $L; do p=$(fill_app_pids $g | head -1); [ -n "$p" ] && { fill_learn $p; break; }; done; fi
   for g in $L; do
     p=$(fill_pgid $g); [ -n "$p" ] && { any=1; kill -TERM -- -$p 2> /dev/null; }
-    fill_enabled && for p in $(fill_app_pids $g); do any=1; fill_seen_ok || fill_learn $p; kill -TERM $p 2> /dev/null; done
+    if fill_enabled; then
+      fill_selftest_ok || [ -z "$(fill_app_pids $g)" ] || [ -n "$p" ] || echo "FILL_KEEP $(date -u +%T) gpu=$g: the owner's filler stays on the card (no proven restart yet: $(cut -d' ' -f1,4- $FILL_TEST 2> /dev/null || echo not tested)); the task shares it"
+      for p in $(fill_kill_pids $g); do any=1; fill_on $g || theirs=1; kill -TERM $p 2> /dev/null; done; fi
   done
   [ $any = 1 ] || return 0
   for i in $(seq $(( ${FILL_TERM_S:-20} * 2 ))); do any=0
-    for g in $L; do fill_on $g && any=1; fill_enabled && [ -n "$(fill_app_pids $g)" ] && any=1; done
+    for g in $L; do fill_on $g && any=1; fill_enabled && [ -n "$(fill_kill_pids $g)" ] && any=1; done
     [ $any = 0 ] && break; sleep 0.5; done
   for g in $L; do
     p=$(fill_pgid $g); [ -n "$p" ] && kill -KILL -- -$p 2> /dev/null
-    fill_enabled && for p in $(fill_app_pids $g); do kill -KILL $p 2> /dev/null; done
+    fill_enabled && for p in $(fill_kill_pids $g); do kill -KILL $p 2> /dev/null; done
     rm -f $FILL_DIR/$g.pid $FILL_DIR/$g.empty; done
+  # [v3.6] a filler that was one process on many cards is gone from all of them: the cards this call did not ask for get their own
+  # filler at once (not after the loop's two looks)
+  if [ $theirs = 1 ] && fill_enabled; then sleep 1; for g in $(fill_empty_gpus); do [[ " $L " == *" $g "* ]] || fill_holding $g || fill_start $g; done; fi
   command -v nvidia-smi > /dev/null || { echo "FILL_STOP $(date -u +%T) gpu=$1"; return 0; }
   for i in $(seq ${FILL_FREE_S:-90}); do any=0
     for g in $L; do [ "$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $g 2> /dev/null | tr -d ' ' | head -1)" -le 2048 ] 2> /dev/null || any=1; done
@@ -111,6 +153,8 @@ fill_round() {   # $1 = the GPUs that are empty right now (space separated): fil
   mkdir -p $FILL_DIR
   if ! fill_seen_ok; then   # [v3.4] a filler is on some card: learn its exact command while it is there
     for g in $(nvidia-smi --query-gpu=index --format=csv,noheader 2> /dev/null); do g=$(fill_app_pids $g | head -1); [ -n "$g" ] && { fill_learn $g; break; }; done; fi
+  if fill_selftest_due; then   # [v3.6] prove once that the command can be started here, on a card no task of ours holds
+    for g in $(nvidia-smi --query-gpu=index --format=csv,noheader 2> /dev/null); do fill_held $g || fill_holding $g || { fill_selftest $g; break; }; done; fi
   for g in $(ls $FILL_DIR 2> /dev/null | sed -n 's/\.empty$//p'); do [[ $e == *" $g "* ]] || rm -f $FILL_DIR/$g.empty; done
   for g in $1; do
     fill_on $g && continue; fill_holding $g && continue   # never a second filler on a card; not on a card a check asked to keep empty

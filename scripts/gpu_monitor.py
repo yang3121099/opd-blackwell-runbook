@@ -70,7 +70,13 @@ def owners():
     for m in re.finditer(r"scripts/(?:task|run_adhoc_eval)\.sh (\d+(?:,\d+)*) ", ps + " "):
         for g in m.group(1).split(","):
             out[int(g)] = "task"
-    d = os.path.join(ROOT, "control", "gpu_fill")
+    ds = [os.path.join(ROOT, "control", "gpu_fill")]
+    try:   # [v3.6] gpu_fill.sh keeps its sessions in memory since v3.2: /dev/shm/opd_gpu_fill_<uid>_<cksum of OPD_ROOT>
+        ck = subprocess.run(["cksum"], input=(ROOT + "\n").encode(), capture_output=True, timeout=10).stdout.split()[0].decode()
+        ds.insert(0, f"/dev/shm/opd_gpu_fill_{os.getuid()}_{ck}")
+    except (OSError, IndexError, subprocess.TimeoutExpired):
+        pass
+    d = next((x for x in ds if os.path.isdir(x)), ds[-1])
     try:
         for f in os.listdir(d):
             if f.endswith(".pid") and f[:-4].isdigit() and int(f[:-4]) not in out:
@@ -84,11 +90,68 @@ def owners():
     return out
 
 
+def fill_name():
+    """GPU_FILL_NAME of control.env (the owner's filler is known by this script file name), or None."""
+    try:
+        m = re.findall(r"^export GPU_FILL_NAME=([A-Za-z0-9_.-]+)$", open(os.path.join(ROOT, "control.env")).read(), re.M)
+        return m[-1] if m else None
+    except OSError:
+        return None
+
+
+def apps():
+    """[v3.6] {gpu: [what runs on it]}: for every compute process nvidia-smi lists, the file names of its program and of its
+    script ("python train.py"; file names only, no directory, no other argument), or "pid not visible" when the process is outside
+    this container. 11-17: a borrowed machine came with one filler process on all eight cards and the status could not say so."""
+    out = {}
+    try:
+        idx = {}
+        for line in subprocess.run(["nvidia-smi", "--query-gpu=index,uuid", "--format=csv,noheader"], capture_output=True, text=True, timeout=30).stdout.splitlines():
+            i, u = [x.strip() for x in line.split(",")[:2]]
+            idx[u] = int(i)
+        for line in subprocess.run(["nvidia-smi", "--query-compute-apps=pid,gpu_uuid", "--format=csv,noheader"], capture_output=True, text=True, timeout=30).stdout.splitlines():
+            f = [x.strip() for x in line.split(",")]
+            if len(f) < 2 or not f[0].isdigit() or f[1] not in idx:
+                continue
+            try:
+                argv = [a for a in open(f"/proc/{f[0]}/cmdline", "rb").read().decode("utf-8", "replace").split("\0") if a]
+                script = next((a for a in argv[1:] if a.endswith(".py") or a.endswith(".sh")), None)
+                name = " ".join(os.path.basename(a) for a in ([argv[0]] if argv else []) + ([script] if script else []))[:60] or "?"
+            except OSError:
+                name = "pid not visible"
+            if name not in out.setdefault(idx[f[1]], []):
+                out[idx[f[1]]].append(name)
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        pass
+    return out
+
+
+def fill_state():
+    """[v3.6] what gpu_fill.sh knows: is filling on, is the filler's command known, did a restart of it work here."""
+    def first(path, n):
+        try:
+            return " ".join(open(path).read().split()[:n]) or None
+        except OSError:
+            return None
+    try:
+        on = re.findall(r"^export GPU_FILL=([01])$", open(os.path.join(ROOT, "control.env")).read(), re.M)
+    except OSError:
+        on = []
+    c = os.path.join(ROOT, "control")
+    t = first(os.path.join(c, "gpu_fill_selftest"), 4)
+    return {"on": bool(on) and on[-1] == "1", "name": fill_name(),
+            "command": "learned" if os.path.exists(os.path.join(c, "gpu_fill_secret.seen")) else "stored" if os.path.exists(os.path.join(c, "gpu_fill_secret.cmd")) else None,
+            "selftest": (t.split()[0] + " " + " ".join(t.split()[2:])) if t else None}
+
+
 def summarize(qs, now, fl):
-    own = owners()
-    st = {"utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now)), "floor": fl, "gpus": {}, "low2h": [], "warn30m": []}
+    own, ap, fn = owners(), apps(), fill_name()
+    st = {"utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now)), "floor": fl, "gpus": {}, "low2h": [], "warn30m": [], "fill": fill_state()}
     for g in sorted(qs):
-        row = {"on": own.get(g, "none")}
+        names = ap.get(g, [])
+        row = {"on": own.get(g) or ("filler" if fn and any(n.split()[-1] == fn for n in names) else "other" if names else "none")}
+        if names:
+            row["apps"] = names[:3]
         for name, span in WINDOWS:
             mean, full, share = window(qs[g], now, span, fl if name == "u2h" else None)
             row[name] = mean
