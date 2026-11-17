@@ -25,3 +25,4 @@ commands:
   - {"seq": 23, "cmd": "setenv CONTROL_BATCH=0", "reason": "setup step 3 (install_uv.sh) failed at 14:55Z; log outputs do not arrive in batch mode", "utc": "2026-11-17T15:01:07Z"}
   - {"seq": 24, "cmd": "tail overnight.log 150", "reason": "setup step 3 (install_uv.sh) failed at 14:55Z; log outputs do not arrive in batch mode", "utc": "2026-11-17T15:01:15Z"}
   - {"seq": 25, "cmd": "tail setup_20.log 80", "reason": "setup step 3 (install_uv.sh) failed at 14:55Z; log outputs do not arrive in batch mode", "utc": "2026-11-17T15:01:24Z"}
+  - {"seq": 26, "cmd": "setup all", "reason": "v3.5 on main: install picks a mainland package index; rerun the install after the pypi.org timeout", "utc": "2026-11-17T15:06:07Z"}
