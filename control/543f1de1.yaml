@@ -42,3 +42,4 @@ commands:
   - {"seq": 40, "cmd": "env-probe", "reason": "v3.7: scan this machine's disks for earlier installs of ours (Runming: reuse the old directories)", "utc": "2026-11-17T15:56:00Z"}
   - {"seq": 41, "cmd": "du opd_root models", "reason": "are the base-model downloads complete (the setup lock is still held)", "utc": "2026-11-17T15:58:16Z"}
   - {"seq": 42, "cmd": "tail overnight.log 25", "reason": "what the first start's downloads are doing", "utc": "2026-11-17T15:58:24Z"}
+  - {"seq": 43, "cmd": "setup all", "reason": "retry 4: wait for the first start's model downloads to release overnight.lock", "utc": "2026-11-17T15:58:45Z"}
