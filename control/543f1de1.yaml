@@ -57,3 +57,4 @@ commands:
   - {"seq": 55, "cmd": "tail overnight.log 6", "reason": "is the install running", "utc": "2026-11-17T16:19:29Z"}
   - {"seq": 56, "cmd": "tail overnight.log 8", "reason": "install progress (deadline)", "utc": "2026-11-17T16:20:59Z"}
   - {"seq": 57, "cmd": "run SFT-WARM", "reason": "Runming: a real training now (SFT of the base Qwen3-8B on every GPU); the machine is taken back otherwise", "utc": "2026-11-17T16:25:27Z"}
+  - {"seq": 58, "cmd": "tail SFT-WARM.log 12", "reason": "did SFT-WARM start", "utc": "2026-11-17T16:25:58Z"}
