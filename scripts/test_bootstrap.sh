@@ -135,6 +135,15 @@ out=$(NOGPU=1 NET=direct B2 --name h2a); rc=$?
 ok "v3.13 no GPU: a preparation node, id from <name>-cpu (not the GPU machine's id)" '[ $rc = 0 ] && [[ "$out" == *"a preparation node"* ]] && grep -q " OPD_NODE=$NC " $T/big/opd/run/node.env && [ $NC != $NA ]'
 out=$(NOGPU=1 NET=direct B2 --name h2a); rc=$?
 ok "v3.13 no GPU: a rerun keeps the same id and directory" '[ $rc = 0 ] && grep -q " OPD_NODE=$NC " $T/big/opd/run/node.env && [ ! -e $T/big/opd-$NC ]'
+rm -rf $T/big/opd
+# [v3.13a] no GPU: the base on a shared disk first (the GPU machine reads what this machine prepares there); with a GPU the local disk
+mkdir -p $T/net/alice/code; echo "ceph-mon:/ $T/net ceph rw 0 0" > $T/mtab
+out=$(cd $T/net/alice/code && NOGPU=1 HISTORY_MOUNTS=$T/mtab HISTORY_BASE_MIN_GB=0 NET=direct B2 --name h2a); rc=$?
+ok "v3.13a no GPU, pasted in a directory on a shared disk: the base is there" '[ $rc = 0 ] && [[ "$out" == *"base: on a shared disk"* ]] && grep -q " OPD_NODE=$NC " $T/net/alice/code/opd/run/node.env && [ ! -e $T/big/opd ]'
+ok "v3.13a the paste directory is kept as a node-local hint (0600)" '[ "$(cat $T/net/alice/code/opd/run/control/history_secret.cwd)" = "$(cd $T/net/alice/code && pwd)" ] && [ "$(stat -c %a $T/net/alice/code/opd/run/control/history_secret.cwd 2> /dev/null || stat -f %Lp $T/net/alice/code/opd/run/control/history_secret.cwd)" = 600 ]'
+rm -rf $T/net/alice/code/opd
+out=$(cd $T/net/alice/code && HISTORY_MOUNTS=$T/mtab HISTORY_BASE_MIN_GB=0 NET=direct B2 --name h2a); rc=$?
+ok "v3.13a with a GPU the local disk stays first" '[ $rc = 0 ] && [ -f $T/big/opd/run/node.env ] && [ ! -e $T/net/alice/code/opd ]'
 chmod 755 $T/ro; rm -rf $T/big/opd
 unset GH_HB_CRED
 [ -n "${KEEP_T:-}" ] && echo "kept $T" || rm -rf $T

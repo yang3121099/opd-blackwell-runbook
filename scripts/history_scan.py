@@ -21,7 +21,7 @@ and what uses it: fetch_model.py copies a weight from such a root before it asks
 still checked against the Hub's list); overnight.sh copies a complete base model from it before it downloads (v3.7). Data files
 and venvs found there are reported, never taken over by themselves (an older prep_data.py, a venv built weeks ago).
 
-Usage: python3 history_scan.py [--if-missing] [--print]      (stdlib only; called by env_probe.py and by overnight.sh's step 0)"""
+Usage: python3 history_scan.py [--if-missing] [--print] | --shared-base <dir> <told>      (stdlib only; called by env_probe.py and by overnight.sh's step 0)"""
 import json
 import os
 import re
@@ -37,6 +37,7 @@ SKIP = {"models", "runs", "venv", "venv-fa", "venv-vl", "venv-ctl", "venv-ifeval
         "proc", "sys", "dev", "adhoc_models", "opd-dr", "control"}
 MAX_ENTRIES = int(os.environ.get("HISTORY_MAX_ENTRIES", 5000))
 MODEL_SKIP = {"runs", "venv", "venv-fa", "venv-vl", "venv-ctl", "logs", "node_modules", "__pycache__", "site-packages", "lib", "lib64", "bin", "include", "wandb", "outputs", "proc", "sys", "dev", "opd-dr", "data", "datasets"}
+MOUNTS = os.environ.get("HISTORY_MOUNTS", "/proc/mounts")   # a test's own table
 NET_FS = ("nfs", "nfs4", "ceph", "lustre", "gpfs", "cifs", "beegfs", "virtiofs", "glusterfs", "fuse.")
 REAL_FS = ("ext2", "ext3", "ext4", "xfs", "btrfs", "zfs") + NET_FS
 
@@ -254,6 +255,38 @@ def hint_dirs(paths, mts):
     return sorted(out, key=lambda d: d.count("/"))   # a user's directory before its sub-directories: the search below covers them
 
 
+def shared_base(cwd, told, env, mts):
+    """[v3.13a] (Runming 11-18: "the development machine and the training machine share only the two shared disks: put the base
+    there first") the directory on a shared (network) disk a machine WITHOUT a GPU installs under, or "": what such a machine
+    prepares - base models, fetched weights, the environment - must be where the GPU machine can read it. Candidates: the
+    directory bootstrap.sh was pasted in, the directories beside the installs it was told of, the account's directory on each
+    shared mount - and the same relative directory on every other shared mount. Never an earlier install or a directory inside
+    one. Of the writable ones: the mount with the most room (HISTORY_BASE_MIN_GB, 50, at least), there the deepest directory."""
+    net = [(m, t) for m, t in mts if t.startswith(NET_FS)]
+    users = {env.get("USER", ""), env.get("LOGNAME", ""), os.path.basename(env.get("HOME", "").rstrip("/"))} - {"", "root"}
+    hints = [cwd] + [os.path.dirname(os.path.normpath(p)) for p in (told or "").split(":") if p] + [os.path.join(m, u) for m, _ in net for u in users]
+    best, key = "", None
+    for d in hint_dirs([h for h in hints if h and h.startswith("/")], net):
+        mp = next(m for m, _ in net if d == m or d.startswith(m + "/"))
+        up, inside = d, False
+        while len(up) > len(mp):
+            inside = inside or is_root(up)
+            up = os.path.dirname(up)
+        if inside or not os.access(d, os.W_OK | os.X_OK):
+            continue
+        try:
+            st = os.statvfs(d)
+        except OSError:
+            continue
+        free = st.f_bavail * st.f_frsize / 1e9
+        if free < float(env.get("HISTORY_BASE_MIN_GB", 50)):
+            continue
+        k = (round(free / 10), d.count("/"))   # the same mount gives the same room: then the deeper directory
+        if key is None or k > key:
+            best, key = d, k
+    return best
+
+
 def scan(mts, paths, env, deadline_s=None, budget=None, depth=None):
     t0 = time.time()
     deadline = t0 + float(deadline_s if deadline_s is not None else env.get("HISTORY_SCAN_S", 60))
@@ -357,7 +390,7 @@ def write(rep):
 def run(env=None, pids=None):
     env = dict(os.environ) if env is None else env
     try:
-        mts = mounts(open("/proc/mounts").read())
+        mts = mounts(open(MOUNTS).read())
     except OSError:
         mts = []
     rep = scan(mts, hint_paths(env, gpu_pids() if pids is None else pids, mts), env)
@@ -366,6 +399,14 @@ def run(env=None, pids=None):
 
 
 def main(argv):
+    if "--shared-base" in argv:   # [v3.13a] bootstrap.sh, before there is an OPD_ROOT: <the paste directory> <the told installs>
+        i = argv.index("--shared-base")
+        try:
+            mts = mounts(open(MOUNTS).read())
+        except OSError:
+            mts = []
+        print(shared_base(argv[i + 1] if len(argv) > i + 1 else "", argv[i + 2] if len(argv) > i + 2 else "", dict(os.environ), mts))
+        return
     if not ROOT:
         sys.exit("OPD_ROOT is not set")
     p = os.path.join(ROOT, "control", "history_secret.json")

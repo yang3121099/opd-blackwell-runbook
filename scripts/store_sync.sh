@@ -79,6 +79,14 @@ if [ -f $OPD_ROOT/venv/.install_ok ] && [ ! -f $OPD_ROOT/venv/.linked_to_history
     else noroom "the environment pack"; fi
   fi
 fi
+# [v3.13a] an install that is on the store's own disk (a preparation node whose base is on the shared disk) IS the long-term copy
+# of its models and fetched weights: the next machine's history scan finds them where they are. Only the wheel and the environment
+# pack (one file reads far faster from a shared disk than a hundred thousand small ones) are written then.
+dev() { stat -c %d "$1" 2> /dev/null || stat -f %d "$1" 2> /dev/null; }
+if [ -n "$(dev $OPD_ROOT)" ] && [ "$(dev $OPD_ROOT)" = "$(dev $S)" ] && [ "${STORE_SAME_DISK_COPY:-0}" != 1 ]; then
+  echo "STORE $(date -u +%T) this install is on the store's disk: models and weights stay where they are (found by the next machine's scan)" >> $LOG
+  fin PASS "store on this install's own disk: models and fetched weights are read where they are; $(ls $S/envpack/*.tar 2> /dev/null | wc -l | tr -d ' ') environment pack(s), $(ls $S/wheels/*.whl 2> /dev/null | wc -l | tr -d ' ') wheel(s); written this run: env $NE, wheels $NWH"
+fi
 # 3. our fetched weights (a complete fetch has its .fetch_ok)
 for W in ${CKPT_ROOT:+$CKPT_ROOT/adhoc_models/result} $OPD_ROOT/adhoc_models/result; do [ -d $W/runs ] || continue
   for ok in $(find $W/runs -maxdepth 6 -name .fetch_ok 2> /dev/null); do d=$(dirname $ok); rel=${d#$W/}

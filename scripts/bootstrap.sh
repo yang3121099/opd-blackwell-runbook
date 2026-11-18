@@ -62,12 +62,23 @@ pick_base() { local best="" bf=0 d f
     for d in "${HOME:-/nonexistent}" $(echo "$OLDC" | tr ':' '\n' | while read -r x; do [ -n "$x" ] && dirname "$x"; done) /tmp; do
       [ -d "$d" ] && [ -w "$d" ] || continue; f=$(free_kb "$d"); [ "${f:-0}" -gt $bf ] 2> /dev/null && { best=$d; bf=$f; }; done; fi
   echo "$best"; }
+# [v3.13a] (Runming 11-18: "the development machine and the training machine share only the shared disks: put the base there
+# first, then look for the development machine's own large disk (there may be none)") a machine WITHOUT a GPU prepares files for
+# the GPU machine that comes later, so its install goes on a shared disk when a writable directory is known there (the paste
+# directory, the directories beside --old-base-cands, the account's directory; scripts/history_scan.py --shared-base) - the GPU
+# machine's history scan then finds the models, the fetched weights and the environment where they are. Its own disk is the
+# second choice. A machine with GPUs keeps its local disk first (speed); the long-term store is its shared part.
+NG=$(nvidia-smi -L 2> /dev/null | grep -c '^GPU')
+if [ -z "$BASE" ] && [ "${NG:-0}" = 0 ]; then
+  BASE=$(python3 "$(cd "$(dirname "$0")" && pwd)/history_scan.py" --shared-base "$PWD" "$OLDC" 2> /dev/null | tail -1)
+  if [ -n "$BASE" ]; then L=$(pick_base); say "base: on a shared disk ($(( $(free_kb "$BASE") / 1048576 )) GB free), where the GPU machine can read what this machine prepares; this machine's own disk: $([ -n "$L" ] && echo "$(( $(free_kb "$L") / 1048576 )) GB free, not needed" || echo none)"
+  else say "base: no writable directory known on a shared disk (paste from your directory there, or give --base <dir>): this machine's own disk"; fi
+fi
 [ -n "$BASE" ] || { BASE=$(pick_base); [ -n "$BASE" ] && say "base: $BASE ($(( $(free_kb "$BASE") / 1048576 )) GB free; chosen by room among the writable directories)"; }
 [ -n "$BASE" ] && [ -d "$BASE" ] && [ -w "$BASE" ] || stop "no writable directory found for the base (run again with --base <dir>)"
 # [v3.13] a machine without a GPU is a PREPARATION node (it fills the long-term store for the GPU machine that comes later; nothing
 # is dispatched on it). Its id comes from <name>-cpu, so the same paste on a development machine and on the GPU machine gives two
 # nodes - one id for both would make them overwrite each other's status and both apply every command.
-NG=$(nvidia-smi -L 2> /dev/null | grep -c '^GPU')
 if [ "${NG:-0}" = 0 ] && [ -n "$NAME" ] && [[ $NAME != *-cpu ]]; then NAME=$NAME-cpu; say "no GPU on this machine: a preparation node, its id comes from the name $NAME"; fi
 # [v3.0] (Fable 11-17: two borrowed machines that may share a disk, or carry the same host name) the node id here already: the hash of
 # --name <word> when given (the project then knows the id before the machine is up, and two machines with one host name differ),

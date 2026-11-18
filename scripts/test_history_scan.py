@@ -141,3 +141,25 @@ def test_a_machine_without_gpu_processes_is_hinted_by_the_paste_directory_and_th
     os.remove(os.path.join(root, "control", "history_secret.cwd"))
     rep = hs.scan(mts, hs.hint_paths({"HOME": "/home/alice", "USER": "alice"}, [], mts), {})
     assert len(rep["roots"]) == 2
+
+
+def test_shared_base_for_a_machine_without_gpus(tmp_path, monkeypatch):
+    """[v3.13a] a CPU machine installs on a shared disk: beside the earlier install, never inside one, only where it can write."""
+    a, b, mts = machine(tmp_path)
+    code = os.path.join(a, "alice", "code")
+    env = {"HOME": "/root", "USER": "root", "HISTORY_BASE_MIN_GB": "0"}
+    assert hs.shared_base(code, "", env, mts) in (code, os.path.join(b, "alice", "code"))                      # the paste directory (or its twin)
+    assert hs.shared_base(os.path.join(code, "opd-run", "runs"), "", env, mts).endswith(os.path.join("alice", "code"))   # pasted inside an install: beside it
+    assert hs.shared_base("/", os.path.join(b, "alice", "code", "opd-run"), env, mts).endswith(os.path.join("alice", "code"))   # told of an install
+    assert hs.shared_base("/", "", {"HOME": "/home/carol", "USER": "carol", "HISTORY_BASE_MIN_GB": "0"}, mts) == os.path.join(a, "carol")   # the account's directory
+    assert hs.shared_base("/", "", env, mts) == ""                                                             # nothing to go by
+    assert hs.shared_base(code, "", env, [(a, "ext4"), (b, "xfs")]) == ""                                      # no shared disk
+    assert hs.shared_base(code, "", dict(env, HISTORY_BASE_MIN_GB="99999999"), mts) == ""                      # no room
+    if os.getuid() != 0:
+        for m in (a, b):
+            os.chmod(os.path.join(m, "alice", "code"), 0o555)
+        try:
+            assert hs.shared_base(code, "", env, mts).endswith("alice")                                        # not writable: one level up
+        finally:
+            for m in (a, b):
+                os.chmod(os.path.join(m, "alice", "code"), 0o755)
