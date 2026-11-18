@@ -79,3 +79,4 @@ commands:
   - {"seq": 77, "cmd": "queue h2a", "reason": "the queue's fetch lines for the prefetch; dispatch stays frozen on this machine", "utc": "2026-11-18T09:37:51Z"}
   - {"seq": 78, "cmd": "setup 2", "reason": "preparation only: environment and base models, no GPU step", "utc": "2026-11-18T09:38:00Z"}
   - {"seq": 79, "cmd": "run FETCH-all", "reason": "the reading weights, to be stored on the shared disk for the GPU machine", "utc": "2026-11-18T09:38:08Z"}
+  - {"seq": 80, "cmd": "tail overnight.log 40", "reason": "the environment's first use in place: how far is step 2", "utc": "2026-11-18T09:47:18Z"}
