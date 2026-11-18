@@ -13,3 +13,4 @@ commands:
   - {"seq": 11, "cmd": "tail overnight.log 40", "reason": "first 15 minutes: filler command learned?, full-parameter mode?, environment path", "utc": "2026-11-18T16:55:26Z"}
   - {"seq": 12, "cmd": "ps", "reason": "is the filler loop alive, and whose process is the filler", "utc": "2026-11-18T17:01:45Z"}
   - {"seq": 13, "cmd": "tail coldstart_fa.log 30", "reason": "setup step 4 has run 16 min: what it is doing", "utc": "2026-11-18T17:07:29Z"}
+  - {"seq": 14, "cmd": "tail coldstart.log 30", "reason": "setup step 4 has run 16 min: what it is doing", "utc": "2026-11-18T17:07:37Z"}
