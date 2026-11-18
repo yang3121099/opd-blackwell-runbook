@@ -89,3 +89,4 @@ commands:
   - {"seq": 87, "cmd": "tail fetch_result_E12b-P0think-4k_s50.log 6", "reason": "prefetch and environment copy progress", "utc": "2026-11-18T10:04:30Z"}
   - {"seq": 88, "cmd": "tail fetch_result_E12b-P0think-6k_s25.log 6", "reason": "prefetch and environment copy progress", "utc": "2026-11-18T10:04:38Z"}
   - {"seq": 89, "cmd": "tail seed_copy.log 6", "reason": "prefetch and environment copy progress", "utc": "2026-11-18T10:04:47Z"}
+  - {"seq": 90, "cmd": "store", "reason": "the fetched weights and the environment pack to the long-term store on the shared disk", "utc": "2026-11-18T10:11:21Z"}
