@@ -21,3 +21,4 @@ commands:
   - {"seq": 19, "cmd": "tail run_tasks.log 40", "reason": "after v3.13c: what happened to the filler when the gate started; restart self-test", "utc": "2026-11-18T17:52:08Z"}
   - {"seq": 20, "cmd": "tail gpu_fill.log 30", "reason": "after v3.13c: what happened to the filler when the gate started; restart self-test", "utc": "2026-11-18T17:52:16Z"}
   - {"seq": 21, "cmd": "tail gpu_fill_selftest.log 15", "reason": "after v3.13c: what happened to the filler when the gate started; restart self-test", "utc": "2026-11-18T17:52:24Z"}
+  - {"seq": 22, "cmd": "tail overnight.log 200", "reason": "run record of Q-107: where the base models came from on this node (copied / found / verified lines)", "utc": "2026-11-18T21:12:10Z"}
