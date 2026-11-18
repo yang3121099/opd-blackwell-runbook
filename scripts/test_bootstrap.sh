@@ -18,7 +18,18 @@ case ${NET:-direct} in
 esac
 printf $c
 EOF
-printf '#!/bin/bash\nexit 1\n' > $T/bin/nvidia-smi
+printf '#!/bin/bash\n[ "$1" = -L ] && [ -z "$NOGPU" ] && echo "GPU 0: stub"\nexit 1\n' > $T/bin/nvidia-smi   # [v3.13] one GPU listed; NOGPU=1: none (a CPU machine)
+REALDF=$(command -v df)
+cat > $T/bin/df <<DFEOF
+#!/bin/bash
+# [v3.13] DF_FAKE=<dir>: the mount table from <dir>/table, the room of a directory from <dir>/free_<path with _ for />
+if [ -n "\$DF_FAKE" ]; then
+  case "\$*" in
+    "-P -T") cat \$DF_FAKE/table;;
+    "-Pk "*) d=\${@: -1}; echo "Filesystem 1024-blocks Used Available Capacity Mounted on"; echo "x 0 0 \$(cat \$DF_FAKE/free_\$(echo \$d | tr / _) 2> /dev/null || echo 0) 0% \$d";;
+  esac; exit 0; fi
+exec $REALDF "\$@"
+DFEOF
 printf '#!/bin/bash\nexit 1\n' > $T/bin/pgrep   # [z126] the retire check sees only this test (no stray host process stops it)
 chmod +x $T/bin/*; export PATH=$T/bin:$PATH RB_URL=$SRC
 B() { bash $SRC/scripts/bootstrap.sh --base $T/base --token-file $T/tok --dry "$@" 2>&1; }
@@ -103,6 +114,28 @@ ok "v3.1 --fill-cmd: stored 0600 with the PATH, not in the output" '[ $rc = 0 ] 
 out=$(NET=direct B --no-gh --name h2a); rc=$?
 ok "v3.1 a rerun without --fill-cmd keeps the stored command" '[ $rc = 0 ] && [ "$(cat $O/control/gpu_fill_secret.cmd)" = "$FC" ]'
 rm -rf $T/base/opd $T/base/opd-*
+# [v3.13] a CPU development machine (11-18: "STOP: no writable local disk found"): the base by room among the WRITABLE directories;
+# no GPU -> a preparation node whose id comes from <name>-cpu; the status is built without nvidia-smi
+mkdir -p $T/df $T/ro $T/small $T/home $T/big; : > $T/hostsfile; chmod 555 $T/ro
+fr() { echo $2 > $T/df/free_$(echo $1 | tr / _); }
+{ echo "Filesystem Type 1024-blocks Used Available Capacity Mounted on"
+  echo "/dev/a ext4 1 1 9000000000 1% $T/hostsfile"; echo "/dev/b xfs 1 1 8000000000 1% $T/ro"; echo "overlay overlay 1 1 10485760 1% $T/small"
+  echo "ceph ceph 1 1 99000000000 1% $T/net"; } > $T/df/table
+fr $T/hostsfile 9000000000; fr $T/ro 8000000000; fr $T/small 10485760; fr $T/home 314572800
+B2() { HOME=$T/home DF_FAKE=$T/df bash $SRC/scripts/bootstrap.sh --token-file $T/tok --dry --no-gh "$@" 2>&1; }
+out=$(NET=direct B2 --name h2a); rc=$?
+if [ "$(id -u)" != 0 ]; then
+ok "v3.13 base: a file mount and a read-only disk are passed over; nothing local has 50 GB -> \$HOME" '[ $rc = 0 ] && [[ "$out" == *"base: $T/home (300 GB free"* ]] && [ -f $T/home/opd/run/node.env ]'
+else n=$((n + 1)); fi
+echo "/dev/c xfs 1 1 943718400 1% $T/big" >> $T/df/table; fr $T/big 943718400; rm -rf $T/home/opd
+out=$(NET=direct B2 --name h2a); rc=$?
+ok "v3.13 base: the writable local directory with the most room" '[ $rc = 0 ] && [[ "$out" == *"base: $T/big (900 GB free"* ]] && [ -f $T/big/opd/run/node.env ] && [ ! -e $T/home/opd ]'
+rm -rf $T/big/opd; NC=$(H h2a-cpu)
+out=$(NOGPU=1 NET=direct B2 --name h2a); rc=$?
+ok "v3.13 no GPU: a preparation node, id from <name>-cpu (not the GPU machine's id)" '[ $rc = 0 ] && [[ "$out" == *"a preparation node"* ]] && grep -q " OPD_NODE=$NC " $T/big/opd/run/node.env && [ $NC != $NA ]'
+out=$(NOGPU=1 NET=direct B2 --name h2a); rc=$?
+ok "v3.13 no GPU: a rerun keeps the same id and directory" '[ $rc = 0 ] && grep -q " OPD_NODE=$NC " $T/big/opd/run/node.env && [ ! -e $T/big/opd-$NC ]'
+chmod 755 $T/ro; rm -rf $T/big/opd
 unset GH_HB_CRED
 [ -n "${KEEP_T:-}" ] && echo "kept $T" || rm -rf $T
 [ $fails = 0 ] && echo "BOOTSTRAP_TEST PASS ($n checks)" || { echo "BOOTSTRAP_TEST FAIL ($fails of $n)"; exit 1; }

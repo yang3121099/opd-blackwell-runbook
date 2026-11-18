@@ -49,8 +49,26 @@ for c in bash git curl python3; do command -v $c > /dev/null || stop "$c is miss
 OURS='^bash /root/h800_(setup|loops|fix)\.sh|scripts/(verify|run_arm|overnight|cold_start|setup_runner)\.sh|scripts/task\.sh'
 
 # ---------- B2. the base directory ----------
-[ -n "$BASE" ] || BASE=$(df -P -T 2> /dev/null | awk 'NR > 1 && $2 ~ /^(ext[234]|xfs|btrfs|zfs|overlay)$/ {print $5, $7}' | sort -n | tail -1 | cut -d' ' -f2-)
-[ -n "$BASE" ] && [ -d "$BASE" ] && [ -w "$BASE" ] || stop "no writable local disk found (run again with --base <dir>)"
+# [v3.13] (a CPU development machine, 11-18: "STOP: no writable local disk found") the largest local file system was taken whether or
+# not it could be used - in a container the largest one is often a FILE mount (/etc/hosts, /etc/resolv.conf: the host's disk) or a
+# read-only data disk. Now: of the local mount points that are writable directories, the one with the most room; when none has
+# BASE_MIN_GB (50) free, also $HOME, the directories beside the installs named by --old-base-cands (a shared disk: slower, but a
+# preparation node needs no more) and /tmp - again the one with the most room.
+free_kb() { df -Pk "$1" 2> /dev/null | awk 'NR == 2 {print $4}'; }
+pick_base() { local best="" bf=0 d f
+  for d in $(df -P -T 2> /dev/null | awk 'NR > 1 && $2 ~ /^(ext[234]|xfs|btrfs|zfs|overlay)$/ {print $7}'); do
+    [ -d "$d" ] && [ -w "$d" ] || continue; f=$(free_kb "$d"); [ "${f:-0}" -gt $bf ] 2> /dev/null && { best=$d; bf=$f; }; done
+  if [ $bf -lt $(( ${BASE_MIN_GB:-50} * 1048576 )) ]; then
+    for d in "${HOME:-/nonexistent}" $(echo "$OLDC" | tr ':' '\n' | while read -r x; do [ -n "$x" ] && dirname "$x"; done) /tmp; do
+      [ -d "$d" ] && [ -w "$d" ] || continue; f=$(free_kb "$d"); [ "${f:-0}" -gt $bf ] 2> /dev/null && { best=$d; bf=$f; }; done; fi
+  echo "$best"; }
+[ -n "$BASE" ] || { BASE=$(pick_base); [ -n "$BASE" ] && say "base: $BASE ($(( $(free_kb "$BASE") / 1048576 )) GB free; chosen by room among the writable directories)"; }
+[ -n "$BASE" ] && [ -d "$BASE" ] && [ -w "$BASE" ] || stop "no writable directory found for the base (run again with --base <dir>)"
+# [v3.13] a machine without a GPU is a PREPARATION node (it fills the long-term store for the GPU machine that comes later; nothing
+# is dispatched on it). Its id comes from <name>-cpu, so the same paste on a development machine and on the GPU machine gives two
+# nodes - one id for both would make them overwrite each other's status and both apply every command.
+NG=$(nvidia-smi -L 2> /dev/null | grep -c '^GPU')
+if [ "${NG:-0}" = 0 ] && [ -n "$NAME" ] && [[ $NAME != *-cpu ]]; then NAME=$NAME-cpu; say "no GPU on this machine: a preparation node, its id comes from the name $NAME"; fi
 # [v3.0] (Fable 11-17: two borrowed machines that may share a disk, or carry the same host name) the node id here already: the hash of
 # --name <word> when given (the project then knows the id before the machine is up, and two machines with one host name differ),
 # else of the host name as before. A base that another node owns (its control/owner, or its node.env) is never shared: this machine
@@ -70,6 +88,9 @@ O=$T/run
 # roots), minutes instead of hours. Send this node `setup` only once the peer's own setup is done (its status: venv_ready).
 PEER=""; [ "$T" != "${BASE%/}/opd" ] && [ -f ${BASE%/}/opd/run/node.env ] && PEER=${BASE%/}/opd/run
 mkdir -p $O/logs $O/control $T/cache $T/tools $T/ckpt || stop "cannot create $T"
+# [v3.13] where this was pasted: a hint for scripts/history_scan.py (a CPU machine has no GPU process to point at the owner's code
+# directory). Node-local, 0600, never uploaded (control/*secret*).
+case "$PWD" in /|/root|/tmp|"$HOME") :;; *) ( umask 077; echo "$PWD" > $O/control/history_secret.cwd ) 2> /dev/null;; esac
 say "base: $T ($(df -Ph $BASE | awk 'NR == 2 {print $4}') free)$([ -n "$PEER" ] && echo "; a peer node's install on this disk will be reused")"
 
 # ---------- B0. the token ----------
@@ -183,6 +204,9 @@ if ! [ -x $V/bin/python ] || ! $V/bin/python -c "import huggingface_hub, yaml" 2
   if [ $DRY = 1 ]; then say "would build $V from requirements.ctl.txt"
   else
     say "[installs] the control venv: huggingface_hub, pyyaml (no torch; about 1-2 min)"
+    # [v3.13] the package index of this network first (scripts/pypi_index.sh, v3.5: pypi.org times out behind some proxies)
+    ( OPD_ROOT=$O; source $RB/scripts/pypi_index.sh 2> /dev/null && pypi_index_pick ) > /dev/null 2>&1 || true
+    [ -s $O/control/pypi_index ] && { export PIP_INDEX_URL=$(head -1 $O/control/pypi_index); export UV_DEFAULT_INDEX=$PIP_INDEX_URL UV_INDEX_URL=$PIP_INDEX_URL; say "package index: $(echo $PIP_INDEX_URL | sed -E 's#//[^/@ ]+@#//***@#')"; }
     # [v3.2] (the first borrowed H200, 11-17: its python3 is 3.8, and pip found no requests==2.34.2 for it) the control plane needs
     # Python >= 3.9 (its pinned packages, str.removeprefix): the first of python3.12 .. python3.9 / python3 / python that is, else a
     # Python 3.10 of uv's own (uv from pip, its Python under $T/tools/python - the one setup's main venv uses later)

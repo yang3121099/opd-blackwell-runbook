@@ -1151,7 +1151,10 @@ def reap(gpu, task=None, wait_s=120, proc_root="/proc", grace_s=10):
 def v_reap(a, seq, flags=None, entry=None):
     """reap <gpu> (v2.5.4b): our orphaned vLLM / Ray processes on that GPU, by the three conditions of reap(); nothing else."""
     g = int(a[0])
-    n = len([l for l in subprocess.run(["nvidia-smi", "-L"], capture_output=True, text=True).stdout.splitlines() if l.startswith("GPU ")])
+    try:
+        n = len([l for l in subprocess.run(["nvidia-smi", "-L"], capture_output=True, text=True, timeout=60).stdout.splitlines() if l.startswith("GPU ")])
+    except (OSError, subprocess.SubprocessError):   # [v3.13] no nvidia-smi on this machine
+        return "rejected", "this machine has no GPU", {}
     if n and g >= n:
         return "rejected", f"gpu {g} does not exist (this node has {n})", {}
     live = sorted({r.get("task") for r in proc_table() if r.get("gpu") == g and r.get("ours")

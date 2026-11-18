@@ -206,7 +206,7 @@ def gpu_pids():
         return []
 
 
-def hint_paths(env, pids):
+def hint_paths(env, pids, mts=()):
     """Absolute paths this machine's own work points at (not ours: the owner's code directory is where an earlier install is likely)."""
     ps = []
     for k in ("OLD_BASE_CANDS", "FROM_OPD_ROOT", "FETCH_LOCAL_ROOTS"):
@@ -223,6 +223,15 @@ def hint_paths(env, pids):
         except OSError:
             pass
     ps.append(env.get("HOME", ""))
+    # [v3.13] a machine without GPU processes (a CPU development machine) has none of the hints above: the directory bootstrap.sh
+    # was pasted in (control/history_secret.cwd, node-local) - a person works in their own code directory - and the account's
+    # directory on each mount (<mount>/<user>)
+    try:
+        ps.append(open(os.path.join(ROOT, "control", "history_secret.cwd")).read().strip())
+    except OSError:
+        pass
+    for u in {env.get("USER", ""), env.get("LOGNAME", ""), os.path.basename(env.get("HOME", "").rstrip("/"))} - {"", "root"}:
+        ps += [os.path.join(m, u) for m, _ in mts if os.path.isdir(os.path.join(m, u))]
     return [p for p in ps if p.startswith("/")]
 
 
@@ -351,7 +360,7 @@ def run(env=None, pids=None):
         mts = mounts(open("/proc/mounts").read())
     except OSError:
         mts = []
-    rep = scan(mts, hint_paths(env, gpu_pids() if pids is None else pids), env)
+    rep = scan(mts, hint_paths(env, gpu_pids() if pids is None else pids, mts), env)
     write(rep)
     return rep
 

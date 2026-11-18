@@ -1,4 +1,4 @@
-# OPD 远程节点手册（v3.12，GitHub 模式）
+# OPD 远程节点手册（v3.13，GitHub 模式）
 
 这个仓库让一台别人的 8 卡机器变成本项目的**远程节点**：机器旁的人只粘贴一行命令、输入两个 token，之后的安装、检查、修复、跑任务都由项目方远程完成。项目方不登录机器；节点对本仓库只读（`git pull`），可选的第二个 token 只用来向私有的心跳仓库推送。
 
@@ -69,7 +69,8 @@ tasks/queue_<名>.txt             ──►  main                 ────�
 - **省掉的步骤**（都只在 `FAST_START=1` 时）：Hopper 卡（计算能力 < 10）不做 vLLM 档位探测，直接用 A 档；`verify` 四项不跑；flash-attn 探测不等空卡、不停填充程序；`venv-vl` / ifeval 环境不装；0.6B 基座排在 1.7B 之后下载。主环境能导入 torch / vllm / verl 且模型清单写好，就写 `control/venv_ready`。
 - **保留的保护**：队列第一项仍是登记的 3K 门（它在 GPU 上真跑 vLLM 和训练，等于金丝雀）；任务白名单、规则版本、权重 sha256 核对、别处找到的基座模型的 sha256 核对、填充程序"证明能重启才结束"都不变。Blackwell 卡仍然探测档位。
 - **给正式任务让卡**：`run_tasks.sh` 把只有 SFT-WARM 的卡算作空卡；派发任务时先让该卡的 SFT 进程退出（`sft_yield`），再处理填充程序。不需要手工 `kill SFT-WARM`。
-- **没有 GPU 的准备机**（开发机）：同一套指令可用来提前把基座模型、我们的权重、环境包存进长期仓库（`setup 2`、`run FETCH-all`、`store`）；档位探测和 flash-attn 自检自动跳过，不发 `dispatch`。
+- **没有 GPU 的准备机**（开发机，v3.13）：粘贴的还是同一块（`--name h2a`）。没有 GPU 时节点号取自 `<名>-cpu`（`h2a` → 另一个节点号），所以它和之后的 GPU 机器是两个节点，互不覆盖状态、互不执行对方的指令。用来提前把基座模型、我们的权重、环境包存进长期仓库：`env-probe` → `queue h2a` → `setup 2` → `run FETCH-all` → `store`，不发 `dispatch`。档位探测和 flash-attn 自检自动跳过；状态里没有 GPU 行。
+- **放在哪块盘**（`bootstrap.sh`，v3.13）：不给 `--base` 时，在本地挂载点里只看"可写的目录"，取空间最大的（容器里最大的本地文件系统常常是 `/etc/hosts` 这类文件挂载或只读数据盘，以前会因此停在 `no writable local disk`）；本地没有 50 GB 时再看 `$HOME`、`--old-base-cands` 给的旧安装旁边的目录（共享盘）和 `/tmp`。控制环境安装前先选本网络能用的包索引（`scripts/pypi_index.sh`）。
 
 修复用 `tail <日志>`、`setup <步号>`、`restart-loops`、`verify`。目标：5 分钟内有状态，10 分钟内开始下权重，2.5 小时内第一条臂起训。
 

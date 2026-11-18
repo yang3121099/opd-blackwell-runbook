@@ -235,8 +235,12 @@ ups = uploads_by_task()   # [v2.5.9z116] tasks[].last_upload_utc / uploaded_file
 for _n, _t in tasks.items():
     _t.update(ups.get(_n) or {"last_upload_utc": None, "uploaded_files": 0})
 gpu = []
-for line in subprocess.run(["nvidia-smi", "--query-gpu=index,name,utilization.gpu,memory.used,memory.total", "--format=csv,noheader,nounits"],
-                           capture_output=True, text=True).stdout.strip().splitlines():
+try:   # [v3.13] a machine without nvidia-smi (a CPU preparation node): no GPU rows, the status is written all the same
+    _q = subprocess.run(["nvidia-smi", "--query-gpu=index,name,utilization.gpu,memory.used,memory.total", "--format=csv,noheader,nounits"],
+                        capture_output=True, text=True, timeout=60).stdout
+except (OSError, subprocess.SubprocessError):
+    _q = ""
+for line in _q.strip().splitlines():
     f = [x.strip() for x in line.split(",")]
     if len(f) == 5:
         gpu.append({"index": int(f[0]), "name": f[1], "util_pct": float(f[2]) if f[2].replace(".", "").isdigit() else None,

@@ -125,3 +125,19 @@ def test_base_models_are_found_outside_installs_and_in_hf_caches(tmp_path, monke
     r = subprocess.run([sys.executable, hs.__file__, "--model", "Qwen3-0.6B"], capture_output=True, text=True, env=env)
     assert r.returncode == 0 and r.stdout.strip().endswith("pretrained/Qwen3-0.6B")
     assert subprocess.run([sys.executable, hs.__file__, "--model", "Qwen3-8B"], capture_output=True, text=True, env=env).returncode == 1
+
+
+def test_a_machine_without_gpu_processes_is_hinted_by_the_paste_directory_and_the_account(tmp_path, monkeypatch):
+    """[v3.13] a CPU development machine: no GPU process, no filler - the directory bootstrap.sh was pasted in, or the account's
+    directory on a mount, leads to the earlier install."""
+    a, b, mts = machine(tmp_path)
+    root = str(tmp_path / "local" / "opd" / "run")
+    os.makedirs(os.path.join(root, "control"))
+    monkeypatch.setattr(hs, "ROOT", root)
+    assert hs.scan(mts, hs.hint_paths({"HOME": "/root", "USER": "root"}, [], mts), {}, budget=3)["roots"] == []   # nothing to go by: the budget cuts
+    open(os.path.join(root, "control", "history_secret.cwd"), "w").write(os.path.join(a, "alice", "code") + "\n")
+    rep = hs.scan(mts, hs.hint_paths({"HOME": "/root", "USER": "root"}, [], mts), {})
+    assert len(rep["roots"]) == 2 and not rep["truncated"]
+    os.remove(os.path.join(root, "control", "history_secret.cwd"))
+    rep = hs.scan(mts, hs.hint_paths({"HOME": "/home/alice", "USER": "alice"}, [], mts), {})
+    assert len(rep["roots"]) == 2
