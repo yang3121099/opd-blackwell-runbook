@@ -80,3 +80,4 @@ commands:
   - {"seq": 78, "cmd": "setup 2", "reason": "preparation only: environment and base models, no GPU step", "utc": "2026-11-18T09:38:00Z"}
   - {"seq": 79, "cmd": "run FETCH-all", "reason": "the reading weights, to be stored on the shared disk for the GPU machine", "utc": "2026-11-18T09:38:08Z"}
   - {"seq": 80, "cmd": "tail overnight.log 40", "reason": "the environment's first use in place: how far is step 2", "utc": "2026-11-18T09:47:18Z"}
+  - {"seq": 81, "cmd": "tail overnight.log 200", "reason": "the step lines of the install so far", "utc": "2026-11-18T09:53:53Z"}
