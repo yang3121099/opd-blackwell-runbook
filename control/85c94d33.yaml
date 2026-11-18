@@ -6,3 +6,4 @@ commands:
   - {"seq": 4, "cmd": "run SFT-WARM", "reason": "T0: a real training on GPUs 1-7 while the stack installs; it shares the cards and gives way to the queue", "utc": "2026-11-18T16:42:39Z"}
   - {"seq": 5, "cmd": "setup all", "reason": "T0: environment (earlier install first), base models, fast start", "utc": "2026-11-18T16:42:47Z"}
   - {"seq": 6, "cmd": "run FETCH-all", "reason": "T0: the readings' weights (expected from the store)", "utc": "2026-11-18T16:42:55Z"}
+  - {"seq": 7, "cmd": "dispatch auto", "reason": "T0: unfreeze by itself once the environment is ready", "utc": "2026-11-18T16:43:03Z"}
