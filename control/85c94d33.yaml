@@ -4,3 +4,4 @@ commands:
   - {"seq": 2, "cmd": "queue h2a", "reason": "T0: this node's queue is h2a (Q-107: the registered 3K gate, then the two 3K arms)", "utc": "2026-11-18T16:42:23Z"}
   - {"seq": 3, "cmd": "setenv GPU_FILL_NAME=gpu_consum.py", "reason": "T0: the script name the cards' filler is known by (seen in this node's status)", "utc": "2026-11-18T16:42:31Z"}
   - {"seq": 4, "cmd": "run SFT-WARM", "reason": "T0: a real training on GPUs 1-7 while the stack installs; it shares the cards and gives way to the queue", "utc": "2026-11-18T16:42:39Z"}
+  - {"seq": 5, "cmd": "setup all", "reason": "T0: environment (earlier install first), base models, fast start", "utc": "2026-11-18T16:42:47Z"}
