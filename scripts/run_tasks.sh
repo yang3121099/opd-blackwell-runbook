@@ -423,6 +423,16 @@ sft_warm_pass() { [ -f $CDIR/sft_warm_go ] || return 0
   # cards anyway, so it starts on GPU 0 as long as no task of ours runs
   [ -n "$g" ] || { pgrep -f "scripts/task[.]sh " > /dev/null && return 0; g=0; }
   rm -f $CDIR/sft_warm_go; echo "START $(date -u +%T) gpu=$g SFT-WARM (run request, before the stack)"; launch $g SFT-WARM; }
+# [v3.11] the long-term store on a shared disk is refreshed by itself every STORE_EVERY (1200 s), frozen or not: a borrowed machine
+# may be gone within two hours, and what store_sync.sh has copied by then (weights, the environment pack, models no fixed disk
+# holds) the next machine does not fetch again. The store's path is read from the node-local file each time (the history scan may
+# have found it after this loop started). STORE_AUTO=0 in node.env turns it off; `store` (control) runs it at once.
+store_auto() { [ "${STORE_AUTO:-1}" != 0 ] && [ "${DRY:-0}" != 1 ] || return 0
+  [ -n "$(sed -n 's/^export OPD_STORE=//p' $CDIR/history_secret.env 2> /dev/null | tail -1)${OPD_STORE:-}" ] || return 0
+  local now last; now=$(date +%s); last=$(cat $CDIR/store_last 2> /dev/null || echo 0); [[ $last =~ ^[0-9]+$ ]] || last=0
+  [ $(( now - last )) -ge ${STORE_EVERY:-1200} ] || return 0
+  pgrep -f "scripts/store_syn[c].sh" > /dev/null && return 0
+  echo $now > $CDIR/store_last; setsid nohup nice -n 19 bash $RUNBOOK/scripts/store_sync.sh > /dev/null 2>&1 < /dev/null & }
 # [v2.5.9z106] (connect-first, Fable 11-01; ops-lead's A1 16:11 UTC) control/dispatch_frozen: the round only keeps the control plane -
 # watchdog / uploader / gh_heartbeat, git pull + apply, the heartbeat through loops.sh - and serves explicit `run` / `eval` requests
 # (the canary first) once the main venv is ready; no queue pass, prefetch, fetch, weights replay or self-heal of uploads. `dispatch on`
@@ -436,6 +446,7 @@ frozen_round() {
   bash $RUNBOOK/scripts/loops.sh ensure heartbeat >> $OPD_ROOT/logs/loops.log 2>&1
   [ -s $CDIR/fetch_allow ] && fetch_pass allow   # [v2.5.9z127] `run FETCH-*`: the weights come in before the main venv (control venv)
   sft_warm_pass   # [v3.8]
+  store_auto      # [v3.11]
   [ -f $OPD_ROOT/venv-ctl/bin/activate ] && [ ! -f $CDIR/venv_ready ] && return   # no main venv yet: requests wait
   verify_busy && return
   FREE=( $(free_gpus) ); serve_requests; }   # (spaced: test_ops_guard finds the full pass's own FREE=($(free_gpus)) line)
@@ -450,6 +461,7 @@ while true; do
   if [ -f $CDIR/dispatch_frozen ]; then frozen_round; [ "${DRY:-0}" = 1 ] && break; nap ${POLL_FROZEN:-20}; continue; fi   # [v2.5.9z106]
   ensure_watchdog; ensure_uploader; ensure_loop gh_heartbeat   # [v2.5.9z54] the GitHub fallback heartbeat
   ensure_loop gpu_monitor; ensure_loop gpu_fill   # [v3.1]; [v3.2]
+  store_auto   # [v3.11]
   [ -n "${CKPT_LOCAL:-}" ] && ensure_loop ckpt_mirror   # [z155]
   [ -n "${CKPT_LOCAL:-}" ] && [ "$(cenv KEEP_STEPS_OFF 0)" != 1 ] && ensure_loop keep_steps   # [z168]
   ensure_loop weights_replay   # [v2.5.9z62] the held weights to the public repository, one at a time

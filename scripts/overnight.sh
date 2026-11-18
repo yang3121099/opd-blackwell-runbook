@@ -54,16 +54,42 @@ ok=all(os.path.exists(os.path.join(d,f)) and os.path.getsize(os.path.join(d,f))>
 sys.exit(0 if ok else 1)
 PY
 }
-find_model(){ m=$1   # v2.5: also the old OPD_ROOT's models when moving (FROM_OPD_ROOT; used in place, not copied)
+# [v3.11] (Runming 11-18: "copy from the earlier paths to the local disk first; if the copy is too slow, use the path where it is;
+# find the base models there, do not download them") a base model is looked for in this order:
+#   1. this node's models/ (complete)
+#   2. FROM_OPD_ROOT (a move: used in place, as before)
+#   3. the long-term store and the earlier installs of ours on this machine's disks (history_scan.py): copied here within
+#      MODEL_COPY_MAX_S (600 s); a copy that takes longer is dropped and the model is used where it is
+#   4. a complete copy found anywhere else below the hint directories (someone's pretrained folder, a Hugging Face cache): the
+#      same, but only once model_verify.py has matched every weight file with the published sha256 - a folder with the right name
+#      may hold other weights
+#   5. the Hugging Face caches of this container, then the download (below)
+# A step-2 line says which one was taken.
+copy_model(){   # <src dir> <model name>: 0 = models/<name> is the copy; 1 = too slow or failed (nothing left behind)
+  local t=$OPD_ROOT/models/$2.hist.tmp to=""; command -v timeout > /dev/null && to="timeout ${MODEL_COPY_MAX_S:-600}"
+  ( exec 7> $OPD_ROOT/models/.$2.lock; flock -n 7 2> /dev/null || { command -v flock > /dev/null && exit 1; }
+    rm -rf $t; mkdir -p $t && $to cp -rL "$1/." $t/ 2>> $LOG || { rm -rf $t; exit 1; }
+    # a complete directory that appeared meanwhile (SFT-WARM copies the same model for itself and may be reading it) is kept
+    complete_dir $OPD_ROOT/models/$2 && { rm -rf $t; exit 0; }
+    rm -f $t/*.aria2; rm -rf $OPD_ROOT/models/$2; mv $t $OPD_ROOT/models/$2 ) && complete_dir $OPD_ROOT/models/$2; }
+find_model(){ m=$1
   complete_dir $OPD_ROOT/models/$m && { echo $OPD_ROOT/models/$m; return 0; }
   [ -n "${FROM_OPD_ROOT:-}" ] && complete_dir $FROM_OPD_ROOT/models/$m && { echo $FROM_OPD_ROOT/models/$m; return 0; }
-  # [v3.7] an earlier install of ours on this machine's disks (history_scan.py -> OLD_BASE_CANDS) has the model complete: it is
-  # COPIED here (a node does not depend on a shared disk at run time), in place of a download through the machine's proxy
-  local _r; for _r in $(echo "${OLD_BASE_CANDS:-}" | tr ':' ' '); do
-    complete_dir $_r/models/$m || continue
-    mkdir -p $OPD_ROOT/models/$m && cp -r $_r/models/$m/. $OPD_ROOT/models/$m/ 2>> $LOG && rm -f $OPD_ROOT/models/$m/*.aria2 \
-      && complete_dir $OPD_ROOT/models/$m && { echo "[$(date -u +%FT%TZ)] STEP 2 $m copied from an earlier install on this machine" >> $LOG; echo $OPD_ROOT/models/$m; return 0; }
+  local _r _d _t0 _v
+  for _r in ${OPD_STORE:-} $(echo "${OLD_BASE_CANDS:-}" | tr ':' ' '); do _d=$_r/models/$m
+    complete_dir $_d || continue; _t0=$(date +%s)
+    if copy_model $_d $m; then echo "[$(date -u +%FT%TZ)] STEP 2 $m copied from an earlier install / the store on this machine in $(( $(date +%s) - _t0 )) s" >> $LOG; echo $OPD_ROOT/models/$m; return 0; fi
+    echo "[$(date -u +%FT%TZ)] STEP 2 $m: the copy from an earlier install took over ${MODEL_COPY_MAX_S:-600} s or failed: used where it is" >> $LOG; echo $_d; return 0
   done
+  _d=$(python3 $RB/scripts/history_scan.py --model $m 2>> $LOG) && [ -n "$_d" ] && case ":${OLD_BASE_CANDS:-}:${OPD_STORE:-}/" in *"${_d%/models/$m}"[:/]*) false;; *) true;; esac && {
+    _t0=$(date +%s)
+    if copy_model $_d $m; then _v=$OPD_ROOT/models/$m; else _v=$_d; fi
+    if python3 $RB/scripts/model_verify.py $_v Qwen/$m >> $LOG 2>&1; then
+      echo "[$(date -u +%FT%TZ)] STEP 2 $m found on this machine's disks, $([ $_v = $_d ] && echo 'used where it is (the copy was too slow)' || echo "copied in $(( $(date +%s) - _t0 )) s"), published sha256 matched" >> $LOG; echo $_v; return 0
+    fi
+    echo "[$(date -u +%FT%TZ)] STEP 2 $m found on this machine's disks but not verified against the published files: not used" >> $LOG
+    [ $_v = $_d ] || rm -rf $OPD_ROOT/models/$m
+  }
   for root in ${HF_HUB_CACHE:-} ${HF_HOME:+$HF_HOME/hub} $HOME/.cache/huggingface/hub $OPD_ROOT/hf_home/hub ${FROM_OPD_ROOT:+$FROM_OPD_ROOT/hf_home/hub}; do
     [ -d "$root" ] || continue
     for s in $root/models--Qwen--$m/snapshots/*/; do complete_dir "$s" && { echo "${s%/}"; return 0; }; done

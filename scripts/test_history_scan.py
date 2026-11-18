@@ -98,4 +98,30 @@ def test_store_is_beside_a_root_on_the_mount_with_most_room(tmp_path, monkeypatc
     rep = hs.scan(mts, [os.path.join(a, "alice", "code")], {"HISTORY_STORE_MIN_GB": "99999999"})
     assert rep["store"] == os.path.realpath(os.path.join(b, "alice", "code", "opd-store"))
     hs.write(rep)
-    assert "export OPD_STORE=" in open(os.path.join(str(tmp_path / "local" / "opd" / "run"), "control", "history_secret.env")).read()
+    envf = os.path.join(str(tmp_path / "local" / "opd" / "run"), "control", "history_secret.env")
+    assert "export OPD_STORE=" in open(envf).read()
+    monkeypatch.setenv("HISTORY_DR_MIN_GB", "0"); hs.write(rep)
+    assert "export OPD_STORE_DR=1" in open(envf).read()            # room for resume states: the store is the DR root too
+    monkeypatch.setenv("HISTORY_DR_MIN_GB", "99999999"); hs.write(rep)
+    assert "OPD_STORE_DR" not in open(envf).read()                 # a nearly full disk: the store only
+
+
+def test_base_models_are_found_outside_installs_and_in_hf_caches(tmp_path, monkeypatch):
+    a, b, mts = machine(tmp_path)
+    root = str(tmp_path / "local" / "opd" / "run")
+    monkeypatch.setattr(hs, "ROOT", root)
+    mk(a, {"alice/pretrained/Qwen3-0.6B/config.json": 5, "alice/pretrained/Qwen3-0.6B/model.safetensors": 1000001,
+           "alice/code/proj/.cache/huggingface/hub/models--Qwen--Qwen3-4B/snapshots/abc/config.json": 5,
+           "alice/code/proj/.cache/huggingface/hub/models--Qwen--Qwen3-4B/snapshots/abc/model.safetensors": 1000001,
+           "alice/half/Qwen3-8B/config.json": 5})                      # incomplete: not offered
+    rep = hs.scan(mts, [os.path.join(a, "alice", "code", "train.py")], {})
+    md = rep["model_dirs"]
+    assert set(md) == {"Qwen3-0.6B", "Qwen3-1.7B", "Qwen3-4B"} and md["Qwen3-0.6B"][0].endswith("pretrained/Qwen3-0.6B")
+    assert md["Qwen3-4B"][-1].endswith("snapshots/abc") and any(p.endswith("opd-run/models/Qwen3-1.7B") for p in md["Qwen3-1.7B"])
+    assert hs.summary(rep)["models"] == ["Qwen3-0.6B", "Qwen3-1.7B", "Qwen3-4B"]
+    hs.write(rep)
+    import subprocess
+    env = dict(os.environ, OPD_ROOT=root)
+    r = subprocess.run([sys.executable, hs.__file__, "--model", "Qwen3-0.6B"], capture_output=True, text=True, env=env)
+    assert r.returncode == 0 and r.stdout.strip().endswith("pretrained/Qwen3-0.6B")
+    assert subprocess.run([sys.executable, hs.__file__, "--model", "Qwen3-8B"], capture_output=True, text=True, env=env).returncode == 1

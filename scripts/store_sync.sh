@@ -44,28 +44,53 @@ need = set(json.load(open(idx))["weight_map"].values()) if os.path.exists(idx) e
 sys.exit(0 if "config.json" in n and all(f in n and os.path.getsize(os.path.join(d, f)) > 1000000 for f in need) and not any(x.endswith(".aria2") for x in n) else 1)
 PY
 }
-NM=0; NW=0; NE=0; NWH=0
-# 1. base models
-for d in $OPD_ROOT/models/*/; do m=$(basename $d); complete_model $d || continue; same $d $S/models/$m && continue
-  rm -rf $S/models/$m.tmp; $LOW cp -rL $d $S/models/$m.tmp 2>> $LOG && { rm -rf $S/models/$m.old; [ -e $S/models/$m ] && mv $S/models/$m $S/models/$m.old; mv $S/models/$m.tmp $S/models/$m && rm -rf $S/models/$m.old && NM=$((NM + 1)) && echo "STORE $(date -u +%T) model $m" >> $LOG; }
-done
-# 2. our fetched weights (a complete fetch has its .fetch_ok)
-for W in ${CKPT_ROOT:+$CKPT_ROOT/adhoc_models/result} $OPD_ROOT/adhoc_models/result; do [ -d $W/runs ] || continue
-  for ok in $(find $W/runs -maxdepth 6 -name .fetch_ok 2> /dev/null); do d=$(dirname $ok); rel=${d#$W/}
-    same $d $S/adhoc_models/result/$rel && continue
-    mkdir -p $(dirname $S/adhoc_models/result/$rel); rm -rf $S/adhoc_models/result/$rel.tmp
-    $LOW cp -rL $d $S/adhoc_models/result/$rel.tmp 2>> $LOG && { rm -rf $S/adhoc_models/result/$rel; mv $S/adhoc_models/result/$rel.tmp $S/adhoc_models/result/$rel && NW=$((NW + 1)) && echo "STORE $(date -u +%T) weight $rel" >> $LOG; }
-  done; done
-# 3. the environment pack: only a venv whose install ended well, with the pinned stack
-if [ -f $OPD_ROOT/venv/.install_ok ] && SP=$($OPD_ROOT/venv/bin/python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])' 2> /dev/null) \
+NM=0; NW=0; NE=0; NWH=0; NSKIP=0
+# [v3.11] (Runming 11-18: "the machine may be taken back after two hours: arrange what goes on the fixed disks within the room
+# they have") the store is also the DR root (env.sh): the running trainings' resume states come first there and are mirrored by
+# dr_sync.sh, not by this script. What this script adds is copied in the order of what costs most to get again, and only while
+# STORE_RESERVE_GB (100) stay free afterwards for those resume states:
+#   1. the flash-attn wheel            (small; a download from the release page through the proxy)
+#   2. the environment pack            (~12 GB; an install that failed three times on 11-17/18) - not when this venv is only a
+#                                       link to an earlier install: those packages are on a fixed disk already
+#   3. our fetched weights             (~4 GB each; 14 MB/s from the Hub)
+#   4. base models                     (up to 16 GB each) - only those no fixed disk holds yet (history_scan.py --model)
+room() {   # <src>: 0 when the store keeps STORE_RESERVE_GB free after taking it
+  python3 - "$1" "$S" "${STORE_RESERVE_GB:-100}" <<'PY'
+import os, sys
+src, store, reserve = sys.argv[1], sys.argv[2], float(sys.argv[3])
+size = os.path.getsize(src) if os.path.isfile(src) else sum(os.path.getsize(os.path.join(d, f)) for d, _, fs in os.walk(src, followlinks=True) for f in fs)
+st = os.statvfs(store)
+sys.exit(0 if st.f_bavail * st.f_frsize - size >= reserve * 1e9 else 1)
+PY
+}
+noroom() { NSKIP=$((NSKIP + 1)); echo "STORE $(date -u +%T) no room for $1 (the store keeps ${STORE_RESERVE_GB:-100} GB free for resume states)" >> $LOG; }
+# 1. the pinned flash-attn wheel
+for w in $OPD_ROOT/tmp/fa_wheel/*.whl; do [ -f "$w" ] || continue; same $w $S/wheels/$(basename $w) && continue
+  room $w || { noroom "$(basename $w)"; continue; }
+  cp $w $S/wheels/$(basename $w).tmp 2>> $LOG && mv $S/wheels/$(basename $w).tmp $S/wheels/$(basename $w) && NWH=$((NWH + 1)); done
+# 2. the environment pack: only a venv whose install ended well, with the pinned stack in its own site-packages
+if [ -f $OPD_ROOT/venv/.install_ok ] && [ ! -f $OPD_ROOT/venv/.linked_to_history ] && SP=$($OPD_ROOT/venv/bin/python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])' 2> /dev/null) \
    && ls -d $SP/torch-2.8.0*.dist-info $SP/vllm-0.10.2*.dist-info > /dev/null 2>&1; then
   P=$S/envpack/site-packages-$(basename $(dirname $SP))-torch2.8.0-vllm0.10.2.tar
   if [ ! -f $P ]; then
-    ( cd $SP && $LOW tar -cf - --exclude='__editable__*verl*' --exclude='verl-*.dist-info' . ) | $LOW dd of=$P.tmp bs=64M iflag=fullblock status=none 2>> $LOG \
-      && ( cd $(dirname $P) && sha256sum $(basename $P).tmp | cut -c1-64 > $(basename $P).sha256 ) && mv $P.tmp $P && NE=$((NE + 1)) && echo "STORE $(date -u +%T) envpack $(basename $P) $(du -h $P | cut -f1)" >> $LOG
+    if room $SP; then
+      ( cd $SP && $LOW tar -cf - --exclude='__editable__*verl*' --exclude='verl-*.dist-info' . ) | $LOW dd of=$P.tmp bs=64M iflag=fullblock status=none 2>> $LOG \
+        && ( cd $(dirname $P) && sha256sum $(basename $P).tmp | cut -c1-64 > $(basename $P).sha256 ) && mv $P.tmp $P && NE=$((NE + 1)) && echo "STORE $(date -u +%T) envpack $(basename $P) $(du -h $P | cut -f1)" >> $LOG
+    else noroom "the environment pack"; fi
   fi
 fi
-# 4. the pinned flash-attn wheel
-for w in $OPD_ROOT/tmp/fa_wheel/*.whl; do [ -f "$w" ] || continue; same $w $S/wheels/$(basename $w) && continue
-  cp $w $S/wheels/$(basename $w).tmp 2>> $LOG && mv $S/wheels/$(basename $w).tmp $S/wheels/$(basename $w) && NWH=$((NWH + 1)); done
-fin PASS "store: $(ls $S/models 2> /dev/null | grep -vc '\.tmp$') model(s), $(find $S/adhoc_models/result/runs -maxdepth 6 -name .fetch_ok 2> /dev/null | wc -l | tr -d ' ') weight(s), $(ls $S/envpack/*.tar 2> /dev/null | wc -l | tr -d ' ') environment pack(s), $(ls $S/wheels/*.whl 2> /dev/null | wc -l | tr -d ' ') wheel(s); copied now: $NM / $NW / $NE / $NWH"
+# 3. our fetched weights (a complete fetch has its .fetch_ok)
+for W in ${CKPT_ROOT:+$CKPT_ROOT/adhoc_models/result} $OPD_ROOT/adhoc_models/result; do [ -d $W/runs ] || continue
+  for ok in $(find $W/runs -maxdepth 6 -name .fetch_ok 2> /dev/null); do d=$(dirname $ok); rel=${d#$W/}
+    same $d $S/adhoc_models/result/$rel && continue
+    room $d || { noroom "$rel"; continue; }
+    mkdir -p $(dirname $S/adhoc_models/result/$rel); rm -rf $S/adhoc_models/result/$rel.tmp
+    $LOW cp -rL $d $S/adhoc_models/result/$rel.tmp 2>> $LOG && { rm -rf $S/adhoc_models/result/$rel; mv $S/adhoc_models/result/$rel.tmp $S/adhoc_models/result/$rel && NW=$((NW + 1)) && echo "STORE $(date -u +%T) weight $rel" >> $LOG; }
+  done; done
+# 4. base models that no fixed disk holds yet
+for d in $OPD_ROOT/models/*/; do m=$(basename $d); complete_model $d || continue; same $d $S/models/$m && continue
+  h=$(python3 $RUNBOOK/scripts/history_scan.py --model $m 2> /dev/null) && [ -n "$h" ] && [ "${h#$OPD_ROOT/}" = "$h" ] && { echo "STORE $(date -u +%T) model $m is on a fixed disk already: not copied" >> $LOG; continue; }
+  room $d || { noroom "model $m"; continue; }
+  rm -rf $S/models/$m.tmp; $LOW cp -rL $d $S/models/$m.tmp 2>> $LOG && { rm -rf $S/models/$m.old; [ -e $S/models/$m ] && mv $S/models/$m $S/models/$m.old; mv $S/models/$m.tmp $S/models/$m && rm -rf $S/models/$m.old && NM=$((NM + 1)) && echo "STORE $(date -u +%T) model $m" >> $LOG; }
+done
+fin PASS "store: $(ls $S/models 2> /dev/null | grep -vc '\.tmp$') model(s), $(find $S/adhoc_models/result/runs -maxdepth 6 -name .fetch_ok 2> /dev/null | wc -l | tr -d ' ') weight(s), $(ls $S/envpack/*.tar 2> /dev/null | wc -l | tr -d ' ') environment pack(s), $(ls $S/wheels/*.whl 2> /dev/null | wc -l | tr -d ' ') wheel(s); copied now: $NM / $NW / $NE / $NWH; skipped for room: $NSKIP"

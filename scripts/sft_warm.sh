@@ -37,8 +37,16 @@ for i in $(seq 0 ${SFT_WARM_MODEL_WAIT_MIN:-60}); do
     model_ok $OPD_ROOT/models/$m && { M=$OPD_ROOT/models/$m; break 2; }
     for r in ${OPD_STORE:-} $(echo "${OLD_BASE_CANDS:-}" | tr ':' ' '); do model_ok $r/models/$m || continue
       echo "SFT_WARM $(date -u +%T) copying $m from the long-term store / an earlier install on this machine"
-      mkdir -p $OPD_ROOT/models/$m && cp -rL $r/models/$m/. $OPD_ROOT/models/$m/ 2>> $R/env_try.log && model_ok $OPD_ROOT/models/$m && { M=$OPD_ROOT/models/$m; break 3; }
+      rm -rf $OPD_ROOT/models/$m.warm.tmp; mkdir -p $OPD_ROOT/models/$m.warm.tmp
+      if timeout ${SFT_WARM_COPY_MAX_S:-300} cp -rL $r/models/$m/. $OPD_ROOT/models/$m.warm.tmp/ 2>> $R/env_try.log && model_ok $OPD_ROOT/models/$m.warm.tmp && [ ! -e $OPD_ROOT/models/$m ]; then
+        mv $OPD_ROOT/models/$m.warm.tmp $OPD_ROOT/models/$m; M=$OPD_ROOT/models/$m; break 3; fi
+      # [v3.11] too slow (or setup made the directory meanwhile): this training reads the model where it is
+      rm -rf $OPD_ROOT/models/$m.warm.tmp; model_ok $OPD_ROOT/models/$m && { M=$OPD_ROOT/models/$m; break 3; }
+      echo "SFT_WARM $(date -u +%T) the copy took over ${SFT_WARM_COPY_MAX_S:-300} s: $m is read where it is"; M=$r/models/$m; break 3
     done
+    # [v3.11] a complete copy anywhere else on this machine's disks (history_scan.py: a pretrained folder, a Hugging Face cache);
+    # this stopgap does not need the published-weights check the registered tasks get
+    hm=$(python3 $RUNBOOK/scripts/history_scan.py --model $m 2> /dev/null) && [ -n "$hm" ] && model_ok $hm && { echo "SFT_WARM $(date -u +%T) $m found on this machine's disks, read where it is"; M=$hm; break 2; }
     [ "$m" = "${SFT_WARM_MODEL:-Qwen3-8B}" ] && [ $i -lt ${SFT_WARM_MODEL_WAIT_MIN:-60} ] && break   # the wanted model first: smaller ones only after the wait
   done
   echo "SFT_WARM $(date -u +%T) waiting for a complete base model under models/ (minute $i)"; sleep 60; done

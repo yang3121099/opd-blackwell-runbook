@@ -36,6 +36,7 @@ SKIP = {"models", "runs", "venv", "venv-fa", "venv-vl", "venv-ctl", "venv-ifeval
         "tmp", "hf_home", "__pycache__", "site-packages", "lib", "lib64", "bin", "share", "include", "datasets", "checkpoints", "outputs", "wandb",
         "proc", "sys", "dev", "adhoc_models", "opd-dr", "control"}
 MAX_ENTRIES = int(os.environ.get("HISTORY_MAX_ENTRIES", 5000))
+MODEL_SKIP = {"runs", "venv", "venv-fa", "venv-vl", "venv-ctl", "logs", "node_modules", "__pycache__", "site-packages", "lib", "lib64", "bin", "include", "wandb", "outputs", "proc", "sys", "dev", "opd-dr", "data", "datasets"}
 NET_FS = ("nfs", "nfs4", "ceph", "lustre", "gpfs", "cifs", "beegfs", "virtiofs", "glusterfs", "fuse.")
 REAL_FS = ("ext2", "ext3", "ext4", "xfs", "btrfs", "zfs") + NET_FS
 
@@ -142,6 +143,61 @@ def search(start, depth, budget, deadline, found, skip_roots):
     return used, False
 
 
+MODEL_NAMES = ("Qwen3-0.6B", "Qwen3-1.7B", "Qwen3-4B", "Qwen3-8B")
+
+
+def find_models(starts, depth, budget, deadline):
+    """[v3.11] (Runming 11-18: "find the base models there, do not download them") complete copies of the base models anywhere
+    below the hint directories, not only inside an install of ours: a directory named like the model, or a Hugging Face cache
+    entry models--Qwen--<name>/snapshots/<rev>. {name: [directory, ...]}, bounded like the search for installs."""
+    out, used = {}, 0
+    level = list(starts)
+    seen = set()
+    for _ in range(depth + 1):
+        nxt = []
+        for d in level:
+            if used >= budget or time.time() > deadline:
+                return out
+            if d in seen:
+                continue
+            seen.add(d)
+            used += 1
+            try:
+                with os.scandir(d) as it:
+                    for n, e in enumerate(it):
+                        if n >= MAX_ENTRIES:
+                            break
+                        try:
+                            if not e.is_dir(follow_symlinks=True):
+                                continue
+                        except OSError:
+                            continue
+                        name = e.name
+                        if name in MODEL_NAMES:
+                            if complete_model(e.path) and e.path not in out.setdefault(name, []):
+                                out[name].append(e.path)
+                            continue
+                        if name.startswith("models--Qwen--") and name[len("models--Qwen--"):] in MODEL_NAMES:
+                            m = name[len("models--Qwen--"):]
+                            try:
+                                for rev in sorted(os.listdir(os.path.join(e.path, "snapshots"))):
+                                    sp = os.path.join(e.path, "snapshots", rev)
+                                    if complete_model(sp) and sp not in out.setdefault(m, []):
+                                        out[m].append(sp)
+                            except OSError:
+                                pass
+                            continue
+                        if name.startswith(".") and name not in (".cache",):
+                            continue
+                        if name in MODEL_SKIP:
+                            continue
+                        nxt.append(e.path)
+            except OSError:
+                continue
+        level = sorted(nxt, key=lambda p: (not os.path.basename(p).lower().startswith(("model", "opd", "hub", "huggingface", "hf", ".cache", "modelscope", "qwen", "ckpt", "weight", "pretrain")), p))
+    return out
+
+
 def gpu_pids():
     try:
         out = subprocess.run(["nvidia-smi", "--query-compute-apps=pid", "--format=csv,noheader"], capture_output=True, text=True, timeout=30).stdout
@@ -207,8 +263,18 @@ def scan(mts, paths, env, deadline_s=None, budget=None, depth=None):
             cut = True
             break
     rows = sorted((describe(r) for r in found if r not in me), key=lambda x: x["changed"] or "", reverse=True)
+    models = {}
+    for r in rows:   # the installs' own models first
+        for m in r["models"]:
+            models.setdefault(m, []).append(os.path.join(r["path"], "models", m))
+    if starts:       # then anywhere below the hints, with its own time (MODEL_SCAN_S, 45 s) and directory budget
+        md = time.time() + float(env.get("HISTORY_MODEL_SCAN_S", 45))
+        for m, ps in find_models(starts, depth + 1, budget, md).items():
+            for p_ in ps:
+                if p_ not in models.setdefault(m, []):
+                    models[m].append(p_)
     rep = {"utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "roots": rows, "told": [t for t in told if t not in me], "hints": len(hd),
-           "dirs_listed": used, "truncated": cut, "seconds": round(time.time() - t0, 1)}
+           "dirs_listed": used, "truncated": cut, "seconds": round(time.time() - t0, 1), "model_dirs": models}
     rep["store"] = pick_store(rep, mts, env)
     return rep
 
@@ -216,14 +282,14 @@ def scan(mts, paths, env, deadline_s=None, budget=None, depth=None):
 def pick_store(rep, mts, env):
     """[v3.10] The long-term store this node syncs its reusable files to (store_sync.sh) and the next machine copies from:
     OPD_STORE of node.env; else an `opd-store` already among the found roots; else `opd-store` beside a found root or in the
-    same relative directory on another real mount - the writable one with the most free space, HISTORY_STORE_MIN_GB (200) at
-    least. None when this machine has no such disk."""
+    same relative directory on another real mount - the writable one with the most free space, HISTORY_STORE_MIN_GB (30) at
+    least (store_sync.sh copies by priority and leaves a reserve, so a small disk still takes the small, important things). None when this machine has no such disk."""
     if env.get("OPD_STORE"):
         return env["OPD_STORE"]
     for r in rep["roots"]:
         if os.path.basename(r["path"]) == "opd-store":
             return r["path"]
-    best, bf = None, float(env.get("HISTORY_STORE_MIN_GB", 200))
+    best, bf = None, float(env.get("HISTORY_STORE_MIN_GB", 30))
     for r in rep["roots"]:
         par = os.path.dirname(r["path"])
         mp = next((m for m, _ in mts if par == m or par.startswith(m + "/")), None)
@@ -245,7 +311,7 @@ def pick_store(rep, mts, env):
 
 def summary(rep):
     rs = rep["roots"]
-    return {"roots": len(rs), "models": sorted({m for r in rs for m in r["models"]}), "venvs": sorted({v for r in rs for v in r["venvs"]}),
+    return {"roots": len(rs), "models": sorted(set(rep.get("model_dirs") or {}) | {m for r in rs for m in r["models"]}), "venvs": sorted({v for r in rs for v in r["venvs"]}),
             "weights": sum(r["weights"] for r in rs), "data": max([r["data"] for r in rs] or [0]), "hints": rep["hints"], "truncated": rep["truncated"],
             "seconds": rep["seconds"], "store": bool(rep.get("store"))}   # [v3.10a] no path: what env-probe writes goes into the status
 
@@ -262,6 +328,15 @@ def write(rep):
     envt = (f"export OLD_BASE_CANDS={':'.join(cands)}\n" if cands else "")
     if rep.get("store") and re.fullmatch(r"/[A-Za-z0-9_./@+-]+", rep["store"]):
         envt += f"export OPD_STORE={rep['store']}\n"
+        # [v3.11] the store is the DR root too (env.sh) only on a disk with room for resume states (HISTORY_DR_MIN_GB, 150): a nearly
+        # full shared disk is never filled further with them
+        try:
+            d = rep["store"] if os.path.isdir(rep["store"]) else os.path.dirname(rep["store"])
+            st = os.statvfs(d)
+            if st.f_bavail * st.f_frsize / 1e9 >= float(os.environ.get("HISTORY_DR_MIN_GB", 150)):
+                envt += "export OPD_STORE_DR=1\n"
+        except OSError:
+            pass
     for name, text in (("history_secret.json", json.dumps(rep, indent=1)), ("history_secret.env", envt)):
         p = os.path.join(c, name)
         fd = os.open(p + ".tmp", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -285,6 +360,16 @@ def main(argv):
     if not ROOT:
         sys.exit("OPD_ROOT is not set")
     p = os.path.join(ROOT, "control", "history_secret.json")
+    if "--model" in argv:   # [v3.11] the first complete copy of a base model the last scan found (a path on stdout), exit 1 without one
+        m = argv[argv.index("--model") + 1]
+        try:
+            for d in (json.load(open(p)).get("model_dirs") or {}).get(m, []):
+                if complete_model(d):
+                    print(d)
+                    return
+        except (OSError, ValueError):
+            pass
+        sys.exit(1)
     if "--if-missing" in argv and os.path.exists(p):
         rep = json.load(open(p))
     else:

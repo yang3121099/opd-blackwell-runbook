@@ -840,7 +840,7 @@ def test_drill_fault_once(tmp_path, monkeypatch):   # v2.5.7zb: only with DRILL=
                                     ("du ckpt", True), ("du ckpt E12d-P0", True), ("rm-ours ckpt E12d-P0", False),
                                     ("rm-ours old_base runs/E10b-P2", True), ("rm-ours opd_root runs", False), ("rm-ours dr", False),
                                     ("rm-ours old_base /abs", False), ("dr-keep SFT-P1", True), ("dr-keep a/b", False),
-                                    ("setenv DR=0", True), ("setenv DR=2", False), ("setenv DR_EVERY=25", True), ("setenv DR_EVERY=5", False),
+                                    ("setenv DR=0", True), ("setenv DR=2", False), ("setenv DR_EVERY=25", True), ("setenv DR_EVERY=5", True), ("setenv DR_EVERY=4", False),   # [2.5.121] from 5 (was 10)
                                     ("setenv DR_MBPS=300", True), ("setenv DR_MBPS=5000", False), ("setenv E12B_GC=1", True), ("setenv E12B_GC=y", False)])
 def test_rules_dr(cmd, ok):
     if ok:

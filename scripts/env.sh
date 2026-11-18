@@ -117,6 +117,12 @@ if [ -s $OPD_ROOT/control/queue_name ]; then export QUEUE_FILE=$RUNBOOK/tasks/qu
 # [v3.7] earlier installs of ours that scripts/history_scan.py found on this machine's disks (node-local; paths never leave the node):
 # OLD_BASE_CANDS for fetch_model.py's local copies and overnight.sh's base models and data
 if [ -s $OPD_ROOT/control/history_secret.env ]; then source $OPD_ROOT/control/history_secret.env; fi
+# [v3.11] disaster recovery on a borrowed machine (Runming 11-18: "the machine may be taken back after two hours"): $OPD_ROOT is on
+# the container's own disk there, so dr.sh's default (the directory beside $OPD_ROOT) would be lost with it. With a long-term store
+# on a shared disk and no DR_ROOT given, the store is the DR root: dr/<task>/ (each running training's newest resume state,
+# dr_sync.sh), keep/, state/ sit beside models/, adhoc_models/, envpack/. The next machine's history scan finds the store and
+# run_e12.sh / run_arm.sh copy a task's resume state back before they start (dr_restore).
+if [ -z "${DR_ROOT:-}" ] && [ -n "${OPD_STORE:-}" ] && [ "${OPD_STORE_DR:-0}" = 1 ]; then export DR_ROOT=$OPD_STORE; fi   # OPD_STORE_DR: the store's disk has room for resume states (history_scan.py)
 # [v3.5] the node's package index (scripts/pypi_index.sh chooses it at install time: a mainland machine times out on pypi.org):
 # uv and pip of every script use it; UV_HTTP_TIMEOUT for large wheels over a proxy
 if [ -s $OPD_ROOT/control/pypi_index ]; then _pi=$(head -1 $OPD_ROOT/control/pypi_index); export UV_DEFAULT_INDEX=$_pi UV_INDEX_URL=$_pi PIP_INDEX_URL=$_pi; unset _pi; fi
