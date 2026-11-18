@@ -1,3 +1,4 @@
 node: 85c94d33
 commands:
   - {"seq": 1, "cmd": "env-probe", "reason": "T0: scan this machine's disks for earlier installs, base models and the long-term store", "utc": "2026-11-18T16:42:12Z"}
+  - {"seq": 2, "cmd": "queue h2a", "reason": "T0: this node's queue is h2a (Q-107: the registered 3K gate, then the two 3K arms)", "utc": "2026-11-18T16:42:23Z"}
