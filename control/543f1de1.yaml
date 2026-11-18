@@ -82,3 +82,4 @@ commands:
   - {"seq": 80, "cmd": "tail overnight.log 40", "reason": "the environment's first use in place: how far is step 2", "utc": "2026-11-18T09:47:18Z"}
   - {"seq": 81, "cmd": "tail overnight.log 200", "reason": "the step lines of the install so far", "utc": "2026-11-18T09:53:53Z"}
   - {"seq": 82, "cmd": "tail seed_copy.log 15", "reason": "the background copy of the environment", "utc": "2026-11-18T09:54:01Z"}
+  - {"seq": 83, "cmd": "setup 2", "reason": "v3.13b: step 2 again - the environment and models are there, the probe is not run under fast start", "utc": "2026-11-18T10:00:09Z"}
