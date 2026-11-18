@@ -5,3 +5,4 @@ commands:
   - {"seq": 3, "cmd": "setenv GPU_FILL_NAME=gpu_consum.py", "reason": "T0: the script name the cards' filler is known by (seen in this node's status)", "utc": "2026-11-18T16:42:31Z"}
   - {"seq": 4, "cmd": "run SFT-WARM", "reason": "T0: a real training on GPUs 1-7 while the stack installs; it shares the cards and gives way to the queue", "utc": "2026-11-18T16:42:39Z"}
   - {"seq": 5, "cmd": "setup all", "reason": "T0: environment (earlier install first), base models, fast start", "utc": "2026-11-18T16:42:47Z"}
+  - {"seq": 6, "cmd": "run FETCH-all", "reason": "T0: the readings' weights (expected from the store)", "utc": "2026-11-18T16:42:55Z"}
