@@ -16,3 +16,4 @@ commands:
   - {"seq": 14, "cmd": "tail coldstart.log 30", "reason": "setup step 4 has run 16 min: what it is doing", "utc": "2026-11-18T17:07:37Z"}
   - {"seq": 15, "cmd": "tail coldstart_fa.log 8", "reason": "flash-attn build progress; why the filler's command is not learned", "utc": "2026-11-18T17:14:58Z"}
   - {"seq": 16, "cmd": "tail run_tasks.log 30", "reason": "flash-attn build progress; why the filler's command is not learned", "utc": "2026-11-18T17:15:06Z"}
+  - {"seq": 17, "cmd": "tail gpu_fill_selftest.log 10", "reason": "flash-attn build progress; why the filler's command is not learned", "utc": "2026-11-18T17:15:13Z"}
