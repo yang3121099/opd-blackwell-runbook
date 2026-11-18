@@ -7,3 +7,4 @@ commands:
   - {"seq": 5, "cmd": "setup all", "reason": "T0: environment (earlier install first), base models, fast start", "utc": "2026-11-18T16:42:47Z"}
   - {"seq": 6, "cmd": "run FETCH-all", "reason": "T0: the readings' weights (expected from the store)", "utc": "2026-11-18T16:42:55Z"}
   - {"seq": 7, "cmd": "dispatch auto", "reason": "T0: unfreeze by itself once the environment is ready", "utc": "2026-11-18T16:43:03Z"}
+  - {"seq": 8, "cmd": "run FETCH-all", "reason": "seq 6 was refused: it was read in the same batch as the queue switch, before the queue took effect", "utc": "2026-11-18T16:54:37Z"}
