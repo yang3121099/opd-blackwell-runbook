@@ -308,5 +308,25 @@ ok "[z159] D (7K): the base, 50 steps, s25 / s50 up, var 7k, max_response_length
 mkdir -p $T/base/root/runs/PROBE-E12B-P0THINK-6K $T/base/root/runs/PROBE-E12B-P0THINK-12K; for g in PROBE-E12B-P0THINK-6K PROBE-E12B-P0THINK-12K; do echo '{"result": "PASS"}' > $T/base/root/runs/$g/report.json; done
 d6=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0,1,2,3 E12b-P0think-6k 2>&1 | tail -1); d12=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0,1,2,3 E12b-P0think-12k 2>&1 | tail -1)
 ok "[z159c] 6K: the base, 50 steps, var 6k, max_response_length 6144; 12K: var 12k, max_response_length 12288" '[[ "$d6" == "DRYRUN E12b-P0think-6k start="*" steps=50 "*"upload=25,50 "*"var=6k "* ]] && [[ "$d12" == "DRYRUN E12b-P0think-12k start="*" steps=50 "*"upload=25,50 "*"var=12k "* ]] && grep -q "^max_response_length: 6144$" $T/base/root/runs/E12b-P0think-6k/config.yaml && grep -q "^max_response_length: 12288$" $T/base/root/runs/E12b-P0think-12k/config.yaml'
+# [v3.15] (Q-109) E12d-P5selfp2-8k: the 4B chain - behind its own gate, from the published 4B OPD student (its #fetch copy), the 8K RL
+# recipe in the non-thinking template, 50 steps, four GPUs, venv-fa, s25 / s50 up
+p0=$(DR=0 DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0,1,2,3 E12d-P5selfp2-8k 2>&1 | tail -1)
+ok "[v3.15] the 4B chain waits for its own gate" '[ "$p0" = "PROBE-E12D-P5SELFP2-8K has not passed: E12d-P5selfp2-8k not started" ]'
+mkdir -p $T/base/root/runs/PROBE-E12D-P5SELFP2-8K; echo '{"result": "PASS"}' > $T/base/root/runs/PROBE-E12D-P5SELFP2-8K/report.json
+PS=$T/ck/adhoc_models/result/runs/E10d-P5selfp2/global_step_50/actor/huggingface; mkdir -p $PS; : > $PS/model.safetensors; : > $PS/.fetch_ok
+p1=$(DR=0 DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0,1,2,3 E12d-P5selfp2-8k 2>&1)
+ok "[v3.15] the 4B chain: E10d-P5selfp2 s50 (the published copy), 50 steps, venv-fa, four GPUs, s25 / s50 up, 8K, the non-thinking template" '[[ "$(echo "$p1" | tail -1)" == "DRYRUN E12d-P5selfp2-8k start=$PS steps=50 "*"venv=venv-fa ngpu=4 "*"upload=25,50 "*"var=8k "* ]] && ! echo "$p1" | grep -q DRYRUN_THINK && grep -q "^chat_template: enable_thinking=False$" $T/base/root/runs/E12d-P5selfp2-8k/config.yaml && grep -q "^max_response_length: 8192$" $T/base/root/runs/E12d-P5selfp2-8k/config.yaml && grep -q "^data_seed: 4242$" $T/base/root/runs/E12d-P5selfp2-8k/config.yaml'
+# [v3.15] (Q-110) E12b-P0think-3k-c100 / -3k-s44-c100: the 3K arms' own s50 (their #fetch copies), 50 more steps on the continuation file
+# of the arm's data.seed, the 3K window, behind the 3K gate
+k9=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0,1,2,3 E12b-P0think-3k-c100 2>&1 | tail -1)
+ok "[v3.15] the continued 3K arm waits for the 3K gate" '[ "$k9" = "PROBE-E12B-P0THINK-3K has not passed: E12b-P0think-3k-c100 not started" ]'
+mkdir -p $T/base/root/runs/PROBE-E12B-P0THINK-3K; echo '{"result": "PASS"}' > $T/base/root/runs/PROBE-E12B-P0THINK-3K/report.json
+k0=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0,1,2,3 E12b-P0think-3k-s44-c100 2>&1 | tail -1)
+ok "[v3.15] it waits for its own arm's s50" '[ "$k0" = "WAIT_INPUTS E12b-P0think-3k-s44-c100: start needs E12b-P0think-3k-s44 s50 (no local copy, no adhoc_models/result/runs/E12b-P0think-3k-s44/global_step_50/actor/huggingface/.fetch_ok)" ]'
+K1=$T/ck/adhoc_models/result/runs/E12b-P0think-3k/global_step_50/actor/huggingface; K2=$T/ck/adhoc_models/result/runs/E12b-P0think-3k-s44/global_step_50/actor/huggingface
+for k in $K1 $K2; do mkdir -p $k; : > $k/model.safetensors; : > $k/.fetch_ok; done
+k1=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0,1,2,3 E12b-P0think-3k-c100 2>&1); k2=$(DRYRUN=1 bash $T/rb/scripts/run_e12.sh 0,1,2,3 E12b-P0think-3k-s44-c100 2>&1)
+ok "[v3.15] 3k-c100: its s50, 50 steps, dapo_train_skip3200_s4242, s25 / s50 up, 3K, thinking, a continues: line" '[[ "$(echo "$k1" | tail -1)" == "DRYRUN E12b-P0think-3k-c100 start=$K1 steps=50 "*"upload=25,50 "*"var=none "* ]] && echo "$k1" | grep -q "^DRYRUN_C100 start=$K1 steps=50 train=dapo_train_skip3200_s4242.parquet uw=25,50$" && echo "$k1" | grep -q "^DRYRUN_THINK enable_thinking=True data_seed=4242" && grep -q "^max_response_length: 3072$" $T/base/root/runs/E12b-P0think-3k-c100/config.yaml && grep -q "^continues: E12b-P0think-3k s50 for 50 steps (weights only" $T/base/root/runs/E12b-P0think-3k-c100/config.yaml'
+ok "[v3.15] 3k-s44-c100: its own s50 and data.seed 44 (the continuation file of seed 44)" '[[ "$(echo "$k2" | tail -1)" == "DRYRUN E12b-P0think-3k-s44-c100 start=$K2 steps=50 "*"upload=25,50 "* ]] && echo "$k2" | grep -q "^DRYRUN_C100 start=$K2 steps=50 train=dapo_train_skip3200_s44.parquet uw=25,50$" && echo "$k2" | grep -q "^DRYRUN_THINK enable_thinking=True data_seed=44" && grep -q "^max_response_length: 3072$" $T/base/root/runs/E12b-P0think-3k-s44-c100/config.yaml && grep -q "^continues: E12b-P0think-3k-s44 s50 for 50 steps" $T/base/root/runs/E12b-P0think-3k-s44-c100/config.yaml && ! grep -q "^continues: E12b-P0think-8k" $T/base/root/runs/E12b-P0think-3k-s44-c100/config.yaml'
 rm -rf $T
 [ $fails = 0 ] && echo "DR_TEST PASS ($n checks)" || echo "DR_TEST FAIL ($fails of $n)"

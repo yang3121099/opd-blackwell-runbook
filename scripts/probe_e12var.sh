@@ -28,7 +28,7 @@ set -uo pipefail
 G=$1; VAR=$2; source "$(dirname "$0")/env.sh"
 case $VAR in kl|stop|stop2|8k|16k|r3|p0think) ;; *) echo "unknown variant $VAR"; exit 2;; esac   # [v2.5.8c] stop; [v2.5.8h] 8k / 16k; [v2.5.9f] stop2
 # [v2.5.9z85] (Q-077) PEV_LADDER=E12c: PROBE-E12C-8K / -16K, the same smoke of the 0.6B window arm E12c-P5-<8k|16k> (the 1.7B one by default)
-L=${PEV_LADDER:-E12b}; case $L:$VAR in E12b:*|E12c:8k|E12c:16k|E12d:16k|E12d:p0think|E12e:8k|E12e:16k|E12e:p0think) ;; *) echo "unknown ladder / variant $L $VAR"; exit 2;; esac   # [v2.5.9z97] E12e:16k (Q-074j)
+L=${PEV_LADDER:-E12b}; case $L:$VAR in E12b:*|E12c:8k|E12c:16k|E12d:8k|E12d:16k|E12d:p0think|E12e:8k|E12e:16k|E12e:p0think) ;; *) echo "unknown ladder / variant $L $VAR"; exit 2;; esac   # [v2.5.9z97] E12e:16k (Q-074j)
 T=PROBE-$(echo $L | tr a-z A-Z)-$(echo $VAR | tr a-z A-Z); [[ ${PEV_NAME:-} =~ ^PROBE-E12[BCDE]-[A-Z0-9-]+$ ]] && T=$PEV_NAME; D=$OPD_ROOT/runs/$T; LOG=$D/probe.log; mkdir -p $D   # [z154] PEV_NAME: a second name for the same smoke (PROBE-E12B-P0THINK-8G)
 [ -f $D/.done ] && { echo "TASK_ALREADY_DONE $T"; exit 0; }
 rm -f $D/mem.csv   # [v2.5.9z11] this run's memory samples only (a rerun keeps the directory: PROBE-STOPMERGE's 4th peak was the 2nd run's)
@@ -93,6 +93,7 @@ ARM=$L-P5-$VAR; [ $L = E12e ] && ARM=$L-P5self-$VAR   # [v2.5.9z91] (Q-081) PEV_
 [ $L:$VAR = E12e:p0think ] && ARM=E12e-P0think-8k   # [z154] (Q-093c) the 8B arm on its eight GPUs
 [ $L:$VAR = E12b:p0think ] && ARM=E12b-P0think-8k   # [z146] (Q-093) PROBE-E12B-P0THINK smokes the arm itself: the base in the thinking template at 8K
 [[ ${PEV_ARM:-} =~ ^E12[bcde]-P0think-(8k(-s4[34])?|4k|3k|16k|6k|7k|12k|8k50-4k)$ ]] && ARM=$PEV_ARM   # [z159] 7k (Q-097 D) / 8k50-4k (A4)   # [z158b] s44 / 4k / 16k   # [z154] PROBE-E12B-P0THINK-8G smokes E12b-P0think-8k-s43 itself
+[ "${PEV_ARM:-}" = E12d-P5selfp2-8k ] && ARM=$PEV_ARM   # [v3.15] (Q-109) PROBE-E12D-P5SELFP2-8K smokes the 4B chain's arm itself on its four GPUs
 SMOKE=1 SMOKE_STEPS=${PEV_STEPS:-3} PROBE_TASK=$T-smoke bash $RUNBOOK/scripts/run_e12.sh $G $ARM > $D/smoke.out 2>&1; rc=$?   # [v2.5.9z85] $L
 kill $MP 2> /dev/null
 mkdir -p $D/smoke; cp $OPD_ROOT/runs/$T-smoke/train.log $OPD_ROOT/runs/$T-smoke/config.yaml $D/smoke/ 2> /dev/null

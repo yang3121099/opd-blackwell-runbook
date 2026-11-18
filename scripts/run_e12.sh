@@ -36,6 +36,11 @@ NN=""; CONT=""; case $T in E12e-P5tail-8k-nn|E12c-P5tail-8k-nn) NN=-nn; T=${T%-n
 VAR=""; case $A in P5-kl|P5-stop|P5-stop2|P5-8k|P5-16k|P5-r3|P5-16k-kl) VAR=${A#P5-}; A=P5;; esac
 [ "$A" = P5-8k-s44 ] && { VAR=8k; A=P5-s44; }   # [v2.5.9z41] (the reviewer's padding ruling 10-22) E12b-P5-8k-s44: the 8K arm from E10b-P5-s44 s150
 [ "$A" = P5tail-8k ] && { VAR=8k; A=P5tail; }   # [v2.5.9z84a] (Q-074; Fable 10-25, paper_core 2: the method's chain) E12b-P5tail-8k: E12b-P5-8k's recipe from E10b-P5tail s50
+# [v3.15] (lab/registry/Q-109.md; the independent reviewer's list of 11-17, matrix A7) E12d-P5selfp2-8k = the 4B chain: the 8K RL recipe (as
+# E12d-P5tail-8k: non-thinking template, 50 steps, venv-fa) from the 4B OPD student E10d-P5selfp2 s50 (Q-106; the published copy, a #fetch
+# result: line), #gpus 4; its own gate PROBE-E12D-P5SELFP2-8K smokes the arm itself (executor B's node diff of 11-15 for the 1.7B arm,
+# lab code/hub/b300_node_kit/q105, is the model)
+[ "$A" = P5selfp2-8k ] && { VAR=8k; A=P5selfp2; }
 [ "$A" = P5tail-8k-s43 ] && { VAR=8k; A=P5tail-s43; }   # [v2.5.9z91] (Q-074c) E12b-P5tail-8k-s43: E12b-P5tail-8k's recipe from E10b-P5tail-s43 s50 (the method's chain, second seed)
 [ "$A" = P5tail-8k-s44 ] && { VAR=8k; A=P5tail-s44; }   # [v2.5.9z93] (Q-074g) E12b-P5tail-8k-s44: the same from E10b-P5tail-s44 s50 (the third start)
 [ "$A" = P5tail-16k ] && { VAR=16k; A=P5tail; }   # [v2.5.9z92] (Q-074d) E12b-P5tail-16k: E12b-P5-16k's recipe from E10b-P5tail s50, #gpus 4
@@ -74,6 +79,11 @@ C100=""; [ "$A" = P0think-8k-c100 ] && { VAR=8k; A=P0; THINK=True; C100=1; }
 # the 4K arm's batching); E12b-P0think-7k = Q-097's D arm: Q-093 from the base at the registered W_s = 7K (MAXR 7168), 50 steps, which
 # replaces the 6K point (the S arm is not trained: price difference 0.46 < 1.35). Each behind its own gate smoke (the arm's window)
 [ "$A" = P0think-8k50-4k ] && { VAR=""; A=P0; THINK=True; C100=1; W4=1; }
+# [v3.15] (lab/registry/Q-110.md) E12b-P0think-3k-c100 / -3k-s44-c100 = Q-107's two 3K arms continued from their own s50 for 50 steps
+# (s51-s100), c100's way: weights only, a fresh optimizer, constant lr, the data from step 51 on by the arm's own data.seed, the 3K
+# window and its batching; the start = the published s50 (a #fetch result: line); the gate = the 3K arms' PROBE-E12B-P0THINK-3K
+C3SRC=""; case $A in P0think-3k-c100) VAR=""; A=P0; THINK=True; W4=1; W3=1; C100=1; C3SRC=E12b-P0think-3k;;
+  P0think-3k-s44-c100) VAR=""; A=P0; THINK=True; W4=1; W3=1; C100=1; DSEED=44; C3SRC=E12b-P0think-3k-s44;; esac
 [ "$A" = P0think-6k ] && { VAR=6k; A=P0; THINK=True; }   # [z159c] (Fable 11:17 / 11:30) Q-097's released D arm: 6K, the log midpoint of 4K and 8K
 [ "$A" = P0think-7k ] && { VAR=7k; A=P0; THINK=True; }   # [z159b] W_s = 7K, paused (stage p1q097p)
 [ "$A" = P0think-12k ] && { VAR=12k; A=P0; THINK=True; }   # [z159c] (Fable 11:30) Q-096 A's 12K point (Q-097 H7), from the base
@@ -93,9 +103,10 @@ if [ -n "$VAR$W4" ] && [ "${SMOKE:-0}" != 1 ]; then   # [z159] W4 too: the 4K-wi
   [ $THINK = True ] && [ $LADDER = E12d ] && GATES=PROBE-E12D-P0THINK   # [z149] (Q-093b) the 4B arm's own 4-GPU smoke
   [ $THINK = True ] && [ $LADDER = E12e ] && GATES=PROBE-E12E-P0THINK   # [z154] (Q-093c) the 8B arm's own 8-GPU smoke
   [ $T = E12b-P0think-8k-s43 ] && GATES=PROBE-E12B-P0THINK-8G   # [z154] (Q-093-s43) its own 8-GPU smoke
-  case $T in E12b-P0think-8k-s44|E12b-P0think-8k-c100) GATES=PROBE-E12B-P0THINK-S44;; E12b-P0think-4k) GATES=PROBE-E12B-P0THINK-4K;; E12b-P0think-3k|E12b-P0think-3k-s44) GATES=PROBE-E12B-P0THINK-3K;; E12b-P0think-16k) GATES=PROBE-E12B-P0THINK-16K;;
+  case $T in E12b-P0think-8k-s44|E12b-P0think-8k-c100) GATES=PROBE-E12B-P0THINK-S44;; E12b-P0think-4k) GATES=PROBE-E12B-P0THINK-4K;; E12b-P0think-3k|E12b-P0think-3k-s44|E12b-P0think-3k-c100|E12b-P0think-3k-s44-c100) GATES=PROBE-E12B-P0THINK-3K;; E12b-P0think-16k) GATES=PROBE-E12B-P0THINK-16K;;
     E12b-P0think-8k50-4k) GATES=PROBE-E12B-P0THINK-8K50-4K;; E12b-P0think-7k) GATES=PROBE-E12B-P0THINK-7K;;
     E12b-P0think-6k) GATES=PROBE-E12B-P0THINK-6K;; E12b-P0think-12k) GATES=PROBE-E12B-P0THINK-12K;; esac   # [z159c] 6K / 12K;   # [z159]   # [z158b] their own smokes
+  [ $T = E12d-P5selfp2-8k ] && GATES=PROBE-E12D-P5SELFP2-8K   # [v3.15] (Q-109) its own 4-GPU smoke
   [ $T = E12d-P0think-8k-s43 ] && GATES=PROBE-E12D-P0THINK-8G   # [z156] (Q-093b-s43, Fable D50) the 4B mirror: its own 8-GPU smoke (Q-093b's gate passed on 4 x B200)
   for P in $GATES; do grep -q '"result": "PASS"' $OPD_ROOT/runs/$P/report.json 2> /dev/null || { echo "$P has not passed: $T$NN not started"; exit 3; }; done
 fi
@@ -104,6 +115,7 @@ SRC=E10b; [ $LADDER = E12d ] && SRC=E10d   # v2.5.7o: the preparation run a star
 SRUN=$SRC-$A; [ $LADDER = E12c ] && SRUN=E10c-$A-fix4   # [v2.5.8a] the 0.6B starts: E10c-<arm>-fix4, this node's 0.6B batching
 SS=150; case $A in P5self|P5self-s43) SS=50;; esac       # [v2.5.8a] E10b-P5self ran 50 steps; [v2.5.8e] its seed 43 too
 [ "$A" = P5tail ] && SS=50   # [v2.5.9z84a] (Q-074) E10b-P5tail ran 50 steps
+[ "$A" = P5selfp2 ] && SS=50   # [v3.15] (Q-109) E10d-P5selfp2 ran 50 steps
 [ "$A" = P5tail-s43 ] && SS=50   # [v2.5.9z91] (Q-074c) its seed 43 too
 [ "$A" = P5tail-s44 ] && SS=50   # [v2.5.9z93] (Q-074g) and 44
 [ $T = E12c-P5tail-8k ] && { SRUN=E10c-P5tail-c50; SS=30; }   # [v2.5.9z92] (Q-074f) the 0.6B tail arm's s50 = E10c-P5tail-c50's global_step_30 (20 + 30 steps)
@@ -128,7 +140,7 @@ if [ -n "$PROG" ] && [ "${SMOKE:-0}" != 1 ]; then
 fi
 TRAINF=$OPD_ROOT/data/dapo_train.parquet; [ -n "$PROG" ] && TRAINF=$OPD_ROOT/data/dapo_train_skip1600_s4242.parquet
 [ -n "$CONT" ] && TRAINF=$OPD_ROOT/data/dapo_train_skip1600_s4242.parquet   # [v2.5.9z129] built below when missing (after the venv)
-[ -n "$C100" ] && TRAINF=$OPD_ROOT/data/dapo_train_skip3200_s4242.parquet   # [z158f] 50 steps x 64 prompts skipped; built below when missing
+[ -n "$C100" ] && TRAINF=$OPD_ROOT/data/dapo_train_skip3200_s$DSEED.parquet   # [z158f] 50 steps x 64 prompts skipped; built below when missing
 # [v2.5.8a] an E12c task starts only after PROBE-E12C passed (the smoke itself is exempt). [v2.5.9z122] (H800 11-01 15:11Z: the
 # 4K base smoke ran out of memory on one 80 GB GPU, and Q-074f sat blocked behind it) the base ladder (E12c-P0 / -P5) only: a window
 # variant (VAR set: E12c-P5-8k / -16k, E12c-P5tail-8k) is gated by its own PROBE-E12C-<VAR> and PROBE-E12B-<VAR> above, on this node
@@ -146,8 +158,13 @@ case $A in
        has_weights $START || START=${START%_bf16};;                                 # bf16 start (deviation: weight rounding)
 esac
 if [ -n "$C100" ]; then   # [z158f] Q-093 s50 from the #fetch (the dry-run's adhoc_fetch form when it is not in)
-  START=$CKPT_ROOT/adhoc_models/result/runs/E12b-P0think-8k/global_step_50/actor/huggingface; SRUN=E12b-P0think-8k; SS=50
-  [ "${SMOKE:-0}" = 1 ] || [ -f $START/.fetch_ok ] || { echo "WAIT_INPUTS $T: start needs Q-093 s50 (no local copy, no adhoc_models/result/runs/E12b-P0think-8k/global_step_50/actor/huggingface/.fetch_ok)"; exit 1; }
+  CS=E12b-P0think-8k; CL="Q-093 s50"; [ -n "$C3SRC" ] && { CS=$C3SRC; CL="$C3SRC s50"; }   # [v3.15] (Q-110) the 3K arms' own s50
+  START=$CKPT_ROOT/adhoc_models/result/runs/$CS/global_step_50/actor/huggingface; SRUN=$CS; SS=50
+  [ "${SMOKE:-0}" = 1 ] || [ -f $START/.fetch_ok ] || { echo "WAIT_INPUTS $T: start needs $CL (no local copy, no adhoc_models/result/runs/$CS/global_step_50/actor/huggingface/.fetch_ok)"; exit 1; }
+fi
+# [v3.15] (Q-109) the 4B chain starts from the published OPD student (its #fetch copy); a smoke or a dry run without it: the fallback below
+if [ $T = E12d-P5selfp2-8k ]; then START=$CKPT_ROOT/adhoc_models/result/runs/E10d-P5selfp2/global_step_50/actor/huggingface
+  [ "${DRYRUN:-0}" = 1 ] || [ "${SMOKE:-0}" = 1 ] || [ -f $START/.fetch_ok ] || { echo "WAIT_INPUTS $T: start needs E10d-P5selfp2 s50 (no local copy, no adhoc_models/result/runs/E10d-P5selfp2/global_step_50/actor/huggingface/.fetch_ok)"; exit 1; }
 fi
 # v2.5.7: a start on the container disk that a rebuild removed comes from the copy that survived: P1 from
 # $(dr_root)/keep/SFT-P1 (dr-keep), an E10b start from this node's public result repository (its final bf16 upload)
@@ -189,7 +206,7 @@ if [ -n "$CONT" ] && [ ! -s $TRAINF ] && [ "${DRYRUN:-0}" != 1 ]; then
     || { echo "CONT_DATA_FAILED $T$NN: skip_order.py build"; exit 1; }
 fi
 if [ -n "$C100" ] && [ ! -s $TRAINF ] && [ "${DRYRUN:-0}" != 1 ]; then   # [z158f] the same build, 50 steps skipped; [z159] in a smoke too (A4's gate smokes the arm itself)
-  python $RUNBOOK/code/train/skip_order.py build --train $OPD_ROOT/data/dapo_train.parquet --tokenizer $STUDENT_17B --out $TRAINF --skip_steps 50 \
+  python $RUNBOOK/code/train/skip_order.py build --train $OPD_ROOT/data/dapo_train.parquet --tokenizer $STUDENT_17B --out $TRAINF --skip_steps 50 --seed $DSEED \
     || { echo "CONT_DATA_FAILED $T: skip_order.py build"; exit 1; }
 fi
 # [v2.5.8a] E12c-P0's start, the 0.6B base, from a local copy: $OPD_ROOT/models/Qwen3-0.6B, else the Hugging Face cache
@@ -258,6 +275,7 @@ UW=$STEPS; case $T in E12b-P5-s44|E12d-P5) UW=25,50,75,$STEPS;; E12b-P5-8k|E12b-
 [ $T = E12d-P5-8k ] && UW=25,$STEPS   # [v2.5.9z60] (Q-066) as the 8K arm: s25 and s50 up
 [ $T = E12d-P5-16k ] && UW=25,$STEPS   # [v2.5.9z67] (Q-069) as the 16K arm: s25 and s50 up
 [ $T = E12d-P5-8k-s43 ] && UW=25,$STEPS   # [v2.5.9z77] (Q-071) as E12d-P5-8k: s25 and s50 up
+case $T in E12d-P5selfp2-8k|E12b-P0think-3k-c100|E12b-P0think-3k-s44-c100) UW=25,$STEPS;; esac   # [v3.15] (Q-109 / Q-110) s25 and s50 up
 [ $T = E12b-P5tail-8k ] && UW=25,$STEPS   # [v2.5.9z84a] (Q-074) as the 8K arm: s25 and s50 up
 case $T in E12b-P5tail-8k-s43|E12b-P5tail-8k-s44|E12e-P5self-8k) UW=25,$STEPS;; esac   # [v2.5.9z91] (Q-074c / Q-081) s25 and s50 up (z86: saved every 25 steps); [v2.5.9z93] s44
 case $T in E12b-P5tail-16k|E12c-P5tail-8k|E12e-P5tail-8k) UW=25,$STEPS;; esac   # [v2.5.9z92] (Q-074d / f / e) s25 and s50 up
@@ -293,6 +311,7 @@ KL="actor_rollout_ref.actor.use_kl_loss=False"; REWARD=$RUNBOOK/code/train/rewar
 export OPD_VARDROP= OPD_VARDROP_LOG=; [ "$VAR" = r3 ] && export OPD_VARDROP=1 OPD_VARDROP_K=${R3_KEEP_GROUPS:-64} OPD_VARDROP_LOG=$OUT/vardrop.jsonl OPD_SEED=${OPD_SEED:-1234}
 [ "${DRYRUN:-0}" = 1 ] && [ "$VAR" = r3 ] && echo "DRYRUN_R3 adv=$ADV tbs=$TBS vardrop=$OPD_VARDROP k=$OPD_VARDROP_K log=$(basename $OPD_VARDROP_LOG) seed=$OPD_SEED"   # tests
 [ -n "$PROG" ] && ! grep -q "^continues:" $OUT/config.yaml && echo "continues: $SRUN s$SS for $STEPS steps (weights, a fresh optimizer); data from the parents' step $((SS + 1)) on ($(basename $TRAINF))" >> $OUT/config.yaml   # [v2.5.9z43]
+[ -n "$C3SRC" ] && ! grep -q "^continues:" $OUT/config.yaml && echo "continues: $C3SRC s50 for $STEPS steps (weights only, a fresh optimizer, constant lr; its global_step_25 / _50 = that arm's s75 / s100); data from step 51 on ($(basename $TRAINF), data.seed $DSEED, built on this node)" >> $OUT/config.yaml   # [v3.15] (Q-110)
 [ -n "$C100" ] && ! grep -q "^continues:" $OUT/config.yaml && echo "continues: E12b-P0think-8k s50 for $STEPS steps (weights only: Q-093 ran on one GPU, its sharded state cannot resume this run; a fresh optimizer, constant lr; its global_step_25 / _50 = Q-093's s75 / s100); data from step 51 on ($(basename $TRAINF), built on this node)" >> $OUT/config.yaml   # [z158f]
 [ "${DRYRUN:-0}" = 1 ] && [ -n "$C100" ] && echo "DRYRUN_C100 start=$START steps=$STEPS train=$(basename $TRAINF) uw=$UW"   # [z158f] tests
 [ -n "$CONT" ] && ! grep -q "^continues:" $OUT/config.yaml && echo "continues: $SRUN s$SS for $STEPS steps (weights, a fresh optimizer; its global_step_25 = the chain's s50); data from step $((SS + 1)) on ($(basename $TRAINF), built on this node)" >> $OUT/config.yaml   # [v2.5.9z129]
