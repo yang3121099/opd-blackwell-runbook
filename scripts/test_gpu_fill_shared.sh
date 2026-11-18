@@ -31,6 +31,10 @@ printf 'export GPU_FILL=1\nexport GPU_FILL_NAME=gpu_consum.py\n' > $OPD_ROOT/con
 printf 'python /somewhere/train.py --duration_hours 888\n' > $OPD_ROOT/control/gpu_fill_secret.cmd     # the stored line names another script
 source $SRC/scripts/gpu_fill.sh
 ok "known by the bare file name; the card is free; the stored line (another script) is not taken for its command" '[ "$(fill_sig)" = gpu_consum.py ] && [ "$(fill_app_pids 0)" = "$OWN" ] && fill_free 0 && [ -z "$(fill_cmd_line)" ]'
+# [v3.13c] 11-19: on the training machine `ps -o args= -p` did not name the filler while /proc/<pid>/cmdline did (the status showed it)
+mkdir -p $T/nops; printf '#!/bin/bash\nexit 1\n' > $T/nops/ps; chmod +x $T/nops/ps
+ok "the filler is known from /proc/<pid>/cmdline when ps shows nothing, and with a narrow COLUMNS in the environment" '( PATH=$T/nops:$PATH; export COLUMNS=8; [ "$(fill_app_pids 0)" = "$OWN" ] && fill_free 0 )'
+ok "without /proc: ps -ww, not cut at COLUMNS" '( export COLUMNS=8 FILL_PROC=$T/noproc; [ "$(fill_app_pids 0)" = "$OWN" ] )'
 out=$(fill_round "")
 ok "the loop learns the command (interpreter by its real path, the filler's own environment and directory)" 'fill_seen_ok && grep -q "export CONDA_PREFIX=/opt/conda/envs/x; " $OPD_ROOT/control/gpu_fill_secret.seen && grep -q "cd .*own/dir 2> /dev/null; /.*python[0-9.]* gpu_consum.py --hours 888" $OPD_ROOT/control/gpu_fill_secret.seen'
 ok "the restart self-test ran it beside the filler and it stayed alive" '[[ "$out" == *"FILL_SELFTEST"*"ok"* ]] && fill_selftest_ok && grep -q "^/opt/conda/envs/x .*own/dir$" $T/ran_0'

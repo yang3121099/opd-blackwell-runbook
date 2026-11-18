@@ -154,6 +154,13 @@ sft_yield() { local g p i any=0   # $1 = a GPU list a,b,c
   for i in $(seq 40); do any=0; for g in $(echo "$1" | tr , ' '); do [ -n "$(sft_pid $g)" ] && any=1; done; [ $any = 0 ] && break; sleep 0.5; done
   for g in $(echo "$1" | tr , ' '); do p=$(sft_pid $g) && [ -n "$p" ] && kill -KILL $p 2> /dev/null; done
   echo "SFT_YIELD $(date -u +%T) gpu=$1: SFT-WARM's worker(s) there ended for a task of the queue"; }
+# [v3.13c] why no card counts as free: one line per GPU into this loop's log when a task is ready and no GPU is free (at most
+# every FREE_WHY_MIN 10 min) - on 11-19 the gate waited 20 minutes on eight cards that ran only the filler and SFT-WARM, and the
+# log said nothing
+free_why() { local i m=$CDIR/free_why.t
+  [ -f $m ] && [ $(( $(date +%s) - $(cat $m) )) -lt $(( ${FREE_WHY_MIN:-10} * 60 )) ] && return 0; date +%s > $m
+  for i in $(seq 0 $((NGPU-1))); do
+    echo "FREE_WHY $(date -u +%T) gpu=$i held=$(gpu_held $i && echo 1 || echo 0) apps=[$(fill_apps $i | paste -sd, -)] filler=[$(fill_app_pids $i | paste -sd, -)] fill_enabled=$(fill_enabled && echo 1 || echo 0) fill_free=$(fill_free $i && echo 1 || echo 0) sft_pid=$(sft_pid $i) sft_only=$(sft_only $i && echo 1 || echo 0)"; done; }
 free_gpus() { for i in $(seq 0 $((NGPU-1))); do
     # v2.5.4d: a GPU given to a task stays taken while its task.sh / ad-hoc evaluation runs, also before the task touches it
     # (2026-10-17: FA-PROBE's CPU-only venv copy left GPU6 empty, and EVAL-bridge and EVAL-p5s43-s20 were started on it too)
@@ -540,7 +547,7 @@ while true; do
   # copy of logs/ can take minutes; this loop's liveness must not wait on it), one at a time (the lock), its line in logs/control.log
   [ "${DRY:-0}" != 1 ] && (setsid nohup nice -n 10 python $RUNBOOK/scripts/control.py disk_fallback >> $OPD_ROOT/logs/control.log 2>&1 < /dev/null &)
   READY=0; RT=""; HELD=""; RHELD=""; AHELD=""   # [v2.5.9z12] this pass's ready-but-not-started GPU tasks, and the trainings the disk guard held; [v2.5.9z69] the readings
-  FREE=($(free_gpus)); earlier_finished=1; rm -f $CDIR/held.json   # [v2.5.9c] a hold is written again by take_gpus
+  FREE=($(free_gpus)); NFREE0=${#FREE[@]}; earlier_finished=1; rm -f $CDIR/held.json   # [v2.5.9c] a hold is written again by take_gpus
   verify_busy && FREE=()   # a remote rerun_verify owns the GPUs
   while read -r stage status rest; do
     case $stage in ''|\#*|version:) continue;; esac
@@ -590,6 +597,7 @@ while true; do
   # [v2.5.9z12] the reserve: ready GPU tasks left waiting against the GPUs still free (control.py: alert reserve_low after 10 min)
   if [ "${DRY:-0}" = 1 ]; then echo "RESERVE ready=$READY free=${#FREE[@]} tasks=[${RT# }] held=[${HELD# }]"; [ -n "$READ_LOW" ] && echo "READINGS_HELD [${RHELD# }]"; [ -n "$ALL_LOW" ] && echo "TASKS_HELD [${AHELD# }]"
   else python $RUNBOOK/scripts/control.py reserve_note $READY ${#FREE[@]} "$RT" "$HELD" > /dev/null 2>&1
+    [ $READY -gt 0 ] && [ $NFREE0 = 0 ] && free_why   # [v3.13c]
     python3 -c "import json, os, sys, time; t = sys.argv[3] + '.tmp'; json.dump({'utc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), 'low': sys.argv[1], 'held': sys.argv[2].split()}, open(t, 'w')); os.replace(t, sys.argv[3])" \
       "${READ_LOW:-}" "${RHELD# }" $CDIR/readings_held.json 2> /dev/null || true   # [v2.5.9z69]
   fi

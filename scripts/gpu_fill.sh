@@ -56,9 +56,14 @@ fill_sig() { local n; n=$(fill_name); if [ -n "$n" ]; then echo "$n"; else head 
 fill_pgid() { local p=""; [ -f $FILL_DIR/$1.pid ] && p=$(tr -cd 0-9 < $FILL_DIR/$1.pid); [ -n "$p" ] && kill -0 -- -$p 2> /dev/null && echo $p; }   # our filler's session on GPU $1, if alive
 fill_on() { [ -n "$(fill_pgid $1)" ]; }
 fill_apps() { nvidia-smi --query-compute-apps=pid --format=csv,noheader -i $1 2> /dev/null | tr -d ' ' | grep -E '^[0-9]+$'; }
+# [v3.13c] (11-19, the training machine: the status named the filler on every card - gpu_monitor.py reads /proc/<pid>/cmdline -
+# while this file's `ps -o args= -p` did not, so no card counted as free and the filler's command was never learned) the command
+# line of a process is read from /proc first, as the monitor does; `ps -ww` (never cut at COLUMNS) where there is no /proc
+fill_args() { local PR=${FILL_PROC:-/proc}
+  if [ -r $PR/$1/cmdline ]; then tr '\0' ' ' < $PR/$1/cmdline 2> /dev/null; else ps -ww -o args= -p $1 2> /dev/null; fi; }
 fill_app_pids() {   # the processes on GPU $1 that are the filler (by its script's name on their command line), ours or not
-  local s p; s=$(fill_sig); [ -n "$s" ] || return 0
-  for p in $(fill_apps $1); do ps -o args= -p $p 2> /dev/null | grep -qF -- "$s" && echo $p; done; }
+  local s p c; s=$(fill_sig); [ -n "$s" ] || return 0
+  for p in $(fill_apps $1); do c=$(fill_args $p); [[ $c == *"$s"* ]] && echo $p; done; return 0; }
 fill_free() {   # GPU $1 runs nothing but the filler: our session, or every process on it is the filler
   fill_enabled || return 1
   fill_on $1 && return 0
