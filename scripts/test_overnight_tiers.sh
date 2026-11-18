@@ -15,7 +15,9 @@ PY
 run() {   # <A passes 0|1> [env]: the block with every outside call stubbed; CALLS lists what it ran
   ( export OPD_ROOT=$T/opd CALLS=$T/calls A_OK=$1; shift; export "$@" 2> /dev/null; mkdir -p $OPD_ROOT/venv; : > $CALLS
     TIER_VARS=TRITON_PTXAS_PATH; LOG=$T/log
-    before_old() { return 1; }; gpu_cap() { echo "${CAP:-}"; }
+    before_old() { return 1; }
+    # [v3.13b] no gpu_cap stub: the block must read the capability by itself (overnight.sh does not source env.sh); a fake nvidia-smi
+    mkdir -p $T/bin; printf '#!/bin/bash\ncase "$*" in *compute_cap*) [ -n "$CAP" ] && echo "$CAP";; -L) [ -n "$CAP" ] && echo "GPU 0: fake";; esac\nexit 0\n' > $T/bin/nvidia-smi; chmod +x $T/bin/nvidia-smi; PATH=$T/bin:$PATH
     try_tier() { echo "try $1" >> $CALLS; [ $1 = A ] && [ $A_OK = 1 ]; }
     uv() { echo "uv $*" >> $CALLS; }; pip() { echo "pip $*" >> $CALLS; }; nvcc() { return 1; }
     step() { echo "STEP $1 $2" >> $CALLS; }; fail() { echo "FAIL $1 $2" >> $CALLS; exit 1; }

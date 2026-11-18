@@ -234,6 +234,9 @@ fi
 #   C  CUDA 13 environment (install_cu130.sh), only when an nvcc >= 13 is there
 rm -f $OPD_ROOT/triton.env; for v in $TIER_VARS; do unset $v; done   # every run starts clean (a rerun re-probes)
 TIER=""
+# [v3.13b] (the development machine, 11-18: the probe ran on a Hopper card under FAST_START and stopped step 2) this script does not
+# source env.sh in its own shell, so env.sh's gpu_cap was not defined here and the capability read as empty: asked directly now
+type gpu_cap > /dev/null 2>&1 || gpu_cap() { nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2> /dev/null | head -1; }
 _cap=$(gpu_cap 2> /dev/null || true); _cap=${_cap%%.*}
 _ng=$(nvidia-smi -L 2> /dev/null | grep -c '^GPU' || true)
 if [ "${FAST:-0}" = 1 ] && [ -z "$_cap" ] && [ "${_ng:-0}" = 0 ]; then TIER="A: cu128 as is (not probed: no GPU on this machine - a preparation node)"   # [v3.12] a development machine that only fills the long-term store
