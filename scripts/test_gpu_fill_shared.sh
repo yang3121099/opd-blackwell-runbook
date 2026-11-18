@@ -34,6 +34,7 @@ ok "known by the bare file name; the card is free; the stored line (another scri
 # [v3.13c] 11-19: on the training machine `ps -o args= -p` did not name the filler while /proc/<pid>/cmdline did (the status showed it)
 mkdir -p $T/nops; printf '#!/bin/bash\nexit 1\n' > $T/nops/ps; chmod +x $T/nops/ps
 ok "the filler is known from /proc/<pid>/cmdline when ps shows nothing, and with a narrow COLUMNS in the environment" '( PATH=$T/nops:$PATH; export COLUMNS=8; [ "$(fill_app_pids 0)" = "$OWN" ] && fill_free 0 )'
+ok "[v3.13d] no proven restart and ps shows nothing: the owner's filler is not among the processes fill_stop may end" '( PATH=$T/nops:$PATH; [ -z "$(fill_kill_pids 0)" ] ) && [ -z "$(fill_kill_pids 0)" ]'
 ok "without /proc: ps -ww, not cut at COLUMNS" '( export COLUMNS=8 FILL_PROC=$T/noproc; [ "$(fill_app_pids 0)" = "$OWN" ] )'
 out=$(fill_round "")
 ok "the loop learns the command (interpreter by its real path, the filler's own environment and directory)" 'fill_seen_ok && grep -q "export CONDA_PREFIX=/opt/conda/envs/x; " $OPD_ROOT/control/gpu_fill_secret.seen && grep -q "cd .*own/dir 2> /dev/null; /.*python[0-9.]* gpu_consum.py --hours 888" $OPD_ROOT/control/gpu_fill_secret.seen'

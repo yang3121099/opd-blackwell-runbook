@@ -109,9 +109,14 @@ fill_selftest() {   # $1 = a GPU
   else ( umask 077; echo "fail $id $(date -u +%FT%TZ) rc=$rc" > $FILL_TEST ) 2> /dev/null
     echo "FILL_SELFTEST $(date -u +%T) gpu=$1 FAILED (exit $rc before $n s): the owner's filler will not be ended; see logs/gpu_fill_selftest.log"; fi; }
 fill_kill_pids() {   # the filler processes on GPU $1 that fill_stop may end: all of them once a restart is proven, else only ours
-  local p o; o=" $(cat $FILL_DIR/*.pid 2> /dev/null | tr '\n' ' ') "
+  # [v3.13d] (11-19: `ps -o pgid= -p` printed nothing for the owner's filler on the training machine; the empty answer matched the
+  # empty list of our sessions, and the filler - one process on eight cards - was ended three minutes before its restart was
+  # proven) a process counts as ours only by a session id that was read and is on our list
+  local p o g; o=" $(cat $FILL_DIR/*.pid 2> /dev/null | tr '\n' ' ') "
   for p in $(fill_app_pids $1); do
-    if fill_selftest_ok || [[ $o == *" $(ps -o pgid= -p $p 2> /dev/null | tr -d ' ') "* ]]; then echo $p; fi; done; }
+    g=$(ps -o pgid= -p $p 2> /dev/null | tr -cd 0-9)
+    [ -n "$g" ] || g=$(sed 's/^.*) //' ${FILL_PROC:-/proc}/$p/stat 2> /dev/null | cut -d' ' -f3 | tr -cd 0-9)   # /proc/<pid>/stat: state ppid pgrp after the name
+    if fill_selftest_ok || { [ -n "$g" ] && [[ $o == *" $g "* ]]; }; then echo $p; fi; done; }
 fill_start() {   # $1 = a GPU
   [ -n "$(fill_cmd_line)" ] || { echo "FILL_NO_COMMAND $(date -u +%T) gpu=$1: the filler's command is not known yet (none learned, none stored for this name)"; return 1; }
   mkdir -p $FILL_DIR; rm -f $FILL_DIR/$1.pid
