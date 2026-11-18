@@ -76,3 +76,4 @@ commands:
   - {"seq": 74, "cmd": "setup all", "reason": "v3.9: seed the venv from the earlier install's pinned stack (copied locally), then install what is missing", "utc": "2026-11-17T17:01:47Z"}
   - {"seq": 75, "cmd": "tail overnight.log 14", "reason": "did the venv seed from the earlier install work", "utc": "2026-11-17T17:05:30Z"}
   - {"seq": 76, "cmd": "env-probe", "reason": "a development machine with one GPU (in use by its owner): what it has, and the history scan", "utc": "2026-11-18T09:37:40Z"}
+  - {"seq": 77, "cmd": "queue h2a", "reason": "the queue's fetch lines for the prefetch; dispatch stays frozen on this machine", "utc": "2026-11-18T09:37:51Z"}
