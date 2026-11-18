@@ -13,8 +13,7 @@
 # -nn names (Fable 11-03): the lost H800 may still upload under the old names; before T0 the executor checks -pub once: an original's
 # s50 .done already there -> pause the -nn row and point its readings back at the original (a one-word diff, pre-approved).
 version: 2
-# h2g ~0.3 B200 GPU-h: PROBE-TAIL 0.3
-h2g        open   PROBE-TAIL PROBE-E12B-P0THINK-3K
+h2g        open   PROBE-E12B-P0THINK-3K
 q107       open   E12b-P0think-3k:PROBE-E12B-P0THINK-3K E12b-P0think-3k-s44:PROBE-E12B-P0THINK-3K
 q107r      open   EVAL-q107-3k-s50:E12b-P0think-3k EVAL-q107-3k-s44-s50:E12b-P0think-3k-s44 EVAL-q107-3k-s25:E12b-P0think-3k EVAL-q107-3k-s44-s25:E12b-P0think-3k-s44
 q107z      auto   EVAL-q107-4k-s50 EVAL-q107-4k-s25
@@ -24,8 +23,6 @@ q107z6     auto   EVAL-q107-6k-s25
 #gpus E12b-P0think-3k 4
 #gpus E12b-P0think-3k-s44 4
 
-#fetch result:runs/E10b-P5/global_step_150/actor/huggingface
-#fetch result:runs/E10b-P5tail/global_step_50/actor/huggingface
 #fetch result:runs/E12b-P0think-4k/global_step_50/actor/huggingface
 #fetch result:runs/E12b-P0think-4k/global_step_25/actor/huggingface
 #fetch result:runs/E12b-P0think-6k/global_step_25/actor/huggingface

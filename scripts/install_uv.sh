@@ -48,6 +48,16 @@ seed_venv() {
   for r in $(echo "${OLD_BASE_CANDS:-}" | tr ':' ' '); do for v in venv venv-fa; do   # 2. an earlier install's venv
     sp=$r/$v/lib/$mv/site-packages
     ls -d $sp/torch-2.8.0*.dist-info $sp/vllm-0.10.2*.dist-info > /dev/null 2>&1 || continue
+    # [v3.12] (Runming 11-18: "next time use it directly first; copy it as the base the formal environment is installed on") used
+    # where it is at once - one .pth line - so the rest of the setup does not wait for a copy; scripts/seed_copy.sh then copies
+    # the packages to the local disk in the background and takes the link away (SEED_LINK_FIRST=0: the time-boxed copy first)
+    if [ "${SEED_LINK_FIRST:-1}" = 1 ]; then
+      echo "$sp" > $dst/opd_shared_packages.pth; echo "$sp" > venv/.linked_to_history
+      echo "SEED_VENV $(date -u +%T) the earlier install's packages ($v, $mv) are used where they are; torch $(python -c 'import torch; print(torch.__version__)' 2>&1 | tail -1); the copy to the local disk runs in the background (logs/seed_copy.log)"
+      if [ "${SEED_COPY_SYNC:-0}" = 1 ]; then bash $RUNBOOK/scripts/seed_copy.sh > /dev/null 2>&1
+      else setsid nohup bash $RUNBOOK/scripts/seed_copy.sh > /dev/null 2>&1 < /dev/null & fi
+      return 0
+    fi
     echo "SEED_VENV $(date -u +%T) copying the pinned stack's packages from an earlier install on this machine ($v, $mv), at most ${SEED_COPY_MAX_S:-300} s"
     rm -rf $tmp; mkdir -p $tmp
     if $to bash -c "cd '$sp' && tar -cf - . | tar -xf - -C '$tmp'"; then

@@ -15,7 +15,7 @@ PY
 run() {   # <A passes 0|1> [env]: the block with every outside call stubbed; CALLS lists what it ran
   ( export OPD_ROOT=$T/opd CALLS=$T/calls A_OK=$1; shift; export "$@" 2> /dev/null; mkdir -p $OPD_ROOT/venv; : > $CALLS
     TIER_VARS=TRITON_PTXAS_PATH; LOG=$T/log
-    before_old() { return 1; }
+    before_old() { return 1; }; gpu_cap() { echo "${CAP:-}"; }
     try_tier() { echo "try $1" >> $CALLS; [ $1 = A ] && [ $A_OK = 1 ]; }
     uv() { echo "uv $*" >> $CALLS; }; pip() { echo "pip $*" >> $CALLS; }; nvcc() { return 1; }
     step() { echo "STEP $1 $2" >> $CALLS; }; fail() { echo "FAIL $1 $2" >> $CALLS; exit 1; }
@@ -26,6 +26,15 @@ run 0; rc=$?
 ok "A fails, flag unset: the ptxas wheel and tier B as before" 'grep -q "^uv pip install -q nvidia-cuda-nvcc-cu12==12.9.86" $T/calls'
 run 1 OVERNIGHT_TIER_A_ONLY=1; rc=$?
 ok "A passes: tier A, nothing installed" '[ $rc = 0 ] && grep -q "^STEP 6 vLLM OK via tier A: cu128 as is" $T/calls && ! grep -qE "^uv |^pip " $T/calls'
+# [v3.12] FAST_START on a Hopper card: tier A without a probe; on a Blackwell card the probe runs as before
+run 0 FAST=1 CAP=9.0; rc=$?
+ok "fast start, Hopper: tier A is taken without a probe" '[ $rc = 0 ] && grep -q "^STEP 6 vLLM OK via tier A: cu128 as is (not probed" $T/calls && ! grep -q "^try " $T/calls'
+run 1 FAST=1 CAP=10.3; rc=$?
+ok "fast start, Blackwell: the probe runs" '[ $rc = 0 ] && grep -q "^try A" $T/calls'
+run 0 FAST=1; rc=$?
+ok "fast start, no GPU (a preparation machine): tier A without a probe" '[ $rc = 0 ] && grep -q "^STEP 6 vLLM OK via tier A: cu128 as is (not probed: no GPU" $T/calls && ! grep -q "^try " $T/calls'
+run 0 CAP=; rc=$?
+ok "no GPU without fast start: the probe runs as before" 'grep -q "^try A" $T/calls'
 # the move path (step 0, FROM_OPD_ROOT + LINK_VENV): the old tier read unless A only; the venv linked, parquet copied, the old root unchanged
 python3 - "$SRC/scripts/overnight.sh" "$T/move.sh" <<'PY'
 import sys

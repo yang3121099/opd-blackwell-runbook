@@ -137,11 +137,29 @@ gpu_held() {   # $1 = a GPU: held by a task.sh / ad-hoc evaluation on it that ha
 # gpu_fill.sh's loop started, or one that was on the card before us - is free for the queue; launch() clears the card first.
 # [v3.2] the filling itself is gpu_fill.sh's own loop (state in memory): it goes on when this loop or the disk does not
 source "$(dirname "$0")/gpu_fill.sh"
+# [v3.12] SFT-WARM (scripts/sft_warm.sh: a plain SFT that keeps a borrowed machine's cards on a real training until the queue's
+# tasks are ready) gives way by itself: a card that runs only its worker - and at most the owner's filler - is free for the
+# queue, and launch ends that card's worker before the task starts (sft_yield). The workers on the other cards train on; when the
+# last one has given way, SFT-WARM is done. Nobody has to move it by hand before `dispatch on`.
+sft_pid() { local p; p=$(cat $OPD_ROOT/runs/SFT-WARM/gpu$1.pid 2> /dev/null | tr -cd 0-9); [ -n "$p" ] && kill -0 $p 2> /dev/null && echo $p; }
+sft_only() { local p a x; p=$(sft_pid $1) || return 1; [ -n "$p" ] || return 1
+  a=$(nvidia-smi --query-compute-apps=pid --format=csv,noheader -i $1 2> /dev/null | tr -d ' ' | grep -E '^[0-9]+$' | sort -u)
+  for x in $a; do [ "$x" = "$p" ] && continue
+    declare -F fill_app_pids > /dev/null && fill_enabled && fill_app_pids $1 | grep -qx "$x" && continue
+    return 1; done; return 0; }
+sft_yield() { local g p i any=0   # $1 = a GPU list a,b,c
+  for g in $(echo "$1" | tr , ' '); do p=$(sft_pid $g) || continue; [ -n "$p" ] || continue
+    : > $OPD_ROOT/runs/SFT-WARM/yield_gpu$g; kill -TERM $p 2> /dev/null; any=1; done
+  [ $any = 1 ] || return 0
+  for i in $(seq 40); do any=0; for g in $(echo "$1" | tr , ' '); do [ -n "$(sft_pid $g)" ] && any=1; done; [ $any = 0 ] && break; sleep 0.5; done
+  for g in $(echo "$1" | tr , ' '); do p=$(sft_pid $g) && [ -n "$p" ] && kill -KILL $p 2> /dev/null; done
+  echo "SFT_YIELD $(date -u +%T) gpu=$1: SFT-WARM's worker(s) there ended for a task of the queue"; }
 free_gpus() { for i in $(seq 0 $((NGPU-1))); do
     # v2.5.4d: a GPU given to a task stays taken while its task.sh / ad-hoc evaluation runs, also before the task touches it
     # (2026-10-17: FA-PROBE's CPU-only venv copy left GPU6 empty, and EVAL-bridge and EVAL-p5s43-s20 were started on it too)
     gpu_held $i && continue   # [v2.5.9a] also in a GPU list; [v2.5.9z65a] not by a task that released it
     declare -F fill_free > /dev/null && fill_free $i && { echo $i; continue; }   # [v3.1] only the owner's filler on it
+    sft_only $i && { echo $i; continue; }   # [v3.12] only SFT-WARM's worker (and the filler) on it
     [ -z "$(nvidia-smi --query-compute-apps=pid --format=csv,noheader -i $i)" ] || continue
     [ "$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $i | tr -d ' ')" -le 2048 ] && echo $i; done; }
 # [v2.5.9a] (Runming via the reviewer 06:4x UTC 10-21: "a task heavy for one GPU gets two") "#gpus <task> <n>" lines of the
@@ -304,7 +322,8 @@ launch() { # gpu task   (v2.5: start / done / killed / failed also go to status/
   # attempt's output only: a line left by an earlier attempt never turns a real failure into blocked / waiting
   python $RUNBOOK/scripts/control.py place_run $2 >> $OPD_ROOT/logs/control.log 2>&1 || true   # [v2.5.9z71] runs/<task> on the checkpoint disk
   mkdir -p $OPD_ROOT/runs/$2; rm -f $OPD_ROOT/runs/$2/.gpu_released   # [v2.5.9z65a] each attempt holds its GPU until it releases it
-  [ $1 = cpu ] || fill_stop $1   # [v3.1] the task finds its card(s) empty: the owner's filler on them ends first
+  [ $1 = cpu ] || [ "$2" = SFT-WARM ] || sft_yield $1   # [v3.12] SFT-WARM's workers on these cards give way
+  [ $1 = cpu ] || [ "$2" = SFT-WARM ] || fill_stop $1   # [v3.1] the task finds its card(s) empty: the owner's filler on them ends first ([v3.12] not for SFT-WARM, which shares its cards)
   python $RUNBOOK/scripts/control.py event $2 start "gpu=$1 attempt=$(( $(attempts $2) + 1 ))" > /dev/null 2>&1 &
   setsid nohup bash -c "bash $RUNBOOK/scripts/task.sh $1 $2 > $OPD_ROOT/logs/$2.log 2>&1
     [ $1 = cpu ] || [ -f $OPD_ROOT/runs/$2/.gpu_released ] || for _g in \$(echo $1 | tr , ' '); do python $RUNBOOK/scripts/control.py reap \$_g $2 > /dev/null 2>&1; done   # v2.5.4b: the task's orphaned vLLM / Ray processes off its GPU(s); [v2.5.9z65a] not once released (reaped then; the GPU may be the next task's)
@@ -408,7 +427,7 @@ serve_requests() {   # v2.5: ad-hoc `run` / `eval` requests (control.py) on the 
         echo "START $(date -u +%T) gpu=$g $2 (control seq $3)"; launch $g $2; python $RUNBOOK/scripts/control.py rcpt $3 accepted "started on gpu $g"; nap 90
       else python $RUNBOOK/scripts/control.py rcpt $3 rejected "deps not done, already running or done"; FREE=($g "${FREE[@]}"); fi
     else
-      echo "START $(date -u +%T) gpu=$g adhoc_eval_$2 (control seq $2)"; fill_stop $g   # [v3.1]
+      echo "START $(date -u +%T) gpu=$g adhoc_eval_$2 (control seq $2)"; sft_yield $g; fill_stop $g   # [v3.1]; [v3.12]
       setsid nohup bash $RUNBOOK/scripts/run_adhoc_eval.sh $g $2 > $OPD_ROOT/logs/adhoc_eval_$2.log 2>&1 < /dev/null &
       python $RUNBOOK/scripts/control.py rcpt $2 accepted "started on gpu $g"; nap 30
     fi
@@ -447,6 +466,7 @@ frozen_round() {
   [ -s $CDIR/fetch_allow ] && fetch_pass allow   # [v2.5.9z127] `run FETCH-*`: the weights come in before the main venv (control venv)
   sft_warm_pass   # [v3.8]
   store_auto      # [v3.11]
+  [ -f $CDIR/dispatch_armed ] && python $RUNBOOK/scripts/control.py dispatch_armed > /dev/null 2>&1 && { echo "DISPATCH $(date -u +%T) on (armed): the node is ready"; return; }   # [v3.12] `dispatch auto`
   [ -f $OPD_ROOT/venv-ctl/bin/activate ] && [ ! -f $CDIR/venv_ready ] && return   # no main venv yet: requests wait
   verify_busy && return
   FREE=( $(free_gpus) ); serve_requests; }   # (spaced: test_ops_guard finds the full pass's own FREE=($(free_gpus)) line)

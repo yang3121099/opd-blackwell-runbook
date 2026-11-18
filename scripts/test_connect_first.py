@@ -207,3 +207,33 @@ def test_no_literal_backslash_line_ends():
         for i, line in enumerate(open(os.path.join(HERE, name)).read().splitlines(), 1):
             assert not line.endswith("\\\\"), f"{name}:{i}"
 
+
+
+def test_dispatch_auto_and_no_canary(env):
+    """[v3.12] `dispatch auto` arms dispatch: it goes on by itself (the frozen round's dispatch_armed) once the same conditions as
+    for `dispatch on` hold; DISPATCH_CANARY=none in control.env: no separate canary (a queue whose first stage is its own gate)."""
+    c = env.c
+    (env.root / "venv-ctl").mkdir()
+    frozen, armed = os.path.join(c.CDIR, "dispatch_frozen"), os.path.join(c.CDIR, "dispatch_armed")
+    assert c.v_dispatch(["off"], 61)[0] == "ok"
+    st, msg, _ = c.v_dispatch(["auto"], 62)
+    assert st == "accepted" and "armed" in msg and "main venv" in msg and os.path.exists(armed) and os.path.exists(frozen)
+    assert c.dispatch_armed() == 1 and os.path.exists(frozen)                    # not ready: stays frozen, stays armed
+    open(os.path.join(c.CDIR, "venv_ready"), "w").write("x\n")
+    assert c.dispatch_armed() == 1 and "canary PROBE-TAIL" in c.dispatch_blocked()  # the canary is still asked for
+    open(os.path.join(env.root, "control.env"), "a").write("export DISPATCH_CANARY=none\n")
+    assert c.dispatch_blocked() is None
+    assert c.dispatch_armed() == 0 and not os.path.exists(frozen) and not os.path.exists(armed)   # ready: on, by itself
+    assert c.dispatch_armed() == 1                                                 # nothing armed any more
+    assert c.v_dispatch(["off"], 63)[0] == "ok" and c.v_dispatch(["auto"], 64)[0] == "ok" and not os.path.exists(frozen)   # ready at once
+    assert c.v_dispatch(["off"], 65)[0] == "ok" and c.v_dispatch(["on"], 66)[0] == "ok"                                    # `on` as before
+    open(armed, "w").write("seq 67 x\n"); assert c.v_dispatch(["off"], 68)[0] == "ok" and not os.path.exists(armed)        # off withdraws it
+
+
+def test_dispatch_auto_is_in_the_rules():
+    import control_rules as R, time
+    e = lambda cmd: R.parse({"seq": 1, "cmd": cmd, "reason": "t", "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())})
+    assert e("dispatch auto")[:2] == ("dispatch", ["auto"])
+    import pytest
+    with pytest.raises(R.Reject):
+        e("dispatch maybe")

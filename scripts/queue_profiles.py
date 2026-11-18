@@ -159,12 +159,15 @@ STAGES = {
     # (the suffix reached every teacher row and no student prompt), the arm on 4 GPUs
     "p1q101": ["PROBE-P5SELFP2", "E10b-P5selfp2:PROBE-P5SELFP2"],
     # [v3.0] (Fable 11-17; lab/registry/Q-107.md; Runming: a classmate's 8 x H200, maybe two machines, GitHub mode, light on the HF API)
-    # h2g: the dispatch canary and Q-107's own gate (4 GPUs). q107: the two 3K window arms from the base, 4 GPUs each, side by side.
+    # h2g: Q-107's own gate (4 GPUs; until v3.12 with the dispatch canary in front). q107: the two 3K window arms from the base, 4 GPUs each, side by side.
     # q107r: the four registered points, one EVAL task each (four GPUs in parallel): MATH-500 16K thinking T0.6 n 4, the 16K forced
     # remedy, outcomes (the stop at </think>) as every reading. q107z: zero-training readings of weights already in the result
     # repository - the direct 4K arm's s25 (owed) and its s50 reread on this machine (the cross-machine anchor: the same weights were
     # read on the B300 reading machine on 11-15). q107z6: the direct 6K arm's s25 (owed; its weights reached the repository on 11-17).
-    "h2g": ["PROBE-TAIL", "PROBE-E12B-P0THINK-3K"],
+    # [v3.12] (Runming 11-18: "can the 20-30 minutes before the arms start be shortened?") h2g is the gate alone: the arms depend
+    # on it and it runs their recipe on their four GPUs with venv-fa, so a separate canary (PROBE-TAIL: one more 3-step smoke and
+    # 8 GB of weights to fetch first) adds nothing in front of it; profiles/h200.env says DISPATCH_CANARY=none. h2gb keeps it.
+    "h2g": ["PROBE-E12B-P0THINK-3K"],
     "h2gb": ["PROBE-TAIL"],
     "q107": ["E12b-P0think-3k:PROBE-E12B-P0THINK-3K", "E12b-P0think-3k-s44:PROBE-E12B-P0THINK-3K"],
     "q107r": ["EVAL-q107-3k-s50:E12b-P0think-3k", "EVAL-q107-3k-s44-s50:E12b-P0think-3k-s44",
@@ -277,7 +280,6 @@ FETCH = {
     "p1q096b": ["E12b-P0think-8k/global_step_50"],   # [z158f] the start of Q-096 B
     "p1q097p": ["E12b-P0think-8k/global_step_50"],   # [z159] the start of A4 (paused)
     "p1q097t": ["E12b-P0think-4k/global_step_50"],   # [z160] T4K's teacher
-    "h2g": ["E10b-P5/global_step_150", "E10b-P5tail/global_step_50"],   # [v3.0] the canary PROBE-TAIL's starts (as p0a)
     "h2gb": ["E10b-P5/global_step_150", "E10b-P5tail/global_step_50"],
     "q107z": ["E12b-P0think-4k/global_step_50", "E12b-P0think-4k/global_step_25"],
     "q107z6": ["E12b-P0think-6k/global_step_25"],

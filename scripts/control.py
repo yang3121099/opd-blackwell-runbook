@@ -3522,35 +3522,72 @@ def v_queue(a, seq, flags=None, entry=None):
     return "accepted", f"this node's queue: {note}; heartbeat and run_tasks restart once this receipt is out", {}
 
 
-def v_dispatch(a, seq, flags=None, entry=None):
-    f = _p("dispatch_frozen")
-    if a[0] == "off":
-        open(f, "w").write(f"seq {seq} {utc()}\n")
-        return "ok", "dispatch frozen: run_tasks keeps the control plane and explicit run requests only", {}
-    if os.path.isdir(os.path.join(ROOT, "venv-ctl")) and not os.path.exists(_p("venv_ready")):
-        return "rejected", "the main venv is not ready yet (setup); dispatch stays frozen", {}
+def dispatch_blocked():
+    """Why `dispatch on` cannot be done on this node now (a sentence), or None. A connect-first node (venv-ctl): the main venv,
+    the canary on this node (control.env DISPATCH_CANARY, default PROBE-TAIL; [v3.12] `none`: no separate canary - for a queue whose
+    first stage is its own gate, which the arms depend on), and with VENV=fa a venv-fa that imports flash_attn."""
+    ctl = os.path.isdir(os.path.join(ROOT, "venv-ctl"))
+    if ctl and not os.path.exists(_p("venv_ready")):
+        return "the main venv is not ready yet (setup)"
     # [v2.5.9z127] (Fable 11-02, next_machine_selfserve 2 item 3) a connect-first node: the main venv and the canary on this node, nothing
     # else - verify reports into status.verify and holds only the rows that say `#needs verify`
     cn = _cfg("DISPATCH_CANARY", "PROBE-TAIL")
-    try:
-        canary = json.load(open(os.path.join(ROOT, "runs", cn, "report.json"))).get("result")
-    except (OSError, ValueError, AttributeError):
-        canary = None
-    if os.path.isdir(os.path.join(ROOT, "venv-ctl")) and canary != "PASS":
-        return "rejected", f"the canary {cn} has not passed on this node (`run {cn}` first); dispatch stays frozen", {}
+    if cn.lower() not in ("none", "-"):
+        try:
+            canary = json.load(open(os.path.join(ROOT, "runs", cn, "report.json"))).get("result")
+        except (OSError, ValueError, AttributeError):
+            canary = None
+        if ctl and canary != "PASS":
+            return f"the canary {cn} has not passed on this node (`run {cn}` first)"
     # [v2.5.9z131] (ops-lead 11-03 04:5x UTC) a profile's VENV=fa: venv_ready says only that the main venv imports torch / vllm / verl;
     # venv-fa comes with setup step 4, and every VENV=fa arm sources it
     vfa = os.path.join(ROOT, "venv-fa", "bin", "python")
-    if os.path.isdir(os.path.join(ROOT, "venv-ctl")) and _cfg("VENV", "") == "fa":
+    if ctl and _cfg("VENV", "") == "fa":
         try:   # [v2.5.9z132] (ops-lead 05:5x UTC) a hung import is a refusal, not an exception in apply
             fa_ok = os.path.exists(vfa) and subprocess.run([vfa, "-c", "import flash_attn"], capture_output=True, timeout=120).returncode == 0
         except (subprocess.TimeoutExpired, OSError):
             fa_ok = False
         if not fa_ok:
-            return "rejected", "VENV=fa is set and venv-fa does not import flash_attn yet (setup step 4); dispatch stays frozen", {}
+            return "VENV=fa is set and venv-fa does not import flash_attn yet (setup step 4)"
+    return None
+
+
+def v_dispatch(a, seq, flags=None, entry=None):
+    f = _p("dispatch_frozen")
+    if a[0] == "off":
+        open(f, "w").write(f"seq {seq} {utc()}\n")
+        if os.path.exists(_p("dispatch_armed")):
+            os.remove(_p("dispatch_armed"))
+        return "ok", "dispatch frozen: run_tasks keeps the control plane and explicit run requests only", {}
+    why = dispatch_blocked()
+    if a[0] == "auto":
+        # [v3.12] (Runming 11-18: "can it be started faster?") `dispatch auto`: dispatch goes on by itself as soon as the node is ready
+        # for it - the frozen round asks every 20 s (control.py dispatch_armed) - so nobody has to see a 5-minute status first
+        if why is None:
+            if os.path.exists(f):
+                os.remove(f)
+            return "ok", "dispatch on: the node was ready; the queue's tasks start on free GPUs from the next round", {}
+        open(_p("dispatch_armed"), "w").write(f"seq {seq} {utc()}\n")
+        return "accepted", f"armed: dispatch goes on by itself once the node is ready (now: {why})", {}
+    if why is not None:
+        return "rejected", f"{why}; dispatch stays frozen", {}
     if os.path.exists(f):
         os.remove(f)
     return "ok", "dispatch on: the queue's tasks start on free GPUs from the next round", {}
+
+
+def dispatch_armed():
+    """[v3.12] the frozen round's question: `dispatch auto` was given and the node is ready now -> dispatch on (exit 0), else exit 1."""
+    if not os.path.exists(_p("dispatch_armed")):
+        return 1
+    if dispatch_blocked() is not None:
+        return 1
+    seq = (_read(_p("dispatch_armed")).split() + ["?", "?"])[1]
+    if os.path.exists(_p("dispatch_frozen")):
+        os.remove(_p("dispatch_frozen"))
+    os.remove(_p("dispatch_armed"))
+    event("node", "dispatch_on", f"armed by seq {seq}: the node is ready, the queue starts")
+    return 0
 
 
 def _v24(fn):
@@ -3966,6 +4003,8 @@ if __name__ == "__main__":
         setup_state_write(sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5] if len(sys.argv) > 5 else None)
     elif cmd == "verify_state":   # [v2.5.9z106]
         verify_state(sys.argv[2], int(sys.argv[3]))
+    elif cmd == "dispatch_armed":   # [v3.12] run_tasks.sh's frozen round
+        sys.exit(dispatch_armed())
     elif cmd == "next_request":
         next_request()
     elif cmd == "check_pull":

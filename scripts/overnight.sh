@@ -175,7 +175,13 @@ if git pull --ff-only >>$LOG 2>&1; then step 1 "git pull OK ($(git rev-parse --s
 # ---------- 2. model downloads start now, in the background (no venv needed) ----------
 ensure_aria2 > /dev/null 2>&1 || true   # [v3.7a] once, before the downloads: two of them installing it at the same time blocked each other
 P17=$(find_model Qwen3-1.7B) || { P17=$OPD_ROOT/models/Qwen3-1.7B; bg_get Qwen3-1.7B; step 2 "Qwen3-1.7B downloading in background -> $P17"; }
+# [v3.12] FAST_START: the 1.7B student is what the queue's gate and arms wait for, and the machine's proxy gives about 14 MB/s in
+# all - the 0.6B model (only the verify smoke and the 0.6B arms use it) is fetched after the 1.7B one, not beside it
+if [ "${FAST_START:-0}" = 1 ] && [ -d $OPD_ROOT/venv-ctl ] && ! complete_dir $P17; then
+  P06=$(find_model Qwen3-0.6B) || { P06=$OPD_ROOT/models/Qwen3-0.6B; ( for _i in $(seq 1 240); do complete_dir $P17 && break; sleep 30; done; get_model Qwen3-0.6B ) >> $LOG 2>&1 9>&- & step 2 "Qwen3-0.6B is downloaded after Qwen3-1.7B (FAST_START) -> $P06"; }
+else
 P06=$(find_model Qwen3-0.6B) || { P06=$OPD_ROOT/models/Qwen3-0.6B; bg_get Qwen3-0.6B; step 2 "Qwen3-0.6B downloading in background -> $P06"; }
+fi
 P8=$(find_model Qwen3-8B)    || { P8=$OPD_ROOT/models/Qwen3-8B;    bg_get Qwen3-8B;    step 2 "Qwen3-8B downloading/resuming in background -> $P8"; }
 step 2 "model locations: 0.6B=$P06 1.7B=$P17 8B=$P8"
 # ---------- 3. cu128 environment (the validated stack) ----------
@@ -192,11 +198,32 @@ get_datasets || fail 4 "datasets (MATH-500 / DAPO-17k) after 3 attempts"
 HF_ENDPOINT=https://hf-mirror.com HF_HUB_ETAG_TIMEOUT=60 HF_HUB_DOWNLOAD_TIMEOUT=120 python code/train/prep_data.py > $OPD_ROOT/logs/prep_data.log 2>&1 || HF_HUB_OFFLINE=1 HF_DATASETS_OFFLINE=1 python code/train/prep_data.py >> $OPD_ROOT/logs/prep_data.log 2>&1 || fail 4 "prep_data.py (see logs/prep_data.log)"
 step 4 "data OK: $(ls $OPD_ROOT/data/*.parquet 2>/dev/null | wc -l) parquet files"
 # ---------- 5. wait for the two models the smoke needs; write models.env ----------
+if [ "${FAST_START:-0}" = 1 ] && [ -d $OPD_ROOT/venv-ctl ]; then   # [v3.12] the teacher and the 1.7B student; the 0.6B model may still be on its way
+  for i in $(seq 1 720); do complete_dir $P8 && complete_dir $P17 && break; sleep 15; done
+  complete_dir $P8 || fail 5 "Qwen3-8B incomplete after 3 h (see logs/aria2_Qwen3-8B.log)"; complete_dir $P17 || fail 5 "Qwen3-1.7B incomplete after 3 h (see logs/aria2_Qwen3-1.7B.log)"
+else
 for i in $(seq 1 180); do complete_dir $P8 && complete_dir $P06 && break; sleep 60; done
 complete_dir $P8 || fail 5 "Qwen3-8B incomplete after 3 h (see logs/aria2_Qwen3-8B.log)"; complete_dir $P06 || fail 5 "Qwen3-0.6B incomplete after 3 h (see logs/aria2_Qwen3-0.6B.log)"
+fi
 printf 'STUDENT_06B=%s\nSTUDENT_17B=%s\nTEACHER=%s\n' "$P06" "$P17" "$P8" > $OPD_ROOT/models.env
 step 5 "models.env: $(tr '\n' ' ' < $OPD_ROOT/models.env)"
 step 5 "checkpoints in CKPT_ROOT=$CKPT_ROOT ($(df -h $CKPT_ROOT | awk 'NR==2{print $4}') free; $OPD_ROOT/paths.env); $OPD_ROOT has $(df -h $OPD_ROOT | awk 'NR==2{print $4}') free"
+# [v3.12] FAST_START=1 (profiles/h200.env; Runming 11-18: "can the 20-30 minutes before the arms start be shortened?"). On a node
+# that came up through bootstrap.sh the path to the first registered task had four 3-step smokes one after another - this script's
+# verify, flash-attn's own, the dispatch canary, the queue's gate - and two GPU probes that needed GPU 0 empty. With FAST_START:
+#   - control/venv_ready is written here, as soon as the stack imports and models.env is there (not after this script);
+#   - the vLLM tier probe is not run on a Hopper card (compute capability < 10: tier A is the only one that applies; tiers B / C are
+#     Blackwell's), and verify.sh is not run (`verify` (control) runs it on request; no row of the queue may say `#needs verify`);
+#   - fa_probe.sh installs the pinned wheel and runs its forward / backward test, not its smoke (scripts/fa_probe.sh);
+#   - the queue's own gate - which the arms depend on, and which runs their recipe on their GPUs with venv-fa - is the one smoke.
+# What is lost: a broken vLLM or training stack shows at the gate (4 GPUs, about ten minutes) instead of at the probes before it.
+FAST=0; [ "${FAST_START:-0}" = 1 ] && [ -d $OPD_ROOT/venv-ctl ] && FAST=1
+if [ $FAST = 1 ] && [ ! -f $OPD_ROOT/control/venv_ready ] && python -c 'import torch, vllm, verl' 2>> $LOG; then
+  mkdir -p $OPD_ROOT/control; date -u +%FT%TZ > $OPD_ROOT/control/venv_ready
+  python3 scripts/control.py event node venv_ready "main venv imports torch, vllm, verl (FAST_START: before the probes); run_tasks restarted on it (dispatch still frozen)" > /dev/null 2>&1
+  [ "${OVERNIGHT_NO_LOOPS:-0}" = 1 ] && bash scripts/loops.sh restart run_tasks >> $OPD_ROOT/logs/loops.log 2>&1
+  step 5 "FAST_START: control/venv_ready written; the tier probe and verify are not run"
+fi
 # ---------- 6. vLLM probe, tiers in order (v2.3.1) ----------
 #   A  cu128 as is
 #   B  + the CUDA 12.9 ptxas for Triton (Triton's own CUDA 12.8 ptxas: "Value 'sm_103a' is not defined")
@@ -207,7 +234,11 @@ step 5 "checkpoints in CKPT_ROOT=$CKPT_ROOT ($(df -h $CKPT_ROOT | awk 'NR==2{pri
 #   C  CUDA 13 environment (install_cu130.sh), only when an nvcc >= 13 is there
 rm -f $OPD_ROOT/triton.env; for v in $TIER_VARS; do unset $v; done   # every run starts clean (a rerun re-probes)
 TIER=""
-if ! before_old A && try_tier A; then TIER="A: cu128 as is"
+_cap=$(gpu_cap 2> /dev/null || true); _cap=${_cap%%.*}
+_ng=$(nvidia-smi -L 2> /dev/null | grep -c '^GPU' || true)
+if [ "${FAST:-0}" = 1 ] && [ -z "$_cap" ] && [ "${_ng:-0}" = 0 ]; then TIER="A: cu128 as is (not probed: no GPU on this machine - a preparation node)"   # [v3.12] a development machine that only fills the long-term store
+elif [ "${FAST:-0}" = 1 ] && [ "${_cap:-99}" -lt 10 ] 2> /dev/null; then TIER="A: cu128 as is (not probed: FAST_START on a Hopper card; the queue's gate exercises vLLM)"
+elif ! before_old A && try_tier A; then TIER="A: cu128 as is"
 elif [ "${OVERNIGHT_TIER_A_ONLY:-0}" = 1 ]; then   # [v2.5.9z104] (Fable 10-28) a Hopper node (9.0): only A applies; B / C are Blackwell's
   fail 6 "tier A vLLM probe FAILED and OVERNIGHT_TIER_A_ONLY=1: tiers B / C not tried (send logs/vllm_probe_A.log)"
 else
@@ -234,6 +265,9 @@ fi
 step 6 "vLLM OK via tier $TIER (triton.env: $(grep -h '^export' $OPD_ROOT/triton.env 2>/dev/null | cut -d' ' -f2 | tr '\n' ' '))"
 # ---------- 7. verify (G2 tests, GPU, vLLM, 3-step smoke, upload path) ----------
 for i in $(seq 1 30); do complete_dir $P17 && break; sleep 60; done
+if [ "${FAST:-0}" = 1 ]; then step 7 "verify not run (FAST_START): the queue's gate is the smoke; \`verify\` (control) runs it on request"
+  [ "${OVERNIGHT_NO_LOOPS:-0}" = 1 ] && { step 9 "loops left to cold_start.sh (OVERNIGHT_NO_LOOPS=1)"; exit 0; }
+fi
 bash scripts/verify.sh > $OPD_ROOT/logs/verify.log 2>&1
 # [v2.5.9z127] (Fable 11-02, next_machine_selfserve 2 item 3: on the H800 a verify FAIL stopped the install and the control for 10.8 h)
 # a connect-first node (venv-ctl, bootstrap.sh) records the five checks in status.verify and goes on: `dispatch on` needs the main

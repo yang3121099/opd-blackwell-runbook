@@ -1,4 +1,4 @@
-# OPD 远程节点手册（v3.11，GitHub 模式）
+# OPD 远程节点手册（v3.12，GitHub 模式）
 
 这个仓库让一台别人的 8 卡机器变成本项目的**远程节点**：机器旁的人只粘贴一行命令、输入两个 token，之后的安装、检查、修复、跑任务都由项目方远程完成。项目方不登录机器；节点对本仓库只读（`git pull`），可选的第二个 token 只用来向私有的心跳仓库推送。
 
@@ -54,6 +54,23 @@ tasks/queue_<名>.txt             ──►  main                 ────�
 - **容灾**：长期仓库同时是 DR 根目录（`DR_ROOT`）。每条在跑的训练每 `DR_EVERY` 步（`profiles/h200.env` 设为 5，能整除登记步 25 / 50）存一次续训状态，`dr_sync.sh` 镜像到 `<仓库>/dr/<任务>/`；下一台机器启动同名任务时自动拷回接着训（`dr_restore`）。
 - **固定盘空间有限时的取舍**（`scripts/store_sync.sh`，每 20 分钟自动跑一次，也可发 `store`）：续训状态优先，仓库始终为它留 `STORE_RESERVE_GB`（100）；其余按"重新获得的代价"排序——flash-attn 安装包、环境包（环境只是就地使用时不存）、我们的权重、固定盘上还没有的基座模型。只增不删。
 
+**快速启动（v3.12，`profiles/h200.env`：`FAST_START=1`、`DISPATCH_CANARY=none`）**。借用机器两小时就可能被收回，v3.11 的顺序里自检、金丝雀、门控占 20–30 分钟；这一档把它们压掉，节点上线后**一批指令发完即可**：
+
+| 顺序 | 指令 | 作用 |
+|---|---|---|
+| 1 | `env-probe` | 同上，并做历史目录扫描 |
+| 2 | `queue h2a` | 队列；`h2a` 的门控段只剩登记的 3K 门（`PROBE-E12B-P0THINK-3K`），不再先跑 `PROBE-TAIL` |
+| 3 | `run SFT-WARM` | 基座模型全参数 SFT，默认占 1–7 号卡（`SFT_WARM_GPUS=all` 或卡号列表可改）；全参数进程出错时该卡自动改用 LoRA 模式重来一次 |
+| 4 | `setup all` | 见下：旧环境先就地使用，主环境几分钟内可用 |
+| 5 | `dispatch auto` | 预约放行：主环境一可用，节点自己解冻并按队列派发，不必等我们再发 `dispatch on` |
+| 6 | `run FETCH-all` | 门开始之后再发：读数用的权重几小时后才用得上，早发会和基座模型、安装包抢很小的外网带宽（它走控制环境，本身不依赖主环境） |
+
+- **环境：先就地使用，再原地补全**（`scripts/install_uv.sh` 的 `seed_venv`，`scripts/seed_copy.sh`）。找到旧环境时，本地环境里先放一行 `.pth` 指向共享盘上的包目录，立刻可用；同时后台把这些包拷到本地盘的临时目录，拷完后逐项移入本地环境并去掉 `.pth`，之后在这份拷贝上继续装正式环境——只向网络要缺的包（`--no-deps`）。长期仓库里有环境包时优先解包。`SEED_LINK_FIRST=0` 回到 v3.11 的"限时拷贝、超时再就地使用"。
+- **省掉的步骤**（都只在 `FAST_START=1` 时）：Hopper 卡（计算能力 < 10）不做 vLLM 档位探测，直接用 A 档；`verify` 四项不跑；flash-attn 探测不等空卡、不停填充程序；`venv-vl` / ifeval 环境不装；0.6B 基座排在 1.7B 之后下载。主环境能导入 torch / vllm / verl 且模型清单写好，就写 `control/venv_ready`。
+- **保留的保护**：队列第一项仍是登记的 3K 门（它在 GPU 上真跑 vLLM 和训练，等于金丝雀）；任务白名单、规则版本、权重 sha256 核对、别处找到的基座模型的 sha256 核对、填充程序"证明能重启才结束"都不变。Blackwell 卡仍然探测档位。
+- **给正式任务让卡**：`run_tasks.sh` 把只有 SFT-WARM 的卡算作空卡；派发任务时先让该卡的 SFT 进程退出（`sft_yield`），再处理填充程序。不需要手工 `kill SFT-WARM`。
+- **没有 GPU 的准备机**（开发机）：同一套指令可用来提前把基座模型、我们的权重、环境包存进长期仓库（`setup 2`、`run FETCH-all`、`store`）；档位探测和 flash-attn 自检自动跳过，不发 `dispatch`。
+
 修复用 `tail <日志>`、`setup <步号>`、`restart-loops`、`verify`。目标：5 分钟内有状态，10 分钟内开始下权重，2.5 小时内第一条臂起训。
 
 ## 3. 队列格式（`tasks/queue_<名>.txt`）
@@ -90,9 +107,9 @@ version: 2
 
 | 类别 | 动作 |
 |---|---|
-| 调度 | `queue` `dispatch on\|off` `pause` `resume` `prio` `run` `rerun` `kill` `cancel` |
+| 调度 | `queue` `dispatch on\|off\|auto` `pause` `resume` `prio` `run` `rerun` `kill` `cancel` |
 | 查看 | `ps` `logs` `tail` `snapshot` `du` `mounts` `inventory` `env-probe` `heartbeat` |
-| 环境 | `set` / `setenv`（白名单键）`setup` `verify` `rerun_verify` `fa-build` `update` `restart-loops` |
+| 环境 | `set` / `setenv`（白名单键）`setup` `verify` `rerun_verify` `fa-build` `update` `restart-loops` `store` |
 | 进程 | `signal <pid> TERM\|KILL\|STOP\|CONT` `kill-pgid` `reap`（pid 必须在最近发布的进程表里且启动时间、命令行哈希一致） |
 | 数据 | `eval` `upload` `restore` `publish` `republish` `publish-redacted` `pend-weight` `move-ckpt` `rm-ours` |
 | 容灾（节点在共享盘集群上时） | `dr-keep` `persist-env` `rebuild-drill`（见 REBUILD.md）`leakscan` `scrubdiff` |

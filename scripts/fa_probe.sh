@@ -47,8 +47,11 @@ finish() {   # $1 = PASS / FAIL, $2 = reason
 }
 # [v3.3] this probe needs its card EMPTY: the machine owner's filler (scripts/gpu_fill.sh) is cleared from it here, the fill loop is kept
 # off it for an hour at most, and the card is given back when the probe ends (setup itself no longer clears any card)
-if [ -f "$(dirname "$0")/gpu_fill.sh" ] && [ "$G" != cpu ]; then source "$(dirname "$0")/gpu_fill.sh"; fill_hold $G 3600; fill_stop $G > /dev/null 2>&1; trap 'fill_unhold $G' EXIT; fi
-for _w in $(seq 19); do   # the previous task's vLLM can take tens of seconds to release its memory: wait up to 180 s
+# [v3.12] FAST_START: the card is neither cleared nor waited for - the forward / backward test needs little memory and shares the
+# card with whatever is on it (11-18: a filler the node did not know by name kept 1.4 GB there; this probe would have waited 180 s,
+# failed, and setup would have gone on to build flash-attn from source)
+if [ "${FAST_START:-0}" != 1 ] && [ -f "$(dirname "$0")/gpu_fill.sh" ] && [ "$G" != cpu ]; then source "$(dirname "$0")/gpu_fill.sh"; fill_hold $G 3600; fill_stop $G > /dev/null 2>&1; trap 'fill_unhold $G' EXIT; fi
+[ "${FAST_START:-0}" = 1 ] || for _w in $(seq 19); do   # the previous task's vLLM can take tens of seconds to release its memory: wait up to 180 s
   used=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $G 2>/dev/null | tr -d ' ')
   [ "${used:-1}" -le 1024 ] && break; [ $_w = 19 ] && finish FAIL "gpu $G not empty after 180 s (${used} MiB used)"; sleep ${FA_WAIT_STEP:-10}   # (tests: 0)
 done
@@ -142,6 +145,9 @@ put varlen "${VL:-null}"; put varlen_pass $([ $rc = 0 ] && echo true || echo fal
 [ $rc = 0 ] || finish FAIL "flash_attn_varlen_func failed on this GPU: $(tail -c 300 $D/varlen.err | tr '\n' ' ')"
 step "varlen PASS $VL"
 
+# [v3.12] FAST_START: the wheel is installed and the forward / backward test above has passed on this GPU; the smoke is left to the
+# queue's own gate, which runs with venv-fa
+[ "${FAST_START:-0}" = 1 ] && finish PASS "varlen ok on this GPU; the 3-step smoke was not run (FAST_START: the queue's gate runs with venv-fa)"
 # 5. 3-step smoke, own task name and directory, no checkpoint / upload / validation
 ( while true; do echo "$(date -u +%s),$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i $G | tr -d ' ')" >> $D/mem.csv; sleep 5; done ) &
 MP=$!

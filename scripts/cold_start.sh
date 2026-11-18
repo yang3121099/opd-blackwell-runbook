@@ -106,6 +106,7 @@ fi
 # ---------- 2. overnight.sh without its loops ----------
 if want 2; then
 if [ -f $OPD/logs/verify.log ] && grep -q "SMOKE PASS" $OPD/logs/verify.log; then step 2 "overnight.sh already passed (verify.log SMOKE PASS)"
+elif [ "${FAST_START:-0}" = 1 ] && [ -f $OPD/control/venv_ready ] && [ -s $OPD/models.env ] && $OPD/venv/bin/python -c 'import torch, vllm, verl' 2> /dev/null; then step 2 "overnight.sh already passed (FAST_START: the stack imports, models.env is there)"   # [v3.12]
 else run env OVERNIGHT_NO_LOOPS=1 OPD_ROOT=$OPD bash $RB/scripts/overnight.sh || fail 2 "overnight.sh (see logs/overnight.log)"; step 2 "overnight.sh done"; fi
 fi
 [ -x $OPD/venv/bin/python ] && PY=$OPD/venv/bin/python
@@ -121,6 +122,9 @@ if [ -n "$ONLY" ]; then python3 $RB/scripts/coldstart_hf.py only $M "$ONLY" $OPD
 if want 4; then
 # ---------- 4. models and the other venvs, in parallel ----------
 fa() { [ -x $OPD/venv-fa/bin/python ] && $OPD/venv-fa/bin/python -c "import flash_attn" 2> /dev/null && return 0
+       # [v3.12] no GPU here (a development machine that prepares the long-term store): flash-attn's forward / backward test cannot
+       # run and a build from source is of no use; the GPU machine installs the pinned wheel itself (one small download)
+       [ "$(nvidia-smi -L 2> /dev/null | grep -c '^GPU')" = 0 ] && { echo "no GPU on this machine: flash-attn is left to the GPU machine" > $OPD/logs/coldstart_fa.log; return 0; }
        bash $RB/scripts/fa_probe.sh ${VERIFY_GPU:-0} > $OPD/logs/coldstart_fa.log 2>&1
        $OPD/venv-fa/bin/python -c "import flash_attn" 2> /dev/null || { bash $RB/scripts/fa_build.sh >> $OPD/logs/coldstart_fa.log 2>&1 && rm -f $OPD/runs/FA-PROBE/.done && bash $RB/scripts/fa_probe.sh ${VERIFY_GPU:-0} >> $OPD/logs/coldstart_fa.log 2>&1; }; }
 if [ $DRY = 1 ]; then
@@ -131,10 +135,10 @@ else
   ( $PY $RB/scripts/coldstart_hf.py models $M $DONE $OPD/models > $OPD/logs/coldstart_models.log 2>&1 ) & P1=$!
   ( fa ) & P2=$!
   P3=; P4=
-  if [ -z "$ONLY" ]; then
+  if [ -z "$ONLY" ] && [ "${FAST_START:-0}" != 1 ]; then   # [v3.12] FAST_START: the vision and ifeval environments are not built (a queue that needs them is not a fast-start queue)
     [ -f $OPD/control/no_vl ] || { ( bash $RB/scripts/build_venv_vl.sh > $OPD/logs/coldstart_vl.log 2>&1 ) & P3=$!; }   # [z138] control/no_vl: a program without VLM work
     ( bash $RB/scripts/build_venv_ifeval.sh > $OPD/logs/coldstart_ifeval.log 2>&1 ) & P4=$!
-  else echo "venv-vl, venv-ifeval not built (--only $ONLY)" | tee -a $LOG; fi
+  else echo "venv-vl, venv-ifeval not built (--only ${ONLY:-}${FAST_START:+ FAST_START=$FAST_START})" | tee -a $LOG; fi
   wait $P1 $P2 $P3 $P4; cat $OPD/logs/coldstart_models.log | tee -a $LOG
 fi
 step 4 "models and venvs finished (health checks below say whether each works)"
