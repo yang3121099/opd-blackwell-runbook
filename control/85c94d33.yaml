@@ -9,3 +9,4 @@ commands:
   - {"seq": 7, "cmd": "dispatch auto", "reason": "T0: unfreeze by itself once the environment is ready", "utc": "2026-11-18T16:43:03Z"}
   - {"seq": 8, "cmd": "run FETCH-all", "reason": "seq 6 was refused: it was read in the same batch as the queue switch, before the queue took effect", "utc": "2026-11-18T16:54:37Z"}
   - {"seq": 9, "cmd": "tail gpu_fill.log 40", "reason": "first 15 minutes: filler command learned?, full-parameter mode?, environment path", "utc": "2026-11-18T16:55:09Z"}
+  - {"seq": 10, "cmd": "tail SFT-WARM_gpu1.log 12", "reason": "first 15 minutes: filler command learned?, full-parameter mode?, environment path", "utc": "2026-11-18T16:55:19Z"}
