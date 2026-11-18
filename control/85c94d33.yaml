@@ -18,3 +18,4 @@ commands:
   - {"seq": 16, "cmd": "tail run_tasks.log 30", "reason": "flash-attn build progress; why the filler's command is not learned", "utc": "2026-11-18T17:15:06Z"}
   - {"seq": 17, "cmd": "tail gpu_fill_selftest.log 10", "reason": "flash-attn build progress; why the filler's command is not learned", "utc": "2026-11-18T17:15:13Z"}
   - {"seq": 18, "cmd": "tail run_tasks.log 60", "reason": "dispatch is on since 17:18Z and the gate has not started: what the scheduler says", "utc": "2026-11-18T17:26:38Z"}
+  - {"seq": 19, "cmd": "tail run_tasks.log 40", "reason": "after v3.13c: what happened to the filler when the gate started; restart self-test", "utc": "2026-11-18T17:52:08Z"}
