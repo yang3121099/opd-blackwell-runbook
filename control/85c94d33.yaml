@@ -11,3 +11,4 @@ commands:
   - {"seq": 9, "cmd": "tail gpu_fill.log 40", "reason": "first 15 minutes: filler command learned?, full-parameter mode?, environment path", "utc": "2026-11-18T16:55:09Z"}
   - {"seq": 10, "cmd": "tail SFT-WARM_gpu1.log 12", "reason": "first 15 minutes: filler command learned?, full-parameter mode?, environment path", "utc": "2026-11-18T16:55:19Z"}
   - {"seq": 11, "cmd": "tail overnight.log 40", "reason": "first 15 minutes: filler command learned?, full-parameter mode?, environment path", "utc": "2026-11-18T16:55:26Z"}
+  - {"seq": 12, "cmd": "ps", "reason": "is the filler loop alive, and whose process is the filler", "utc": "2026-11-18T17:01:45Z"}
