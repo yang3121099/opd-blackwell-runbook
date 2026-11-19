@@ -18,3 +18,4 @@ E12b-P0think-3k-s44 #gpus 4
 E12d-P5selfp2-8k #gpus 4
 E12b-P0think-3k-c100 #gpus 4
 E12b-P0think-3k-s44-c100 #gpus 4
+E12d-P0think-8k-c100 #gpus 4

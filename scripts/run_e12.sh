@@ -84,6 +84,10 @@ C100=""; [ "$A" = P0think-8k-c100 ] && { VAR=8k; A=P0; THINK=True; C100=1; }
 # window and its batching; the start = the published s50 (a #fetch result: line); the gate = the 3K arms' PROBE-E12B-P0THINK-3K
 C3SRC=""; case $A in P0think-3k-c100) VAR=""; A=P0; THINK=True; W4=1; W3=1; C100=1; C3SRC=E12b-P0think-3k;;
   P0think-3k-s44-c100) VAR=""; A=P0; THINK=True; W4=1; W3=1; C100=1; DSEED=44; C3SRC=E12b-P0think-3k-s44;; esac
+# [v3.17] (lab/registry/Q-112.md) E12d-P0think-8k-c100 = the 4B direct 8K arm (Q-093b) continued from its own s50 for 50 steps (s51-s100),
+# c100's way (the P0think-8k-c100 line above sets the 8K thinking recipe and C100); the start = its published s50 (a #fetch result: line);
+# the gate = the 4B thinking arm's own 4-GPU smoke, PROBE-E12D-P0THINK
+[ $T = E12d-P0think-8k-c100 ] && C3SRC=E12d-P0think-8k
 [ "$A" = P0think-6k ] && { VAR=6k; A=P0; THINK=True; }   # [z159c] (Fable 11:17 / 11:30) Q-097's released D arm: 6K, the log midpoint of 4K and 8K
 [ "$A" = P0think-7k ] && { VAR=7k; A=P0; THINK=True; }   # [z159b] W_s = 7K, paused (stage p1q097p)
 [ "$A" = P0think-12k ] && { VAR=12k; A=P0; THINK=True; }   # [z159c] (Fable 11:30) Q-096 A's 12K point (Q-097 H7), from the base
@@ -275,7 +279,7 @@ UW=$STEPS; case $T in E12b-P5-s44|E12d-P5) UW=25,50,75,$STEPS;; E12b-P5-8k|E12b-
 [ $T = E12d-P5-8k ] && UW=25,$STEPS   # [v2.5.9z60] (Q-066) as the 8K arm: s25 and s50 up
 [ $T = E12d-P5-16k ] && UW=25,$STEPS   # [v2.5.9z67] (Q-069) as the 16K arm: s25 and s50 up
 [ $T = E12d-P5-8k-s43 ] && UW=25,$STEPS   # [v2.5.9z77] (Q-071) as E12d-P5-8k: s25 and s50 up
-case $T in E12d-P5selfp2-8k|E12b-P0think-3k-c100|E12b-P0think-3k-s44-c100) UW=25,$STEPS;; esac   # [v3.15] (Q-109 / Q-110) s25 and s50 up
+case $T in E12d-P5selfp2-8k|E12b-P0think-3k-c100|E12b-P0think-3k-s44-c100|E12d-P0think-8k-c100) UW=25,$STEPS;; esac   # [v3.15] (Q-109 / Q-110) s25 and s50 up; [v3.17] (Q-112)
 [ $T = E12b-P5tail-8k ] && UW=25,$STEPS   # [v2.5.9z84a] (Q-074) as the 8K arm: s25 and s50 up
 case $T in E12b-P5tail-8k-s43|E12b-P5tail-8k-s44|E12e-P5self-8k) UW=25,$STEPS;; esac   # [v2.5.9z91] (Q-074c / Q-081) s25 and s50 up (z86: saved every 25 steps); [v2.5.9z93] s44
 case $T in E12b-P5tail-16k|E12c-P5tail-8k|E12e-P5tail-8k) UW=25,$STEPS;; esac   # [v2.5.9z92] (Q-074d / f / e) s25 and s50 up
