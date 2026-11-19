@@ -24,3 +24,4 @@ commands:
   - {"seq": 22, "cmd": "tail overnight.log 200", "reason": "run record of Q-107: where the base models came from on this node (copied / found / verified lines)", "utc": "2026-11-18T21:12:10Z"}
   - {"seq": 23, "cmd": "store", "reason": "queue finished: the flash-attn wheel built here and anything new go to the long-term store for the next machine", "utc": "2026-11-18T21:12:18Z"}
   - {"seq": 24, "cmd": "queue h2c", "reason": "Q-108 readings (OlympiadBench), registered 11-19", "utc": "2026-11-18T23:38:21Z"}
+  - {"seq": 25, "cmd": "dispatch off", "reason": "another job is on the cards: nothing of ours starts until they are clear", "utc": "2026-11-19T06:29:38Z"}
