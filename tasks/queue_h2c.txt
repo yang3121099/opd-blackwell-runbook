@@ -1,4 +1,4 @@
-# Remote-node task queue, version 2. newnode-v2, profile h2c: the borrowed 8-GPU machine after Q-107 (`queue h2c`): Q-108's OlympiadBench readings, the 4B chain (Q-109: gate, arm, readings) and the 3K arms continued to s100 (Q-110)
+# Remote-node task queue, version 2. newnode-v2, profile h2c: the borrowed 8-GPU machine after Q-107 (`queue h2c`): Q-108's OlympiadBench readings, the 4B chain (Q-109: gate, arm, readings) and the 3K arms continued to s100 (Q-110), then the 3K arms' OlympiadBench readings (Q-111)
 # Written by scripts/queue_profiles.py (lab WO-001; v3 workflow 7.2) from tasks/rows_newnode_v1.txt + its new rows: edit the
 # generator, not this file. Profiles 1g / 4g / 4g80 / 8g / 8g80 (+ the split pair 1gs / 8gs, z139); a node reads this file once the project
 # sends it `queue h2c` (control verb, v3.0; tasks/queue.txt itself opens nothing). Under 80 GB: no 4B / 8B training.
@@ -20,6 +20,7 @@ q110       open   E12b-P0think-3k-c100 E12b-P0think-3k-s44-c100
 q109z      open   EVAL-q109-d8k-4b EVAL-q109-opd-4b
 q110r      open   EVAL-q110-3k-s100:E12b-P0think-3k-c100 EVAL-q110-3k-s44-s100:E12b-P0think-3k-s44-c100 EVAL-q110-3k-s75:E12b-P0think-3k-c100 EVAL-q110-3k-s44-s75:E12b-P0think-3k-s44-c100
 q109r      open   EVAL-q109-4b-s50:E12d-P5selfp2-8k EVAL-q109-4b-s25:E12d-P5selfp2-8k
+q111       open   EVAL-q111-3k-s100:E12b-P0think-3k-c100 EVAL-q111-3k-s44-s100:E12b-P0think-3k-s44-c100 EVAL-q111-3k-s50 EVAL-q111-3k-s44-s50
 
 #gpus PROBE-E12D-P5SELFP2-8K 4
 #gpus E12d-P5selfp2-8k 4
@@ -47,6 +48,14 @@ q109r      open   EVAL-q109-4b-s50:E12d-P5selfp2-8k EVAL-q109-4b-s25:E12d-P5self
 #forced EVAL-q109-d8k-4b q109_e12d_P0think-8k_s50_h2_math500_T0.6 result:runs/E12d-P0think-8k/global_step_50/actor/huggingface think budgets=16384
 #eval EVAL-q109-opd-4b q109_e10d_P5selfp2_s50_h2_math500_T0.6 result:runs/E10d-P5selfp2/global_step_50/actor/huggingface math500 4 0.6 16384 no_think
 #forced EVAL-q109-opd-4b q109_e10d_P5selfp2_s50_h2_math500_T0.6 result:runs/E10d-P5selfp2/global_step_50/actor/huggingface no_think budgets=16384
+#eval EVAL-q111-3k-s100 q111_3k_s100_h2_olympiadbench_T0.6 result:runs/E12b-P0think-3k-c100/global_step_50/actor/huggingface olympiadbench 4 0.6 16384 think
+#forced EVAL-q111-3k-s100 q111_3k_s100_h2_olympiadbench_T0.6 result:runs/E12b-P0think-3k-c100/global_step_50/actor/huggingface think budgets=16384
+#eval EVAL-q111-3k-s44-s100 q111_3k-s44_s100_h2_olympiadbench_T0.6 result:runs/E12b-P0think-3k-s44-c100/global_step_50/actor/huggingface olympiadbench 4 0.6 16384 think
+#forced EVAL-q111-3k-s44-s100 q111_3k-s44_s100_h2_olympiadbench_T0.6 result:runs/E12b-P0think-3k-s44-c100/global_step_50/actor/huggingface think budgets=16384
+#eval EVAL-q111-3k-s50 q111_3k_s50_h2_olympiadbench_T0.6 result:runs/E12b-P0think-3k/global_step_50/actor/huggingface olympiadbench 4 0.6 16384 think
+#forced EVAL-q111-3k-s50 q111_3k_s50_h2_olympiadbench_T0.6 result:runs/E12b-P0think-3k/global_step_50/actor/huggingface think budgets=16384
+#eval EVAL-q111-3k-s44-s50 q111_3k-s44_s50_h2_olympiadbench_T0.6 result:runs/E12b-P0think-3k-s44/global_step_50/actor/huggingface olympiadbench 4 0.6 16384 think
+#forced EVAL-q111-3k-s44-s50 q111_3k-s44_s50_h2_olympiadbench_T0.6 result:runs/E12b-P0think-3k-s44/global_step_50/actor/huggingface think budgets=16384
 #eval EVAL-q110-3k-s100 q110_e12b_P0think-3k-c100_s100_h2_math500_T0.6 result:runs/E12b-P0think-3k-c100/global_step_50/actor/huggingface math500 4 0.6 16384 think
 #forced EVAL-q110-3k-s100 q110_e12b_P0think-3k-c100_s100_h2_math500_T0.6 result:runs/E12b-P0think-3k-c100/global_step_50/actor/huggingface think budgets=16384
 #eval EVAL-q110-3k-s75 q110_e12b_P0think-3k-c100_s75_h2_math500_T0.6 result:runs/E12b-P0think-3k-c100/global_step_25/actor/huggingface math500 4 0.6 16384 think

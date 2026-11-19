@@ -189,6 +189,9 @@ STAGES = {
     "q110r": ["EVAL-q110-3k-s100:E12b-P0think-3k-c100", "EVAL-q110-3k-s44-s100:E12b-P0think-3k-s44-c100",
               "EVAL-q110-3k-s75:E12b-P0think-3k-c100", "EVAL-q110-3k-s44-s75:E12b-P0think-3k-s44-c100"],
     "q109r": ["EVAL-q109-4b-s50:E12d-P5selfp2-8k", "EVAL-q109-4b-s25:E12d-P5selfp2-8k"],
+    # [v3.16] (Fable 11-19; lab/registry/Q-111.md) q111: OlympiadBench (as q108) of the two direct 3K arms at s50 and s100 (s100 = the
+    # continued arm's global_step_50), one GPU each; inference only
+    "q111": ["EVAL-q111-3k-s100:E12b-P0think-3k-c100", "EVAL-q111-3k-s44-s100:E12b-P0think-3k-s44-c100", "EVAL-q111-3k-s50", "EVAL-q111-3k-s44-s50"],
     # [z160] (Fable D105 / 10:44, lab/registry/Q-097.md T4K) E10b-P5q4kt = Q-095 A's recipe with the 4K arm s50 as the teacher; gate on one GPU, arm on 4
     "p1q097t": ["PROBE-P5Q4KT", "E10b-P5q4kt:PROBE-P5Q4KT"],
     "p1b3": ["EVAL-e12d-P5tail-8k-nn-b3", "EVAL-think16k-4Bbase-b3", "PROBE-TERM4-N4BTHB3:EVAL-think16k-4Bbase-b3",
@@ -280,7 +283,7 @@ PROFILES["1gt"] = [s for s in PROFILES["1g"] if s == "p0a" or s not in SHARE_1G]
 PROFILES["h2a"] = ["h2g", "q107", "q107r", "q107z", "q107z6"]
 PROFILES["h2b"] = ["h2gb", "q107z", "q107z6"]
 # [v3.14] h2c = the same borrowed machine on its second day (`queue h2c`): readings and arms registered after Q-107
-PROFILES["h2c"] = ["q108", "q109g", "q109", "q110", "q109z", "q110r", "q109r"]   # [v3.15] Q-109 / Q-110 behind Q-108's readings
+PROFILES["h2c"] = ["q108", "q109g", "q109", "q110", "q109z", "q110r", "q109r", "q111"]   # [v3.15] Q-109 / Q-110 behind Q-108's readings
 AUTO = {("h2a", "q107z"), ("h2a", "q107z6")}   # (profile, stage) written as `auto`, every other stage `open`
 # each stage's starts pulled ahead (#fetch, from T0 + 8 min): the source's 14 lines plus the 1.7B chain's s50, in stage order
 FETCH = {
@@ -303,6 +306,7 @@ FETCH = {
     "q109g": ["E10d-P5selfp2/global_step_50"],
     "q110": ["E12b-P0think-3k/global_step_50", "E12b-P0think-3k-s44/global_step_50"],
     "q109z": ["E12d-P0think-8k/global_step_50"],
+    "q111": ["E12b-P0think-3k/global_step_50", "E12b-P0think-3k-s44/global_step_50"],
     "q108": ["E12b-P0think-8k/global_step_50", "E12b-P0think-4k/global_step_50", "E10b-P5selfp2/global_step_50", "E12b-P5selfp2-8k/global_step_50", "E12b-P5selfp2-8k-s4343/global_step_50", "E12b-P5selfp2-8k-s4444/global_step_50", "E12b-P5selfp2-4k/global_step_50", "E12b-P5selfp2-4k-s4444/global_step_50"],
 }
 DFETCH = {   # [z158c] (Q-096 C) the multiple-choice bench's data, pulled by run_tasks' fetch_pass into $OPD_ROOT/data/hf
@@ -338,6 +342,14 @@ NEW_ROWS = """\
 #forced EVAL-q109-d8k-4b q109_e12d_P0think-8k_s50_h2_math500_T0.6 result:runs/E12d-P0think-8k/global_step_50/actor/huggingface think budgets=16384
 #eval EVAL-q109-opd-4b q109_e10d_P5selfp2_s50_h2_math500_T0.6 result:runs/E10d-P5selfp2/global_step_50/actor/huggingface math500 4 0.6 16384 no_think
 #forced EVAL-q109-opd-4b q109_e10d_P5selfp2_s50_h2_math500_T0.6 result:runs/E10d-P5selfp2/global_step_50/actor/huggingface no_think budgets=16384
+#eval EVAL-q111-3k-s100 q111_3k_s100_h2_olympiadbench_T0.6 result:runs/E12b-P0think-3k-c100/global_step_50/actor/huggingface olympiadbench 4 0.6 16384 think
+#forced EVAL-q111-3k-s100 q111_3k_s100_h2_olympiadbench_T0.6 result:runs/E12b-P0think-3k-c100/global_step_50/actor/huggingface think budgets=16384
+#eval EVAL-q111-3k-s44-s100 q111_3k-s44_s100_h2_olympiadbench_T0.6 result:runs/E12b-P0think-3k-s44-c100/global_step_50/actor/huggingface olympiadbench 4 0.6 16384 think
+#forced EVAL-q111-3k-s44-s100 q111_3k-s44_s100_h2_olympiadbench_T0.6 result:runs/E12b-P0think-3k-s44-c100/global_step_50/actor/huggingface think budgets=16384
+#eval EVAL-q111-3k-s50 q111_3k_s50_h2_olympiadbench_T0.6 result:runs/E12b-P0think-3k/global_step_50/actor/huggingface olympiadbench 4 0.6 16384 think
+#forced EVAL-q111-3k-s50 q111_3k_s50_h2_olympiadbench_T0.6 result:runs/E12b-P0think-3k/global_step_50/actor/huggingface think budgets=16384
+#eval EVAL-q111-3k-s44-s50 q111_3k-s44_s50_h2_olympiadbench_T0.6 result:runs/E12b-P0think-3k-s44/global_step_50/actor/huggingface olympiadbench 4 0.6 16384 think
+#forced EVAL-q111-3k-s44-s50 q111_3k-s44_s50_h2_olympiadbench_T0.6 result:runs/E12b-P0think-3k-s44/global_step_50/actor/huggingface think budgets=16384
 #eval EVAL-q110-3k-s100 q110_e12b_P0think-3k-c100_s100_h2_math500_T0.6 result:runs/E12b-P0think-3k-c100/global_step_50/actor/huggingface math500 4 0.6 16384 think
 #forced EVAL-q110-3k-s100 q110_e12b_P0think-3k-c100_s100_h2_math500_T0.6 result:runs/E12b-P0think-3k-c100/global_step_50/actor/huggingface think budgets=16384
 #eval EVAL-q110-3k-s75 q110_e12b_P0think-3k-c100_s75_h2_math500_T0.6 result:runs/E12b-P0think-3k-c100/global_step_25/actor/huggingface math500 4 0.6 16384 think
@@ -640,7 +652,7 @@ WHAT = {"1g": "one GPU (B200 default, profiles/140g.env), P0 in series with the 
         "1gt": "one GPU beside a 1gs node (control/queue_name = 1gt): 1g's trainings and their readings (P0-d / e / b / dr / er, Q-093, P1-a)",
         "h2a": "a borrowed 8 x H200 (profiles/h200.env, `queue h2a`): the canary, Q-107's two 3K arms on 4 GPUs each, their readings, then the 4K / 6K zero-training readings",
         "h2b": "a second borrowed 8 x H200 (`queue h2b`): the canary and the 4K / 6K zero-training readings; nothing h2a trains",
-        "h2c": "the borrowed 8-GPU machine after Q-107 (`queue h2c`): Q-108's OlympiadBench readings, the 4B chain (Q-109: gate, arm, readings) and the 3K arms continued to s100 (Q-110)"}
+        "h2c": "the borrowed 8-GPU machine after Q-107 (`queue h2c`): Q-108's OlympiadBench readings, the 4B chain (Q-109: gate, arm, readings) and the 3K arms continued to s100 (Q-110), then the 3K arms' OlympiadBench readings (Q-111)"}
 
 
 def source():
