@@ -1,0 +1,3 @@
+node: 4b185248
+commands:
+  - {"seq": 1, "cmd": "env-probe", "reason": "first look at the machine", "utc": "2026-11-20T08:40:45Z"}
