@@ -2,3 +2,4 @@ node: 4b185248
 commands:
   - {"seq": 1, "cmd": "env-probe", "reason": "first look at the machine", "utc": "2026-11-20T08:40:45Z"}
   - {"seq": 2, "cmd": "queue en2", "reason": "this node reads queue en2", "utc": "2026-11-20T08:40:55Z"}
+  - {"seq": 3, "cmd": "setenv GPU_FILL=0", "reason": "no filler on this machine", "utc": "2026-11-20T08:41:03Z"}
