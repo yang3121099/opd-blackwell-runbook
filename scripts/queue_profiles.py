@@ -197,6 +197,9 @@ STAGES = {
     "q112g": ["PROBE-E12D-P0THINK"],
     "q112": ["E12d-P0think-8k-c100:PROBE-E12D-P0THINK"],
     "q112r": ["EVAL-q112-4b-s100:E12d-P0think-8k-c100", "EVAL-q112-4b-s75:E12d-P0think-8k-c100"],
+    # [v3.19] (Fable 11-20; lab/registry/Q-112.md, second addendum) q112s: the s75 reading alone, from the continued arm's published
+    # global_step_25 (a #fetch result: line), no dependency on the arm - the arm was preempted and its newest resume state did not survive
+    "q112s": ["EVAL-q112-4b-s75"],
     # [v3.18] (Fable 11-20; lab/registry/Q-111.md and Q-112.md addenda, Q-113.md) the cloud 8 x H200 that finishes what the borrowed machine
     # left. q111b: Q-111's two s50 readings and the card-type anchor (the s100 of seed 4242 read again). q112za / q112zb: the same-machine
     # references of Q-112 (the 4B chain s50, the 4B direct 8K s50). q113: Minerva Math (272) of the base, the direct 3K arms' s100, the
@@ -298,7 +301,7 @@ PROFILES["h2b"] = ["h2gb", "q107z", "q107z6"]
 # [v3.14] h2c = the same borrowed machine on its second day (`queue h2c`): readings and arms registered after Q-107
 PROFILES["h2c"] = ["q108", "q109g", "q109", "q110", "q109z", "q110r", "q109r", "q111", "q112g", "q112", "q112r"]   # [v3.15] Q-109 / Q-110 behind Q-108's readings
 # [v3.18] en2 = a cloud 8 x H200 (`queue en2`): Q-111's s50 readings, Q-112 (gate, arm, readings, same-machine references), Q-113
-PROFILES["en2"] = ["q111b", "q112za", "q112g", "q112", "q112zb", "q113", "q112r"]
+PROFILES["en2"] = ["q111b", "q112za", "q112g", "q112zb", "q113", "q112s"]   # [v3.19] the arm (q112) and its s100 reading left the queue; s75 alone
 AUTO = {("h2a", "q107z"), ("h2a", "q107z6")}   # (profile, stage) written as `auto`, every other stage `open`
 # each stage's starts pulled ahead (#fetch, from T0 + 8 min): the source's 14 lines plus the 1.7B chain's s50, in stage order
 FETCH = {
@@ -325,6 +328,7 @@ FETCH = {
     "q112": ["E12d-P0think-8k/global_step_50"],
     "q111b": ["E12b-P0think-3k/global_step_50", "E12b-P0think-3k-s44/global_step_50", "E12b-P0think-3k-c100/global_step_50"],
     "q112za": ["E12d-P5selfp2-8k/global_step_50"],
+    "q112s": ["E12d-P0think-8k-c100/global_step_25"],
     "q113": ["E12b-P0think-3k-s44-c100/global_step_50", "E12b-P5selfp2-4k/global_step_50", "E12b-P5selfp2-4k-s4444/global_step_50", "E12b-P0think-4k/global_step_50"],
     "q108": ["E12b-P0think-8k/global_step_50", "E12b-P0think-4k/global_step_50", "E10b-P5selfp2/global_step_50", "E12b-P5selfp2-8k/global_step_50", "E12b-P5selfp2-8k-s4343/global_step_50", "E12b-P5selfp2-8k-s4444/global_step_50", "E12b-P5selfp2-4k/global_step_50", "E12b-P5selfp2-4k-s4444/global_step_50"],
 }

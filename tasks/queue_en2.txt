@@ -17,30 +17,26 @@ q111b      open   EVAL-q111-3k-s50 EVAL-q111-3k-s44-s50 EVAL-q111-3k-s100-en2
 q112za     open   EVAL-q112-chain-s50
 # q112g ~0.6 B200 GPU-h: PROBE-E12D-P0THINK 0.6
 q112g      open   PROBE-E12D-P0THINK
-q112       open   E12d-P0think-8k-c100:PROBE-E12D-P0THINK
 q112zb     open   EVAL-q112-d8k-s50:PROBE-E12D-P0THINK
 q113       open   EVAL-q113-3k-s100:PROBE-E12D-P0THINK EVAL-q113-3k-s44-s100:PROBE-E12D-P0THINK EVAL-q113-c4k:PROBE-E12D-P0THINK EVAL-q113-c4k-s4444:PROBE-E12D-P0THINK EVAL-q113-base17:PROBE-E12D-P0THINK EVAL-q113-d4k:PROBE-E12D-P0THINK
-q112r      open   EVAL-q112-4b-s100:E12d-P0think-8k-c100 EVAL-q112-4b-s75:E12d-P0think-8k-c100
+q112s      open   EVAL-q112-4b-s75
 
-#gpus E12d-P0think-8k-c100 4
 #gpus PROBE-E12D-P0THINK 4
 
 #fetch result:runs/E12b-P0think-3k/global_step_50/actor/huggingface
 #fetch result:runs/E12b-P0think-3k-s44/global_step_50/actor/huggingface
 #fetch result:runs/E12b-P0think-3k-c100/global_step_50/actor/huggingface
 #fetch result:runs/E12d-P5selfp2-8k/global_step_50/actor/huggingface
-#fetch result:runs/E12d-P0think-8k/global_step_50/actor/huggingface
 #fetch result:runs/E12b-P0think-3k-s44-c100/global_step_50/actor/huggingface
 #fetch result:runs/E12b-P5selfp2-4k/global_step_50/actor/huggingface
 #fetch result:runs/E12b-P5selfp2-4k-s4444/global_step_50/actor/huggingface
 #fetch result:runs/E12b-P0think-4k/global_step_50/actor/huggingface
+#fetch result:runs/E12d-P0think-8k-c100/global_step_25/actor/huggingface
 
 #eval EVAL-q111-3k-s50 q111_3k_s50_h2_olympiadbench_T0.6 result:runs/E12b-P0think-3k/global_step_50/actor/huggingface olympiadbench 4 0.6 16384 think
 #forced EVAL-q111-3k-s50 q111_3k_s50_h2_olympiadbench_T0.6 result:runs/E12b-P0think-3k/global_step_50/actor/huggingface think budgets=16384
 #eval EVAL-q111-3k-s44-s50 q111_3k-s44_s50_h2_olympiadbench_T0.6 result:runs/E12b-P0think-3k-s44/global_step_50/actor/huggingface olympiadbench 4 0.6 16384 think
 #forced EVAL-q111-3k-s44-s50 q111_3k-s44_s50_h2_olympiadbench_T0.6 result:runs/E12b-P0think-3k-s44/global_step_50/actor/huggingface think budgets=16384
-#eval EVAL-q112-4b-s100 q112_e12d_P0think-8k-c100_s100_h2_math500_T0.6 result:runs/E12d-P0think-8k-c100/global_step_50/actor/huggingface math500 4 0.6 16384 think
-#forced EVAL-q112-4b-s100 q112_e12d_P0think-8k-c100_s100_h2_math500_T0.6 result:runs/E12d-P0think-8k-c100/global_step_50/actor/huggingface think budgets=16384
 #eval EVAL-q112-4b-s75 q112_e12d_P0think-8k-c100_s75_h2_math500_T0.6 result:runs/E12d-P0think-8k-c100/global_step_25/actor/huggingface math500 4 0.6 16384 think
 #forced EVAL-q112-4b-s75 q112_e12d_P0think-8k-c100_s75_h2_math500_T0.6 result:runs/E12d-P0think-8k-c100/global_step_25/actor/huggingface think budgets=16384
 #eval EVAL-q111-3k-s100-en2 q111_3k_s100_en2_olympiadbench_T0.6 result:runs/E12b-P0think-3k-c100/global_step_50/actor/huggingface olympiadbench 4 0.6 16384 think
