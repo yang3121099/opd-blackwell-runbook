@@ -7,3 +7,4 @@ commands:
   - {"seq": 5, "cmd": "setup all", "reason": "install the environments", "utc": "2026-11-20T08:41:25Z"}
   - {"seq": 6, "cmd": "dispatch auto", "reason": "dispatch opens once the node is ready", "utc": "2026-11-20T08:41:34Z"}
   - {"seq": 7, "cmd": "run FETCH-all", "reason": "pull the published weights the queue reads", "utc": "2026-11-20T08:42:17Z"}
+  - {"seq": 8, "cmd": "setenv TASKS_DISK_MIN_GB=100", "reason": "a 500 GiB disk: the 300 GB line stops every start", "utc": "2026-11-20T09:52:17Z"}
