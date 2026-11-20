@@ -200,6 +200,15 @@ STAGES = {
     # [v3.19] (Fable 11-20; lab/registry/Q-112.md, second addendum) q112s: the s75 reading alone, from the continued arm's published
     # global_step_25 (a #fetch result: line), no dependency on the arm - the arm was preempted and its newest resume state did not survive
     "q112s": ["EVAL-q112-4b-s75"],
+    # [v3.20] (Fable 11-21; lab/registry/Q-112.md make-up registration, Q-114.md) a cloud 8 x H200 again. q112b: E12d-P0think-8k-c100-r75 =
+    # the continued 4B arm from its own published s75 for 25 steps (its global_step_25 = s100), 4 GPUs. q114: E12d-P5selfp2-8k-s43 = the 4B
+    # chain with the RL data.seed 43, 4 GPUs, behind the chain's own gate. q112br / q114r: the readings (MATH-500, 16K, the forced remedy,
+    # outcomes) - s100, s75 and the two same-machine references; the chain's s50 / s25 of seed 43 and the direct 8K arm's seed 43 (published).
+    # The readings that need no training wait for the 4B gate, so the gates and then the arms get the GPUs first (file order)
+    "q112b": ["E12d-P0think-8k-c100-r75:PROBE-E12D-P0THINK"],
+    "q114": ["E12d-P5selfp2-8k-s43:PROBE-E12D-P5SELFP2-8K"],
+    "q112br": ["EVAL-q112-4b-s100-en3:E12d-P0think-8k-c100-r75", "EVAL-q112-4b-s75-en3:PROBE-E12D-P0THINK", "EVAL-q112-chain-s50-en3:PROBE-E12D-P0THINK", "EVAL-q112-d8k-s50-en3:PROBE-E12D-P0THINK"],
+    "q114r": ["EVAL-q114-chain-s43-s50:E12d-P5selfp2-8k-s43", "EVAL-q114-chain-s43-s25:E12d-P5selfp2-8k-s43", "EVAL-q114-d8k-s43-s50:PROBE-E12D-P0THINK"],
     # [v3.18] (Fable 11-20; lab/registry/Q-111.md and Q-112.md addenda, Q-113.md) the cloud 8 x H200 that finishes what the borrowed machine
     # left. q111b: Q-111's two s50 readings and the card-type anchor (the s100 of seed 4242 read again). q112za / q112zb: the same-machine
     # references of Q-112 (the 4B chain s50, the 4B direct 8K s50). q113: Minerva Math (272) of the base, the direct 3K arms' s100, the
@@ -302,6 +311,8 @@ PROFILES["h2b"] = ["h2gb", "q107z", "q107z6"]
 PROFILES["h2c"] = ["q108", "q109g", "q109", "q110", "q109z", "q110r", "q109r", "q111", "q112g", "q112", "q112r"]   # [v3.15] Q-109 / Q-110 behind Q-108's readings
 # [v3.18] en2 = a cloud 8 x H200 (`queue en2`): Q-111's s50 readings, Q-112 (gate, arm, readings, same-machine references), Q-113
 PROFILES["en2"] = ["q111b", "q112za", "q112g", "q112zb", "q113", "q112s"]   # [v3.19] the arm (q112) and its s100 reading left the queue; s75 alone
+# [v3.20] en3 = a cloud 8 x H200 (`queue en3`): the two 4B gates, Q-112's make-up arm (s75 -> s100) and Q-114's chain seed 43 side by side, then their readings
+PROFILES["en3"] = ["q112g", "q109g", "q112b", "q114", "q112br", "q114r"]
 AUTO = {("h2a", "q107z"), ("h2a", "q107z6")}   # (profile, stage) written as `auto`, every other stage `open`
 # each stage's starts pulled ahead (#fetch, from T0 + 8 min): the source's 14 lines plus the 1.7B chain's s50, in stage order
 FETCH = {
@@ -329,6 +340,10 @@ FETCH = {
     "q111b": ["E12b-P0think-3k/global_step_50", "E12b-P0think-3k-s44/global_step_50", "E12b-P0think-3k-c100/global_step_50"],
     "q112za": ["E12d-P5selfp2-8k/global_step_50"],
     "q112s": ["E12d-P0think-8k-c100/global_step_25"],
+    "q112b": ["E12d-P0think-8k-c100/global_step_25"],
+    "q114": ["E10d-P5selfp2/global_step_50"],
+    "q112br": ["E12d-P5selfp2-8k/global_step_50", "E12d-P0think-8k/global_step_50"],
+    "q114r": ["E12d-P0think-8k-s43/global_step_50"],
     "q113": ["E12b-P0think-3k-s44-c100/global_step_50", "E12b-P5selfp2-4k/global_step_50", "E12b-P5selfp2-4k-s4444/global_step_50", "E12b-P0think-4k/global_step_50"],
     "q108": ["E12b-P0think-8k/global_step_50", "E12b-P0think-4k/global_step_50", "E10b-P5selfp2/global_step_50", "E12b-P5selfp2-8k/global_step_50", "E12b-P5selfp2-8k-s4343/global_step_50", "E12b-P5selfp2-8k-s4444/global_step_50", "E12b-P5selfp2-4k/global_step_50", "E12b-P5selfp2-4k-s4444/global_step_50"],
 }
@@ -378,6 +393,22 @@ NEW_ROWS = """\
 #forced EVAL-q112-4b-s100 q112_e12d_P0think-8k-c100_s100_h2_math500_T0.6 result:runs/E12d-P0think-8k-c100/global_step_50/actor/huggingface think budgets=16384
 #eval EVAL-q112-4b-s75 q112_e12d_P0think-8k-c100_s75_h2_math500_T0.6 result:runs/E12d-P0think-8k-c100/global_step_25/actor/huggingface math500 4 0.6 16384 think
 #forced EVAL-q112-4b-s75 q112_e12d_P0think-8k-c100_s75_h2_math500_T0.6 result:runs/E12d-P0think-8k-c100/global_step_25/actor/huggingface think budgets=16384
+#gpus E12d-P0think-8k-c100-r75 4
+#gpus E12d-P5selfp2-8k-s43 4
+#eval EVAL-q112-4b-s100-en3 q112_e12d_P0think-8k-c100-r75_s100_en3_math500_T0.6 result:runs/E12d-P0think-8k-c100-r75/global_step_25/actor/huggingface math500 4 0.6 16384 think
+#forced EVAL-q112-4b-s100-en3 q112_e12d_P0think-8k-c100-r75_s100_en3_math500_T0.6 result:runs/E12d-P0think-8k-c100-r75/global_step_25/actor/huggingface think budgets=16384
+#eval EVAL-q112-4b-s75-en3 q112_e12d_P0think-8k-c100_s75_en3_math500_T0.6 result:runs/E12d-P0think-8k-c100/global_step_25/actor/huggingface math500 4 0.6 16384 think
+#forced EVAL-q112-4b-s75-en3 q112_e12d_P0think-8k-c100_s75_en3_math500_T0.6 result:runs/E12d-P0think-8k-c100/global_step_25/actor/huggingface think budgets=16384
+#eval EVAL-q112-chain-s50-en3 q112_e12d_P5selfp2-8k_s50_en3_math500_T0.6 result:runs/E12d-P5selfp2-8k/global_step_50/actor/huggingface math500 4 0.6 16384 no_think
+#forced EVAL-q112-chain-s50-en3 q112_e12d_P5selfp2-8k_s50_en3_math500_T0.6 result:runs/E12d-P5selfp2-8k/global_step_50/actor/huggingface no_think budgets=16384
+#eval EVAL-q112-d8k-s50-en3 q112_e12d_P0think-8k_s50_en3_math500_T0.6 result:runs/E12d-P0think-8k/global_step_50/actor/huggingface math500 4 0.6 16384 think
+#forced EVAL-q112-d8k-s50-en3 q112_e12d_P0think-8k_s50_en3_math500_T0.6 result:runs/E12d-P0think-8k/global_step_50/actor/huggingface think budgets=16384
+#eval EVAL-q114-chain-s43-s50 q114_e12d_P5selfp2-8k-s43_s50_en3_math500_T0.6 result:runs/E12d-P5selfp2-8k-s43/global_step_50/actor/huggingface math500 4 0.6 16384 no_think
+#forced EVAL-q114-chain-s43-s50 q114_e12d_P5selfp2-8k-s43_s50_en3_math500_T0.6 result:runs/E12d-P5selfp2-8k-s43/global_step_50/actor/huggingface no_think budgets=16384
+#eval EVAL-q114-chain-s43-s25 q114_e12d_P5selfp2-8k-s43_s25_en3_math500_T0.6 result:runs/E12d-P5selfp2-8k-s43/global_step_25/actor/huggingface math500 4 0.6 16384 no_think
+#forced EVAL-q114-chain-s43-s25 q114_e12d_P5selfp2-8k-s43_s25_en3_math500_T0.6 result:runs/E12d-P5selfp2-8k-s43/global_step_25/actor/huggingface no_think budgets=16384
+#eval EVAL-q114-d8k-s43-s50 q114_e12d_P0think-8k-s43_s50_en3_math500_T0.6 result:runs/E12d-P0think-8k-s43/global_step_50/actor/huggingface math500 4 0.6 16384 think
+#forced EVAL-q114-d8k-s43-s50 q114_e12d_P0think-8k-s43_s50_en3_math500_T0.6 result:runs/E12d-P0think-8k-s43/global_step_50/actor/huggingface think budgets=16384
 #eval EVAL-q111-3k-s100-en2 q111_3k_s100_en2_olympiadbench_T0.6 result:runs/E12b-P0think-3k-c100/global_step_50/actor/huggingface olympiadbench 4 0.6 16384 think
 #forced EVAL-q111-3k-s100-en2 q111_3k_s100_en2_olympiadbench_T0.6 result:runs/E12b-P0think-3k-c100/global_step_50/actor/huggingface think budgets=16384
 #eval EVAL-q112-chain-s50 q112_e12d_P5selfp2-8k_s50_en2_math500_T0.6 result:runs/E12d-P5selfp2-8k/global_step_50/actor/huggingface math500 4 0.6 16384 no_think
@@ -699,7 +730,8 @@ WHAT = {"1g": "one GPU (B200 default, profiles/140g.env), P0 in series with the 
         "h2a": "a borrowed 8 x H200 (profiles/h200.env, `queue h2a`): the canary, Q-107's two 3K arms on 4 GPUs each, their readings, then the 4K / 6K zero-training readings",
         "h2b": "a second borrowed 8 x H200 (`queue h2b`): the canary and the 4K / 6K zero-training readings; nothing h2a trains",
         "h2c": "the borrowed 8-GPU machine after Q-107 (`queue h2c`): Q-108's OlympiadBench readings, the 4B chain (Q-109: gate, arm, readings) and the 3K arms continued to s100 (Q-110), the 3K arms' OlympiadBench readings (Q-111), then the 4B direct 8K arm continued to s100 (Q-112: gate, arm, readings)",
-        "en2": "a cloud 8 x H200 (`queue en2`): Q-111's two s50 readings with a card-type anchor, Q-112 (the 4B direct 8K arm continued to s100: gate, arm, readings, same-machine references) and Q-113's Minerva Math readings"}
+        "en2": "a cloud 8 x H200 (`queue en2`): Q-111's two s50 readings with a card-type anchor, Q-112 (the 4B direct 8K arm continued to s100: gate, arm, readings, same-machine references) and Q-113's Minerva Math readings",
+        "en3": "a cloud 8 x H200 (`queue en3`): the 4B gates, Q-112's make-up arm (the continued 4B direct 8K arm from its s75 to s100) next to Q-114's 4B chain with the RL data.seed 43, then their MATH-500 readings and the same-machine references"}
 
 
 def source():

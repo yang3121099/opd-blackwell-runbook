@@ -2134,7 +2134,7 @@ def test_newnode_v2_profiles_v259z137(env):
     assert QP.main(["--check"]) == 0, "tasks/queue_<profile>.txt is stale: run python3 scripts/queue_profiles.py"
     live = open(os.path.join(repo, "tasks", "queue.txt")).read()   # [v3.0] the default queue opens nothing (test_queue_verb.py); a node is given a profile
     assert [l for l in live.splitlines() if l.strip() and not l.startswith("#")] == ["version: 2"]
-    assert set(QP.PROFILES) == {"1g", "4g", "4g80", "8g", "8g80", "1gs", "8gs", "1gt", "h2a", "h2b"}   # [z139] + the split pair (own test); [v3.0] + the borrowed H200s (test_queue_verb.py)
+    assert set(QP.PROFILES) == {"1g", "4g", "4g80", "8g", "8g80", "1gs", "8gs", "1gt", "h2a", "h2b", "h2c", "en2", "en3"}   # [v3.20] + h2c (v3.15), en2 (v3.18), en3: the set was not updated then   # [z139] + the split pair (own test); [v3.0] + the borrowed H200s (test_queue_verb.py)
     # [11-09 21:5x the lead: self-paid GPUs, no idle] one GPU: the base-start Q-091 training right after the gates, the readings between
     order = {"1g": ["p0a", "p0d", "p0c", "p0b", "p0e", "p0dr", "p0er", "p0f", "p0g", "p0x", "pn5", "p1q", "p1a"],   # [z146] Q-093 before P1-a; [z152] N5 first
              "4g": ["p0a", "p0d", "p0e", "p0c", "p0b", "p0dr", "p0er", "p0f", "p0g", "p0x", "p1a"]}
@@ -2273,7 +2273,7 @@ def test_q093_thinking_arm_z146(env):   # [z146] (Q-093, Fable D10) the p1q stag
     assert "  PROBE-E12B-P0THINK) bash $RUNBOOK/scripts/probe_e12var.sh $G p0think;;" in task
     e12 = open(os.path.join(here, "run_e12.sh")).read()
     assert e12.count("+data.apply_chat_template_kwargs.enable_thinking=$THINK") == 1 and "enable_thinking=False" not in e12
-    assert e12.count("THINK=True") == 12 and '[ "$A" = P0think-8k ] && { VAR=8k; A=P0; THINK=True; }' in e12   # [z154] + P0think-8k-s43 (the same arm, seed 43); [z158b] + s44, 4k, 16k; [z158f] + c100
+    assert e12.count("THINK=True") == 14 and '[ "$A" = P0think-8k ] && { VAR=8k; A=P0; THINK=True; }' in e12   # [z154] + P0think-8k-s43 (the same arm, seed 43); [z158b] + s44, 4k, 16k; [z158f] + c100
     assert '[ "$A" = P0think-8k-s43 ] && { VAR=8k; A=P0; THINK=True; DSEED=43; }' in e12   # the switch: this arm only
 
 

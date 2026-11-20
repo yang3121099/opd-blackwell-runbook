@@ -66,7 +66,7 @@ case $T in
   E12b-P5-prog-up) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z43] (Q-058) the 8K recipe from E12b-P5-s44 s25 (grow the window)
   E12b-P0-8k|E12b-P5-8k-lenpen) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z136] (Q-091 / Q-090, research_program 3s) the no-distillation and the length-control 8K baselines, one GPU each; above E12b-*
   E12b-P0think-8k|E12d-P0think-8k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;
-  E12d-P0think-8k-c100) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v3.17] (Q-112) the 4B direct 8K arm continued from its own s50 to s100, #gpus 4; above E12d-*
+  E12d-P0think-8k-c100|E12d-P0think-8k-c100-r75) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v3.17] (Q-112) the 4B direct 8K arm continued from its own s50 to s100, #gpus 4; above E12d-*
   E12d-P0think-8k-s43) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [z156] (Q-093b-s43, Fable D50) Q-093b with data.seed 43 on 8 GPUs; above E12d-*
   E12e-P0think-8k|E12b-P0think-8k-s43) bash $RUNBOOK/scripts/run_e12.sh $G $T;;
   E12b-P0think-8k-s44|E12b-P0think-4k|E12b-P0think-3k|E12b-P0think-3k-s44|E12b-P0think-3k-c100|E12b-P0think-3k-s44-c100|E12b-P0think-16k|E12b-P0think-8k-c100|E12b-P0think-8k50-4k|E12b-P0think-7k|E12b-P0think-6k|E12b-P0think-12k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [z159] (Q-097) A4 / D   # [z158f] (Q-096 B)   # [z158b] (Q-093-s44, Q-096 A)   # [z154] (Q-093c / Q-093-s43, Fable D25) 8 GPUs each on 8gs   # [z149] (Q-093b) the 4B arm, #gpus 4
@@ -82,7 +82,7 @@ case $T in
   E12d-P5-16k-s43) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z84] (Q-076) the 4B 16K arm from E10d-P5-s43 s150, #gpus 4
   E12d-P5tail-16k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z95] (Q-074h, Fable's research_program 3g) the 4B method chain at the 16K window: E12d-P5-16k's recipe from E10d-P5tail s50, #gpus 4; above E12d-*
   E12d-P5tail-8k-s43) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z97] (Q-074i, Fable's research_program 3h) the 4B method chain's second seed: E12d-P5tail-8k's recipe from E10d-P5tail-s43 s50 (Q-075c), #gpus 2; above E12d-*
-  E12d-P5selfp2-8k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v3.15] (Q-109) the 4B chain: the 8K RL arm from the 4B OPD student E10d-P5selfp2 s50, #gpus 4; above E12d-*
+  E12d-P5selfp2-8k|E12d-P5selfp2-8k-s43) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v3.15] (Q-109) the 4B chain: the 8K RL arm from the 4B OPD student E10d-P5selfp2 s50, #gpus 4; above E12d-*
   E12d-P5tail-8k) bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # [v2.5.9z90] (Q-074b, Fable's pre-registration research_program 3e) the method's chain at 4B: the 8K RL arm from E10d-P5tail s50, #gpus 2; above E12d-* (z84b)
   E12d-*)  [[ $T =~ ^E12d-(P0|P5)$ ]] || exit 2; bash $RUNBOOK/scripts/run_e12.sh $G $T;;   # v2.5.7o: the 4B GRPO ladder
   E03-MI-l0.0|E03-MI-l0.3|E03-MI-l0.5|E03-MI-l0.7|E03-MI-l1.0) bash $RUNBOOK/scripts/run_zero.sh $G $T;;

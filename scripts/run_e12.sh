@@ -64,6 +64,7 @@ DSEED=4242; [ "$A" = P0think-8k-s43 ] && { VAR=8k; A=P0; THINK=True; DSEED=43; }
 # [z158b] (Fable D95 / D96: lab/registry/Q-093c.md Q-093-s44, Q-096 A) E12b-P0think-8k-s44 = Q-093 with data.seed 44; E12b-P0think-4k /
 # E12b-P0think-16k = Q-093 with the training window 4K / 16K (MAXR 4096 / 16384), seed 4242; each with its own 3-step gate
 [ "$A" = P0think-8k-s44 ] && { VAR=8k; A=P0; THINK=True; DSEED=44; }
+[ "$A" = P5selfp2-8k-s43 ] && { VAR=8k; A=P5selfp2; DSEED=43; }   # [v3.20] (lab/registry/Q-114.md) E12d-P5selfp2-8k-s43 = the 4B chain (Q-109) with the RL data.seed 43: the same student, gate, GPUs, steps
 W4=""; [ "$A" = P0think-4k ] && { VAR=""; A=P0; THINK=True; W4=1; }   # [z158g] W4: 50 steps as Q-093 (VAR "" alone kept P0's 100)
 # [v3.0] (lab/registry/Q-107.md; executor B's node diff of 11-16, run on 8 x B200: gate PASS, both arms trained) E12b-P0think-3k = the 4K arm
 # (W4: 50 steps, its batching) at the 3K window (MAXR 3072); -3k-s44 = the same with data.seed 44. One gate for both, PROBE-E12B-P0THINK-3K
@@ -73,6 +74,10 @@ W3=""; case $A in P0think-3k) VAR=""; A=P0; THINK=True; W4=1; W3=1;; P0think-3k-
 # the same recipe: weights only (Q-093 ran on one GPU, its sharded state cannot resume a 4-GPU run: Fable 02:3x), a fresh optimizer
 # (constant lr: no schedule skipped), the data from step 51 on (code/train/skip_order.py, data.seed 4242, 64 prompts a step, 50 steps
 # skipped); its global_step_25 / _50 = Q-093's s75 / s100; the start is the #fetch copy of Q-093 s50 (as Q-095's teacher)
+# [v3.20] (lab/registry/Q-112.md, the make-up registration of 11-21) E12d-P0think-8k-c100-r75 = the continued 4B arm once more from its own
+# published global_step_25 (= s75) for 25 steps (s76-s100): c100's way (weights only, a fresh optimizer, constant lr), the data from step
+# 76 on (skip_order.py, 75 steps skipped); its global_step_25 = s100. The first run was preempted and its resume state did not survive
+R75=""; [ "$A" = P0think-8k-c100-r75 ] && { A=P0think-8k-c100; R75=1; }
 C100=""; [ "$A" = P0think-8k-c100 ] && { VAR=8k; A=P0; THINK=True; C100=1; }
 # [z159] (Fable D103 / D106 / 10:51 / 11:08, lab/registry/Q-097.md) E12b-P0think-8k50-4k = Q-097 A4 (optional, not in any profile): c100's
 # continuation (Q-093 s50, weights only, a fresh optimizer, constant lr, the data from step 51 on, 50 steps) at the 4K window (MAXR 4096,
@@ -88,6 +93,7 @@ C3SRC=""; case $A in P0think-3k-c100) VAR=""; A=P0; THINK=True; W4=1; W3=1; C100
 # c100's way (the P0think-8k-c100 line above sets the 8K thinking recipe and C100); the start = its published s50 (a #fetch result: line);
 # the gate = the 4B thinking arm's own 4-GPU smoke, PROBE-E12D-P0THINK
 [ $T = E12d-P0think-8k-c100 ] && C3SRC=E12d-P0think-8k
+[ -n "$R75" ] && C3SRC=E12d-P0think-8k-c100   # [v3.20]
 [ "$A" = P0think-6k ] && { VAR=6k; A=P0; THINK=True; }   # [z159c] (Fable 11:17 / 11:30) Q-097's released D arm: 6K, the log midpoint of 4K and 8K
 [ "$A" = P0think-7k ] && { VAR=7k; A=P0; THINK=True; }   # [z159b] W_s = 7K, paused (stage p1q097p)
 [ "$A" = P0think-12k ] && { VAR=12k; A=P0; THINK=True; }   # [z159c] (Fable 11:30) Q-096 A's 12K point (Q-097 H7), from the base
@@ -110,7 +116,7 @@ if [ -n "$VAR$W4" ] && [ "${SMOKE:-0}" != 1 ]; then   # [z159] W4 too: the 4K-wi
   case $T in E12b-P0think-8k-s44|E12b-P0think-8k-c100) GATES=PROBE-E12B-P0THINK-S44;; E12b-P0think-4k) GATES=PROBE-E12B-P0THINK-4K;; E12b-P0think-3k|E12b-P0think-3k-s44|E12b-P0think-3k-c100|E12b-P0think-3k-s44-c100) GATES=PROBE-E12B-P0THINK-3K;; E12b-P0think-16k) GATES=PROBE-E12B-P0THINK-16K;;
     E12b-P0think-8k50-4k) GATES=PROBE-E12B-P0THINK-8K50-4K;; E12b-P0think-7k) GATES=PROBE-E12B-P0THINK-7K;;
     E12b-P0think-6k) GATES=PROBE-E12B-P0THINK-6K;; E12b-P0think-12k) GATES=PROBE-E12B-P0THINK-12K;; esac   # [z159c] 6K / 12K;   # [z159]   # [z158b] their own smokes
-  [ $T = E12d-P5selfp2-8k ] && GATES=PROBE-E12D-P5SELFP2-8K   # [v3.15] (Q-109) its own 4-GPU smoke
+  case $T in E12d-P5selfp2-8k|E12d-P5selfp2-8k-s43) GATES=PROBE-E12D-P5SELFP2-8K;; esac   # [v3.15] (Q-109) its own 4-GPU smoke
   [ $T = E12d-P0think-8k-s43 ] && GATES=PROBE-E12D-P0THINK-8G   # [z156] (Q-093b-s43, Fable D50) the 4B mirror: its own 8-GPU smoke (Q-093b's gate passed on 4 x B200)
   for P in $GATES; do grep -q '"result": "PASS"' $OPD_ROOT/runs/$P/report.json 2> /dev/null || { echo "$P has not passed: $T$NN not started"; exit 3; }; done
 fi
@@ -145,6 +151,7 @@ fi
 TRAINF=$OPD_ROOT/data/dapo_train.parquet; [ -n "$PROG" ] && TRAINF=$OPD_ROOT/data/dapo_train_skip1600_s4242.parquet
 [ -n "$CONT" ] && TRAINF=$OPD_ROOT/data/dapo_train_skip1600_s4242.parquet   # [v2.5.9z129] built below when missing (after the venv)
 [ -n "$C100" ] && TRAINF=$OPD_ROOT/data/dapo_train_skip3200_s$DSEED.parquet   # [z158f] 50 steps x 64 prompts skipped; built below when missing
+[ -n "$R75" ] && TRAINF=$OPD_ROOT/data/dapo_train_skip4800_s$DSEED.parquet   # [v3.20] 75 steps x 64 prompts skipped
 # [v2.5.8a] an E12c task starts only after PROBE-E12C passed (the smoke itself is exempt). [v2.5.9z122] (H800 11-01 15:11Z: the
 # 4K base smoke ran out of memory on one 80 GB GPU, and Q-074f sat blocked behind it) the base ladder (E12c-P0 / -P5) only: a window
 # variant (VAR set: E12c-P5-8k / -16k, E12c-P5tail-8k) is gated by its own PROBE-E12C-<VAR> and PROBE-E12B-<VAR> above, on this node
@@ -163,11 +170,12 @@ case $A in
 esac
 if [ -n "$C100" ]; then   # [z158f] Q-093 s50 from the #fetch (the dry-run's adhoc_fetch form when it is not in)
   CS=E12b-P0think-8k; CL="Q-093 s50"; [ -n "$C3SRC" ] && { CS=$C3SRC; CL="$C3SRC s50"; }   # [v3.15] (Q-110) the 3K arms' own s50
-  START=$CKPT_ROOT/adhoc_models/result/runs/$CS/global_step_50/actor/huggingface; SRUN=$CS; SS=50
-  [ "${SMOKE:-0}" = 1 ] || [ -f $START/.fetch_ok ] || { echo "WAIT_INPUTS $T: start needs $CL (no local copy, no adhoc_models/result/runs/$CS/global_step_50/actor/huggingface/.fetch_ok)"; exit 1; }
+  CSS=50; [ -n "$R75" ] && { CSS=25; CL="$C3SRC global_step_25"; }   # [v3.20] r75 starts from the continued arm's step 25 (= s75)
+  START=$CKPT_ROOT/adhoc_models/result/runs/$CS/global_step_$CSS/actor/huggingface; SRUN=$CS; SS=$CSS
+  [ "${SMOKE:-0}" = 1 ] || [ -f $START/.fetch_ok ] || { echo "WAIT_INPUTS $T: start needs $CL (no local copy, no adhoc_models/result/runs/$CS/global_step_$CSS/actor/huggingface/.fetch_ok)"; exit 1; }
 fi
 # [v3.15] (Q-109) the 4B chain starts from the published OPD student (its #fetch copy); a smoke or a dry run without it: the fallback below
-if [ $T = E12d-P5selfp2-8k ]; then START=$CKPT_ROOT/adhoc_models/result/runs/E10d-P5selfp2/global_step_50/actor/huggingface
+if [ $T = E12d-P5selfp2-8k ] || [ $T = E12d-P5selfp2-8k-s43 ]; then START=$CKPT_ROOT/adhoc_models/result/runs/E10d-P5selfp2/global_step_50/actor/huggingface
   [ "${DRYRUN:-0}" = 1 ] || [ "${SMOKE:-0}" = 1 ] || [ -f $START/.fetch_ok ] || { echo "WAIT_INPUTS $T: start needs E10d-P5selfp2 s50 (no local copy, no adhoc_models/result/runs/E10d-P5selfp2/global_step_50/actor/huggingface/.fetch_ok)"; exit 1; }
 fi
 # v2.5.7: a start on the container disk that a rebuild removed comes from the copy that survived: P1 from
@@ -185,6 +193,7 @@ case $VAR in 6k|7k|8k|12k|16k|16k-kl) STEPS=${E12B_LONG_STEPS:-50};; r3) STEPS=$
 [ -n "$PROG" ] && STEPS=${PROG_STEPS:-25}   # [v2.5.9z43] 25 more steps (total s50)
 [ -n "$CONT" ] && STEPS=25   # [v2.5.9z129] s26-s50 of E12e-P5tail-8k
 [ -n "$C100" ] && STEPS=50   # [z158f] s51-s100 of Q-093
+[ -n "$R75" ] && STEPS=25   # [v3.20] s76-s100
 [ -n "$W4" ] && STEPS=${E12B_LONG_STEPS:-50}   # [z158g] (Q-096 A: 50 steps, as Q-093; the 4K smoke's config named steps: 100)
 hf_backoff() { local s; s=$(python3 $RUNBOOK/scripts/remote.py backoff 2> /dev/null); [ "${s:-0}" -gt 0 ] 2> /dev/null; }   # [v2.5.9z52] the 429 backoff lasts
 [ $A = P0 ] || has_weights $START || ! hf_backoff || { echo "WAIT_INPUTS $T$NN: start checkpoint not in (the HF 429 backoff lasts)"; exit 1; }   # [v2.5.9z52] waiting, no attempt
@@ -208,6 +217,10 @@ source $V/bin/activate
 if [ -n "$CONT" ] && [ ! -s $TRAINF ] && [ "${DRYRUN:-0}" != 1 ]; then
   python $RUNBOOK/code/train/skip_order.py build --train $OPD_ROOT/data/dapo_train.parquet --tokenizer $STUDENT_17B --out $TRAINF --skip_steps 25 \
     || { echo "CONT_DATA_FAILED $T$NN: skip_order.py build"; exit 1; }
+fi
+if [ -n "$R75" ] && [ ! -s $TRAINF ] && [ "${DRYRUN:-0}" != 1 ]; then   # [v3.20] (Q-112 make-up) the same build, 75 steps skipped; the c100 block below then finds the file
+  python $RUNBOOK/code/train/skip_order.py build --train $OPD_ROOT/data/dapo_train.parquet --tokenizer $STUDENT_17B --out $TRAINF --skip_steps 75 --seed $DSEED \
+    || { echo "CONT_DATA_FAILED $T: skip_order.py build"; exit 1; }
 fi
 if [ -n "$C100" ] && [ ! -s $TRAINF ] && [ "${DRYRUN:-0}" != 1 ]; then   # [z158f] the same build, 50 steps skipped; [z159] in a smoke too (A4's gate smokes the arm itself)
   python $RUNBOOK/code/train/skip_order.py build --train $OPD_ROOT/data/dapo_train.parquet --tokenizer $STUDENT_17B --out $TRAINF --skip_steps 50 --seed $DSEED \
@@ -279,7 +292,7 @@ UW=$STEPS; case $T in E12b-P5-s44|E12d-P5) UW=25,50,75,$STEPS;; E12b-P5-8k|E12b-
 [ $T = E12d-P5-8k ] && UW=25,$STEPS   # [v2.5.9z60] (Q-066) as the 8K arm: s25 and s50 up
 [ $T = E12d-P5-16k ] && UW=25,$STEPS   # [v2.5.9z67] (Q-069) as the 16K arm: s25 and s50 up
 [ $T = E12d-P5-8k-s43 ] && UW=25,$STEPS   # [v2.5.9z77] (Q-071) as E12d-P5-8k: s25 and s50 up
-case $T in E12d-P5selfp2-8k|E12b-P0think-3k-c100|E12b-P0think-3k-s44-c100|E12d-P0think-8k-c100) UW=25,$STEPS;; esac   # [v3.15] (Q-109 / Q-110) s25 and s50 up; [v3.17] (Q-112)
+case $T in E12d-P5selfp2-8k|E12d-P5selfp2-8k-s43|E12b-P0think-3k-c100|E12b-P0think-3k-s44-c100|E12d-P0think-8k-c100) UW=25,$STEPS;; esac   # [v3.15] (Q-109 / Q-110) s25 and s50 up; [v3.17] (Q-112)
 [ $T = E12b-P5tail-8k ] && UW=25,$STEPS   # [v2.5.9z84a] (Q-074) as the 8K arm: s25 and s50 up
 case $T in E12b-P5tail-8k-s43|E12b-P5tail-8k-s44|E12e-P5self-8k) UW=25,$STEPS;; esac   # [v2.5.9z91] (Q-074c / Q-081) s25 and s50 up (z86: saved every 25 steps); [v2.5.9z93] s44
 case $T in E12b-P5tail-16k|E12c-P5tail-8k|E12e-P5tail-8k) UW=25,$STEPS;; esac   # [v2.5.9z92] (Q-074d / f / e) s25 and s50 up
@@ -315,6 +328,7 @@ KL="actor_rollout_ref.actor.use_kl_loss=False"; REWARD=$RUNBOOK/code/train/rewar
 export OPD_VARDROP= OPD_VARDROP_LOG=; [ "$VAR" = r3 ] && export OPD_VARDROP=1 OPD_VARDROP_K=${R3_KEEP_GROUPS:-64} OPD_VARDROP_LOG=$OUT/vardrop.jsonl OPD_SEED=${OPD_SEED:-1234}
 [ "${DRYRUN:-0}" = 1 ] && [ "$VAR" = r3 ] && echo "DRYRUN_R3 adv=$ADV tbs=$TBS vardrop=$OPD_VARDROP k=$OPD_VARDROP_K log=$(basename $OPD_VARDROP_LOG) seed=$OPD_SEED"   # tests
 [ -n "$PROG" ] && ! grep -q "^continues:" $OUT/config.yaml && echo "continues: $SRUN s$SS for $STEPS steps (weights, a fresh optimizer); data from the parents' step $((SS + 1)) on ($(basename $TRAINF))" >> $OUT/config.yaml   # [v2.5.9z43]
+[ -n "$R75" ] && ! grep -q "^continues:" $OUT/config.yaml && echo "continues: $C3SRC global_step_25 (= s75) for $STEPS steps (weights only, a fresh optimizer, constant lr; its global_step_25 = s100); data from step 76 on ($(basename $TRAINF), data.seed $DSEED, built on this node)" >> $OUT/config.yaml   # [v3.20] (Q-112)
 [ -n "$C3SRC" ] && ! grep -q "^continues:" $OUT/config.yaml && echo "continues: $C3SRC s50 for $STEPS steps (weights only, a fresh optimizer, constant lr; its global_step_25 / _50 = that arm's s75 / s100); data from step 51 on ($(basename $TRAINF), data.seed $DSEED, built on this node)" >> $OUT/config.yaml   # [v3.15] (Q-110)
 [ -n "$C100" ] && ! grep -q "^continues:" $OUT/config.yaml && echo "continues: E12b-P0think-8k s50 for $STEPS steps (weights only: Q-093 ran on one GPU, its sharded state cannot resume this run; a fresh optimizer, constant lr; its global_step_25 / _50 = Q-093's s75 / s100); data from step 51 on ($(basename $TRAINF), built on this node)" >> $OUT/config.yaml   # [z158f]
 [ "${DRYRUN:-0}" = 1 ] && [ -n "$C100" ] && echo "DRYRUN_C100 start=$START steps=$STEPS train=$(basename $TRAINF) uw=$UW"   # [z158f] tests
