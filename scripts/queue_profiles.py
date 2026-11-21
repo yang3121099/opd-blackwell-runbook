@@ -207,8 +207,12 @@ STAGES = {
     # The readings that need no training wait for the 4B gate, so the gates and then the arms get the GPUs first (file order)
     "q112b": ["E12d-P0think-8k-c100-r75:PROBE-E12D-P0THINK"],
     "q114": ["E12d-P5selfp2-8k-s43:PROBE-E12D-P5SELFP2-8K"],
-    "q112br": ["EVAL-q112-4b-s100-en3:E12d-P0think-8k-c100-r75", "EVAL-q112-4b-s75-en3:PROBE-E12D-P0THINK", "EVAL-q112-chain-s50-en3:PROBE-E12D-P0THINK", "EVAL-q112-d8k-s50-en3:PROBE-E12D-P0THINK"],
-    "q114r": ["EVAL-q114-chain-s43-s50:E12d-P5selfp2-8k-s43", "EVAL-q114-chain-s43-s25:E12d-P5selfp2-8k-s43", "EVAL-q114-d8k-s43-s50:PROBE-E12D-P0THINK"],
+    # [v3.21] (Fable 11-21 14:4x; the registry's run-mode notes) readings first: the spot machine of the morning was taken back three times
+    # within two hours. q112bz = the four readings that need no training (one GPU, ~25 min each), no dependency, first in the profile;
+    # the thinking gate and Q-112's arm next, then the chain's gate and arm on the GPUs the readings free
+    "q112bz": ["EVAL-q112-4b-s75-en3", "EVAL-q112-chain-s50-en3", "EVAL-q112-d8k-s50-en3", "EVAL-q114-d8k-s43-s50"],
+    "q112br": ["EVAL-q112-4b-s100-en3:E12d-P0think-8k-c100-r75"],
+    "q114r": ["EVAL-q114-chain-s43-s50:E12d-P5selfp2-8k-s43", "EVAL-q114-chain-s43-s25:E12d-P5selfp2-8k-s43"],
     # [v3.18] (Fable 11-20; lab/registry/Q-111.md and Q-112.md addenda, Q-113.md) the cloud 8 x H200 that finishes what the borrowed machine
     # left. q111b: Q-111's two s50 readings and the card-type anchor (the s100 of seed 4242 read again). q112za / q112zb: the same-machine
     # references of Q-112 (the 4B chain s50, the 4B direct 8K s50). q113: Minerva Math (272) of the base, the direct 3K arms' s100, the
@@ -312,7 +316,7 @@ PROFILES["h2c"] = ["q108", "q109g", "q109", "q110", "q109z", "q110r", "q109r", "
 # [v3.18] en2 = a cloud 8 x H200 (`queue en2`): Q-111's s50 readings, Q-112 (gate, arm, readings, same-machine references), Q-113
 PROFILES["en2"] = ["q111b", "q112za", "q112g", "q112zb", "q113", "q112s"]   # [v3.19] the arm (q112) and its s100 reading left the queue; s75 alone
 # [v3.20] en3 = a cloud 8 x H200 (`queue en3`): the two 4B gates, Q-112's make-up arm (s75 -> s100) and Q-114's chain seed 43 side by side, then their readings
-PROFILES["en3"] = ["q112g", "q109g", "q112b", "q114", "q112br", "q114r"]
+PROFILES["en3"] = ["q112bz", "q112g", "q112b", "q109g", "q114", "q112br", "q114r"]   # [v3.21] readings first
 AUTO = {("h2a", "q107z"), ("h2a", "q107z6")}   # (profile, stage) written as `auto`, every other stage `open`
 # each stage's starts pulled ahead (#fetch, from T0 + 8 min): the source's 14 lines plus the 1.7B chain's s50, in stage order
 FETCH = {
@@ -342,8 +346,7 @@ FETCH = {
     "q112s": ["E12d-P0think-8k-c100/global_step_25"],
     "q112b": ["E12d-P0think-8k-c100/global_step_25"],
     "q114": ["E10d-P5selfp2/global_step_50"],
-    "q112br": ["E12d-P5selfp2-8k/global_step_50", "E12d-P0think-8k/global_step_50"],
-    "q114r": ["E12d-P0think-8k-s43/global_step_50"],
+    "q112bz": ["E12d-P0think-8k-c100/global_step_25", "E12d-P5selfp2-8k/global_step_50", "E12d-P0think-8k/global_step_50", "E12d-P0think-8k-s43/global_step_50"],
     "q113": ["E12b-P0think-3k-s44-c100/global_step_50", "E12b-P5selfp2-4k/global_step_50", "E12b-P5selfp2-4k-s4444/global_step_50", "E12b-P0think-4k/global_step_50"],
     "q108": ["E12b-P0think-8k/global_step_50", "E12b-P0think-4k/global_step_50", "E10b-P5selfp2/global_step_50", "E12b-P5selfp2-8k/global_step_50", "E12b-P5selfp2-8k-s4343/global_step_50", "E12b-P5selfp2-8k-s4444/global_step_50", "E12b-P5selfp2-4k/global_step_50", "E12b-P5selfp2-4k-s4444/global_step_50"],
 }

@@ -13,24 +13,25 @@
 # -nn names (Fable 11-03): the lost H800 may still upload under the old names; before T0 the executor checks -pub once: an original's
 # s50 .done already there -> pause the -nn row and point its readings back at the original (a one-word diff, pre-approved).
 version: 2
+q112bz     open   EVAL-q112-4b-s75-en3 EVAL-q112-chain-s50-en3 EVAL-q112-d8k-s50-en3 EVAL-q114-d8k-s43-s50
 # q112g ~0.6 B200 GPU-h: PROBE-E12D-P0THINK 0.6
 q112g      open   PROBE-E12D-P0THINK
-q109g      open   PROBE-E12D-P5SELFP2-8K
 q112b      open   E12d-P0think-8k-c100-r75:PROBE-E12D-P0THINK
+q109g      open   PROBE-E12D-P5SELFP2-8K
 q114       open   E12d-P5selfp2-8k-s43:PROBE-E12D-P5SELFP2-8K
-q112br     open   EVAL-q112-4b-s100-en3:E12d-P0think-8k-c100-r75 EVAL-q112-4b-s75-en3:PROBE-E12D-P0THINK EVAL-q112-chain-s50-en3:PROBE-E12D-P0THINK EVAL-q112-d8k-s50-en3:PROBE-E12D-P0THINK
-q114r      open   EVAL-q114-chain-s43-s50:E12d-P5selfp2-8k-s43 EVAL-q114-chain-s43-s25:E12d-P5selfp2-8k-s43 EVAL-q114-d8k-s43-s50:PROBE-E12D-P0THINK
+q112br     open   EVAL-q112-4b-s100-en3:E12d-P0think-8k-c100-r75
+q114r      open   EVAL-q114-chain-s43-s50:E12d-P5selfp2-8k-s43 EVAL-q114-chain-s43-s25:E12d-P5selfp2-8k-s43
 
 #gpus PROBE-E12D-P5SELFP2-8K 4
 #gpus E12d-P0think-8k-c100-r75 4
 #gpus E12d-P5selfp2-8k-s43 4
 #gpus PROBE-E12D-P0THINK 4
 
-#fetch result:runs/E10d-P5selfp2/global_step_50/actor/huggingface
 #fetch result:runs/E12d-P0think-8k-c100/global_step_25/actor/huggingface
 #fetch result:runs/E12d-P5selfp2-8k/global_step_50/actor/huggingface
 #fetch result:runs/E12d-P0think-8k/global_step_50/actor/huggingface
 #fetch result:runs/E12d-P0think-8k-s43/global_step_50/actor/huggingface
+#fetch result:runs/E10d-P5selfp2/global_step_50/actor/huggingface
 
 #eval EVAL-q112-4b-s100-en3 q112_e12d_P0think-8k-c100-r75_s100_en3_math500_T0.6 result:runs/E12d-P0think-8k-c100-r75/global_step_25/actor/huggingface math500 4 0.6 16384 think
 #forced EVAL-q112-4b-s100-en3 q112_e12d_P0think-8k-c100-r75_s100_en3_math500_T0.6 result:runs/E12d-P0think-8k-c100-r75/global_step_25/actor/huggingface think budgets=16384

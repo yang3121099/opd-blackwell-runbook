@@ -283,6 +283,7 @@ SAVE_SET=${SAVE:-}   # [z155] SAVE from control.env / the environment: an explic
 if [ "${SPOT:-0}" = 1 ]; then CONTENTS="['model','optimizer','extra','hf_model']"; SAVE=${SAVE:-20}
 elif dr_on; then CONTENTS="['model','optimizer','extra','hf_model']"; SAVE=${SAVE:-${DR_EVERY:-25}}   # v2.5.7: resume state for dr_sync.sh
 else CONTENTS="['hf_model']"; SAVE=${SAVE:-$STEPS}; fi
+[ -n "$R75" ] && [ -n "${R75_SAVE:-}" ] && [[ $CONTENTS == *optimizer* ]] && SAVE=$R75_SAVE   # [v3.21] (Q-112 make-up on a spot machine) a denser resume state for this arm alone (control.env R75_SAVE=<n>); its last step is saved anyway
 VALB=True; TESTF=25; [ $SM = 1 ] && { STEPS=${SMOKE_STEPS:-3}; SAVE=-1; VALB=False; TESTF=-1; }
 # v2.5.7u (reviewer ruling 07:5x UTC, readings budA-p5s44rl): E12b-P5-s44's mid-RL steps 25 / 50 / 75 are registered
 # readings (where does P5 -> RL lose the 32K ceiling), so they are uploaded as bf16 like the last step; until now
