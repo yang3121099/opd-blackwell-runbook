@@ -6,3 +6,4 @@ commands:
   - {"seq": 4, "cmd": "setenv STATUS_PUT_S=120", "reason": "status every two minutes on this node", "utc": "2026-11-21T00:40:00Z"}
   - {"seq": 5, "cmd": "setup all", "reason": "install the environments", "utc": "2026-11-21T00:40:09Z"}
   - {"seq": 6, "cmd": "dispatch auto", "reason": "dispatch opens once the node is ready", "utc": "2026-11-21T00:40:18Z"}
+  - {"seq": 7, "cmd": "run FETCH-all", "reason": "pull the published weights the queue reads", "utc": "2026-11-21T00:41:16Z"}
