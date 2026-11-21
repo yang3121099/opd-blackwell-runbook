@@ -4,3 +4,4 @@ commands:
   - {"seq": 2, "cmd": "queue en3", "reason": "this node reads queue en3", "utc": "2026-11-21T00:39:43Z"}
   - {"seq": 3, "cmd": "setenv GPU_FILL=0", "reason": "no filler on this machine", "utc": "2026-11-21T00:39:52Z"}
   - {"seq": 4, "cmd": "setenv STATUS_PUT_S=120", "reason": "status every two minutes on this node", "utc": "2026-11-21T00:40:00Z"}
+  - {"seq": 5, "cmd": "setup all", "reason": "install the environments", "utc": "2026-11-21T00:40:09Z"}
