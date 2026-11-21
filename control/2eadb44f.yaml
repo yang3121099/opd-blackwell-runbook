@@ -2,3 +2,4 @@ node: 2eadb44f
 commands:
   - {"seq": 1, "cmd": "env-probe", "reason": "spot H200 run 11-21 night: readings first, then the registered arms", "utc": "2026-11-21T15:30:22Z"}
   - {"seq": 2, "cmd": "queue en3", "reason": "spot H200 run 11-21 night: readings first, then the registered arms", "utc": "2026-11-21T15:30:31Z"}
+  - {"seq": 3, "cmd": "setenv GPU_FILL=0", "reason": "spot H200 run 11-21 night: readings first, then the registered arms", "utc": "2026-11-21T15:30:40Z"}
