@@ -4,3 +4,4 @@ commands:
   - {"seq": 2, "cmd": "queue en3", "reason": "spot H200 run 11-22 evening: the two registered arms, readings after", "utc": "2026-11-22T11:40:25Z"}
   - {"seq": 3, "cmd": "setenv GPU_FILL=0", "reason": "spot H200 run 11-22 evening: the two registered arms, readings after", "utc": "2026-11-22T11:40:33Z"}
   - {"seq": 4, "cmd": "setenv STATUS_PUT_S=120", "reason": "spot H200 run 11-22 evening: the two registered arms, readings after", "utc": "2026-11-22T11:40:41Z"}
+  - {"seq": 5, "cmd": "setup all", "reason": "spot H200 run 11-22 evening: the two registered arms, readings after", "utc": "2026-11-22T11:40:50Z"}
