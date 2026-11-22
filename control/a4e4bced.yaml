@@ -6,3 +6,4 @@ commands:
   - {"seq": 4, "cmd": "setenv STATUS_PUT_S=120", "reason": "spot H200 run 11-22 evening: the two registered arms, readings after", "utc": "2026-11-22T11:40:41Z"}
   - {"seq": 5, "cmd": "setup all", "reason": "spot H200 run 11-22 evening: the two registered arms, readings after", "utc": "2026-11-22T11:40:50Z"}
   - {"seq": 6, "cmd": "dispatch auto", "reason": "spot H200 run 11-22 evening: the two registered arms, readings after", "utc": "2026-11-22T11:40:58Z"}
+  - {"seq": 7, "cmd": "run FETCH-all", "reason": "weights for the en3 queue", "utc": "2026-11-22T11:42:12Z"}
